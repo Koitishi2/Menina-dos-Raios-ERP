@@ -1,0 +1,3150 @@
+================================================================
+  Menina dos Raios — Changelog do Sistema
+  Local de trabalho:  C:\Menina dos Raios\bm_app
+  Servidor (produção): sistema.meninadosraios.com.br
+                       Hostinger VPS (2.24.124.76)
+                       Serviço systemd: menina
+                       Deploy: ATUALIZAR.bat (scp + systemctl restart)
+  Convenção: entradas novas vão NO TOPO (ordem cronológica reversa).
+             Cada alteração com versão única (ex: 1.0.8, 1.0.9…).
+=================================================================
+v1.0.137 - [2026-07-25] - Botoes da aba Notas APP corrigidos
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Os botoes Ver, Recibo, Editar, Concluir e Remover da aba Notas APP
+          apareciam, mas alguns cliques eram bloqueados pelo filtro de
+          seguranca aplicado ao innerHTML.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.137.
+  - Acoes das Notas APP passaram a usar data-app-note-action com listener
+    delegado, em vez de depender de onclick dentro de HTML renderizado.
+  - Corrigidos os cliques de Ver, Recibo, Editar, Concluir/Voltar e Remover.
+  - Mantida a protecao contra XSS sem precisar relaxar a lista segura de
+    handlers inline.
+
+v1.0.136 - [2026-07-23] - Permissoes finas nas sub-abas de Configuracoes
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   O perfil Editor ainda visualizava sub-abas de Configuracoes nao
+          liberadas, mesmo quando a matriz marcava apenas Precos e Verificar NF.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.136.
+  - Sub-abas de Configuracoes agora respeitam as permissoes cfg_* do perfil.
+  - Botoes nao permitidos sao ocultados e desabilitados.
+  - switchConfigView impede abertura de sub-aba nao autorizada por clique ou
+    chamada direta.
+  - applyCompanyConfigUI reaplica as permissoes para evitar que a troca de
+    empresa reexiba botoes bloqueados.
+
+v1.0.135 - [2026-07-23] - Verificar NF tambem para Produtor Rural
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   A tela Verificar NF validava apenas o PDF do Sebrae. Era preciso
+          conferir tambem o relatorio de emissoes do Produtor Rural.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.135.
+  - Tela Verificar NF ganhou seletor de origem: Sebrae ou Produtor Rural.
+  - Backend agora aceita source=produtor_rural na rota /api/sebrae/verify-nf.
+  - Parser do Produtor Rural extrai data, numero do documento e valor do PDF
+    Relatorio de Emissoes.
+  - Comparacao do Produtor Rural usa apenas vendas do tipo PR no banco da
+    empresa ativa.
+  - Envio da verificacao agora inclui x-company via apiHeaders para respeitar
+    Menina dos Raios e Menina da Estrada separadamente.
+
+v1.0.134 - [2026-07-18] - Quebra de linha no cabecalho do relatorio mensal
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   O cabecalho do PDF do relatorio mensal mostrava "\n" como texto
+          em vez de quebrar linha.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.134.
+  - Dados da empresa no PDF agora usam quebra de linha real.
+
+v1.0.133 - [2026-07-18] - Cabecalho institucional no relatorio mensal
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   O PDF do relatorio mensal de vendas precisava sair com logo e
+          dados da empresa, no mesmo padrao usado em Orcamentos.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.133.
+  - PDF do relatorio mensal agora usa logo de impressao da empresa ativa.
+  - Cabecalho inclui nome fantasia, razao social, CNPJ, endereco, email e
+    WhatsApp.
+  - Cores do relatorio respeitam a empresa ativa.
+
+v1.0.132 - [2026-07-18] - Seletor de produto na analise de produtos
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   A busca da tela de Analise de Produtos exigia digitar o nome,
+          enquanto antes o usuario conseguia escolher o produto da lista.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.132.
+  - Adicionado seletor com os nomes reais dos produtos encontrados.
+  - Ao escolher um produto, a analise passa a mostrar somente ele.
+  - Botoes Selecionar todos e Limpar continuam preservados.
+
+v1.0.131 - [2026-07-18] - PDF do relatorio mensal com feedback no modal
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   O botao PDF do modal de relatorio mensal podia parecer sem acao
+          quando a biblioteca PDF nao carregava ou quando ocorria erro.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.131.
+  - PDF usa o mesmo listener delegado do modal.
+  - Erros do PDF aparecem dentro do modal e tambem no toast.
+  - Botao PDF mostra "Gerando..." enquanto processa e volta ao estado normal.
+
+v1.0.130 - [2026-07-18] - Botao Visualizar do relatorio mensal de vendas
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   No modal "Relatorio mensal de vendas", o botao Visualizar podia
+          nao responder por depender de onclick dentro de HTML dinamico.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.130.
+  - Botoes Visualizar, PDF e Cancelar do modal passaram a usar
+    data-client-report-action.
+  - Listener global trata as acoes do modal de forma delegada e estavel.
+  - Funcoes do relatorio mensal foram adicionadas a lista segura de handlers.
+
+v1.0.129 - [2026-07-18] - Backup .zip multi-banco mais claro na tela
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   Evitar confusao quando backups antigos .db aparecem junto dos
+          backups novos .zip.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.129.
+  - Status do backup mostra "Proximo .zip inclui" com os bancos que entram
+    no pacote atual.
+  - Endpoint /api/admin/backup-status retorna expected_databases com o nome
+    de cada banco esperado e se ele existe no servidor.
+  - Lista de backups diferencia "Pacote .zip multi-banco" de "Legado .db".
+  - Toast de backup criado mostra os bancos incluidos sem caractere quebrado.
+
+v1.0.128 - [2026-07-18] - Backup identificado como pacote ZIP multi-banco
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   A tela de Backup podia dar a impress?o de que o backup novo havia
+          voltado a ser um arquivo .db ?nico, embora o backend continuasse
+          criando pacote .zip com os bancos registrados.
+
+Mudan?as:
+  - APP_VERSION atualizado para 1.0.128.
+  - Tela de Backup agora informa claramente que backups novos s?o pacotes
+    .zip multi-banco.
+  - Texto de restaura??o diferencia pacote .zip atual de arquivo .db antigo
+    aceito apenas por compatibilidade.
+  - Endpoint de cria??o de backup retorna kind e included_databases, permitindo
+    confirmar na interface quais bancos entraram no pacote.
+
+v1.0.127 - [2026-07-18] - Backup reorganizado e bot?es din?micos blindados
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Na aba Backup, os bot?es Baixar, Remover e Restaurar n?o
+          respondiam porque a lista era renderizada com onclick inline.
+          A tela ainda aparecia como Import/Export e mantinha a ?rea de
+          importar Excel, que n?o deveria mais ficar dispon?vel.
+
+Mudan?as:
+  - APP_VERSION atualizado para 1.0.127.
+  - Sub-aba Import/Export renomeada visualmente para Backup.
+  - Removida da interface a fun??o de importar Excel.
+  - Layout de Backup reorganizado com status, a??es, exporta??o Excel,
+    restaura??o por arquivo e lista de backups.
+  - Bot?es Restaurar/Baixar/Remover da lista passaram a usar
+    data-backup-action e listener delegado.
+  - Exclus?o de backup agora codifica o nome do arquivo na URL.
+  - Criada camada restrita para preservar handlers din?micos conhecidos
+    como data-safe-click/data-safe-input/data-safe-change, evitando novos
+    bot?es mudos em listas renderizadas por innerHTML.
+
+v1.0.126 - [2026-07-18] - Corre??o de notas duplicadas na aba Notas
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   A aba Notas exibia uma linha por produto da mesma NF, repetindo
+          a mesma nota quando a venda tinha mais de um item.
+
+Mudan?as:
+  - APP_VERSION atualizado para 1.0.126.
+  - Criado agrupamento central por cliente, data e n?mero da NF.
+  - Listas Pendentes, Entregues e N?o Entregue agora mostram uma nota por NF.
+  - A??es de marcar entregue, desfazer e marca??o em lote expandem para todos
+    os itens da mesma NF, evitando status parcial e nova duplicidade.
+  - O sino/notifica??es passa a usar a mesma l?gica de agrupamento ao salvar.
+
+v1.0.125 - [2026-07-18] - Correção da edição na aba Orçamento
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   A opção Editar em Propostas salvas e Produtos do orçamento não
+          respondia porque os botões eram renderizados com onclick inline
+          dentro de HTML dinâmico, que é removido pela blindagem de HTML.
+
+Mudanças:
+  - APP_VERSION atualizado para 1.0.125.
+  - Botões Editar/PDF/Remover de Propostas salvas passaram a usar
+    data-orc-action e data-orc-id.
+  - Botões Editar/Remover de Produtos do orçamento passaram a usar
+    data-orc-action e data-orc-id.
+  - Campos dinâmicos dos itens do orçamento passaram a usar data attributes.
+  - Criado listener delegado para clique, alteração e digitação da aba
+    Orçamento, mantendo os eventos ativos após sanitização do HTML.
+
+v1.0.124 - [2026-07-18] - Correção do botão Editar no Consolidado
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   O botão Editar das notas/vendas no Consolidado não abria o
+          modal porque a tabela dinâmica ainda dependia de onclick inline,
+          que é removido pela blindagem de HTML.
+
+Mudanças:
+  - APP_VERSION atualizado para 1.0.124.
+  - Botões Editar/Excluir das tabelas de vendas passaram a usar
+    data-sale-action e data-sale-id.
+  - Criado listener delegado para editar, excluir e expandir grupos de NF.
+  - A correção vale para Consolidado e para abas que reutilizam a mesma
+    tabela, como NF-e, Prod. Rural, Avulso e Avarias.
+  - editSale agora recarrega as vendas uma vez antes de informar que a
+    venda não foi encontrada, reduzindo erro por estado desatualizado.
+
+v1.0.123 - [2026-07-18] - Blindagem de acentuação UTF-8 nas páginas
+---------------------------------------------------------------
+Arquivos: backend/static/index.html, backend/app.py
+Motivo:   A aba Projeção podia exibir produtos com acentuação quebrada
+          em nomes como Macaxeira a Vácuo, Abóbora Jacaré e Pré-Cozida.
+
+Mudanças:
+  - APP_VERSION atualizado para 1.0.123.
+  - Criada correção centralizada de mojibake para respostas JSON da API.
+  - A correção é recursiva e vale para todas as páginas que consomem API,
+    incluindo Projeção, Clientes, Boletos, Notas, WhatsApp e relatórios.
+  - Arquivos HTML passaram a ser servidos explicitamente como UTF-8 pelo
+    backend.
+  - A correção atua somente em padrões quebrados, preservando textos que
+    já estão com acentuação correta.
+
+v1.0.122 - [2026-07-18] - Correção dos atalhos de período no Consolidado
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Os botões "Este mês" e "7 dias" do Consolidado podiam mudar
+          visualmente, mas não aplicar corretamente o período na tabela.
+
+Mudanças:
+  - APP_VERSION atualizado para 1.0.122.
+  - O período ativo do Consolidado agora é aplicado já no carregamento
+    inicial da tela.
+  - "Este mês", "Este ano", "Hoje" e "7 dias" passaram a usar como
+    referência a última venda carregada da empresa atual, evitando tela
+    vazia quando o mês dos dados não coincide com a data do computador.
+  - "Este mês" filtra o mês completo da referência carregada, sem depender
+    do seletor oculto de mês.
+  - "Limpar" volta para "Este mês" mantendo o filtro real aplicado.
+
+v1.0.121 - [2026-07-18] - Sino de notificações ocultável
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   A opção de ocultar o sino de notificações havia sumido,
+          deixando o botão flutuante sempre visível na tela principal.
+
+Mudanças:
+  - APP_VERSION atualizado para 1.0.121.
+  - Adicionada preferência local para ocultar/mostrar o sino.
+  - Gaveta de notificações ganhou botão "Ocultar sino".
+  - Quando oculto, aparece um botão discreto "Mostrar sino" com contador.
+  - Preferência é mantida ao recarregar a página e respeita Modo TV/Monteiro.
+
+v1.0.120 - [2026-07-18] - Correção dos filtros de mês e período
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Os filtros de mês em NF-e, Prod. Rural, Avulso e Avarias,
+          além dos botões de período do Consolidado, podiam não
+          atualizar a listagem após a remoção de eventos inline.
+
+Mudanças:
+  - APP_VERSION atualizado para 1.0.120.
+  - Filtros fixos do Consolidado passaram a usar listeners delegados
+    para busca, período, datas personalizadas, produto e entregador.
+  - Paginação do Consolidado e das abas por tipo foi convertida para
+    data-attributes, mantendo funcionamento em HTML dinâmico blindado.
+  - Seletor de mês das abas NF-e, Prod. Rural, Avulso e Avarias passou
+    a renderizar pelo listener delegado global.
+  - Card de produto do Consolidado agora recalcula valores com base no
+    filtro atual da tela, incluindo mês, período, cliente e entregador.
+
+v1.0.119 - [2026-07-18] - Correção da sub-aba Avarias por Cliente
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   A sub-aba "Por Cliente" em Avarias não respondia ao clique
+          após a blindagem contra eventos inline em HTML dinâmico.
+
+Mudanças:
+  - APP_VERSION atualizado para 1.0.119.
+  - Botões "Avarias" e "Por Cliente" passaram a usar data-avaria-action
+    com listener delegado, mantendo o clique ativo em conteúdo recriado.
+  - Filtros de mês, ano, ordenação e nível do painel por cliente
+    também passaram a funcionar por eventos delegados.
+  - Botões internos do calendário, ranking e detalhe do cliente foram
+    convertidos para o mesmo padrão, evitando novos cliques mortos.
+
+v1.0.118 - [2026-07-18] - Correção de acentuação no WhatsApp
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   As prévias e logs do WhatsApp exibiam caracteres corrompidos
+          em bullets, emojis e palavras acentuadas, deixando mensagens de
+          clientes inativos, boletos e avarias com acentuação quebrada.
+
+Mudanças:
+  - APP_VERSION atualizado para 1.0.118.
+  - Gatilhos automáticos de WhatsApp passaram a gerar mensagens com
+    caracteres corretos para boletos vencidos, avarias e clientes inativos.
+  - Prévia de gatilhos agora corrige textos antigos com mojibake antes
+    de exibir na tela.
+  - Log de envios e detalhe de falhas também passam pela correção visual.
+  - A prévia foi escapada com segurança antes de entrar no HTML.
+  - Botões da prévia de gatilhos passaram a usar ações delegadas,
+    mantendo funcionamento após a blindagem contra HTML inline.
+
+v1.0.117 - [2026-07-18] - Correção dos filtros e ações da aba Boletos
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Os cards e controles dinâmicos de Boletos ainda usavam
+          onclick/onchange dentro de HTML renderizado por innerHTML. A
+          proteção contra XSS removia esses atributos e deixava cards
+          como "Em atraso", "Recebido no mês" e "Vence hoje" sem ação.
+
+Mudanças:
+  - APP_VERSION atualizado para 1.0.117.
+  - Cards de Boletos passaram a usar data-bol-filter com delegação de eventos.
+  - Corrigido clique em A receber, Recebido no mês, Em atraso e Vence hoje.
+  - Checkboxes de seleção, expandir itens, status pago/pendente, data de
+    pagamento e barra de pagamento em massa passaram a usar data-* em vez
+    de eventos inline dinâmicos.
+  - Correção mantém a blindagem contra XSS e evita novos botões mudos ao
+    redesenhar a tabela de boletos.
+
+================================================================
+v1.0.116 - [2026-07-18] - Correção dos botões de Notas e sino
+---------------------------------------------------------------
+Arquivos: backend/static/index.html, backend/app.py
+Motivo:   A blindagem de XSS remove atributos onclick/onchange de HTML
+          dinâmico. Com isso, botões renderizados dentro da aba Notas e
+          do sino de notificações podiam aparecer na tela, mas não
+          executavam ação ao clicar.
+
+Mudanças:
+  - APP_VERSION atualizado para 1.0.116.
+  - Botões dinâmicos da aba Notas passaram a usar data-action com
+    delegação de eventos, preservando a proteção contra XSS.
+  - Ações de "Marcar entregue", "Desfazer", seleção em massa,
+    ordenação, limpar filtros e exportar CSV foram reconectadas sem
+    depender de onclick dinâmico.
+  - Itens do sino de notificações também passaram a usar data-action.
+  - Backend agora trata "notas" e "pendentes" como permissões
+    equivalentes, evitando divergência entre nome visual da aba e chave
+    técnica antiga.
+  - Correção aplicada de forma compartilhada para Menina dos Raios e
+    Menina da Estrada, mantendo bancos distintos.
+
+================================================================
+v1.0.115 - [2026-07-17] - Correção de acentuação do changelog
+---------------------------------------------------------------
+Arquivos: changelog.txt, backend/static/index.html
+Motivo:   Alguns trechos antigos ainda tinham caracteres quebrados e o
+          arquivo sem BOM podia aparecer com acentuação incorreta em
+          ferramentas antigas do Windows/PowerShell.
+
+Mudanças:
+  - Corrigidos trechos remanescentes com mojibake.
+  - Changelog salvo como UTF-8 com BOM para melhorar compatibilidade de
+    leitura no Windows.
+  - APP_VERSION atualizado para 1.0.115.
+  - Mantida a ordem cronológica reversa das versões.
+
+================================================================
+v1.0.114 - [2026-07-17] - Isolamento de produtos por empresa no lançamento
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Ao alternar entre Menina da Estrada e Menina dos Raios, o
+          modal "Lancar Venda" podia reutilizar a lista de produtos e
+          clientes em memoria da empresa anterior.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.114.
+  - Lista allPrices agora guarda tambem a empresa de origem
+    (allPricesCompany) e e recarregada quando a empresa muda.
+  - Troca de empresa limpa cache de produtos, clientes selecionados e
+    linhas abertas do modal de venda.
+  - Modal "Lancar Venda" recarrega produtos e clientes da empresa atual
+    antes de montar o seletor de produtos.
+  - Edicao de venda tambem recarrega os produtos da empresa ativa antes
+    de criar a linha editavel.
+
+================================================================
+v1.0.113 - [2026-07-17] - Correcao das notificacoes recorrentes
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   A protecao anti-XSS passou a remover onclick/onchange de
+          HTML dinamico. Com isso, o checkbox de recorrencia nao abria
+          "Por quantos meses" e o botao Salvar do modal de notificacoes
+          nao executava a acao.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.113.
+  - Modal de notificacoes passou a usar addEventListener para fechar,
+    cancelar, salvar e alternar recorrencia mensal.
+  - Acoes da tabela de notificacoes passaram a usar data-action com
+    delegacao de eventos, sem depender de onclick dinamico.
+  - Modal "Meses da recorrencia" tambem passou a fechar por listener,
+    preservando a navegacao da recorrencia.
+  - Mantida a protecao anti-XSS contra atributos on* vindos de HTML
+    renderizado dinamicamente.
+
+================================================================
+v1.0.112 - [2026-07-17] - Conteudo rolavel unificado no Monteiro
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Evitar que novas alteracoes no cabecalho ou na navegacao do
+          Monteiro recriem lacunas verticais em Pagamentos, Orcamentos
+          ou outras views do overlay.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.112.
+  - Area rolavel do Monteiro recebeu id estavel pal-content-scroll.
+  - Regras de compactacao de Pagamentos e Orcamentos passaram a usar
+    esse id, mantendo fallback antigo por compatibilidade.
+  - Troca de abas agora reseta o scroll pelo container nomeado, nao por
+    nth-child, deixando o layout mais resistente.
+
+================================================================
+v1.0.111 - [2026-07-17] - Correcao do espaco vazio em Orcamentos
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   A area rolavel do Monteiro estava sendo fechada antes das
+          vistas de Pagamentos e Orcamentos, deixando essas telas depois
+          de um bloco flexivel vazio e empurrando o conteudo para baixo.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.111.
+  - Reposicionada a estrutura HTML para manter Pagamentos e Orcamentos
+    dentro do conteudo rolavel do Monteiro.
+  - A aba Orcamentos e Produtos do orcamento passam a iniciar logo abaixo
+    da navegacao, sem o grande espaco em branco.
+
+================================================================
+v1.0.110 - [2026-07-17] - Correcao do carregamento apos anti-XSS
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   O sanitizador central de innerHTML passou a chamar innerHTML
+          dentro dele mesmo, gerando "Maximum call stack size exceeded" e
+          impedindo o carregamento dos dados.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.110.
+  - Sanitizador agora usa o setter/getter nativo original de innerHTML ao
+    montar o template interno.
+  - Removida a recursao infinita sem retirar a protecao contra scripts,
+    atributos on* e URLs javascript:.
+
+================================================================
+v1.0.109 - [2026-07-17] - Performance e permissoes no backend
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   Reduzir gargalos imediatos apontados na revisao e reforcar que
+          permissoes de abas tambem sejam respeitadas pelo backend.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.109.
+  - Uploads de Excel, PDF do Sebrae, nota fiscal anexada e backup agora
+    possuem limite de tamanho e validacao de extensao.
+  - get_price_on_date recebeu cache de 5 minutos por empresa/produto/data.
+  - Cache de precos e limpo automaticamente ao criar, alterar ou apagar
+    produto/preco/historico.
+  - /api/summary e /api/consolidado usam cache TTL de 60 segundos por
+    empresa/ano.
+  - Cache de vendas e limpo apos criacao, edicao, entrega, exclusao,
+    importacao de Excel e restauracao de backup.
+  - Backend ganhou validacao de permissao por aba quando a matriz de
+    permissoes estiver configurada, mantendo compatibilidade quando nao
+    houver matriz salva.
+  - Rotas de escrita de vendas, produtos e anexos do Monteiro/Paladar
+    passaram a exigir editor com permissao de area/aba.
+  - Geracao de PDF ganhou limite de concorrencia por semaforo
+    configuravel por PDF_MAX_CONCURRENT, evitando sobrecarga simultanea.
+
+================================================================
+v1.0.108 - [2026-07-17] - Correcoes de seguranca e robustez
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   Revisao apontou riscos de XSS, token em URL, logs sensiveis,
+          backup em pasta interna, rate limit por proxy e pontos de
+          performance em consultas.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.108.
+  - Backend passou a usar logging com LOG_LEVEL, deixando prints antigos
+    silenciosos em producao e ativos apenas em DEBUG.
+  - Rate limit usa X-Forwarded-For/X-Real-IP somente quando a conexao vem
+    de proxy local/confiavel.
+  - Backups passam a usar BACKUP_DIR fora da pasta backend por padrao,
+    com suporte a variavel de ambiente BACKUP_DIR.
+  - Download de backup deixou de aceitar token por query string.
+  - Exportacao Excel e download de backup no frontend usam x-token via
+    header em vez de token na URL.
+  - CORS passou a aceitar headers usados pelos clientes autorizados.
+  - Guarda de path traversal foi simplificada para bloquear segmentos
+    vazios e ".." de forma direta.
+  - Adicionada camada central de sanitizacao para innerHTML, removendo
+    scripts, tags perigosas, atributos on* e URLs javascript:.
+  - console.log de producao trocado por debugLog desligado por padrao.
+  - Criados indices em paladar_sales para consultas por cliente, data,
+    grupo e produto.
+  - Removidos except: puros restantes no backend.
+
+================================================================
+v1.0.107 - [2026-07-17] - Remocao de verdes fixos na Menina da Estrada
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Ainda havia cores verdes fixas nos cards e graficos da Menina
+          da Estrada, principalmente em Grafico e NF-e.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.107.
+  - Card principal do painel Grafico passou a usar variaveis do tema.
+  - Barras e titulos do painel Grafico agora acompanham o roxo da empresa.
+  - Graficos de Top Produtos, Produtos e Projecao passaram a usar paleta
+    dinamica por empresa.
+  - NF-e e graficos auxiliares deixam de depender de listas verdes fixas.
+
+================================================================
+v1.0.106 - [2026-07-17] - Ajustes visuais Monteiro e Menina da Estrada
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Os atalhos no cabecalho do Monteiro estavam alinhados a direita
+          e a Menina da Estrada ainda herdava verdes da Menina dos Raios
+          em NF-e e Graficos.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.106.
+  - Atalhos Menina dos Raios, Menina da Estrada e Orcamentos no Monteiro
+    agora ficam centralizados no cabecalho.
+  - Cores fixas de NF-e e graficos agora respeitam a empresa ativa.
+  - Menina da Estrada recebeu sobrescritas roxas para badges, barras,
+    hover de tabela e graficos.
+
+================================================================
+v1.0.105 - [2026-07-17] - Backup multi-banco por abas
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   O backup salvava apenas o banco principal, mas o sistema passou a
+          ter dados separados por empresa/aba, como Menina da Estrada e
+          notas/calendario APP.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.105.
+  - Backup novo agora gera pacote .zip com manifest.json e todos os bancos
+    registrados do sistema.
+  - Inclui bm_monteiro.db, menina_estrada.db quando existir, app_notes.db
+    quando existir e bancos .db extras da pasta backend.
+  - Restauração aceita pacotes .zip multi-banco e mantém compatibilidade
+    com backups antigos .db.
+  - Tela de backup mostra quais bancos entram no pacote e permite upload
+    de .zip ou .db.
+
+================================================================
+v1.0.104 - [2026-07-17] - Monteiro fixo no banco principal
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   Ao alternar para Menina da Estrada, o frontend continuava
+          enviando x-company=estrada tambem para os endpoints do Monteiro,
+          fazendo a aba consultar um banco vazio.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.104.
+  - Middleware agora fixa /api/monteiro e /api/paladar no banco principal.
+  - Dados de vendas, produtos, clientes e pagamentos do Monteiro voltam a
+    aparecer independentemente da empresa ativa no cabeçalho.
+  - Mantida a separacao dos dados operacionais das empresas fora do modulo
+    Monteiro.
+
+================================================================
+v1.0.103 - [2026-07-17] - Usuarios compartilhados por grupo
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   Menina dos Raios e Menina da Estrada pertencem ao mesmo grupo;
+          usuario, senha, sessao e permissoes nao devem ficar separados
+          por empresa.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.103.
+  - Login, logout, sessao ativa, troca de senha, usuarios, mensagens de
+    admin e permissoes de abas agora usam o banco de controle do grupo.
+  - Troca entre empresas mantem o mesmo token; muda apenas a empresa ativa
+    usada para vendas, clientes, produtos e demais dados operacionais.
+  - Adicionada compatibilidade para validar uma senha que tenha ficado em
+    banco legado de empresa e sincronizar o usuario para o banco do grupo.
+  - Dados operacionais continuam separados por empresa; apenas acesso e
+    configuracoes de usuario sao compartilhados.
+
+================================================================
+v1.0.102 - [2026-07-17] - Login com fallback para empresa principal
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   O navegador podia ficar com a Menina da Estrada salva como
+          empresa ativa e tentar autenticar o admin no banco errado.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.102.
+  - Login agora tenta a empresa ativa e, se falhar fora da empresa
+    principal, tenta automaticamente a Menina dos Raios.
+  - Backend retorna a empresa onde o login foi autenticado.
+  - Frontend atualiza activeCompany conforme a empresa retornada,
+    evitando token de uma empresa com tela apontando para outra.
+
+================================================================
+v1.0.101 - [2026-07-17] - Orcamento PDF A4 consolidado
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   O orcamento em PDF voltou a sair pequeno demais e precisava
+          ficar mais proximo do modelo de proposta em A4.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.101.
+  - Layout de impressao do orcamento passou a usar largura util de 190mm.
+  - Margens A4 estabilizadas em 10mm, evitando corte lateral.
+  - Fonte, logo, cabecalho, bloco do cliente e tabela foram ampliados.
+  - Tabela de itens voltou a ter area visual maior, com linhas em branco
+    como formulario de proposta.
+  - Altura da folha controlada em 270mm para manter uma pagina A4.
+
+================================================================
+v1.0.100 - [2026-07-17] - Permissao completa para aba Precos
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   Quando um cargo recebe acesso a sub-aba Precos, ele deve poder
+          operar a aba inteira, nao apenas visualizar.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.100.
+  - Backend agora aceita a permissao cfg_precos para:
+    adicionar produto, editar preco, renomear produto, remover produto
+    e alterar historico de precos.
+  - Veiculos e entregadores, que ficam na mesma aba Precos, tambem
+    passam a respeitar cfg_precos.
+  - Frontend mostra botoes de editar/remover produto para usuarios cujo
+    cargo tenha cfg_precos liberado.
+
+================================================================
+v1.0.99 - [2026-07-17] - Precos liberados para Menina da Estrada
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Permitir cadastrar e editar produtos/precos especificos da
+          Menina da Estrada para o lancamento de vendas.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.99.
+  - Configuracoes da Menina da Estrada agora mostra as sub-abas:
+    Precos e Registro.
+  - Precos reutiliza a mesma tela da Menina dos Raios, mas usando o
+    banco ativo da Menina da Estrada via x-company.
+  - Import/Export, WhatsApp e Verificar NF continuam ocultos na Estrada.
+  - O modal Lancar Venda recarrega os produtos da empresa ativa ao abrir.
+  - Ao cadastrar/editar produtos em Precos, o seletor de produtos do
+    lancamento e atualizado automaticamente.
+
+================================================================
+v1.0.98 - [2026-07-17] - Menina da Estrada sem Produtor Rural e roxo completo
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   A empresa Menina da Estrada nao usa Produtor Rural e ainda havia
+          pontos visuais verdes no layout dessa empresa.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.98.
+  - Aba Prod. Rural ocultada somente na Menina da Estrada.
+  - Card Produtor Rural do Mes ocultado somente na Menina da Estrada.
+  - Opcoes e filtros com value PR ficam ocultos/desabilitados nessa empresa.
+  - Produtividade da Menina da Estrada nao mostra serie/legenda Prod. Rural.
+  - Botoes ativos de periodo, sino, foco de inputs e botoes do cabecalho
+    foram reforcados em roxo somente na Menina da Estrada.
+
+================================================================
+v1.0.97 - [2026-07-17] - Atalhos no Monteiro e PDF de orcamento compacto
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Facilitar o retorno do Monteiro para as empresas principais e
+          corrigir regressao do orcamento saindo pesado e em duas paginas.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.97.
+  - Criados atalhos Menina dos Raios e Menina da Estrada no topo do Monteiro.
+  - O PDF de orcamento passou a forcar logos JPG de impressao, evitando PNG
+    grande e reduzindo o peso do arquivo gerado.
+  - Modelo de impressao do orcamento compactado para caber em uma folha A4.
+
+================================================================
+v1.0.96 - [2026-07-17] - Menina da Estrada em roxo
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Diferenciar visualmente a empresa Menina da Estrada usando a
+          mesma identidade roxa do Monteiro.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.96.
+  - Criada skin roxa ativada somente quando a empresa ativa for
+    Menina da Estrada.
+  - Cabecalho, botoes principais, abas ativas, drawer mobile e cards
+    passam a usar roxo sem alterar a Menina dos Raios.
+
+================================================================
+v1.0.95 - [2026-07-17] - Aba Menina da Estrada com banco separado
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   Criar uma area exclusiva para a empresa Menina da Estrada,
+          reaproveitando as mesmas abas do painel principal sem misturar
+          dados com a Menina dos Raios.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.95.
+  - Backend passa a reconhecer a empresa ativa por x-company/company.
+  - Criado banco separado menina_estrada.db para vendas, clientes,
+    boletos, produtos, avarias, notas, pagamentos, configuracoes e usuarios.
+  - Adicionado atalho "Menina da Estrada" no cabecalho, ao lado do Monteiro.
+  - Frontend envia automaticamente x-company em chamadas internas.
+  - Troca de empresa cria sessao equivalente no banco de destino.
+  - Na Menina da Estrada, Configuracoes abre somente a sub-aba Registro.
+  - Timeout de inatividade alinhado para 20 minutos no backend e frontend.
+
+================================================================
+v1.0.94 - [2026-07-17] - Orcamento sem segunda pagina em branco
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   A tela de impressao ainda indicava 2 paginas porque o CSS
+          fixava html/body em 297mm, gerando uma pagina extra no Chrome.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.94.
+  - Removida a altura fixa de 297mm do html/body no modo impressao.
+  - Folha do Orcamento agora usa altura automatica pelo conteudo real.
+  - Largura reduzida para 176mm para evitar corte de linhas da tabela.
+  - Area minima da tabela e quantidade de linhas em branco foram reduzidas
+    para caber em uma unica A4 com mais folga.
+
+================================================================
+v1.0.93 - [2026-07-17] - Orcamento em uma pagina e logo leve
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   O PDF do Orcamento voltou a sair com 2 paginas e tamanho alto
+          quando o documento salvo puxava a logo grande da empresa.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.93.
+  - Impressao do Orcamento agora mescla dados salvos com os dados padrao
+    da empresa para manter sempre a logo_print leve.
+  - Folha do Orcamento reduzida para 180mm x 264mm dentro do A4.
+  - Altura de tabela, blocos, fontes e assinatura compactadas para evitar
+    quebra para segunda pagina.
+  - CSS de impressao passa a evitar overflow e quebra de pagina no corpo.
+
+================================================================
+v1.0.92 - [2026-07-17] - Orcamento com folga de impressao
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   O Orcamento ainda ficava muito proximo ao limite direito da
+          folha e algumas linhas podiam desaparecer na impressao.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.92.
+  - Margem de impressao A4 aumentada para 10mm.
+  - Largura util do Orcamento reduzida para 184mm.
+  - Fontes, logo, quadro do numero e linhas da tabela foram levemente
+    reduzidos para caber com mais folga.
+  - Textos longos de endereco agora quebram linha antes de invadir o
+    quadro lateral.
+
+================================================================
+v1.0.91 - [2026-07-17] - Atualizacao sem reenvio de assets
+---------------------------------------------------------------
+Arquivos: ATUALIZAR.bat, backend/static/index.html
+Motivo:   As logos e assets do Orcamento ja foram enviados ao servidor
+          e nao precisam ser reenviados em toda atualizacao.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.91.
+  - Removida a etapa de envio recorrente de backend/static/assets.
+  - ATUALIZAR.bat voltou para 3 etapas: app.py, index.html e restart.
+  - Aviso de senha ajustado de 4 para 3 vezes.
+
+================================================================
+v1.0.90 - [2026-07-17] - Atalho de Orcamentos no painel principal
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Abrir a aba Orcamentos diretamente pela tela principal da
+          Menina dos Raios, sem precisar entrar primeiro no Monteiro.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.90.
+  - Adicionado botao "Orcamentos" ao lado do atalho Monteiro no
+    cabecalho principal.
+  - Criada funcao de atalho que abre o Monteiro diretamente na aba
+    Orcamentos.
+  - Adicionado o mesmo acesso ao menu lateral mobile.
+
+================================================================
+v1.0.89 - [2026-07-17] - Orcamento leve e sem corte lateral
+---------------------------------------------------------------
+Arquivos: backend/static/index.html, backend/static/assets/*
+Motivo:   O PDF do Orcamento ficava pesado por embutir logos grandes
+          e a impressao podia cortar o lado direito da folha.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.89.
+  - Criadas logos otimizadas para impressao/PDF:
+    menina-estrada-logo-print.jpg e menina-dos-raios-logo-print.jpg.
+  - Orcamento impresso passa a usar as logos leves, reduzindo o tamanho
+    esperado do PDF de varios MB para centenas de KB.
+  - Largura util do A4 reduzida e centralizada para evitar corte lateral
+    em impressoras com margem fisica.
+  - Tabela, totais e cabecalho ganharam ajustes de largura/fonte para
+    caber com folga no A4.
+  - Nome sugerido do PDF agora segue:
+    orçamento_NOME_DO_CLIENTE_NUMERO_DO_ORCAMENTO.pdf.
+
+================================================================
+v1.0.88 - [2026-07-17] - Nome sugerido do PDF de Orcamento
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Facilitar a organizacao dos PDFs salvos de orcamento por cliente.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.88.
+  - Janela de impressao do orcamento agora define o titulo como
+    orcamento_NOME_DO_CLIENTE.pdf.
+  - Nome do cliente e normalizado para remover acentos, espacos e
+    caracteres invalidos no arquivo.
+
+================================================================
+v1.0.87 - [2026-07-17] - Orcamento ajustado para uma folha A4
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   A impressao do Orcamento ainda quebrava em duas paginas
+          quando havia poucos itens, por excesso de altura na tabela.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.87.
+  - Reduzida a quantidade minima de linhas vazias da tabela de produtos.
+  - Altura das linhas, margens e fontes do modelo A4 foram compactadas.
+  - Area de produtos continua visualmente aberta, mas sem empurrar
+    pagamento, observacoes e assinaturas para a segunda folha.
+  - Adicionadas regras de impressao para evitar quebra interna dos blocos.
+
+================================================================
+v1.0.86 - [2026-07-17] - Impressao do Orcamento com folha de produtos
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   A impressao/PDF do Orcamento ficava comprimida quando havia
+          poucos produtos, diferente do modelo de proposta usado como
+          referencia.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.86.
+  - Modelo de impressao passa a usar pagina A4 com corpo de folha.
+  - Tabela de produtos agora preenche linhas vazias quando ha poucos itens.
+  - Area de itens ganhou altura minima para manter espaco visual de proposta.
+  - Totais permanecem alinhados a direita, abaixo da tabela de produtos.
+  - Formas de pagamento passaram para bloco tabular no estilo do modelo.
+  - Assinaturas ficam ancoradas no rodape da folha.
+  - Logo do orcamento usa URL absoluta para aparecer melhor na janela
+    de impressao/PDF.
+
+================================================================
+v1.0.85 - [2026-07-17] - Logos do Orcamento publicadas no servidor
+---------------------------------------------------------------
+Arquivos: backend/static/index.html, ATUALIZAR.bat, backend/static/assets/*
+Motivo:   As logos da Menina dos Raios e Menina da Estrada existiam
+          localmente, mas nao eram enviadas pelo atualizador.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.85.
+  - Confirmado que as logos em static/assets sao iguais aos arquivos
+    enviados pelo usuario.
+  - ATUALIZAR.bat agora envia a pasta backend/static/assets para o servidor.
+  - Corrige a exibicao das logos no cabecalho e na impressao/PDF
+    dos orcamentos.
+
+================================================================
+v1.0.84 - [2026-07-17] - Layout compacto em Orcamentos do Monteiro
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Corrigir o grande espaco em branco que empurrava a aba
+          Orcamento para baixo dentro do modulo Monteiro.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.84.
+  - Criado modo compacto especifico para a aba Orcamentos no Monteiro.
+  - Conteudo da aba passa a iniciar logo abaixo da navegacao/filtros.
+  - Cabecalho, botoes e sub-abas do Orcamento ganharam classes proprias.
+  - Corrigido o espacamento das tres sub-abas: Nova proposta,
+    Propostas salvas e Produtos do orcamento.
+  - Formulario de produtos do orcamento ficou mais compacto e responsivo.
+  - Ajuste isolado para nao afetar Pagamentos, Calendario, Clientes
+    ou demais abas do Monteiro.
+
+================================================================
+v1.0.83 - [2026-07-14] - Cliente de venda validado pelo cadastro
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   Evitar duplicidade causada por nomes de clientes digitados
+          de formas diferentes no lancamento manual de vendas.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.83.
+  - Autocomplete do campo Cliente em Registrar Venda agora usa somente
+    clientes ativos cadastrados.
+  - Removida a mistura de nomes historicos de vendas na lista de sugestoes.
+  - Antes de salvar, o sistema valida se o cliente digitado existe no cadastro.
+  - Quando o cliente nao existe, o modal mostra orientacao para selecionar
+    um cadastro existente ou clicar em "+ Cadastrar".
+  - O botao "+ Cadastrar" atualiza a lista do autocomplete apos criar o cliente.
+  - Backend tambem bloqueia POST/PUT de vendas com cliente inexistente,
+    retornando mensagem clara para cadastrar antes de salvar.
+  - Cliente em branco permanece permitido para casos sem cliente identificado.
+  - Confirmado novamente o tempo de inatividade em 20 minutos.
+
+================================================================
+v1.0.82 - [2026-07-02] - Restauracao da motivacao diaria no WhatsApp
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html, ATUALIZAR.bat
+Motivo:   Corrigir interpretacao anterior: as 60 mensagens eram envios
+          diarios do WhatsApp, nao conteudo da tela de login.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.82.
+  - Login voltou a saudacao contextual e dicas operacionais anteriores.
+  - Fundo fotografico deixou de fazer parte do deploy principal.
+  - Agendador verifica diariamente as mensagens motivacionais do banco.
+  - Prioriza categorias/nome contendo motivacao ou motivacional.
+  - Se o banco possuir exatamente 60 modelos antigos, reutiliza o
+    conjunto completo mesmo que eles nao tenham categoria preenchida.
+  - Uma mensagem e escolhida por dia e enviada aos contatos ativos as 07:00.
+  - Controle impede duplicidade e tenta novamente apos uma hora se a
+    conexao/provedor estiver indisponivel.
+  - Cada envio aparece no log com o tipo motivacao e diagnostico de falha.
+  - Painel WhatsApp mostra quantidade armazenada, contatos, ultimo envio
+    e ganhou o botao Enviar agora para validacao imediata.
+  - ATUALIZAR.bat continua sem qualquer etapa de deploy do WhatsApp.
+
+Resultado / testes:
+  - As frases antigas permanecem no banco e voltam a ser usadas pelo
+    envio diario, sem serem substituidas pela lista visual do login.
+
+=================================================================
+v1.0.81 - [2026-07-02] - Atualizador sem deploy do WhatsApp
+---------------------------------------------------------------
+Arquivos: backend/static/index.html, ATUALIZAR.bat
+Motivo:   Remover do atualizador principal as etapas de instalacao,
+          envio e reinicio do servico WhatsApp.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.81.
+  - ATUALIZAR.bat voltou a ter tres etapas e tres solicitacoes de senha.
+  - Removidos envio de server.js, package.json, .env e service systemd.
+  - Removidos npm install e reinicio dos servicos Baileys/WhatsApp.
+  - Mantidos envio de app.py, index.html, imagem do login e reinicio
+    exclusivo do servico menina.
+
+Resultado / testes:
+  - Atualizacao principal volta a ser simples e independente do WhatsApp.
+
+=================================================================
+v1.0.80 - [2026-07-02] - Correcao visual da motivacao no login
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   Corrigir regra CSS posterior que sobrescrevia a imagem
+          inspiradora e impedir cache antigo da tela de login.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.80.
+  - Removido fundo de gradientes que anulava login-inspirador.png.
+  - Imagem recebe identificador de versao para invalidar cache antigo.
+  - HTML principal passa a usar Cache-Control no-store/no-cache.
+  - Mensagem diaria e reaplicada sempre que o usuario encerra a sessao.
+
+Resultado / testes:
+  - Servidor publico foi verificado antes da correcao: versao 1.0.79,
+    60 mensagens presentes e imagem respondendo HTTP 200.
+  - A imagem e a motivacao deixam de ser escondidas pela cascata CSS.
+
+=================================================================
+v1.0.79 - [2026-07-02] - Motivacao diaria no login
+---------------------------------------------------------------
+Arquivos: backend/static/index.html,
+          backend/static/login-inspirador.png, ATUALIZAR.bat
+Motivo:   Restaurar as 60 mensagens de motivacao e garantir uma
+          mensagem diferente por dia na tela de acesso.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.79.
+  - Lista restaurada com exatamente 60 mensagens motivacionais.
+  - Mensagem passa a ser escolhida pela data local, nao por sorteio.
+  - A mesma mensagem permanece durante o dia e muda a meia-noite.
+  - Uma mensagem so volta a aparecer depois do ciclo de 60 dias.
+  - Titulo, texto e posicao no ciclo aparecem na area inspiradora.
+  - Criado fundo fotografico de amanhecer com leitura responsiva.
+  - ATUALIZAR.bat passa a enviar a imagem junto com o index.html.
+
+Resultado / testes:
+  - Contagem validada em 60 mensagens e selecao diaria deterministica.
+  - Fundo permanece legivel em desktop e celular.
+
+=================================================================
+v1.0.78 - [2026-07-02] - Instalacao automatica do servico WhatsApp
+---------------------------------------------------------------
+Arquivos: backend/static/index.html, ATUALIZAR.bat,
+          baileys-api/package.json, baileys-api/.env,
+          menina-baileys.service
+Motivo:   Corrigir falha do SCP quando /opt/menina/baileys-api ainda
+          nao existe e concluir a instalacao inicial do Baileys.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.78.
+  - Arquivos do WhatsApp sao enviados primeiro para /tmp, que ja existe.
+  - Atualizador cria /opt/menina/baileys-api automaticamente.
+  - package.json e .env passam a ser enviados junto com server.js.
+  - Dependencias Node sao instaladas com npm install --omit=dev.
+  - Servico systemd menina-baileys e instalado, habilitado e reiniciado.
+  - Atualizacao interrompe com mensagem clara se qualquer etapa falhar.
+  - Reinicio final confirma os estados de menina e menina-baileys.
+
+Resultado / testes:
+  - O primeiro deploy funciona mesmo quando a pasta e o servico Baileys
+    ainda nao existem no servidor.
+
+=================================================================
+v1.0.77 - [2026-07-02] - Controle de conexao do WhatsApp
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html,
+          baileys-api/server.js, ATUALIZAR.bat
+Motivo:   Permitir verificar se a conta continua conectada e recuperar
+          ou refazer a sessao diretamente pelo sistema.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.77.
+  - Painel Baileys mostra estado conectado, desconectado ou aguardando QR.
+  - Exibida a hora da ultima verificacao de conexao.
+  - Botao Reconectar tenta recuperar a sessao existente sem apagar dados.
+  - Botao Desconectar e gerar novo QR encerra a sessao, limpa as
+    credenciais locais e cria um novo QR Code.
+  - Status e QR sao atualizados automaticamente apos cada comando.
+  - Backend ganhou proxy autenticado para os comandos de conexao.
+  - Servico Node ganhou endpoints protegidos /reconnect e /disconnect.
+  - ATUALIZAR.bat agora envia server.js e tenta reiniciar tambem o
+    servico menina-baileys ou baileys no servidor.
+
+Resultado / testes:
+  - Administrador consegue confirmar a conexao e refazer o vinculo sem
+    acessar terminal ou apagar manualmente a pasta de autenticacao.
+
+=================================================================
+v1.0.76 - [2026-07-02] - Diagnostico de falhas do WhatsApp
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   Exibir a causa real dos envios que aparecem apenas como Erro
+          no log e facilitar a correcao da configuracao.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.76.
+  - Resposta do provedor passa a ser armazenada de forma estruturada,
+    com provedor, detalhe tecnico e orientacao de correcao.
+  - Falhas antigas continuam compativeis e tambem recebem diagnostico.
+  - Cada envio com erro ganhou o botao Ver diagnostico no log.
+  - Diagnostico mostra motivo, recomendacao e resposta tecnica original.
+  - Envio manual, teste e disparo por gatilhos mostram a primeira causa
+    da falha imediatamente, sem depender apenas do log.
+  - Token da API nao e exibido no diagnostico.
+
+Resultado / testes:
+  - O administrador consegue diferenciar credencial invalida, endpoint
+    incorreto, timeout, servico offline e rejeicao do provedor.
+
+=================================================================
+v1.0.75 - [2026-07-01] - Relatorio mensal de vendas por cliente
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   Permitir emitir no cadastro de Clientes um PDF mensal de
+          vendas, incluindo a selecao de um ou varios meses.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.75.
+  - Botao PDF do perfil substituido por Relatorio mensal.
+  - Seletor de mes inicial e final permite um unico mes ou intervalos
+    com varios meses, inclusive entre anos diferentes.
+  - Nova previa compara total vendido, lancamentos, meses com compra,
+    dias de venda e quantidade por mes.
+  - PDF inclui resumo mensal, produtos do periodo e detalhamento
+    cronologico de todas as vendas encontradas no intervalo.
+  - Novo endpoint /api/clients/{id}/monthly-report agrega os dados sem
+    o limite de 20 ou 100 registros do historico visual.
+  - Seletor e indicadores adaptados para telas de celular.
+
+Resultado / testes:
+  - Relatorio por cliente passa a atender consultas mensais e
+    comparacoes de periodos maiores no mesmo arquivo PDF.
+
+=================================================================
+v1.0.74 - [2026-06-20] - Projecao por ciclo de compra
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   Ajustar a projecao de produtos para clientes de supermercado,
+          considerando fases fortes e fracas do mes em vez de uma media
+          diaria linear unica.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.74.
+  - Rota /api/projecao/producao agora calcula perfil por fase do mes:
+    Pico 1-5, Meio 6-14 e Fim 15+.
+  - Projecoes 7/15/30 dias passam a somar a media correspondente a fase
+    de cada dia futuro.
+  - Aba Projecao ganhou resumo compacto das fases de compra com destaque
+    para a fase atual.
+  - Tabela de projecao passou a exibir media do periodo, media da fase
+    atual e perfil principal de compra do produto.
+  - CSV de projecao atualizado com os novos campos de ciclo.
+
+Resultado / testes:
+  - Projecao deixa de tratar o mes como venda uniforme e passa a respeitar
+    o comportamento comercial de supermercado.
+
+================================================================
+v1.0.73 - [2026-06-20] - Card de inativos clicavel em Clientes
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Permitir abrir rapidamente a lista de clientes inativos a
+          partir do card da aba Clientes > Analise.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.73.
+  - Card "Inativos ha +X dias" agora e clicavel.
+  - Clique no card abre Clientes > Oportunidades na lista de inativos,
+    preservando o filtro de dias selecionado na Analise.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+
+================================================================
+v1.0.72 - [2026-06-20] - Projecao de meta na Produtividade
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Permitir que o funcionario acompanhe, dentro da aba
+          Produtividade, se o ritmo atual de vendas deve atingir a
+          meta mensal.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.72.
+  - Adicionado painel de Projecao da meta abaixo dos KPIs de
+    Produtividade.
+  - O painel reutiliza a meta mensal ja configurada no sistema.
+  - Calcula receita liquida, ritmo atual por dia corrido, ritmo ideal,
+    projecao final, percentual projetado e necessario por dia.
+  - Status visual indica meta batida, acima da rota, na rota ou abaixo
+    da rota.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+
+================================================================
+v1.0.71 - [2026-06-20] - Inatividade ajustada para 20 minutos
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   O tempo de 5 minutos para encerrar a sessao por inatividade
+          estava curto para o uso operacional.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.71.
+  - Timeout de inatividade alterado de 5 para 20 minutos.
+  - Aviso de inatividade continua aparecendo 1 minuto antes do logout.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+
+================================================================
+v1.0.70 - [2026-06-19] - Rodada de responsividade mobile
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Melhorar a leitura das abas principais no celular, com foco
+          em telas densas e tabelas largas.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.70.
+  - Aba Projecao ganhou visual em cards no celular, sem depender de
+    rolagem horizontal da tabela.
+  - Filtros, cards e graficos da Projecao foram compactados para telas
+    menores.
+  - Pagamentos recebeu ajustes de altura, abas compactas e cards em
+    1 ou 2 colunas no mobile.
+  - Clientes, Produtos, Boletos e Produtividade receberam correcoes
+    de grids largos para reduzir cortes laterais.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+
+================================================================
+v1.0.69 - [2026-06-19] - Retorno da media da projecao por periodo
+---------------------------------------------------------------
+Arquivos: backend/static/index.html; backend/app.py
+Motivo:   Recuperar o comportamento anterior da Projecao, onde a
+          media diaria era calculada pelo periodo exibido, resultando
+          em cerca de 154 kg/dia para Macaxeira a Vacuo no periodo
+          13/06/2026 a 19/06/2026.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.69.
+  - Media diaria da Projecao voltou a usar quantidade vendida dividida
+    pelos dias do periodo selecionado.
+  - Tabela voltou ao formato anterior, sem a coluna Dias.
+  - Card extra de Macaxeira removido, retornando aos cards anteriores.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+  - Backend validado via python -m py_compile.
+
+================================================================
+v1.0.68 - [2026-06-19] - Projecao por dias de movimento do produto
+---------------------------------------------------------------
+Arquivos: backend/static/index.html; backend/app.py
+Motivo:   Corrigir a projecao de produtos para evitar media diaria
+          inflada por agrupamento inseguro ou mistura de valor com
+          quantidade.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.68.
+  - Rota /api/projecao/producao agora agrupa primeiro por produto e
+    por dia, somando apenas quantity.
+  - Media diaria por produto voltou a usar quantidade vendida dividida
+    pelos dias com movimento daquele produto.
+  - Projecoes 7/15/30 dias passaram a derivar dessa media diaria por
+    produto.
+  - Adicionado consolidado exclusivo de Macaxeira a Vacuo e Macaxeira
+    com Casca (KG), sem misturar outros produtos.
+  - Tabela e CSV agora exibem dias com movimento e medias/projecoes
+    com duas casas decimais.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+  - Backend validado via python -m py_compile.
+
+================================================================
+v1.0.67 - [2026-06-19] - Media diaria da projecao por periodo
+---------------------------------------------------------------
+Arquivos: backend/static/index.html; backend/app.py
+Motivo:   Evitar que a media diaria da Projecao de Producao fique
+          inflada ao considerar somente dias com movimento.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.67.
+  - Media diaria e projecoes da aba Projecao agora dividem pelo total
+    de dias do periodo selecionado.
+  - O card de media diaria mostra dias do periodo e dias com movimento
+    para dar contexto operacional.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+  - Backend validado via python -m py_compile.
+
+================================================================
+v1.0.66 - [2026-06-19] - Nova aba Projecao de Producao
+---------------------------------------------------------------
+Arquivos: backend/static/index.html; backend/app.py
+Motivo:   Criar uma guia dentro da aba principal para estimar saida
+          de produtos e orientar a producao.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.66.
+  - Adicionada a guia Projecao no menu principal e no menu lateral.
+  - Criado o endpoint GET /api/projecao/producao usando vendas reais
+    existentes, sem duplicar dados.
+  - A aba calcula total vendido, media diaria/semanal, projecoes de
+    7/15/30 dias, comparacao com periodo anterior, fonte principal e
+    risco de ruptura por produto.
+  - Produtos prioritarios de macaxeira ficam destacados na tabela.
+  - Incluidos filtros por periodo, produto, fonte e visualizacao, alem
+    de exportacao CSV.
+  - Permissoes e ordem das abas foram migradas para reconhecer a nova
+    chave projecao.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+  - Backend validado via python -m py_compile.
+
+================================================================
+v1.0.65 - [2026-06-19] - Recalculo forcado do risco em avarias por cliente
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Garantir que os novos limites de risco aparecam mesmo quando
+          os dados da API retornam classificacoes antigas.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.65.
+  - A aba Avarias por Cliente agora sobrescreve level/levelLabel no
+    frontend apos recalcular a taxa.
+  - Mantidos os limites definidos: ate 10% = Controlado, acima de
+    15% = Atencao e acima de 25% = Alto risco.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+
+================================================================
+v1.0.64 - [2026-06-19] - Novos limites de risco em avarias por cliente
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Ajustar a leitura de severidade da aba Avarias por Cliente
+          para os limites de taxa definidos pelo usuario.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.64.
+  - Classificacao de risco agora usa somente taxa de avaria:
+    ate 10% = Controlado, acima de 15% = Atencao, acima de 25% =
+    Alto risco.
+  - Alerta executivo da taxa do periodo foi atualizado com os novos
+    limites.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+
+================================================================
+v1.0.63 - [2026-06-19] - Ajustes finos em admin, sessao e pagamentos
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Aplicar ajustes pontuais solicitados no index.html sem
+          refatorar o restante do arquivo.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.63.
+  - Modal de mensagem admin marca a mensagem como vista ao fechar pelo
+    X ou pelo botao "Entendido, fechar".
+  - Pagamentos Monteiro recebeu reforco de CSS para remover espaco no
+    topo da view.
+  - Sessao por inatividade agora avisa 1 minuto antes de encerrar.
+  - Toast ganhou estado visual warning.
+  - Pagamentos ganhou container e renderizacao de bandas de cobertura
+    por periodo antes da tabela de notas.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+
+================================================================
+v1.0.62 - [2026-06-19] - Projecao de avaria como KPI
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   A projecao de avaria aparecia como bloco largo e diferente
+          dos KPIs "Valor avariado", "Clientes afetados" e "Receita
+          liquida", quebrando a consistencia visual.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.62.
+  - Projecao de avaria virou um card KPI no mesmo layout dos demais.
+  - A linha de indicadores agora fica uniforme: Projecao, Valor
+    avariado, Taxa, Clientes afetados e Receita liquida.
+  - Os detalhes de acumulado, media diaria, percentual projetado e dias
+    restantes foram preservados como texto secundario no card.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+
+================================================================
+v1.0.61 - [2026-06-19] - Viewer somente Modo TV
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Usuario com perfil viewer nao precisa navegar pelo sistema;
+          deve apenas visualizar o painel em Modo TV.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.61.
+  - Viewer passa a ignorar permissoes de abas salvas e fica sem abas
+    comuns do sistema.
+  - Ao logar como viewer, o sistema carrega os dados e abre o Modo TV
+    automaticamente.
+  - Menu mobile e botao de lancamento ficam ocultos para viewer.
+  - Se viewer clicar em sair do Modo TV, a sessao e encerrada em vez de
+    voltar para o sistema.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+
+================================================================
+v1.0.60 - [2026-06-19] - Hotfix login apos last_seen
+---------------------------------------------------------------
+Arquivos: backend/static/index.html, backend/app.py
+Motivo:   Em bancos onde a coluna last_seen ainda nao existia na tabela
+          sessions, o login podia retornar Internal Server Error e o
+          frontend mostrava erro de JSON invalido.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.60.
+  - Login agora tenta usar last_seen, mas faz fallback para o formato
+    antigo da tabela sessions se a coluna ainda nao existir.
+  - Atualizacao de last_seen em chamadas autenticadas passou a verificar
+    se a coluna existe antes de executar o UPDATE.
+
+Resultado / testes:
+  - Backend validado com py_compile.
+  - JavaScript inline validado via Node/vm.Script.
+
+================================================================
+v1.0.59 - [2026-06-19] - Inatividade de 5 minutos e sino Monteiro
+---------------------------------------------------------------
+Arquivos: backend/static/index.html, backend/app.py
+Motivo:   O sino ainda aparecia dentro do Monteiro por uma regra CSS
+          mais forte, e faltava expirar a conta por inatividade curta.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.59.
+  - Regra do sino reforcada para ocultar o botao quando o overlay
+    Monteiro esta ativo.
+  - Sessao agora tem last_seen no banco.
+  - Backend invalida o token apos 5 minutos sem chamadas autenticadas.
+  - Frontend tambem encerra a sessao apos 5 minutos sem clique, tecla,
+    mouse, toque ou rolagem.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+  - Backend validado com py_compile.
+
+================================================================
+v1.0.58 - [2026-06-19] - Mensagens do admin para usuarios
+---------------------------------------------------------------
+Arquivos: backend/static/index.html, backend/app.py
+Motivo:   Aplicar a ideia do fluxo Admin envia -> Usuario recebe ao
+          logar, com mensagem exibida uma unica vez em modal.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.58.
+  - Criada tabela admin_messages com destinatario, titulo, texto,
+    validade, visto/removido e criador.
+  - Criados endpoints administrativos para listar, criar e remover
+    mensagens pendentes.
+  - Criados endpoints do usuario para buscar mensagem pendente e marcar
+    como vista ao fechar.
+  - Configuracoes -> Administracao ganhou card "Mensagens aos usuarios".
+  - Admin pode escolher destinatario, titulo, validade e texto.
+  - Usuario recebe modal centralizado apos login; ao fechar, a mensagem
+    e marcada como vista e nao aparece novamente.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+  - Backend validado com py_compile.
+
+================================================================
+v1.0.57 - [2026-06-19] - Sino oculto no Monteiro
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   O sino de notificacoes do sistema principal aparecia dentro
+          da tela Monteiro, ocupando espaco sem necessidade.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.57.
+  - Sino flutuante passa a ficar oculto quando o overlay Monteiro esta
+    ativo.
+  - Demais telas continuam exibindo o sino normalmente.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+
+================================================================
+v1.0.56 - [2026-06-19] - Pagamentos Monteiro reposicionado
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   A aba Pagamentos continuava abrindo com uma grande lacuna
+          vertical, como se o conteudo estivesse empurrado para o fim
+          da pagina.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.56.
+  - Ao trocar de aba no Monteiro, a area rolavel agora volta para o topo.
+  - Estado inicial de Pagamentos ficou mais compacto e orientado.
+  - Cards e progresso ficam ocultos enquanto nenhum cliente esta
+    selecionado, evitando uma tela cheia de indicadores vazios.
+  - Mantidas as abas de Notas, Pagamentos registrados e Extrato
+    cronologico logo abaixo do estado inicial.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+
+================================================================
+v1.0.55 - [2026-06-19] - Pagamentos compactos e notas fiscais anexadas
+---------------------------------------------------------------
+Arquivos: backend/static/index.html, backend/app.py
+Motivo:   A aba Pagamentos ainda estava dificil de ler em tela cheia e
+          Lancamentos nao tinha controle para anexar/ver a nota fiscal
+          enviada, inclusive para notas antigas.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.55.
+  - Estado sem cliente em Pagamentos ficou mais compacto, sem bloco de
+    cobertura ocupando espaco inutil.
+  - Tabelas de Pagamentos mantidas por abas, com area de detalhe menor.
+  - Lancamentos ganhou alternancia entre "Lancamentos" e "Notas fiscais
+    enviadas".
+  - Modal de nova venda Monteiro ganhou upload de nota fiscal em PDF,
+    XML ou imagem.
+  - Lancamentos antigos ganharam botoes para anexar, ver ou trocar nota
+    fiscal.
+  - Backend passou a armazenar metadados e arquivos de notas fiscais
+    por grupo de venda Monteiro.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+  - Backend validado com py_compile.
+
+================================================================
+v1.0.54 - [2026-06-18] - Pagamentos Monteiro sem vao superior
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Havia espaco em branco excessivo entre a barra superior de
+          filtros do Monteiro e a linha do cliente/botoes na aba Pagamentos.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.54.
+  - Aba Pagamentos passa a ativar classe compacta no overlay Monteiro.
+  - Removido padding superior do container rolavel quando Pagamentos
+    esta ativo.
+  - Removido padding superior da propria view de Pagamentos.
+  - Resumo de pagamentos deixou de usar sticky para evitar reserva de
+    espaco vertical indevida.
+  - Linha do cliente e botoes fica imediatamente abaixo da nav/filtros.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+
+================================================================
+v1.0.53 - [2026-06-18] - Nome do arquivo por cliente e competencia
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Os PDFs/Excels de Pagamentos Monteiro eram baixados com nome
+          generico, dificultando organizar arquivos por cliente e mes.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.53.
+  - PDF de Pagamentos agora usa nome baseado no cliente e competencia.
+  - Excel de Pagamentos recebeu a mesma regra de nome.
+  - Exemplo: PALADAR_DISTRITO_06-2026.pdf.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+
+================================================================
+v1.0.52 - [2026-06-18] - Pagamentos Monteiro: texto de valor pendente
+---------------------------------------------------------------
+Arquivos: backend/static/index.html, backend/app.py
+Motivo:   A cobertura de pagamentos e feita por dias/valores, nao por
+          quitacao individual de notas. A mensagem "nota pendente" podia
+          induzir leitura errada.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.52.
+  - Na tela, "nota(s) ainda pendente(s)" virou "Valor pendente no periodo".
+  - Texto auxiliar ajustado para explicar dias cobertos e valor pendente.
+  - No PDF de Pagamentos, a mesma linguagem foi aplicada.
+  - NF permanece apenas como referencia secundaria quando existir.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+  - Backend validado com py_compile.
+
+================================================================
+v1.0.51 - [2026-06-18] - Pagamentos Monteiro com abas de detalhes
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Em monitores 1920x1200, o Extrato cronologico ficava abaixo
+          da area visivel e exigia zoom reduzido para ser encontrado.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.51.
+  - Substituida a pilha Notas + Pagamentos + Extrato por abas internas.
+  - Extrato cronologico agora fica acessivel por botao visivel no mesmo
+    bloco de detalhes, junto com Notas e Pagamentos.
+  - Area de detalhes ganhou rolagem interna, evitando que a pagina cresca
+    demais verticalmente.
+  - Cartoes de dias cobertos por pagamento ficaram mais compactos.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+  - Backend mantido sem alteracao nesta versao.
+
+================================================================
+v1.0.50 - [2026-06-18] - Pagamentos Monteiro: rolagem e PDF detalhado
+---------------------------------------------------------------
+Arquivos: backend/static/index.html, backend/app.py
+Motivo:   A tela ainda ficava presa visualmente para acessar os itens
+          abaixo, o resumo tecnico por periodo ocupava espaco demais e
+          o PDF precisava trazer mais informacoes uteis para conferencia.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.50.
+  - Reforcada a rolagem do conteudo do overlay Monteiro com altura
+    calculada e padding inferior.
+  - Removido da tela o bloco "Ver resumo tecnico por periodo".
+  - Mantidos apenas os cartoes simples de dias cobertos por pagamento
+    e saldo em aberto.
+  - PDF de Pagamentos agora inclui:
+    totais, quantidade de notas, quantidade de pagamentos, saldo,
+    dias cobertos por pagamento, notas detalhadas e pagamentos detalhados.
+  - O PDF tambem mostra o intervalo pago em verde/parcial e o saldo
+    em aberto, seguindo a mesma logica visual da tela.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+  - Backend validado com py_compile.
+
+================================================================
+v1.0.49 - [2026-06-18] - Pagamentos Monteiro com faixas por dias pagos
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   A cobertura por periodo ficou tecnica demais e a tela nao deixava
+          claro quais dias/notas haviam sido cobertos por cada pagamento.
+          Tambem faltava rolagem visivel para acessar as informacoes abaixo.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.49.
+  - Corrigida rolagem do overlay Monteiro, forçando scroll no container
+    principal de conteudo.
+  - Cobertura principal agora mostra cartoes simples por faixa de dias:
+    Pago, Pago parcialmente e Em aberto.
+  - Cada pagamento e aplicado nas notas em ordem cronologica e mostra
+    o intervalo coberto, exemplo: 05/06 a 16/06, com valor em verde.
+  - Saldo pendente aparece em vermelho com o intervalo ainda em aberto.
+  - A tabela tecnica por periodo continua disponivel, mas recolhida em
+    "Ver resumo tecnico por periodo".
+  - Botao Filtrar do Monteiro tambem atualiza a aba Pagamentos.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+  - Backend validado com py_compile.
+
+================================================================
+v1.0.48 - [2026-06-18] - Layout e cobertura de pagamentos Monteiro
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   A secao Pagamentos registrados ficava pouco visivel abaixo da
+          tabela de notas, e faltava uma visao de cobertura por periodo
+          para entender pagamentos parciais, saldo acumulado e credito
+          que transborda entre periodos.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.48.
+  - Cards de resumo da aba Pagamentos mantidos no topo da area.
+  - Adicionada tabela Cobertura de pagamento por periodo.
+  - Cobertura compativel com quinzenal, mensal e anual.
+  - Pagamentos sao aplicados aos periodos mais antigos primeiro,
+    permitindo credito excedente transbordar para o periodo seguinte.
+  - Status visual por periodo:
+    Pago, Parcial, Aberto e Sem notas.
+  - Periodo atual recebe destaque visual.
+  - Notas do periodo e Pagamentos registrados foram reorganizados
+    em dois paineis lado a lado no desktop e empilhados no mobile.
+  - Tabelas internas ganharam rolagem propria para evitar que a secao
+    de pagamentos fique escondida fora da tela.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+  - Backend validado com py_compile.
+
+================================================================
+v1.0.47 - [2026-06-18] - Projecao e detalhe mensal em Avarias por Cliente
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   A visao de Avarias por Cliente precisava recuperar a projecao
+          que existia antes e permitir analise direta do cliente,
+          separando claramente o que foi entregue/faturado e o que voltou
+          como avaria.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.47.
+  - Recriado bloco de Projecao de Avaria no topo da aba, com:
+    acumulado atual, media diaria, projecao final e percentual projetado
+    sobre entregas.
+  - Mantidos os indicadores em verde para entregue/faturado e vermelho
+    para retornado/avariado.
+  - Nome do cliente no ranking agora e clicavel.
+  - Clique no cliente abre um painel mensal com:
+    entregue no mes, retornado/avariado, taxa de impacto, registros,
+    quantidades, datas, NF quando existir e produtos.
+  - Acao do olho no ranking tambem abre o detalhe mensal do cliente.
+  - Acao de calendario foi separada para filtrar o calendario pelo cliente.
+  - Ajustes visuais responsivos para os novos cartoes de projecao.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+  - Backend validado com compileall.
+
+================================================================
+v1.0.46 — [2026-06-18] — Correção da seleção de clientes em Boletos
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Na aba Boletos > Configurar Clientes, selecionar ou
+          desmarcar um cliente individual podia não refletir o estado
+          real na linha/badge e o salvamento dependia de ler apenas
+          os checkboxes do DOM.
+
+Mudanças:
+  - APP_VERSION atualizado para 1.0.46.
+  - Configuração de clientes com boleto agora usa _bolClientsData
+    como fonte única de estado.
+  - Adicionada função setBolClientEnabled(i, enabled).
+  - Clique na linha e clique no checkbox passam a atualizar:
+    estado interno, checkbox, cor da linha, badge Ativo e resumo.
+  - Botões "Selecionar todos" e "Desmarcar todos" passam pelo mesmo
+    fluxo de estado.
+  - Salvamento envia a lista baseada em _bolClientsData, não apenas
+    no DOM visível.
+  - Mantido backend atual: settings.boleto_clients continua global,
+    ou seja, a configuração salva vale para todos os usuários.
+  - Resumo corrigido para mostrar corretamente 0 clientes ativos.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+  - Sintaxe Python conferida sem gerar pycache.
+
+================================================================
+v1.0.45 — [2026-06-18] — Correção mobile das abas densas e Avarias por Cliente
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   A tela Avarias por Cliente e outras abas densas ainda
+          mantinham comportamento de desktop no celular, causando
+          tabelas largas, calendário comprimido e navegação ruim.
+
+Mudanças:
+  - APP_VERSION atualizado para 1.0.45.
+  - Adicionado bloco "MOBILE UX PATCH 1.0.45".
+  - Avarias por Cliente:
+    - Calendário ganhou classes próprias (av-cal, av-cal-grid,
+      av-cal-day, has-movement/no-movement).
+    - No celular, o calendário deixa de forçar 7 colunas e vira
+      lista vertical somente com dias que têm movimento.
+    - Blocos Entregue/Avariado continuam clicáveis no mobile.
+    - Detalhe do dia passa a empilhar entregue e avariado em uma coluna.
+    - Ranking de risco vira cards a partir de telas menores, sem
+      tabela horizontal espremida.
+    - Ações, severidade, taxa e base entregue passam a quebrar linha
+      corretamente.
+  - Ajustes gerais de responsividade:
+    - Filtros/chips temporais ganham rolagem horizontal curta.
+    - Grids mgmt-* passam para uma coluna em telas menores.
+    - KPIs ficam em 2 colunas e depois 1 coluna em telas muito pequenas.
+    - Gráficos, Boletos, Clientes, Notas e cards de análise evitam
+      overflow horizontal.
+  - Monteiro/Paladar:
+    - Header e botões do overlay passam a quebrar/rolar melhor no celular.
+    - Sub-abas ganham rolagem horizontal.
+    - Inputs/selects respeitam largura máxima da tela.
+
+Resultado / testes:
+  - JavaScript inline validado via Node/vm.Script.
+  - Sintaxe Python conferida sem gerar pycache.
+  - Correção focada em responsividade, sem alterar regra de negócio.
+
+================================================================
+v1.0.44 — [2026-06-18] — Ranking de risco por cliente prioriza taxa de avaria
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   O ranking de Avarias por Cliente ficava confuso porque
+          a posição "Maior risco" misturava taxa, valor e recorrência
+          numa pontuação pouco visível. Clientes com taxa menor podiam
+          aparecer acima de clientes com taxa maior sem explicação clara.
+
+Mudanças:
+  [app.py]
+  - Ajustada a pontuação do endpoint GET /api/avarias/client-risk.
+  - Novo critério padrão de risco:
+    taxa de avaria primeiro, valor avariado como desempate e
+    quantidade de ocorrências como segundo desempate.
+
+  [index.html]
+  - APP_VERSION atualizado para 1.0.44.
+  - Botão/ordenação "Risco" passou a significar:
+    taxa de avaria desc → valor avariado desc → ocorrências desc.
+  - Adicionada nota explicativa acima do ranking informando o critério.
+  - Barra de severidade no modo "Risco" agora acompanha a taxa,
+    não apenas o valor avariado.
+  - Incluída "Base entregue" na coluna do cliente para ajudar a
+    interpretar a taxa.
+  - Incluída linha "Risco: taxa X% · R$ Y" dentro da severidade para
+    deixar a posição auditável.
+
+Resultado / testes:
+  - Ranking padrão fica mais intuitivo: maiores taxas aparecem primeiro.
+  - Valor e ocorrências continuam considerados, mas como desempate.
+  - JavaScript inline validado via Node/vm.Script.
+  - backend/app.py validado com python -m py_compile.
+
+================================================================
+v1.0.43 — [2026-06-18] — Revisão estrutural/visual + painel analítico de avarias por cliente
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   Evoluir o sistema para uma experiência mais moderna,
+          leve e executiva, sem remover páginas nem quebrar a
+          lógica atual. Foco principal: Avarias por Cliente.
+
+Alterações em ordem cronológica:
+  1) Revisão visual e estrutural do sistema
+     - Mapeados pontos de excesso visual e densidade nas abas:
+       Gráficos, Clientes, Boletos, Notas, Consolidado, Avarias
+       e Avarias por Cliente.
+     - Identificada alta concentração de HTML/CSS/JS inline em
+       index.html, com oportunidades de componentização visual.
+     - Definida estratégia incremental: camada visual nova sem
+       refatoração destrutiva.
+
+  2) Camada visual reutilizável adicionada ao frontend
+     - Criadas classes utilitárias com prefixos mgmt-* e risk-*:
+       mgmt-page-head, mgmt-filterbar, mgmt-kpi-grid, mgmt-kpi,
+       mgmt-surface, mgmt-grid-2, risk-table, risk-badge, etc.
+     - Objetivo: dar consistência a filtros, KPIs, superfícies,
+       tabelas e cards analíticos sem alterar a regra de negócio.
+
+  3) Backend analítico para Avarias por Cliente
+     - Adicionada rota GET /api/avarias/client-risk.
+     - A rota agrega avarias por cliente/produto/período e retorna:
+       resumo geral, ranking de clientes, produtos recorrentes e
+       tendência mensal.
+     - Mantida regra atual: vendas = tipos diferentes de AVARIA;
+       avarias = sale_type AVARIA, analisadas em valor absoluto.
+     - Frontend mantém fallback local caso o endpoint ainda não
+       esteja disponível, usando allSales.
+
+  4) Primeira evolução de Avarias por Cliente como painel de risco
+     - Criado painel com KPIs de:
+       valor avariado, taxa geral, clientes afetados e receita líquida.
+     - Criado ranking por maior risco, valor avariado, taxa de avaria
+       e quantidade de ocorrências.
+     - Criados níveis visuais: Alto risco, Atenção e Controlado.
+     - Adicionados gráfico de evolução mensal, gráfico de clientes
+       problemáticos e lista de produtos/causas recorrentes.
+
+  5) Ajuste após validação visual: calendário voltou ao centro
+     - A tela ficou executiva demais e perdeu o calendário original.
+     - Reorganizada a aba para manter o calendário como bloco principal.
+     - Calendário passou a mostrar por dia:
+       Entregue/Faturado e Avariado/Retornado.
+     - Cada dia exibe valor, quantidade, registros e taxa diária
+       quando há entregas e avarias no mesmo dia.
+     - Mantidos ranking, alertas e gráficos como apoio analítico,
+       não como substituição do calendário.
+
+  6) Filtros de Avarias por Cliente compactados em botões
+     - Cliente permanece como seletor, pois a lista pode ser longa.
+     - Mês, ano, ordenação e nível viraram botões/chips compactos.
+     - Reduzido o espaço vertical ocupado pelos filtros.
+     - Mantidos os mesmos IDs internos dos filtros para preservar
+       a lógica existente.
+
+  7) Padrão de botões aplicado a outras abas com filtros temporais
+     - Criado adaptador _mgmtEnhanceSelectAsChips().
+     - Selects de período/mês/ano passam a ser exibidos como chips
+       sem reescrever as funções originais.
+     - Aplicado em:
+       Gráficos (ano),
+       Clientes/Análise (período),
+       Clientes/Oportunidades (inatividade e tipo),
+       Boletos (mês e ano),
+       painéis NF-e/PR/Avulso/Avarias (mês),
+       Monteiro/Paladar (período e mês).
+     - Selects longos de cliente/busca foram preservados onde fazem
+       mais sentido do que botões.
+
+  8) Calendário de Avarias por Cliente ficou clicável
+     - Blocos "Entregue" e "Avariado / retornado" do calendário
+       viraram botões.
+     - Ao clicar, abre um painel de detalhe do dia abaixo do calendário.
+     - O detalhe mostra lado a lado:
+       clientes entregues/faturados e clientes com avaria/retorno.
+     - Para cada cliente são exibidos:
+       valor, quantidade, quantidade de registros, NF quando existir
+       e principais produtos.
+     - Incluído botão "Ver cliente" para filtrar o calendário pelo
+       cliente selecionado e analisar recorrência.
+
+  9) Monteiro / Clientes: filtro por cliente virou seletor
+     - Campo "Filtrar cliente..." deixou de ser input digitável.
+     - Substituído por select com opção "Todos os clientes".
+     - Lista é preenchida automaticamente com os clientes do período,
+       mês e ano selecionados.
+     - Mantido o id pal-filter-cli-name para preservar a função
+       loadPaladarClients().
+     - Adicionadas funções:
+       ensurePaladarClientFilterOptions()
+       updatePaladarClientFilterOptions()
+
+Resultado / testes:
+  - backend/app.py validado com: python -m py_compile
+  - JavaScript inline de backend/static/index.html validado via Node
+    usando vm.Script.
+  - Nenhuma página removida.
+  - Lógica de negócio preservada.
+  - Melhorias aplicadas de forma incremental e reversível.
+
+================================================================
+v1.0.42 — [2026-06-14] — PDF Monteiro migrado para wkhtmltopdf
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   Substituir impressão nativa (HTML+print) por geração
+          real de PDF no servidor via wkhtmltopdf.
+Mudanças:
+  [app.py]
+  - ADICIONADA _wkhtmltopdf_path(): detecta binário em caminhos
+    comuns (/usr/bin, /usr/local/bin, etc.). Usa shutil.which.
+    Resultado cacheado em variável global.
+  - ADICIONADA _html_to_pdf_wk(html): escreve HTML em arquivo
+    temporário, chama wkhtmltopdf via subprocess, lê PDF de
+    retorno, limpa temporários. Timeout 60s. Loga binário,
+    comando, returncode, stderr, bytes gerados.
+  - ADICIONADA rota GET /api/monteiro/clients/report/pdf:
+    monta mesmo HTML do print route, converte via wkhtmltopdf,
+    retorna PDF com Content-Disposition para download.
+    Fallback: weasyprint -> HTML print.
+    Logs: params, dados brutos, HTML size, caminho wkhtmltopdf,
+    returncode, elapsed, erro com traceback.
+  - ADICIONADA rota GET /api/monteiro/payments/report/pdf:
+    mesmo padrão para pagamentos.
+  - fpdf2/fpdf completamente removido do código Monteiro.
+    (já removido na v1.0.41, confirmado: zero referências)
+  - Rotas de /print mantidas como fallback final.
+
+  [index.html]
+  - exportPaladarClientPDF: agora chama /pdf (via _downloadBlob)
+    em vez de abrir /print em nova aba. Lê cliente do DOM.
+  - exportPaladarAllPDF: chama /pdf via _downloadBlob.
+  - exportPaymentsPDF: chama /payments/report/pdf via _downloadBlob.
+  - Todos os botões PDF passam this para controle de loading.
+  - Botão "Exportar PDF" simplificado (não passa mais client como
+    argumento separado, pois a função lê do DOM).
+
+v1.0.40 — [2026-06-14] — PDF do Monteiro substituído por página HTML imprimível
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   Internal Server Error persistente no FPDF/fpdf2.
+          Abandonada geração manual de PDF; adotado fluxo de
+          impressão nativa do navegador (HTML + CSS + window.print).
+Mudanças:
+  - REMOVIDAS todas as funções de geração de PDF:
+    _raw_pdf_minimo, _gen_pdf_completo, _gen_pdf_simples
+  - REMOVIDAS rotas antigas de PDF:
+    /api/monteiro/clients/report/pdf
+    /api/monteiro/clients/report/pdf/safe
+    /api/monteiro/clients/report/pdf/diag
+    /api/monteiro/payments/report/pdf
+  - ADICIONADA _print_page(title, body, period_str):
+    retorna página HTML completa com CSS A4 + @media print +
+    window.print() + window.close() automáticos
+  - ADICIONADA rota GET /api/monteiro/clients/report/print
+    renderiza HTML de clientes com produtos, totais, ticket
+  - ADICIONADA rota GET /api/monteiro/payments/report/print
+    renderiza HTML de pagamentos com notas, pagamentos, saldo
+  - Frontend: botões "PDF" agora abrem /print em nova aba
+    (window.open). Removida dependência de _downloadBlob para PDF.
+  - HTMLResponse adicionado ao import do FastAPI
+  - Zero dependência de fpdf2 para funcionamento do print.
+    fpdf2 pode ser desinstalado se não usado em outro lugar.
+  - Fallback: qualquer exceção gera página com erro legível.
+
+v1.0.39 — [2026-06-14] — Logs detalhados em todas as rotas PDF do Monteiro
+---------------------------------------------------------------
+Arquivos: backend/app.py
+Motivo:   Identificar causa exata do Internal Server Error na geração
+          de PDF da aba Monteiro.
+Mudanças:
+  - monteiro_payments_pdf: logs em cada etapa (params, period_map,
+    SQL WHERE, args, vendas/pags counts, clientes, cada cliente com
+    notas/pagamentos/totais/saldo, antes/depois pdf.output, elapsed)
+  - monteiro_client_pdf: mesmo padrão (params, data fetch, cada
+    nível de fallback tentado, elapsed, erro com traceback)
+  - _monteiro_report_data: logs da SQL executada e args, contagem
+    de linhas, elapsed, exceção com traceback
+  - Todos os except usam import traceback + traceback.print_exc()
+  - Todos os fallbacks registram "tentando..." e o resultado
+
+v1.0.38 — [2026-06-14] — Fix monteiro_payments_pdf: ln=True → new_x/new_y + safe_txt
+---------------------------------------------------------------
+Arquivos: backend/app.py
+Motivo:   Rota monteiro_payments_pdf ainda usava ln=True (depreciado
+          no fpdf2 >= 2.5.2) e não sanitizava strings com _safe_txt,
+          causando 500 em versões recentes do fpdf2.
+Mudanças:
+  - Substituído todos os 7 ln=True em cell() por new_x/new_y
+  - Adicionado from fpdf.enums import XPos, YPos
+  - Strings sanitizadas com _safe_txt() em vez de acesso direto
+    (client, saledate, nf_number, payment_date, payment_type, notes)
+  - Acessos a dict usando .get() com fallback (n.get("x") or 0)
+  - Try/except com fallback que gera PDF com mensagem de erro
+  - Debug logging: params, contagem vendas/pagamentos, bytes gerados
+  - Validação: float(n.get("x") or 0), _safe_txt(n.get("y"))
+
+v1.0.37 — [2026-06-14] — Reescrita completa: PDF sem dependência frágil + raw fallback
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   Erro 500 persistia — abordagens anteriores com fpdf2 puro
+          ainda falhavam em produção. Solução agressiva com 3 níveis.
+Correções:
+  - _gen_pdf_completo: usa new_x/new_y do fpdf2 em vez de ln=True
+    (compatível com fpdf2 2.5.2+ que deprecia ln). Também remove
+    dependência de fill=True (usado só no header).
+  - _gen_pdf_simples: versão enxuta só com resumo por cliente.
+  - _raw_pdf_minimo: gera PDF VÁLIDO em RAW BYTES sem depender de
+    nenhuma biblioteca PDF. Usa compressão zlib padrão do Python.
+    Composição manual do PDF-1.4. FUNCIONA SEMPRE.
+  - Rota /diag: diagnóstico JSON de cada etapa (data, fpdf2 import,
+    completo, simples, raw) para debug remoto.
+  - Fluxo principal tenta completo → simples → raw → 500.
+    raw é o ultimo recurso e nunca depende de biliotecas externas.
+  - Rota /safe também usa raw como fallback final.
+
+v1.0.36 — [2026-06-14] — Reimplementação total da rota PDF com fallback 3 níveis
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   Erro 500 persistia no PDF apesar das tentativas anteriores.
+          Reimplementação agressiva focada em estabilidade.
+Mudanças:
+  - 3 funções isoladas de geração PDF em cascata:
+    * _gen_completo()  → tabela de produtos (nível 1)
+    * _gen_simples()   → só resumo por cliente (nível 2)
+    * _gen_minimo()    → página única com mensagem (nível 3)
+  - Função _gen_pdf_bytes() tenta nível 1, se falhar → nível 2, se falhar → nível 3
+  - Rota /api/monteiro/clients/report/pdf/safe (fallback manual)
+  - Debug logging: toda request loga params, qtd linhas, bytes gerados
+  - Frontend: _downloadBlob aceita 4º parâmetro fallbackUrl;
+    exportPaladarClientPDF / exportPaladarAllPDF tentam /safe se principal falhar
+  - Todos os acessos a dict usam .get() com fallback
+  - Conversão segura: float(r.get("x") or 0), str(r.get("x") or "")
+  - PDF mínimo inline no catch final (independe de _gen_pdf_bytes)
+
+v1.0.35 — [2026-06-14] — Fix: 500 persistia no PDF do Monteiro por caracteres não-latin1
+---------------------------------------------------------------
+Arquivos: backend/app.py
+Motivo:   Mesmo após v1.5.7, o erro 500 continuava em produção.
+Causa real: Clientes/produtos com caracteres Unicode fora do Latin-1
+            (emoji, aspas curvas, etc.) quebravam o fpdf2 ao renderizar
+            texto com pdf.cell() — a fonte Helvetica embutida só suporta
+            ISO-8859-1. O try/except anterior existia, mas a exceção
+            escapava antes de ser capturada.
+Correções:
+  - Nova função _pdf_txt(t): sanitiza toda string antes de passar ao
+    fpdf2, convertendo para latin-1 com errors='replace' (caracteres
+    não-suportados viram "?")
+  - _pdf_txt() aplicado em: client, product, ultima_compra, periodo_str
+  - Fallback de emergência: se o try principal falhar, gera PDF mínimo
+    com a mensagem de erro em vez de retornar 500 ao usuário
+  - Frontend: erro JSON do backend é parseado para extrair campo
+    "detail" em vez de mostrar JSON cru no toast
+Testado com êxito:
+  - 9 combinações de parâmetros (sem params, mensal, anual, quinzenal,
+    cliente inexistente, etc.) → todas HTTP 200
+  - Dados com emoji (😀, 🤖) em nome de cliente e produto → PDF gerado
+    normalmente, caracteres substituídos por "?"
+
+v1.0.34 — [2026-06-14] — Fix: rota PDF do Monteiro retornava Internal Server Error (500)
+---------------------------------------------------------------
+Arquivos: backend/app.py
+Motivo:   PDF da aba Monteiro (clientes) quebrava com "Internal Server Error".
+Causa:   A rota monteiro_client_pdf não tinha try/except. Qualquer valor
+         None vindo do banco (ex: client NULL, product NULL, qty NULL)
+         causava TypeError (ex: None[:40], format None:.2f) que virava 500
+         sem mensagem para o usuário.
+Correções:
+  - Toda a geração do PDF envolvida em try/except com traceback no log
+  - Retorno JSON com detalhe do erro em vez de 500 genérico
+  - Todos os campos de banco convertidos com float()/int()/str() or 0/"-"
+    antes de formatar: total_vendido, qty_total, num_vendas, ultima_compra,
+    product, qty, total, preco_medio
+  - Fallback "Nenhum cliente encontrado no período." quando result set vazio
+  - print() + traceback.print_exc() para diagnóstico no journalctl
+  - Nada fora da rota PDF foi alterado
+
+v1.0.33 — [2026-06-14] — Fix: botão PDF do Monteiro não gerava download
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Botão "PDF" na aba Monteiro (clientes) não fazia nada ao clicar.
+Causas:
+  - #toast (z-index:999) ficava ATRÁS do overlay Monteiro (z-index:8500)
+    → erros de fetch/rota ficavam invisíveis, parecendo que nada acontecia
+  - _downloadBlob não tinha loading/feedback → sem indicação de progresso
+  - Sem proteção contra clique duplo
+Correções:
+  - #toast z-index: 999 → 9999 (acima do overlay Monteiro)
+  - _downloadBlob agora aceita parâmetro btn (elemento do botão):
+      * Desabilita botão + mostra "⏳ Gerando..." durante a requisição
+      * Prevenção de clique duplo (data-loading)
+      * Restaura texto original ao finalizar (sucesso ou erro)
+  - showExportError(): função auxiliar que exibe erro tanto no toast
+    quanto num banner flutuante vermelho visível dentro do overlay
+  - exportPaladarAllPDF() e exportPaladarClientPDF() passam this ao
+    _downloadBlob para feedback visual
+  - Tratamento de blob vazio e erro de rede
+Nada fora da aba Monteiro foi alterado. Excel mantido intacto.
+
+v1.0.32 — [2026-06-14] — Reformulação mobile-first: header, navegação, cards, tabelas
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Experiência mobile ruim — header carregado, navegação apertada,
+          cards densos, tabelas sem adaptação mobile-first.
+Alterações (100% frontend, CSS + HTML + JS):
+  Header mobile:
+  - Hamburger button (☰) para abrir drawer de navegação
+  - Logo reduzido (40→30px), nome em linha única com ellipsis
+  - Notificação movida para dentro do header (em vez de fixed bottom)
+  - Botão Monteiro e ações secundárias movidos para o drawer
+  - Header mais compacto (48px) com padding ajustado
+  Drawer de navegação:
+  - Slide-in left (max 300px / 82vw) com overlay
+  - Foto + nome + role do usuário no topo
+  - Todas as abas do sistema como links (com badge de pendentes)
+  - Seções: Principal / Consultas + Monteiro + Config
+  - Footer com atalhos: Tema, TV, Sair
+  - Aba ativa destacada com borda verde
+  Mobile bar inferior:
+  - 5 botões: Lançar (destaque), NF-e, Monteiro (roxo), 🔔 Notificações, 📋 Notas
+  - Estilo compacto com padding reduzido e font-size adaptável
+  Cards e KPIs:
+  - Grid de KPIs em 1 coluna no mobile (vs auto-fit antes)
+  - Padding reduzido (13→11px), fontes ajustadas (18→16px)
+  - Labels menores (10→9px), descrições secundárias (10→9px)
+  - Type-KPIs grid 1fr 1fr (vs 4 colunas desktop)
+  Tabelas responsivas:
+  - Card layout mais compacto (padding 12→10px, gap 4→2px)
+  - Labels menores (9→8px), min-height reduzido (44→36px)
+  - Efeito :active ao tocar (scale .99)
+  - Main com padding-bottom extra (56px) para não esconder atrás da sticky bar
+  Breakpoints refinados:
+  - 480px: type-kpis 1 coluna, tabs mais compactos, mobile-bar ainda menor
+  - 400px: logo 26px, nome 11px
+  Nenhuma lógica de negócio alterada. Backend intacto. Desktop intacto.
+
+v1.0.31 — [2026-06-14] — Monteiro: nova aba "Pagamentos" com controle de recebimentos
+----------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html, changelog.txt
+Motivo:   Controlar recebimentos mensais por cliente sem planilha.
+          Criada aba completa com lançamento, extrato e exportação.
+Alterações:
+  Backend (app.py):
+  - Nova tabela monteiro_payments (id, client, payment_date, amount,
+    month, year, payment_type, notes)
+  - GET /api/monteiro/payments — listar pagamentos
+  - POST /api/monteiro/payments — lançar pagamento
+  - DELETE /api/monteiro/payments/{id} — excluir pagamento
+  - GET /api/monteiro/payments/summary — total vendido, pago, saldo,
+    notas, pagamentos, último pagamento
+  - GET /api/monteiro/payments/report — JSON com vendas, pagamentos
+    e extrato cronológico (ordem: notas → total → pagamentos →
+    saldo corrente)
+  - GET /api/monteiro/payments/report/excel — XLSX por cliente
+  - GET /api/monteiro/payments/report/pdf — PDF por cliente com
+    tabela de notas, pagamentos e saldo (verde se quitado, vermelho
+    se pendente)
+  Frontend (index.html):
+  - Botão "💰 Pagamentos" na sub-nav do Monteiro
+  - switchPaladarTab atualizado para 'pagamentos'
+  - pal-view-pagamentos com:
+    - Filtros: cliente (datalist), mês, ano
+    - 6 cards de resumo: total vendido, recebido, saldo, notas,
+      pagamentos, último pagamento
+    - Barra de progresso de quitação (verde gradiente)
+    - Tabela de notas do período com total no rodapé
+    - Tabela de pagamentos com botão ✕ para excluir
+    - Extrato cronológico com saldo corrente (notas → total →
+      pagamentos → saldo por linha, verde se ≤0, vermelho se >0)
+    - Botões "💰 Lançar pagamento", "📥 Excel", "📄 PDF"
+  - Modal de lançamento: cliente, data, valor, competência, tipo,
+    observação, validação inline
+  - Tudo apenas no módulo Monteiro, nada do sistema principal alterado
+
+v1.0.30 — [2026-06-14] — Monteiro: demonstrativo mensal por cliente com exportação PDF/Excel
+----------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html, changelog.txt
+Motivo:   Aba Clientes do Monteiro não tinha detalhamento por cliente
+          nem exportação. Adicionado painel de detalhe + PDF + Excel.
+Alterações:
+  Backend (app.py):
+  - Novo endpoint GET /api/monteiro/clients/report: retorna JSON com
+    resumo, produtos consolidados e notas fiscais do cliente no período
+  - Novo endpoint GET /api/monteiro/clients/report/excel: gera XLSX
+    com 3 abas (Resumo, Produtos, Notas) via openpyxl
+  - Novo endpoint GET /api/monteiro/clients/report/pdf: gera PDF via
+    fpdf2 com cabeçalho, resumo por cliente e tabela de produtos
+  - Dependência nova: fpdf2 (pip install fpdf2) para PDF
+  Frontend (index.html):
+  - Botões "📥 Excel todos" e "📄 PDF todos" no cabeçalho da aba
+  - Tabela de clientes: nomes clicáveis em destaque abrem detalhamento
+  - Painel de detalhe (pal-cli-detail) com:
+    - Card resumo: total, itens, vendas, ticket médio, última compra
+    - Tabela de produtos comprados com qtd, valor, preço médio, ocorrências
+    - Tabela de notas fiscais com data, NF, produtos, entregador, veículo
+    - Produto mais comprado destacado com ⭐
+    - Botões "Exportar Excel" e "Exportar PDF" por cliente
+    - Fechar painel
+  - Função _downloadBlob com autenticação via x-token para downloads
+  - Nada fora de Monteiro > Clientes foi alterado
+
+v1.0.29 — [2026-06-14] — WhatsApp: sub-aba "Auto respostas" com regras, templates e config do bot
+----------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html, changelog.txt
+Motivo:   Gerenciar comportamento do bot WhatsApp sem editar código.
+          Criada interface visual para mensagens automáticas, auto
+          respostas por palavra-chave, modelos reutilizáveis e
+          configurações gerais do bot.
+Alterações:
+  Backend (app.py):
+  - Novas tabelas: whatsapp_auto_rules (gatilhos + auto respostas)
+    e whatsapp_templates (modelos de mensagem)
+  - Novas config keys: bot_active, auto_reply_enabled,
+    auto_reply_from/to, min_interval_secs, block_groups,
+    block_duplicate, max_per_day_per_client, test_mode
+  - Novos endpoints:
+    GET/POST/PUT/DELETE /api/whatsapp/auto-rules
+    GET/POST/PUT/DELETE /api/whatsapp/templates
+    GET/PUT /api/whatsapp/bot-settings
+    POST /api/whatsapp/test-message
+  Frontend (index.html):
+  - Sub-aba "📢 Disparos" (mantém cards originais: API,
+    Gatilhos, Contatos, Envio manual, Log)
+  - Sub-aba "🤖 Auto respostas": lista de regras com switch
+    ativar/desativar, modal de criação/edição com tipo
+    (gatilho/auto_reply), evento, palavra-chave, horário,
+    cooldown, prioridade, pré-visualização ao vivo
+  - Sub-aba "📦 Modelos": lista de templates com categorias,
+    botão duplicar, pré-visualização com substituição de
+    variáveis ({cliente}, {valor}, {vencimento}, {taxa},
+    {data}, {empresa})
+  - Sub-aba "⚙️ Bot": switches e campos para bot ativo,
+    auto respostas, modo teste, bloquear grupos/duplicado,
+    horário, intervalo, limite diário
+  - Nada fora do módulo WhatsApp foi alterado
+
+v1.0.28 — [2026-06-14] — Monteiro: filtro quinzenal + período unificado
+----------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Motivo:   Módulo Monteiro só permitia filtro mensal ou anual;
+          adicionado período quinzenal (últimos 15 dias) para
+          visão mais granular do mês corrente.
+Alterações:
+  Backend (app.py):
+  - Nova função _pal_period_where(period, month, year) que
+    centraliza a lógica de período: 'quinzenal' (hoje-14d),
+    'quinzenal_prev' (hoje-29d a hoje-15d, usado para
+    comparação de variação), ou fallback para month/year
+  - Adicionado parâmetro `period` (opcional) nas 5 rotas:
+    /api/monteiro/summary, /api/monteiro/sales,
+    /api/monteiro/clients/list, /api/monteiro/clients/summary,
+    /api/monteiro/clients/history
+  - Backward compatible: período não informado usa month/year
+  Frontend (index.html):
+  - Seletor <select id="pal-filter-period"> com opções
+    Quinzenal / Mensal / Anual na sub-nav do Monteiro
+  - togglePalPeriodFields() oculta mês/ano quando quinzenal
+  - getPalPeriod() retorna período atual (default 'mensal')
+  - loadPaladarSummary: subtitle "Últimos 15 dias" para
+    quinzenal; variação vs período anterior usa quinzenal_prev
+  - loadPaladarSales / loadPaladarClients: passam period à API
+  - Filtrar button agora recarrega também a aba Clientes
+  - Mudar o período recarrega automaticamente a aba visível
+Resultado:
+  ✅ Quinzenal mostra dados dos últimos 15 dias corridos
+  ✅ Variação compara com os 15 dias imediatamente anteriores
+  ✅ Mensal/Anual preservam comportamento exato anterior
+  ✅ Nenhuma lógica de outros módulos foi alterada
+
+v1.0.28 — [2026-06-14] — Módulo Paladar (independente)
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Novo módulo "Paladar" completamente independente:
+  - Tabela separada paladar_sales no SQLite (sem relação com "sales")
+  - 5 rotas /api/paladar/* protegidas por token
+  - Aba "🍽️ Paladar" na nav + botão roxo no header
+  - Modal próprio para lançar vendas (separado do sale-modal)
+  - 3 sub-vistas: Painel (KPIs + charts), Lançamentos (tabela), Produtos (lista)
+  - KPIs: Total Receita (roxo), Total Vendas, Ticket Médio, Dias Produtivos
+  - Gráfico de barras por dia + donut por produto (Chart.js, cor roxa)
+  - Top produtos com ranking e barras
+  - Autocomplete de produto no modal (datalist)
+  - Perfil 'paladar' incluso nas permissões de todos os perfis
+  - Nenhuma lógica existente alterada (allSales, consolidado, etc. intactos)
+
+v1.0.27 — [2026-06-13] — TV Mode: reformulação visual + versão unificada + refresh 30s
+----------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Modo TV com aparência pesada (header escuro, cards densos,
+          canais poluindo a visão geral); versão inconsistente entre
+          login, console e TV; refresh lento (60s).
+Alterações:
+  Reformulação visual (CSS):
+  - Header: fundo escuro → var(--card) com sombra suave, relógio
+    e badge AO VIVO mais compactos
+  - Ticker: linhas com background + borda arredondada, cor dinâmica
+    por tipo (NF/PR/Avulso), rolagem mais suave
+  - KPI cards: padding/largura reduzidos, labels menores, grid
+    mais espaçado, cores refinadas
+  - Card de projeção de avaria: alinhado com demais KPIs
+  - Gráfico de barras: bordas arredondadas, grid oculto
+  - Listas (Top Clientes, Avarias, Entregadores): padding reduzido,
+    linhas mais compactas, medalhas e badges refinados
+  - Footer: mais leve, slide indicators com cor ativa
+  - Canais (NF/PR/Avulso) ocultos no Slide 1 (visão geral)
+  - Títulos dos cards encurtados (ex: "Melhores Clientes" →
+    "Top Clientes")
+  Versão unificada:
+  - APP_VERSION = 'v1.4.2' como fonte única da verdade exibida
+    no login (footer), console (log), e rodapé do Modo TV
+  Refresh:
+  - Data refresh reduzido de 60s para 30s (slide rotation já era
+    30s, agora sincronizados)
+Resultado:
+  ✅ Interface mais limpa e profissional no Modo TV
+  ✅ Versão consistente em todos os lugares
+  ✅ Dados atualizados 2× mais rápido
+
+v1.0.26 — [2026-06-13] — Boletos: correção definitiva "Em atraso" + outlines
+----------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Card "Em atraso" ainda listava vazio após v1.4.3.
+          A abordagem anterior (remover filtro de mês) não resolvia
+          o problema porque a API filtrava por status pendente e
+          o mês da venda original diferia do mês corrente.
+Alterações:
+  - loadBoletos(): mapeia status='vencidos'|'hoje' → envia
+    apiStatus='pendente' para a API retornar TODOS os boletos
+    pendentes independente do mês da venda
+  - Filtragem por data de vencimento feita no cliente (JS) em
+    vez de depender do filtro de mês do backend
+  - Cards do painel agora têm outline colorido quando ativos:
+    vermelho (#EF4444) para "Em Atraso", laranja (#F59E0B)
+    para "Vence Hoje"
+  - Subtítulos dos cards melhorados com contagem real e texto
+    mais claro
+  - Nenhuma alteração no backend (solução 100% frontend)
+Resultado:
+  ✅ Card "Em atraso" mostra boletos corretamente
+  ✅ Card "Vence Hoje" funciona independente do mês da venda
+  ✅ Indicadores visuais (outline) facilitam navegação
+  ✅ Consistente com o resumo do painel de boletos
+
+v1.0.25 — [2026-06-12] — Projeção de avaria no ranking + Modo TV
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Ranking de Avarias (renderAvariaRanking):
+  - Adicionado painel "📈 Projeção de Avaria" com 4 cards:
+    Acumulado Atual, Média Diária, Projeção Final (com tendência
+    🔴/🟢/🟡), % Projetada sobre entregas
+  - Mostra apenas no mês corrente; meses anteriores/passados pulam
+  - Cálculo: (totalAvariasVal / diasDecorridos) * diasNoMes
+  - Inserido como projHtml antes do kpiHtml + rankHtml existentes
+
+Modo TV (renderTVMode + HTML):
+  - Novo KPI de projeção "tv-kpi-avaria-proj" dentro do card
+    ⚠️ Avarias do Mês
+  - Mostra projeção linear + tendência (↑ Acelerado / ↓ Reduzindo / → Estável)
+  - Dia atual / total dias do mês
+  - Fix: tvFmtBRK → _tvFmtBRK (função real com underscore)
+
+v1.0.24 — [2026-06-12] — Feature: ocultar clientes inativos dos indicadores
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Adicionado checkbox "Ocultar inativos (+60d)" na barra de filtros
+da Análise de Clientes (#cv-analise):
+  - Quando marcado, filtra o ranking (clientes com last_purchase
+    >= 60 dias atrás) em memória após carregar do backend
+  - Atualiza total_clients, top_client, bottom_client do summary
+  - Cards, gráficos (barra + rosca) e tabela de ranking refletem
+    apenas clientes ativos
+  - Card "Inativos há +X dias" continua mostrando total real
+    (apenas os indicadores principais são filtrados)
+  - Desligar o checkbox + reload restaura comportamento original
+  - Sem alteração no backend (aproveita campo last_purchase já
+    retornado por /api/analytics/clients)
+
+v1.0.23 — [2026-06-11] — Fix: card "Em atraso" listava vazio
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Causa:   loadBoletos() enviava month/year do <select> mesmo
+         quando status='vencidos'/'hoje', mas o summary endpoint
+         (/api/boletos/summary) conta sem filtro de mês — a lista
+         (/api/boletos) filtrava sales pelo mês corrente, então
+         boletos atrasados de vendas em meses anteriores sumiam.
+Correção: em loadBoletos(), quando status é 'vencidos' ou 'hoje',
+          não adiciona year/month à querystring, fazendo a lista
+          mostrar todos os boletos que satisfazem a condição de
+          vencimento independente do mês da venda original.
+WhatsApp: usa SELECT direto na tabela boletos (sem filtro de mês)
+          — consistente com o summary, nenhum ajuste necessário.
+
+v1.0.22 — [2026-06-11] — Cards de boleto clicáveis (filtro por status)
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Cards do painel de Boletos agora são clicáveis:
+  - ⏳ A Receber → status="" (todos pendentes)
+  - ✅ Recebido no mês → switchBolView('pagos')
+  - 🔴 Em Atraso → status="vencidos"
+  - 📅 Vence Hoje → status="hoje"
+Função bolFilterCard(status) criada — seta o <select id="bol-status">
+e chama loadBoletos(), reaproveitando a lógica de filtro existente.
+Indicador visual: card ativo ganha outline em destaque.
+cursor:pointer + transition em todos os cards.
+
+v1.0.21 — [2026-06-11] — Paginação nas abas NF/PR/Avulso/Avaria + sino reduzido
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+NF/PR/Avulso/Avaria agora têm paginação:
+  - Seletor 50/100/200 por página + navegação ‹ ›
+  - Estado de página separado do Consolidado (globais _typePageSize, _typePage)
+  - funções changeTypePageSize(type), goTypePage(p, type)
+  - Antes: data.slice(0,300) fixo; agora paginado dinamicamente
+
+Sino flutuante reduzido novamente:
+  - 36×36 → 26×26, ícone 14→11px, badge 16→12px
+  - bottom/right 16→10px, sombra mais leve
+  - Não ocupa mais espaço de linha de produto
+
+v1.0.20 — [2026-06-11] — WhatsApp em sub-aba + auto-triggers + prazo configurável
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+WhatsApp movido para sub-aba exclusiva em Configurações:
+  - Botão "📱 WhatsApp" na sub-nav de Configurações
+  - wa-section envolvido em <div id="cfg-whatsapp" style="display:none">
+  - switchConfigView() inclui cfg-whatsapp/cfg-btn-whatsapp
+  - loadWaSection() só carrega ao clicar na sub-aba (não mais no switchTab)
+  - waSectionLoaded evita recarga desnecessária
+  - WhatsApp nunca aparece em outras abas
+
+Auto-triggers (POST /api/whatsapp/check-triggers):
+  - Verifica boletos vencidos, avarias altas, clientes inativos
+  - Modo preview (send=false) mostra o que seria enviado
+  - Modo send=true envia para todos contatos ativos + log
+  - Botão "🔍 Verificar gatilhos" + "📤 Enviar notificações"
+
+Prazo automático configurável:
+  - Select "Verificar a cada" com opções 7/15/30 dias
+  - Salvo em whatsapp_config como auto_period (default 7)
+  - Avaria e boleto usam auto_period no lugar do -7 days hardcoded
+  - Campo no frontend + set() em loadWaConfig + body em saveWaToggles
+
+Correções gerais:
+  - api() agora lê content-type antes de parsear JSON (nunca mais "Unexpected token '<'")
+  - serve_spa rejeita GET /api/* não definidos com JSON 404
+  - Sino flutuante reduzido: 56→36px, badge 22→16px, ícone 24→14px
+  - Paginação: seletor de limite sempre visível (antes sumia com 1 página)
+
+v1.0.19 — [2026-06-10] — Feature: Notificações WhatsApp (v2, sem 502)
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+Correção crítica: import httpx agora DENTRO de wa_send() para não
+  crashar uvicorn no startup se biblioteca não estiver instalada.
+Backend:
+  - 3 tabelas (whatsapp_contacts, whatsapp_config, whatsapp_log)
+    + seeds com INSERT OR IGNORE em initdb()
+  - wa_send() com try/except local — httpx → requests → erro amigável
+  - 7 endpoints: CRUD contatos, config, send manual, test, log
+Frontend (aba Configurações, visível só para admin):
+  - 5 cards: API, gatilhos, contatos, envio manual, log
+  - Modal de cadastro com validação
+  - body.tv-active #wa-section{display:none!important}
+  - loadWaSection() chamado ao abrir Configurações
+  - Nomes com apóstrofo escapados nos onclick
+
+v1.0.18 — [2026-06-10] — HOTFIX clientes mesclados + melhorias tabela
+----------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+
+HOTFIX CRÍTICO — app.py (5 queries):
+  Antes: WHERE client LIKE '%<primeira_palavra_do_nome>%'
+         → filiais com prefixo comum (GOIANA – CENTRO, GOIANA –
+           BAMBUS, etc.) somavam valores umas das outras.
+  Depois: WHERE client = <nome_completo_do_cliente>
+          → cada filial mostra apenas suas próprias vendas.
+  Afeta: TOTAL, PEDIDOS, TICKET MÉDIO, by_type, by_product,
+         últimos meses, histórico de vendas do cliente.
+  Validado: simulação com 4 filiais — cada uma soma seu valor.
+
+Tabela do Consolidado — melhorias visuais:
+  - Coluna Cliente 130 → 160-220px com avatar de iniciais
+  - Coluna Produto compacta (170px + ellipsis + cor muted)
+  - Coluna OBS 110 → 80px
+  - Headers th com larguras explícitas
+  - table-layout:auto + vertical-align:middle
+  - Linhas zebradas + hover com borda lateral verde
+  - Mini-barra de progresso na célula Total (% relativo)
+  - Skeleton shimmer melhorado (var --card2/--border)
+  - Atalho N bloqueado para role=viewer
+  - Botão "voltar ao topo" flutuante (oculto no Modo TV)
+  - Fix defensivo no handler de teclado (typeof t.matches)
+Deploy: ATUALIZAR.bat normal. Ctrl+Shift+R no navegador.
+
+v1.0.17 — [2026-06-09] — Correções de layout do Modo TV (1080p)
+---------------------------------------------------------------
+Arquivo: backend/static/index.html
+Aplicado sobre v1.3.0. Resolve 4 problemas de layout:
+  - Slide 1: grid 3 colunas espremido → 2 colunas (1.3fr gráfico + 1fr top5)
+    removidos cards de Entregadores/Avarias (já existentes no Slide 2)
+  - Slide 2: grid horizontal + 3 colunas → 2 seções flex (top8+canais / avarias+entregadores)
+  - Footer: position:absolute sobrepondo listas → fluxo normal com flex-shrink:0
+  - Altura total: #tv-mode como flex column, elementos fixos com flex-shrink:0,
+    .tv-slides flex:1, cada slide overflow:hidden
+  - Cards/listas internas com overflow:hidden + flex column + min-height:0
+  - Limite de itens nas listas detalhadas: drivers 8→5, avarias 12→6
+  - Espaçamentos reduzidos (header, KPI cards, channels, etc.) para caber em 1080p
+Validação: render em 1920×1080 com dados realistas — zero overflow, footer em y=1030.
+
+v1.0.16 — [2026-06-09] — Modo TV completo: 6 KPIs, ticker, canais, rotação
+---------------------------------------------------------------
+Arquivo: backend/static/index.html
+Aplicado sobre v1.2.4. Refatoração completa do Modo TV:
+  KPIs: 4 → 6 cards (adicionados Avarias do Mês + Meta do Mês com barra de progresso).
+        Grid: repeat(4,1fr) → repeat(3,1fr) (2×3).
+  Grade principal: 1.2fr 1fr 1fr com 4 seções:
+    - Gráfico de barras 14 dias com linha da média (substituiu sparkline)
+    - Top 5 clientes com badges medalha (🥇🥈🥉), badge de avaria, barra % de participação
+    - 🏆 Entregadores do Mês (top 4)
+    - ⚠️ Avarias por Cliente (top 5)
+  Canais (NOVO): pills horizontais NF/PR/Avulso com ícone, valor, percentual e barra
+  Rotação automática: 2 slides alternando a cada 30s com transição de opacidade 0.8s
+    - Slide 1: visão geral (canais, 6 KPIs, gráfico, top5, entregadores, avarias)
+    - Slide 2: top10 expandido, canais por semana (4 semanas), avarias detalhadas, entregadores
+  Ticker horizontal: últimas 5 vendas em scroll infinito (60s animação CSS)
+  AO VIVO badge com pulse verde + "ATUALIZANDO…" durante refresh
+  Slide indicator no footer (● ○) + dados atualizam a cada 60s
+Métricas: +491 linhas, +24 KB (7670 → 8161 linhas)
+
+v1.0.15 — [2026-06-09] — Correções layout tabela + melhorias visuais + atalhos
+----------------------------------------------------------------
+Arquivo:  backend/static/index.html
+Motivo:   Coluna cliente estreita, tabela sem zebras, sem avatares,
+          sem barra de progresso no total, skeleton sem shimmer,
+          sem atalhos de teclado, sem botão voltar ao topo.
+Alterações:
+  1A/1B/1C — Colunas Cliente (min-width:160px, max-width:220px) e
+             Produto (max-width:170px, ellipsis) ajustadas nas 2
+             ocorrências (single + group).
+  1D — Headers <th> com larguras explícitas (Cliente: min 160px,
+        NF/Placa: 80px, Produto: max 170px).
+  1E — Coluna Obs reduzida de max-width:110px → 80px.
+  1F — #table-area table com table-layout:auto; td/th com
+        vertical-align:middle.
+  2A — Zebra rows (nth-child odd/even) + hover com inset border-left
+       3px var(--g600).
+  2B — Avatar .client-init (iniciais em círculo 24px) inserido nas
+        2 células Cliente.
+  2C — Barra .total-bar (altura 2px, gradiente) proporcional ao
+        maior valor da página; buildTable ganha parâmetro pageMax
+        (default=1, compatível com chamadas antigas).
+  3A — Skeleton .sk-el com shimmer animado (gradiente + keyframes),
+        usa variáveis CSS (funciona em dark mode).
+  3B — Atalhos de teclado: N (nova venda, exceto viewer), /
+        (focar busca), Esc (fechar modal).
+  3C — Botão flutuante #btn-top "↑" (volta ao topo após 320px
+        scroll) + oculto no Modo TV.
+Resultado:
+  ✅ Coluna cliente 2× mais larga com avatar de inicial
+  ✅ Produto truncado com ellipsis
+  ✅ Tabela com listras zebradas + hover identificador
+  ✅ Total com barrinha proporcional
+  ✅ Skeleton com shimmer suave
+  ✅ Atalhos N, /, Esc funcionando
+  ✅ Botão ↑ aparece ao scroll > 320px
+
+
+v1.0.14 — [2026-06-09] — Fix: layout do Modo TV cortando conteúdo
+----------------------------------------------------------------
+Arquivo:  backend/static/index.html
+Motivo:   Listas do Modo TV (Top Clientes, Avarias, Entregadores)
+          eram cortadas porque a altura disponível era calculada
+          incorretamente (soma dos elementos fixos excedia 100vh).
+Alterações:
+  CSS:
+  - #tv-mode e .tv-slide agora com height:100% para base correta.
+  - .tv-header: padding compactado (18→14px).
+  - .tv-ticker: padding/font-size reduzidos.
+  - .tv-channels: margin/padding reduzidos, itens mais compactos.
+  - .tv-kpis: gap 16→14px, padding 14→12px, min-height 110→90px,
+    font-size dos valores reduzido, label/sub margin menor.
+  - .tv-card-title: font-size 13→12px, margin-bottom 12→8px.
+  - .tv-top-list li: padding 9→7px, font-size 14→13px.
+  - #tv-slide-1 > .tv-grid: height:100%, columns 1.3fr→1.2fr.
+  - Slide 2 reestruturado: .tv-slide2-top/.tv-slide2-bottom
+    removidos, substituído por .tv-grid único com
+    grid-template-rows:1fr 1fr (2×2). Cada card ocupa um quadrante.
+  JS:
+  - Slide 2 Top 10 → Top 8 (.slice(0,10)→.slice(0,8)).
+  - Slide 2 drivers .slice(0,5)→.slice(0,4).
+Resultado:
+  ✅ Conteúdo do Modo TV não é mais cortado em 1080p
+  ✅ Espaço livre do grid aumentou de ~520px para ~720px
+  ✅ Slide 2 com 4 cards em grid 2×2, layout consistente
+  ✅ Todos os elementos respeitam a altura disponível
+
+
+v1.0.13 — [2026-06-09] — Persistência da meta mensal no banco de dados
+----------------------------------------------------------------
+Arquivo:  backend/app.py + backend/static/index.html
+Motivo:   A meta mensal era local (localStorage/input apenas) —
+          cada usuário via um valor diferente. Não havia
+          compartilhamento entre usuários/quiosques.
+Alterações:
+  Backend (app.py):
+  - init_db(): adicionada tabela `app_config` (key/value) para
+    persistência genérica de configurações.
+  - Adicionada função require_admin_or_editor() como alias de
+    segurança para require_editor().
+  - GET /api/config/{key} — lê qualquer config do banco
+    (require_auth, todos podem ler).
+  - PUT /api/config/{key} — salva config no banco com upsert
+    (require_admin_or_editor, só admin/editor podem escrever).
+  Frontend (index.html):
+  - Adicionada loadMetaMensal() — busca meta do banco via
+    /api/config/meta_mensal e preenche o input.
+  - Adicionada saveMetaMensal() — debounce 800ms, salva via
+    PUT /api/config/meta_mensal, mostra indicador "✓ salvo"
+    no input por 2 segundos.
+  - Input meta-mensal: adicionado onchange + oninput para
+    salvar automaticamente; wrapper com indicador visual.
+  - showApp(): loadMetaMensal() chamado ANTES de loadAll()
+    para que a meta carregada do banco seja usada no gráfico.
+  - Indicador <span id="meta-saved-ind"> ao lado do input
+    com fade-in/fade-out.
+Resultado:
+  ✅ Meta persiste no banco (tabela app_config, chave meta_mensal)
+  ✅ Todos os usuários veem o mesmo valor
+  ✅ Input salva automaticamente ao digitar (debounce 800ms)
+  ✅ Viewers podem VER mas não alterar (PUT bloqueia)
+  ✅ Indicador "✓ salvo" visível por 2s após salvar
+
+
+v1.0.12 — [2026-06-08] — HOTFIX: Modo TV e Smart Context Bar zerados
+----------------------------------------------------------------
+Arquivo: backend/static/index.html
+Causa:   updateSmartContext, renderTVMode e renderTVSparkline
+         acessavam s.date e s.value, mas o backend retorna
+         s.sale_date e s.total. O filtro retornava sempre vazio,
+         zerando todos os KPIs sem mensagem de erro.
+Fix:     17 substituições nas linhas 7201–7430:
+           s.date  → s.sale_date  (10 ocorrências)
+           s.value → s.total       (7 ocorrências)
+Validação: testado com dados usando os campos reais.
+           Smart Context: "Jun/2026 · 42 vendas · R$ 81,8k · ▼ 30%"
+           Modo TV: KPIs preenchidos, Top 5 com clientes, sparkline OK.
+Deploy:    ATUALIZAR.bat normal. Ctrl+Shift+R no navegador.
+
+v1.2.1 — [2026-06-08] — Modo TV + correções de bugs auditados
+----------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html
+
+Feature: Modo TV
+  Acionado via menu de usuário (entre Tema Escuro e Alterar senha).
+  Overlay fullscreen com 4 KPIs gigantes do mês corrente:
+    - Faturamento + variação % vs mês anterior (▲▼ colorido)
+    - Vendas + diferença vs mês anterior
+    - Ticket médio
+    - Dias produtivos + média R$/dia
+  + Sparkline SVG dos últimos 14 dias
+  + Top 5 clientes do mês
+  + Relógio + data ao vivo
+  + Auto-refresh dos dados a cada 60s
+  + Esc sai do modo
+  + Sino flutuante oculto durante o modo
+  Responsivo desktop/tablet/mobile.
+
+Bugfix crítico: Cleanup de sessões expiradas
+  Antes: tabela sessions só perdia linhas no logout explícito,
+         tokens vencidos acumulavam indefinidamente.
+  Agora: DELETE FROM sessions WHERE expires_at < datetime('now')
+         no startup do serviço + diariamente às 03h após backup.
+
+Bugfix médio: except mudo no extract_nf (import Excel)
+  Antes: 2x "except: pass" mascaravam erros de linha E do sheet.
+         Linhas problemáticas sumiam sem aviso.
+  Agora: except (ValueError, TypeError, AttributeError) na linha,
+         except Exception as e: print(...) no sheet (loga no journalctl).
+
+Bugfix menor: except mudo no backup inicial do startup.
+  Agora loga "Backup inicial falhou: <erro>" em vez de silenciar.
+
+Limpeza técnica: 4 migrations com except sqlite3.OperationalError
+  específico em vez de bare except.
+
+Auditoria sem ações (falsos positivos descartados):
+  - SQL injection no UPDATE sales {f} — f vem de whitelist hardcoded
+  - Connection leaks — todas as funções fecham corretamente
+  - XSS via innerHTML — pontos de risco já escapados ou estáticos
+
+Métricas:  +24 linhas em app.py, +287 linhas em index.html
+           HTML: 412 → 423 KB
+Validação: cleanup testado com sessões expiradas/válidas;
+           Modo TV renderizado em 1920×1080, 768×1024, 375×812;
+           menu na ordem correta, sino oculto, Esc funciona.
+Deploy:    ATUALIZAR.bat normal. Ctrl+Shift+R no navegador.
+
+v1.2.0 — [2026-06-07] — Login premium + Smart Context Bar
+----------------------------------------------------------------
+Arquivo:  backend/static/index.html (apenas)
+Mudança 1: Login redesenhado
+           - Layout split desktop / coluna única mobile
+           - Gradiente animado verde→dourado→laranja (22s loop)
+           - Saudação contextual por horário (4 períodos)
+           - Dica do dia rotativa (9 dicas)
+           - Versão v1.2.0 e indicador "Sistema online"
+           - Autocomplete em usuário/senha
+Mudança 2: Smart Context Bar
+           Subtítulo do header muda por aba ativa:
+           - Consolidado: mês + vendas + total + variação ▲▼
+           - NF/PR/Avulso/Avaria: tipo filtrado
+           - Pendentes: a entregar + não entregues + entregues
+           - Boletos: abertos + vencendo em 7 dias
+           - Clientes/Produtos/Produtividade: contadores
+           Fade de 180ms na transição, refresh a cada 60s
+Mudança 3: Sino flutuante oculto antes do login (UX)
+Métricas:  7200 → 7379 linhas, 400 → 412 KB (+3%)
+Validação: render testado em desktop, mobile, dark mode;
+           smart context com dados simulados em 8 abas.
+Deploy:    ATUALIZAR.bat normal; usuários precisam Ctrl+Shift+R
+           pra evitar cache do navegador.
+
+v1.0.11 — [2026-06-07] — Rate limit no login + política de senha
+----------------------------------------------------------------
+Arquivo:  backend/app.py
+Mudança 1: rate limit no POST /api/auth/login.
+           10 tentativas falhas em 60s → bloqueio de 5 min (HTTP 429).
+           IP via X-Forwarded-For (nginx) com fallback request.client.host.
+           Login bem-sucedido reseta o contador do IP.
+           Dict em memória, sem dependência nova; reset no restart.
+Mudança 2: política de senha mínima.
+           - Mínimo 8 caracteres (era 4)
+           - Bloqueia ~80 senhas comuns (global + BR + variantes empresa)
+           - Bloqueia senha igual ao username
+           Aplicada em change-password, create_user, update_user.
+           Login não é afetado — só dispara ao MUDAR a senha.
+Validação: 14 testes via TestClient cobrindo:
+           - Rate limit (11ª tentativa, IPs distintos, reset por sucesso)
+           - Bloqueio de 6 variantes de senha fraca
+           - Compatibilidade com v1.1.0/1.1.1 (bcrypt, WAL, traversal)
+           - Login normal e senha forte aceitos
+Sem mudança de dependências, schema ou frontend.
+
+v1.1.1 — [2026-06-07] — HOTFIX: path traversal em serve_spa
+----------------------------------------------------------------
+Arquivo:  backend/app.py
+Severidade: CRÍTICA — qualquer pessoa na internet podia baixar
+            app.py, bm_monteiro.db, backups e /etc/passwd via
+            GET /../app.py (literal ou URL-encoded).
+Causa:    serve_spa concatenava STATIC_DIR / full_path sem
+          validar segmentos ".." nem confinar o caminho resolvido.
+Correção: 3 guardas em camadas — (a) bloqueia paths absolutos,
+          (b) split em "/" e rejeita qualquer segmento "..",
+          (c) Path.resolve().is_relative_to(STATIC_DIR) como
+          defesa em profundidade contra symlinks/edge-cases.
+Validação: 14 vetores de exploit testados via TestClient
+           (literal, URL-encoded, double-encoded, com null byte,
+           via subdir, /etc/passwd) — todos bloqueados.
+           Funcionalidade preservada: /, /index.html, /logo.png,
+           SPA fallback e endpoints /api/* respondem normal.
+Sem mudança de dependências, schema ou frontend.
+
+v1.1.0 — [2026-06-07] — Patch: bcrypt + CORS restrito + WAL + atalhos
+----------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html, backend/requirements.txt
+Motivo:   Endurecimento de segurança + melhoria de performance e UX.
+Alterações:
+  - app.py: novos helpers hash_password/verify_password/needs_rehash.
+    Login aceita SHA-256 legado E bcrypt; usuário legado é migrado
+    automaticamente para bcrypt no primeiro login bem-sucedido.
+  - app.py: change-password, create_user, update_user e seed do admin
+    passaram a usar bcrypt (cost 12).
+  - app.py: CORS restrito a sistema.meninadosraios.com.br (era "*").
+    Override via env CORS_ORIGINS=lista,separada,por,virgula.
+  - app.py: get_db() agora aplica PRAGMA journal_mode=WAL,
+    synchronous=NORMAL, foreign_keys=ON, busy_timeout=5000.
+    → leituras concorrentes durante backup, ~3× menos lock contention.
+  - requirements.txt: + bcrypt==4.2.0
+  - index.html: atalhos de teclado n (lançar venda), / (focar busca),
+    Esc (fechar modal). 35 linhas no final do <script>.
+Deploy:
+  - /opt/menina/venv/bin/pip install bcrypt==4.2.0
+  - ATUALIZAR.bat normal (scp + systemctl restart menina)
+Compatibilidade:
+  ✅ Banco existente sem migração
+  ✅ Usuários antigos logam normalmente (fallback SHA-256 + auto-upgrade)
+  ✅ Rollback = restaurar 3 arquivos v1.0.9 + nada mais
+
+
+v1.0.10 — [2026-06-06] — Feature: atualização em tempo real via SSE + polling
+----------------------------------------------------------------
+Arquivo:  backend/app.py + backend/static/index.html
+Motivo:   Múltiplos usuários precisam ver novas vendas/dados sem
+          apertar F5 manualmente.
+Alterações:
+  Backend (app.py):
+  - Adicionada variável global _db_version e função bump_version()
+    (incrementa a cada INSERT/UPDATE/DELETE).
+  - Adicionado endpoint GET /api/events (SSE) — streaming de eventos
+    a cada 2s quando _db_version muda.
+  - Adicionado endpoint GET /api/version (polling leve) — fallback
+    quando SSE não funciona.
+  - Adicionado asyncio ao import e StreamingResponse.
+  - bump_version() inserido em 32 endpoints que modificam dados:
+    sales, clients, boletos, users, prices, vehicles, drivers,
+    import-excel, settings, merge, backup-restore, migrate-products.
+  Frontend (index.html):
+  - Adicionado sistema realtime: startRealtime() (EventSource SSE),
+    stopRealtime(), pollForUpdates() (fallback 15s usando
+    /api/version), handleRealtimeUpdate() (recarrega só a aba ativa),
+    showUpdateIndicator() (notificação verde "🔄 Dados atualizados"
+    por 2s), setRtStatus() (controle do indicador visual).
+  - startRealtime() chamado em showApp() após loadAll().
+  - stopRealtime() chamado em doLogout().
+  - Adicionado <span id="rt-status"> no header (ponto verde/amarelo/
+    vermelho indicando estado da conexão).
+Resultado:
+  ✅ SSE conecta automaticamente após login
+  ✅ Fallback polling 15s se SSE falhar ou browser não suportar
+  ✅ Apenas a aba ativa é recarregada (sem trabalho extra)
+  ✅ Indicador visual verde (SSE) / amarelo (polling) / vermelho (off)
+  ✅ Reconexão automática se conexão cair
+  ✅ Notificação "🔄 Dados atualizados" por 2s
+
+
+v1.0.9 — [2026-06-05] — Diagnóstico: login quebrado após edições
+----------------------------------------------------------------
+Arquivo:  backend/static/index.html
+Motivo:   Sistema parou de funcionar — tela de login aparece mas
+          não transiciona para o app após credenciais.
+Alterações (somente diagnóstico):
+  - Verificadas funções do fluxo de login: `doLogin()`, `showApp()`,
+    `loadAll()`, `applyRoleUI()` e variável `session` — todas
+    presentes e sintaticamente intactas.
+  - Constatado que as 18+ edições da sessão anterior NÃO foram
+    aplicadas no arquivo (renderTypePanel, renderClientDetail,
+    loadProdDayDetail, loadConsolidado, etc.). Apenas KPI cards,
+    selectClient, renderClientsList e Block 2 foram aplicados.
+  - O arquivo atual corresponde à versão pré-edições recentes.
+Resultado:
+  ✅ Causa raiz NÃO é corrupção nas funções de login
+  ⚠️ Investigação em andamento — possível erro de sintaxe
+     em bloco editado que impede execução do JS todo,
+     ou problema externo ao index.html
+
+
+v1.0.8 — [2026-06-05] — Feature: aba "Não Entregue" + sino corrigido + badges nas 3 abas
+----------------------------------------------------------------
+Arquivo:  backend/static/index.html
+Motivo:   Notas com delivered='nao' ficavam misturadas com pendentes,
+          e o sino contava "nao" como pendente.
+Alterações:
+  - Adicionado 3º botão ❌ Não Entregue (badge vermelho) ao lado de
+    Pendentes e Entregues na sub-nav da aba Notas.
+  - Adicionada view container `notas-view-nao` + conteúdo `nao-content`.
+  - Adicionada função `getNaoEntregueSales()` (filtra delivered='nao').
+  - Adicionada `renderNaoEntregueList()` — tabela com ícone ❌, botões
+    "✅ Marcar entregue" e "↩ Desfazer".
+  - `switchNotasView()` agora gerencia 3 views/3 botões com estilo
+    ativo/inativo.
+  - `onNotasFilterChange()` redireciona para 'nao' quando ativo.
+  - `getPendingCount()` e `getPendingSales()`: trocado !=='sim' por
+    == null — exclui delivered='nao' do sino e da aba Pendentes.
+  - `notasUpdated` atualiza os 3 badges de contagem (não-visíveis).
+Resultado:
+  ✅ Aba "Não Entregue" separada com ações próprias
+  ✅ Sino mostra apenas notas sem resposta (null)
+  ✅ Badges nas 3 abas atualizam após qualquer status change
+
+
+v1.0.7 — [2026-06-05] — Fix: duedate só salva com ano válido + badge recalcula
+----------------------------------------------------------------
+Arquivo:  backend/static/index.html
+Motivo:   Três bugs encadeados: (1) digitar ano manualmente no
+          type="date" disparava change com valor parcial ex "0002";
+          (2) ao selecionar pelo calendário o is_overdue não
+          atualizava porque loadBoletos() não era chamado após
+          alterar duedate; (3) mesmo com min/max, alguns browsers
+          ainda não aceitavam digitação manual.
+Alterações:
+  - Input vencimento (`renderBoletosTable()`): removido atributo
+    `onchange`/`onblur` inline, substituído por `data-bid`.
+  - Após o innerHTML, attach `addEventListener('change')` + `blur`
+    com validação: `parseInt(val.split('-')[0])` entre 2020 e 2099.
+    Fora da faixa → não salva (descarta valor parcial).
+  - `updateBoleto()`: reload condition estendida para incluir
+    `due_date` — `if(status!==undefined || due_date!==undefined)`.
+  - `paid_date` manteve onchange original (sem bugs reportados).
+  - Removida função `saveBoletoDueDate()` (substituída pelo listener).
+Resultado:
+  ✅ Ano parcial "0002" rejeitado antes de salvar
+  ✅ Salvar vencimento → loadBoletos() → is_overdue recalculado
+  ✅ `change` + `blur` capturam calendário e digitação manual
+
+
+v1.0.6 — [2026-06-05] — Fix: NF 888/889 agrupadas em um boleto só (DB + API)
+----------------------------------------------------------------
+Arquivo:  backend/app.py + backend/static/index.html
+Motivo:   NF 888 e 889 do mesmo cliente na mesma data apareciam num
+          único boleto porque (a) a UNIQUE constraint da tabela
+          boletos era (client, sale_date) sem nf_number, (b) a
+          chave de agrupamento no frontend (buildTable) usava
+          .trim() sem optional chaining, e (c) a query de items
+          não filtrava por nf_number.
+Alterações:
+  app.py:
+  - init_db(): CREATE TABLE boletos com UNIQUE(client,sale_date,nf_number).
+  - init_db(): Migration add column + recria tabela com subquery
+    populando nf_number através de MAX() da sales.
+  - init_boletos(): mesmo schema (código inativo mas consistente).
+  - list_boletos(): `MAX(nf_number) as sample_nf` → `nf_number`.
+  - list_boletos(): chave k inclui nf_number, INSERT inclui
+    nf_number, resultado devolve 'nf_number'.
+  - boleto_items(): `AND (nf_number= OR (nf_number IS NULL AND ?=''))`.
+  index.html:
+  - buildTable(): `s.nf_number.trim()` -> `(s.nf_number?.trim()||'')`
+    nas duas ocorrências (defensivo).
+Resultado:
+  ✅ NF 888 e 889 viram boletos separados
+  ✅ PR/AVULSO sem NF continuam agrupados (nf_number='')
+  ✅ Itens de cada boleto filtrados corretamente
+
+
+v1.0.5 — [2026-06-05] — Fix: boleto duedate rejeita ano 2026 (min/max)
+----------------------------------------------------------------
+Arquivo:  backend/static/index.html
+Motivo:   input type="date" sem min/max limitava calendário dos browsers.
+Alterações:
+  - renderBoletosTable(): adicionado min="2020-01-01" max="2100-12-31"
+    nos inputs due_date e paid_date.
+Resultado:
+  ✅ 2026 selecionável no calendário e aceito no save
+
+
+v1.0.4 — [2026-06-05] — Limpeza: remoção do legado Lovable / React
+----------------------------------------------------------------
+Arquivos removidos:
+  frontend/                         (app TanStack/React do Lovable, ~1.1 MB)
+  patches/                          (sales.ts, useAuth.ts, index.tsx — patches do React)
+  backend/__pycache__/              (cache do Python, não pertence ao zip)
+
+Arquivos reescritos:
+  CONFIGURAR.bat                    (removidas etapas Node/npm/build/patches —
+                                    só restou instalação das deps Python)
+  README.md                         (descrevia workflow Lovable; agora reflete a
+                                    arquitetura real: vanilla JS + FastAPI + SQLite)
+
+Arquivos corrigidos:
+  ATUALIZAR.bat                     (typo no domínio final:
+                                    'sistema.meninadaestrada.com.br'
+                                    → 'sistema.meninadosraios.com.br')
+
+NÃO alterado:
+  backend/app.py                    (mantém os fallbacks defensivos para
+                                    static/client/ — código morto inofensivo,
+                                    não vale o risco de deploy só para limpar)
+  backend/static/index.html         (sistema em produção — sem mudanças)
+  INICIAR.bat                       (já estava correto)
+
+Motivo: usuario nao usa mais Lovable; o app React do frontend/ era peso morto
+        que nao deployava para lugar nenhum.
+
+
+v1.0.3 — [2026-06-04] — Fix: PUT → POST+PUT em /api/tab-order
+----------------------------------------------------------------
+Arquivo:  backend/app.py
+Motivo:   ao reconstruir os endpoints (entrada anterior), assumi que
+          o método era PUT (com base na descrição do usuário). Ao
+          tentar salvar, voltou 405 "Method Not Allowed". Investigando
+          em chats antigos, achei a documentação clara da versão
+          consolidada:
+
+            "Backend (GET/POST /api/tab-order), frontend (Sortable.js,
+             drag-and-drop UI, applyTabOrder, saveTabOrder, loadTabOrder),
+             admin-only, reload instantâneo."
+
+          O frontend chamava POST, não PUT.
+
+Alteração:
+  - Trocado `@app.put("/api/tab-order")` por
+    `@app.api_route("/api/tab-order", methods=["POST","PUT"])`
+  - Mesmo handler aceita os dois métodos. POST atende ao frontend
+    consolidado; PUT fica como alias (compat, custo zero).
+  - GET inalterado.
+
+Smoke tests rodados (8/8):
+  ✅ login
+  ✅ GET vazio → {"order": null}
+  ✅ POST com array → ok, persiste
+  ✅ GET retorna ordem salva
+  ✅ PUT ainda funciona (compat)
+  ✅ POST body objeto → 400 (não crash)
+  ✅ POST sem auth → 401
+  ✅ tab-permissions intacto (GET e PUT)
+
+Rotas finais registradas:
+  GET            /api/tab-order
+  POST + PUT     /api/tab-order
+
+Resultado: app.py 2126 → 2125 linhas (-1, removido decorador a mais).
+
+
+v1.0.2 — [2026-06-04] — Reconstrução dos endpoints /api/tab-order
+----------------------------------------------------------------
+Arquivo:  backend/app.py
+Motivo:   ao aplicar a limpeza do localhost (entrada anterior), o
+          app.py voltou ao baseline e perdeu os 2 endpoints de
+          tab-order que existiam na versão consolidada. Como o
+          index.html no servidor continua sendo o consolidado (com
+          UI de setas ▲▼ ao lado de cada aba em "Permissões por
+          Perfil"), ao clicar "Salvar Permissões" o frontend chamava
+          PUT /api/tab-order, que não existia mais → o catch-all GET
+          do SPA pegava a rota e devolvia 405 "Method Not Allowed".
+
+Alterações (inseridas entre PUT /api/settings/tab-permissions e
+GET /api/summary, ~linha 1549):
+
+  GET /api/tab-order   (require_auth)
+    - Retorna {"order": [...]} se houver ordem salva
+    - Retorna {"order": null} se nunca foi configurada
+              (frontend usa ordem default nesse caso)
+
+  PUT /api/tab-order   (require_admin, async)
+    - Body: JSON array de strings (ids das abas na nova ordem)
+    - Usa `body = await request.json()` em vez de `body:list`
+      — FastAPI não aceita JSON array diretamente como parâmetro
+      `list`. Esse era o detalhe que causava o [object Object]:
+      o erro de validação 422 vinha como array de objetos e virava
+      "[object Object]" no toast do frontend.
+    - Persiste em settings(key='tab_order', value=JSON)
+    - Valida que é array e que itens são strings → 400 se inválido
+    - Verifica pós-escrita → 500 se a gravação não confirmar
+    - Retorna {"ok": True, "saved": [...]}
+
+Padrão: espelha 100% o /api/settings/tab-permissions ao lado
+(mesma tabela settings, mesmo DELETE+INSERT, mesma verificação).
+Nenhum import novo (Request já estava importado de fastapi).
+
+Smoke tests rodados (9/9):
+  ✅ login
+  ✅ GET tab-order vazio → {"order": null}
+  ✅ PUT tab-order com array → ok, persiste
+  ✅ GET tab-order persistido
+  ✅ PUT body objeto (não-array) → 400
+  ✅ PUT array de não-strings → 400
+  ✅ PUT sem auth → 401
+  ✅ GET/PUT tab-permissions ainda funcionam
+  ✅ Re-PUT substitui ordem corretamente
+
+Resultado: app.py 2085 → 2126 linhas (+41).
+
+
+v1.0.1 — [2026-06-04] — Limpeza do bloco de inicialização (localhost)
+----------------------------------------------------------------
+Arquivo:  backend/app.py
+Motivo:   o sistema NÃO é executado em localhost. Roda em produção
+          no servidor Hostinger via systemd, e o deploy é feito pelo
+          ATUALIZAR.bat. O bloco antigo era resíduo do fluxo
+          INICIAR.bat (instalação Windows local), que não é mais
+          usado, e ainda imprimia a credencial padrão admin/admin123
+          em stdout, o que vazava nos logs do journalctl.
+
+Alterações no bloco `if __name__ == "__main__":`:
+  - Removido: webbrowser.open("http://localhost:8765") + thread que
+    abria o navegador automaticamente (inútil em servidor headless).
+  - Removido: socket.gethostname() / gethostbyname() — usado só para
+    o print "Rede: http://<IP_local>:..." que não faz sentido na VPS.
+  - Removido: prints "Local:", "Rede:", "Login: admin / admin123",
+    "Ctrl+C para fechar" e o cabeçalho "🌿 Menina dos Raios Ltda".
+  - Mantido: init_db() e uvicorn.run(app, host="0.0.0.0", port=PORT,
+    log_level="warning") — necessários caso o systemd inicie o app
+    com `python app.py`.
+  - Comentário adicionado documentando que produção roda via systemd
+    e o deploy é via ATUALIZAR.bat.
+
+Resultado: app.py de 2094 → 2085 linhas (-9). Python AST parse OK.
+Nenhum endpoint alterado, nenhum import removido (mantida cautela
+cirúrgica — imports `webbrowser` ficam não-usados, mas inofensivos).
+
+
+v1.0.0 — [2026-06-04] — Correção do erro [object Object] + endpoints tab-order
+----------------------------------------------------------------
+Arquivo:  backend/app.py (alvo: ~2116 linhas, +2 endpoints, +1 fix)
+  - +2 endpoints: GET e PUT /api/tab-order para persistir a ordem
+    das abas configurada pelo admin (drag-and-drop com Sortable.js).
+  - Fix em app.py:1561 (PUT /api/tab-order): trocado body:list por
+    Request.json() — FastAPI não aceita JSON array diretamente como
+    parâmetro `list`; era a causa raiz do erro [object Object] no
+    toast (o backend respondia com erro de validação 422 em formato
+    de array, e o frontend transformava isso em "[object Object]").
+  - +1 fix de encoding.
+
+Arquivo:  backend/static/index.html (alvo: ~6927 linhas, ~8 blocos)
+  - index.html:4077: toast de erro passou de `e.message` para
+    `e.message || JSON.stringify(e)` — segunda metade do fix do
+    [object Object]: quando e.message é array (erro de validação),
+    serializa para string legível em vez de "[object Object]".
+  - index.html:3988-3989: fallback em loadTabPermissions para
+    buscar _tabOrder do servidor caso não tenha sido carregado
+    no login.
+
+Testes: login, PUT tab-order, GET tab-order, restore — todos passaram.
+
+Nota: uma alteração no print 🌿 do bloco de startup foi feita e
+depois revertida; apenas os endpoints de tab-order ficaram como
+única modificação efetiva no backend nesta rodada.
+
+
+v0.9.9 — [2026-06-04] — Fix: rota da ordem das abas (frontend vs backend divergiam)
+----------------------------------------------------------------
+Arquivo:  backend/app.py
+Motivo:   o frontend (index.html) fazia requisições GET/PUT para
+          `/api/settings/tab-order`, mas o backend escutava em
+          `/api/tab-order` (sem `/settings/`). Além disso, o GET
+          retornava `{"order": [...]}` encapsulado, mas o frontend
+          esperava o array diretamente. Isso fazia com que:
+          - A ordem nunca fosse carregada (sempre caía no fallback)
+          - Salvar permissões jogava toast de erro 404
+          - As setas ▲▼ no painel Admin não tinham efeito persistente
+
+Alterações:
+  - app.py:1550: GET `/api/tab-order` → `/api/settings/tab-order`
+  - app.py:1560: retorno `{"order": data}` → retorna `data` diretamente
+    (o array, ou None quando não houver ordem salva)
+  - app.py:1563: PUT/POST `/api/tab-order` → `/api/settings/tab-order`
+
+Resultado:
+  ✅ Ordem carregada ao entrar no painel (setas ▲▼ restauram posição)
+  ✅ Salvamento via "💾 Salvar Permissões" persiste e re-aplica ordem
+  ✅ Nenhum erro 404 no console ao salvar
+
+
+=================================================================
+  Formato para próximas entradas
+=================================================================
+vX.Y.Z — [AAAA-MM-DD] — Título curto da alteração
+----------------------------------------------------------------
+Arquivo:  caminho/relativo/ao/bm_app
+Motivo:   (uma frase explicando por que mudou)
+Alterações:
+  - bullet do que mudou, com linha ou função citada quando útil.
+  - segundo bullet etc.
+Resultado / testes: o que foi verificado.
+
+=================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

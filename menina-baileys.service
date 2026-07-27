@@ -1,0 +1,16 @@
+[Unit]
+Description=Menina dos Raios WhatsApp Baileys API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/menina/baileys-api
+EnvironmentFile=/opt/menina/baileys-api/.env
+ExecStart=/usr/bin/env node /opt/menina/baileys-api/server.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,18 @@
+{
+  "name": "menina-baileys",
+  "version": "1.0.0",
+  "description": "WhatsApp Baileys API - Menina dos Raios",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.9",
+    "express": "^4.19.0",
+    "pino": "^9.0.0",
+    "dotenv": "^16.4.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
