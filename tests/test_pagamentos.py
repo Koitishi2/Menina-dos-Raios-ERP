@@ -1,5 +1,10 @@
 import sqlite3
+import sys
+import types
 import uuid
+from datetime import datetime, timedelta
+
+import pytest
 
 
 def _login(test_client, username="admin", password="admin123", company="raios"):
@@ -134,6 +139,103 @@ def _create_temp_user(isolated_app, username, password, role):
     conn.commit()
     conn.close()
     return user_id
+
+
+def _freeze_datetime_module(monkeypatch, frozen_now):
+    class FrozenDateTime:
+        @classmethod
+        def now(cls):
+            return frozen_now
+
+    monkeypatch.setitem(
+        sys.modules,
+        "datetime",
+        types.SimpleNamespace(datetime=FrozenDateTime, timedelta=timedelta),
+    )
+
+
+def test_pal_period_where_current_month_year_and_invalid_contract(isolated_app):
+    pal_period_where = isolated_app.module._pal_period_where
+
+    assert pal_period_where("mensal", "6", 2026) == (
+        ["strftime('%m',saledate)=?", "strftime('%Y',saledate)=?"],
+        ["06", "2026"],
+    )
+    assert pal_period_where("anual", "06", "2026") == (
+        ["strftime('%m',saledate)=?", "strftime('%Y',saledate)=?"],
+        ["06", "2026"],
+    )
+    assert pal_period_where(None, "", "") == ([], [])
+    assert pal_period_where("desconhecido", " 6 ", "ano") == (
+        ["strftime('%m',saledate)=?", "strftime('%Y',saledate)=?"],
+        [" 6 ", "ano"],
+    )
+    assert pal_period_where("mensal", "13", None) == (
+        ["strftime('%m',saledate)=?"],
+        ["13"],
+    )
+    with pytest.raises(AttributeError):
+        pal_period_where("mensal", 6, 2026)
+
+
+@pytest.mark.parametrize(
+    ("frozen_now", "expected_current", "expected_previous"),
+    [
+        (
+            datetime(2026, 6, 1, 10, 30),
+            ["2026-05-18", "2026-06-01"],
+            ["2026-05-03", "2026-05-17"],
+        ),
+        (
+            datetime(2026, 12, 31, 23, 59),
+            ["2026-12-17", "2026-12-31"],
+            ["2026-12-02", "2026-12-16"],
+        ),
+        (
+            datetime(2027, 1, 1, 0, 1),
+            ["2026-12-18", "2027-01-01"],
+            ["2026-12-03", "2026-12-17"],
+        ),
+    ],
+)
+def test_pal_period_where_current_quinzenal_contract(
+    isolated_app,
+    monkeypatch,
+    frozen_now,
+    expected_current,
+    expected_previous,
+):
+    _freeze_datetime_module(monkeypatch, frozen_now)
+    pal_period_where = isolated_app.module._pal_period_where
+
+    assert pal_period_where("quinzenal", "2", "2020") == (
+        ["saledate >= ? AND saledate <= ?"],
+        expected_current,
+    )
+    assert pal_period_where("quinzenal_prev", "2", "2020") == (
+        ["saledate >= ? AND saledate <= ?"],
+        expected_previous,
+    )
+
+
+def test_pay_period_map_current_mapping_and_invalid_contract(isolated_app):
+    pay_period_map = isolated_app.module._pay_period_map
+
+    assert pay_period_map("mensal", "6", 2026) == ("06", "2026")
+    assert pay_period_map("anual", "06", "2026") == ("06", "2026")
+    assert pay_period_map("quinzenal_prev", "4", 2026) == ("04", "2026")
+    assert pay_period_map(None, "", "") == ("", "")
+    assert pay_period_map("desconhecido", " 6 ", "ano") == (" 6 ", "ano")
+    assert pay_period_map("mensal", "13", None) == ("13", "")
+    with pytest.raises(AttributeError):
+        pay_period_map("mensal", 6, 2026)
+
+
+def test_pay_period_map_current_quinzenal_uses_backend_now(isolated_app, monkeypatch):
+    _freeze_datetime_module(monkeypatch, datetime(2027, 1, 1, 0, 1))
+    pay_period_map = isolated_app.module._pay_period_map
+
+    assert pay_period_map("quinzenal", "6", "2026") == ("01", "2027")
 
 
 def test_pagamentos_list_create_read_update_delete_and_filters(isolated_app):
