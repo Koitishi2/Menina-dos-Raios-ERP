@@ -158,6 +158,96 @@ def _assert_db_accepts_write(db_path):
         conn.close()
 
 
+def test_quote_companies_current_metadata_structure_and_values(isolated_app):
+    quote_companies = isolated_app.module._quote_companies
+    companies = quote_companies()
+
+    assert isinstance(companies, dict)
+    assert list(companies.keys()) == ["estrada", "raios"]
+
+    expected_fields = {
+        "key",
+        "cnpj",
+        "razao_social",
+        "nome_fantasia",
+        "endereco",
+        "cep",
+        "email",
+        "whatsapp",
+        "logo",
+    }
+    assert set(companies["estrada"]) == expected_fields
+    assert set(companies["raios"]) == expected_fields
+    assert companies["estrada"] == {
+        "key": "estrada",
+        "cnpj": "63.585.166/0001-37",
+        "razao_social": "J. M. de Lima",
+        "nome_fantasia": "Menina da Estrada",
+        "endereco": "Rua Raimundo Alves de Souza, 205 - Jardim Tropical, Boa Vista - Roraima - Brasil",
+        "cep": "69314-670",
+        "email": "adrianoabreub@gmail.com",
+        "whatsapp": "+55 (21) 98426-1686 / (95) 99123-3960",
+        "logo": "/assets/menina-estrada-logo.png",
+    }
+    assert companies["raios"] == {
+        "key": "raios",
+        "cnpj": "45.783.879/0001-23",
+        "razao_social": "Menina dos Raios LTDA",
+        "nome_fantasia": "Menina dos Raios",
+        "endereco": "Rua Raimundo Alves de Souza, 205 - Jardim Tropical, Boa Vista - Roraima - Brasil",
+        "cep": "69314-670",
+        "email": "meninadosraios@gmail.com",
+        "whatsapp": "+55 (95) 99123-3960 / (21) 98426-1686",
+        "logo": "/assets/menina-dos-raios-logo.png",
+    }
+
+
+def test_quote_companies_current_calls_return_independent_dicts(isolated_app):
+    quote_companies = isolated_app.module._quote_companies
+
+    first = quote_companies()
+    second = quote_companies()
+    assert first == second
+    assert first is not second
+    assert first["estrada"] is not second["estrada"]
+
+    first["estrada"]["nome_fantasia"] = "Mutado"
+    first["nova"] = {"key": "nova"}
+
+    fresh = quote_companies()
+    assert fresh["estrada"]["nome_fantasia"] == "Menina da Estrada"
+    assert "nova" not in fresh
+
+
+def test_quote_company_current_normalization_fallback_identity_and_type_errors(isolated_app):
+    quote_company = isolated_app.module._quote_company
+    quote_companies = isolated_app.module._quote_companies
+    companies = quote_companies()
+
+    selected_default = quote_company(None)
+    assert isinstance(selected_default, dict)
+    assert selected_default == companies["estrada"]
+    assert selected_default is not companies["estrada"]
+
+    assert quote_company("") == companies["estrada"]
+    assert quote_company("estrada") == companies["estrada"]
+    assert quote_company(" ESTRADA ") == companies["estrada"]
+    assert quote_company("desconhecida") == companies["estrada"]
+    assert quote_company("raios") == companies["raios"]
+    assert quote_company(" RAIOS ") == companies["raios"]
+    assert quote_company("RaIoS") == companies["raios"]
+    assert quote_company([]) == companies["estrada"]
+
+    selected_raios = quote_company("raios")
+    selected_raios["nome_fantasia"] = "Mutado"
+    assert quote_company("raios")["nome_fantasia"] == "Menina dos Raios"
+
+    with pytest.raises(AttributeError):
+        quote_company(123)
+    with pytest.raises(AttributeError):
+        quote_company(["raios"])
+
+
 def test_quote_totals_current_empty_single_decimal_and_defaults(isolated_app):
     quote_totals = isolated_app.module._quote_totals
 
