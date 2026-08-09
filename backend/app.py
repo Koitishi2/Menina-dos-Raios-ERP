@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 try:
     from .backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip, backup_path_for_filename, restore_zip_backup_with, safety_backup_before_restore_with
+    from .orcamentos import _quote_companies, _quote_company
     from .permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from .security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from .security_request import _client_ip, _is_trusted_proxy_host
@@ -24,6 +25,7 @@ try:
     from .utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
 except ImportError:
     from backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip, backup_path_for_filename, restore_zip_backup_with, safety_backup_before_restore_with
+    from orcamentos import _quote_companies, _quote_company
     from permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from security_request import _client_ip, _is_trusted_proxy_host
@@ -5120,36 +5122,6 @@ def set_config(key: str, body: dict, x_token: str = Header(...)):
     return {'ok': True}
 
 # â”€â”€ Frontend â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-def _quote_companies():
-    return {
-        "estrada":{
-            "key":"estrada",
-            "cnpj":"63.585.166/0001-37",
-            "razao_social":"J. M. de Lima",
-            "nome_fantasia":"Menina da Estrada",
-            "endereco":"Rua Raimundo Alves de Souza, 205 - Jardim Tropical, Boa Vista - Roraima - Brasil",
-            "cep":"69314-670",
-            "email":"adrianoabreub@gmail.com",
-            "whatsapp":"+55 (21) 98426-1686 / (95) 99123-3960",
-            "logo":"/assets/menina-estrada-logo.png"
-        },
-        "raios":{
-            "key":"raios",
-            "cnpj":"45.783.879/0001-23",
-            "razao_social":"Menina dos Raios LTDA",
-            "nome_fantasia":"Menina dos Raios",
-            "endereco":"Rua Raimundo Alves de Souza, 205 - Jardim Tropical, Boa Vista - Roraima - Brasil",
-            "cep":"69314-670",
-            "email":"meninadosraios@gmail.com",
-            "whatsapp":"+55 (95) 99123-3960 / (21) 98426-1686",
-            "logo":"/assets/menina-dos-raios-logo.png"
-        }
-    }
-
-def _quote_company(key:Optional[str]=None):
-    companies=_quote_companies()
-    return companies.get((key or "estrada").strip().lower(), companies["estrada"])
-
 def _quote_totals(items, discount=0):
     if len(items or []) > 20:
         raise HTTPException(400,"O orÃ§amento permite no mÃ¡ximo 20 itens.")
