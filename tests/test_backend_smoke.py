@@ -1,4 +1,5 @@
 import json
+import os
 import sqlite3
 import zipfile
 from pathlib import Path
@@ -22,6 +23,40 @@ def _sqlite_rows(path, sql):
         return [dict(row) for row in conn.execute(sql).fetchall()]
     finally:
         conn.close()
+
+
+def _configure_temp_backup_env(isolated_app, tmp_path, monkeypatch):
+    base_dir = tmp_path / "backup_backend"
+    backup_dir = tmp_path / "backup_output"
+    base_dir.mkdir(parents=True)
+    backup_dir.mkdir(parents=True)
+
+    main_db = _make_sqlite_db(base_dir / "bm_monteiro.db")
+    estrada_db = _make_sqlite_db(base_dir / "menina_estrada.db")
+    app_notes = _make_sqlite_db(base_dir / "app_notes.db")
+    extra_db = _make_sqlite_db(base_dir / "extra_data.db")
+    ignored = base_dir / "ignored.txt"
+    ignored.write_text("fora do backup", encoding="utf-8")
+
+    monkeypatch.setattr(isolated_app.module, "BASE_DIR", base_dir)
+    monkeypatch.setattr(isolated_app.module, "BACKUP_DIR", backup_dir)
+    monkeypatch.setattr(isolated_app.module, "DB_PATH", main_db)
+    monkeypatch.setattr(
+        isolated_app.module,
+        "COMPANY_DBS",
+        {"raios": main_db, "estrada": estrada_db},
+    )
+    monkeypatch.setattr(isolated_app.module, "APP_NOTES_DB_PATH", app_notes)
+
+    return {
+        "base_dir": base_dir,
+        "backup_dir": backup_dir,
+        "main_db": main_db,
+        "estrada_db": estrada_db,
+        "app_notes": app_notes,
+        "extra_db": extra_db,
+        "ignored": ignored,
+    }
 
 
 def test_backend_starts_serves_index_and_uses_temp_backup(isolated_app):
@@ -306,6 +341,125 @@ def test_backup_db_sources_current_discovery_dedup_and_order_contract(
         ("extra_extra_data", "extra_data.db"),
         ("extra_menina_estrada", "menina_estrada.db"),
     ]
+
+
+def test_create_backup_current_auto_zip_manifest_and_sqlite_content(
+    isolated_app,
+    tmp_path,
+    monkeypatch,
+):
+    env = _configure_temp_backup_env(isolated_app, tmp_path, monkeypatch)
+    create_backup = isolated_app.module.create_backup
+
+    filename = create_backup("auto")
+    backup_path = env["backup_dir"] / filename
+
+    assert filename.startswith("bm_backup_")
+    assert filename.endswith("_auto.zip")
+    assert isolated_app.module._valid_backup_name(filename) is True
+    assert backup_path.exists()
+    assert backup_path.stat().st_size > 0
+    assert not backup_path.resolve().is_relative_to(Path.cwd().resolve())
+
+    with zipfile.ZipFile(backup_path, "r") as zf:
+        names = zf.namelist()
+        assert "manifest.json" in names
+        assert "databases/bm_monteiro.db" in names
+        assert "databases/menina_estrada.db" in names
+        assert "databases/app_notes.db" in names
+        assert "databases/extra_data.db" in names
+        assert "ignored.txt" not in names
+        manifest = json.loads(zf.read("manifest.json").decode("utf-8"))
+        copied_main = tmp_path / "copied_main.db"
+        copied_main.write_bytes(zf.read("databases/bm_monteiro.db"))
+
+    assert manifest["label"] == "auto"
+    assert manifest["version"] == "multi-db-v1"
+    assert [item["filename"] for item in manifest["databases"]] == [
+        "bm_monteiro.db",
+        "menina_estrada.db",
+        "app_notes.db",
+        "extra_data.db",
+    ]
+    assert [item["archive_path"] for item in manifest["databases"]] == [
+        "databases/bm_monteiro.db",
+        "databases/menina_estrada.db",
+        "databases/app_notes.db",
+        "databases/extra_data.db",
+    ]
+    assert _sqlite_rows(copied_main, "SELECT value FROM marker") == [{"value": "ok"}]
+
+    source_conn = sqlite3.connect(env["main_db"])
+    try:
+        source_conn.execute("INSERT INTO marker(value) VALUES('apos-backup')")
+        source_conn.commit()
+    finally:
+        source_conn.close()
+    assert _sqlite_rows(env["main_db"], "SELECT value FROM marker ORDER BY id") == [
+        {"value": "ok"},
+        {"value": "apos-backup"},
+    ]
+
+
+def test_create_backup_current_retention_uses_temp_backup_dir(
+    isolated_app,
+    tmp_path,
+    monkeypatch,
+):
+    env = _configure_temp_backup_env(isolated_app, tmp_path, monkeypatch)
+    monkeypatch.setattr(isolated_app.module, "MAX_BACKUPS", 2)
+    backup_dir = env["backup_dir"]
+
+    old_files = [
+        backup_dir / "bm_backup_20260101_000000_old0.zip",
+        backup_dir / "bm_backup_20260101_000001_old1.zip",
+        backup_dir / "bm_backup_20260101_000002_old2.zip",
+    ]
+    for index, path in enumerate(old_files):
+        path.write_text(path.name, encoding="utf-8")
+        os.utime(path, (1000 + index, 1000 + index))
+
+    created = isolated_app.module.create_backup("manual")
+    remaining = sorted(path.name for path in backup_dir.glob("bm_backup_*"))
+
+    assert created in remaining
+    assert len(remaining) == 2
+    assert "bm_backup_20260101_000002_old2.zip" in remaining
+    assert "bm_backup_20260101_000000_old0.zip" not in remaining
+    assert "bm_backup_20260101_000001_old1.zip" not in remaining
+
+
+def test_create_backup_current_error_and_empty_source_contract(
+    isolated_app,
+    tmp_path,
+    monkeypatch,
+):
+    base_dir = tmp_path / "empty_backend"
+    backup_dir = tmp_path / "backups"
+    base_dir.mkdir()
+    backup_dir.mkdir()
+
+    monkeypatch.setattr(isolated_app.module, "BASE_DIR", base_dir)
+    monkeypatch.setattr(isolated_app.module, "BACKUP_DIR", backup_dir)
+    monkeypatch.setattr(isolated_app.module, "DB_PATH", base_dir / "missing_main.db")
+    monkeypatch.setattr(
+        isolated_app.module,
+        "COMPANY_DBS",
+        {"raios": base_dir / "missing_main.db", "estrada": base_dir / "missing_estrada.db"},
+    )
+    monkeypatch.setattr(isolated_app.module, "APP_NOTES_DB_PATH", base_dir / "missing_notes.db")
+
+    assert isolated_app.module.create_backup("manual") == ""
+    assert list(backup_dir.glob("bm_backup_*")) == []
+
+    env = _configure_temp_backup_env(isolated_app, tmp_path / "with_sources", monkeypatch)
+    missing_backup_dir = tmp_path / "missing_backup_dir"
+    monkeypatch.setattr(isolated_app.module, "BACKUP_DIR", missing_backup_dir)
+
+    with pytest.raises(FileNotFoundError):
+        isolated_app.module.create_backup("manual")
+    assert not missing_backup_dir.exists()
+    assert _sqlite_rows(env["main_db"], "SELECT value FROM marker") == [{"value": "ok"}]
 
 
 def test_copy_sqlite_consistent_current_valid_copy_to_missing_destination(isolated_app, tmp_path):
