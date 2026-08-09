@@ -82,6 +82,31 @@ def _set_tab_permissions_value(isolated_app, value):
         conn.close()
 
 
+def _create_temp_session(isolated_app, role="viewer", username=None):
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    token = f"token-tab-{role}-{uuid.uuid4().hex}"
+    user_id = str(uuid.uuid4())
+    username = username or f"{role}_tab_{uuid.uuid4().hex[:8]}"
+    expires = "2099-01-01 00:00:00"
+    conn.execute(
+        "INSERT INTO users(id, username, password_hash, full_name, role, active) VALUES(?,?,?,?,?,1)",
+        (
+            user_id,
+            username,
+            isolated_app.module.hash_password("senha123"),
+            f"Usuario {role} Tabs",
+            role,
+        ),
+    )
+    conn.execute(
+        "INSERT INTO sessions(token, user_id, username, full_name, role, expires_at) VALUES(?,?,?,?,?,?)",
+        (token, user_id, username, f"Usuario {role} Tabs", role, expires),
+    )
+    conn.commit()
+    conn.close()
+    return token
+
+
 def test_expand_tab_keys_current_aliases_duplicates_and_order(isolated_app):
     expand_tab_keys = isolated_app.module._expand_tab_keys
 
@@ -209,6 +234,88 @@ def test_session_has_any_tab_current_roles_direct_matches_and_aliases(isolated_a
     assert session_has_any_tab({"role": "editor"}, ["clientes"]) is False
     assert session_has_any_tab({"role": "unknown"}, ["clientes"]) is False
     assert session_has_any_tab({}, ["clientes"]) is False
+
+
+def test_tab_permission_consumers_current_unconfigured_and_admin_behavior(isolated_app):
+    require_any = isolated_app.module.require_any_tab_access
+    require_editor = isolated_app.module.require_editor_tab_access
+
+    _set_tab_permissions_value(isolated_app, None)
+    viewer_token = _create_temp_session(isolated_app, "viewer")
+    editor_token = _create_temp_session(isolated_app, "editor")
+    admin_token = _create_temp_session(isolated_app, "admin")
+
+    viewer_session = require_any(viewer_token, ["clientes"])
+    assert viewer_session["role"] == "viewer"
+    editor_session = require_editor(editor_token, ["clientes"])
+    assert editor_session["role"] == "editor"
+    admin_any = require_any(admin_token, ["qualquer"])
+    assert admin_any["role"] == "admin"
+    admin_editor = require_editor(admin_token, ["qualquer"])
+    assert admin_editor["role"] == "admin"
+
+
+def test_tab_permission_consumers_current_matches_aliases_and_403_details(isolated_app):
+    require_any = isolated_app.module.require_any_tab_access
+    require_editor = isolated_app.module.require_editor_tab_access
+    http_exception = isolated_app.module.HTTPException
+
+    viewer_token = _create_temp_session(isolated_app, "viewer")
+    editor_token = _create_temp_session(isolated_app, "editor")
+    _set_tab_permissions_value(
+        isolated_app,
+        json.dumps({"viewer": ["pendentes"], "editor": ["notas"], "admin": []}),
+    )
+
+    assert require_any(viewer_token, ["notas"])["role"] == "viewer"
+    assert require_editor(editor_token, ["pendentes"])["role"] == "editor"
+
+    try:
+        require_any(viewer_token, ["clientes"])
+    except http_exception as exc:
+        assert exc.status_code == 403
+        assert exc.detail == "Sem permissao para acessar esta area."
+    else:
+        raise AssertionError("require_any_tab_access deveria bloquear aba sem permissao")
+
+    try:
+        require_editor(editor_token, ["clientes"])
+    except http_exception as exc:
+        assert exc.status_code == 403
+        assert exc.detail == "Sem permissao para editar esta area."
+    else:
+        raise AssertionError("require_editor_tab_access deveria bloquear aba sem permissao")
+
+
+def test_tab_permission_consumers_current_editor_requirement_and_unknown_roles(isolated_app):
+    require_any = isolated_app.module.require_any_tab_access
+    require_editor = isolated_app.module.require_editor_tab_access
+    http_exception = isolated_app.module.HTTPException
+
+    viewer_token = _create_temp_session(isolated_app, "viewer")
+    unknown_token = _create_temp_session(isolated_app, "desconhecido")
+    _set_tab_permissions_value(
+        isolated_app,
+        json.dumps({"viewer": ["clientes"], "editor": ["clientes"], "admin": []}),
+    )
+
+    assert require_any(viewer_token, ["clientes"])["role"] == "viewer"
+
+    try:
+        require_editor(viewer_token, ["clientes"])
+    except http_exception as exc:
+        assert exc.status_code == 403
+        assert exc.detail == "PermissÃ£o insuficiente."
+    else:
+        raise AssertionError("require_editor_tab_access deveria exigir editor/admin")
+
+    try:
+        require_any(unknown_token, ["clientes"])
+    except http_exception as exc:
+        assert exc.status_code == 403
+        assert exc.detail == "Sem permissao para acessar esta area."
+    else:
+        raise AssertionError("role desconhecida deveria ser bloqueada")
 
 
 def test_config_prices_history_audit_and_permissions(isolated_app):
