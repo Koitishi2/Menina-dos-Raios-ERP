@@ -173,6 +173,37 @@ def test_valid_backup_name_current_textual_path_traversal_and_invalid_types(isol
             valid_backup_name(value)
 
 
+def test_backup_path_for_filename_contains_paths_after_basic_name_validation(isolated_app, tmp_path):
+    backup_path_for_filename = isolated_app.module.backup_path_for_filename
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    inside_dir = backup_dir / "bm_backup_sub"
+    inside_dir.mkdir()
+    outside = tmp_path / "outside.zip"
+    similar_prefix = tmp_path / "backups_extra" / "outside.zip"
+
+    assert backup_path_for_filename("bm_backup_2026.zip", backup_dir) == (
+        backup_dir / "bm_backup_2026.zip"
+    ).resolve()
+    assert backup_path_for_filename("bm_backup_sub\\inside.zip", backup_dir) == (
+        inside_dir / "inside.zip"
+    ).resolve()
+
+    rejected = [
+        "bm_backup_x\\..\\..\\outside.zip",
+        "bm_backup_x/../../outside.zip",
+        f"bm_backup_x\\..\\..\\{similar_prefix.name}\\outside.zip",
+        str(outside),
+        "",
+        "backup_2026.zip",
+    ]
+    for filename in rejected:
+        with pytest.raises(isolated_app.module.HTTPException) as exc:
+            backup_path_for_filename(filename, backup_dir)
+        assert exc.value.status_code == 400
+        assert exc.value.detail == "Arquivo invÃ¡lido."
+
+
 def test_is_sqlite_file_current_signature_contract(isolated_app, tmp_path):
     is_sqlite_file = isolated_app.module._is_sqlite_file
 
@@ -769,8 +800,9 @@ def test_backup_routes_current_download_delete_and_textual_escape_contract(
     assert download_nested.content == b"nested-backup"
 
     download_escaped = isolated_app.client.get(_backup_route(escape_filename), headers=headers)
-    assert download_escaped.status_code == 200
-    assert download_escaped.content == b"outside-backup"
+    assert download_escaped.status_code == 400
+    assert download_escaped.json()["detail"] == "Arquivo invÃ¡lido."
+    assert escaped.exists()
 
     unknown = isolated_app.client.get(_backup_route("bm_backup_missing.zip"), headers=headers)
     assert unknown.status_code == 404
@@ -794,9 +826,9 @@ def test_backup_routes_current_download_delete_and_textual_escape_contract(
     assert not simple.exists()
 
     delete_escaped = isolated_app.client.delete(_backup_route(escape_filename), headers=headers)
-    assert delete_escaped.status_code == 200
-    assert delete_escaped.json() == {"ok": True}
-    assert not escaped.exists()
+    assert delete_escaped.status_code == 400
+    assert delete_escaped.json()["detail"] == "Arquivo invÃ¡lido."
+    assert escaped.exists()
 
 
 def test_backup_route_current_restore_by_filename_contract(
@@ -811,6 +843,13 @@ def test_backup_route_current_restore_by_filename_contract(
         env["backup_dir"] / "bm_backup_20260101_000000_manual.zip",
         [("databases/bm_monteiro.db", restored_main)],
     )
+    escape_parent = env["backup_dir"].parent
+    escaped_archive = _write_restore_zip(
+        escape_parent / "outside.zip",
+        [("databases/bm_monteiro.db", restored_main)],
+    )
+    (env["backup_dir"] / "bm_backup_x").mkdir()
+    escape_filename = "bm_backup_x\\..\\..\\outside.zip"
 
     invalid = isolated_app.client.post(_backup_route("backup_manual.zip") + "/restore", headers=headers)
     assert invalid.status_code == 400
@@ -819,6 +858,14 @@ def test_backup_route_current_restore_by_filename_contract(
     missing = isolated_app.client.post(_backup_route("bm_backup_missing.zip") + "/restore", headers=headers)
     assert missing.status_code == 404
     assert missing.json()["detail"] == "Backup nÃ£o encontrado."
+
+    before_safety = set(env["backup_dir"].glob("*_pre_restore.zip"))
+    escaped_restore = isolated_app.client.post(_backup_route(escape_filename) + "/restore", headers=headers)
+    assert escaped_restore.status_code == 400
+    assert escaped_restore.json()["detail"] == "Arquivo invÃ¡lido."
+    assert escaped_archive.exists()
+    assert set(env["backup_dir"].glob("*_pre_restore.zip")) == before_safety
+    assert _sqlite_rows(env["main_db"], "SELECT value FROM marker") == [{"value": "ok"}]
 
     response = isolated_app.client.post(_backup_route(archive.name) + "/restore", headers=headers)
 

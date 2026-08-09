@@ -45,6 +45,16 @@ def _valid_backup_name(filename:str)->bool:
     return filename.startswith("bm_backup_") and filename.lower().endswith((".db",".zip"))
 
 
+def backup_path_for_filename(filename, backup_dir):
+    if not _valid_backup_name(filename):
+        raise HTTPException(400,"Arquivo invÃ¡lido.")
+    base=Path(backup_dir).resolve()
+    path=(base/filename).resolve()
+    if not path.is_relative_to(base):
+        raise HTTPException(400,"Arquivo invÃ¡lido.")
+    return path
+
+
 def backup_manifest_databases_from_zip(path):
     try:
         with zipfile.ZipFile(path,"r") as zf:

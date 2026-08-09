@@ -16,14 +16,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 try:
-    from .backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip, restore_zip_backup_with, safety_backup_before_restore_with
+    from .backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip, backup_path_for_filename, restore_zip_backup_with, safety_backup_before_restore_with
     from .permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from .security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from .security_request import _client_ip, _is_trusted_proxy_host
     from .schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
     from .utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
 except ImportError:
-    from backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip, restore_zip_backup_with, safety_backup_before_restore_with
+    from backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip, backup_path_for_filename, restore_zip_backup_with, safety_backup_before_restore_with
     from permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from security_request import _client_ip, _is_trusted_proxy_host
@@ -2792,9 +2792,7 @@ def manual_backup(x_token:str=Header("")):
 @app.get("/api/admin/backup/{filename}")
 def download_backup(filename:str,x_token:str=Header("")):
     require_admin(x_token)
-    if not _valid_backup_name(filename):
-        raise HTTPException(400,"Arquivo invÃ¡lido.")
-    path=BACKUP_DIR/filename
+    path=backup_path_for_filename(filename,BACKUP_DIR)
     if not path.exists(): raise HTTPException(404,"Backup nÃ£o encontrado.")
     return FileResponse(str(path),media_type="application/octet-stream",
                        headers={"Content-Disposition":f'attachment; filename="{filename}"'})
@@ -2802,9 +2800,7 @@ def download_backup(filename:str,x_token:str=Header("")):
 @app.delete("/api/admin/backup/{filename}")
 def delete_backup(filename:str,x_token:str=Header("")):
     require_admin(x_token)
-    if not _valid_backup_name(filename):
-        raise HTTPException(400,"Arquivo invÃ¡lido.")
-    path=BACKUP_DIR/filename
+    path=backup_path_for_filename(filename,BACKUP_DIR)
     if path.exists(): path.unlink()
     return {"ok":True}
 
@@ -2836,9 +2832,7 @@ def restore_backup(filename:str,x_token:str=Header("")):
     Cria automaticamente um backup de seguranÃ§a ('pre_restore') antes de substituir."""
     require_admin(x_token)
     import shutil
-    if not _valid_backup_name(filename):
-        raise HTTPException(400,"Arquivo invÃ¡lido.")
-    src=BACKUP_DIR/filename
+    src=backup_path_for_filename(filename,BACKUP_DIR)
     if not src.exists(): raise HTTPException(404,"Backup nÃ£o encontrado.")
     safety=_safety_backup_before_restore()
     try:
