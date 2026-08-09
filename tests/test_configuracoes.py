@@ -1,7 +1,10 @@
+import importlib
 import json
 import sqlite3
 import uuid
 from datetime import datetime
+
+import pytest
 
 
 def _login(test_client, username="admin", password="admin123", company="raios"):
@@ -107,6 +110,33 @@ def _create_temp_session(isolated_app, role="viewer", username=None):
     return token
 
 
+def _permissions_tabs_module():
+    return importlib.import_module("backend.permissions_tabs")
+
+
+def _permissions_db_callback(db_path):
+    def get_control_db():
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    return get_control_db
+
+
+def _create_permissions_db(tmp_path, value_marker=None):
+    db_path = tmp_path / f"tab_permissions_{uuid.uuid4().hex}.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)")
+    if value_marker is not None:
+        conn.execute(
+            "INSERT INTO settings(key,value) VALUES('tab_permissions',?)",
+            (value_marker,),
+        )
+    conn.commit()
+    conn.close()
+    return db_path
+
+
 def test_expand_tab_keys_current_aliases_duplicates_and_order(isolated_app):
     expand_tab_keys = isolated_app.module._expand_tab_keys
 
@@ -144,6 +174,189 @@ def test_expand_tab_keys_current_string_type_spacing_case_and_return_independenc
     result.append("mutado")
     assert result == ["notas", "pendentes", "mutado"]
     assert isolated_app.module.TAB_PERMISSION_ALIASES == aliases_before
+
+
+def test_permissions_tabs_module_import_and_direct_alias_expansion_contract():
+    permissions_tabs = _permissions_tabs_module()
+
+    assert permissions_tabs.TAB_PERMISSION_ALIASES == {
+        "notas": ["notas", "pendentes"],
+        "pendentes": ["pendentes", "notas"],
+    }
+    assert permissions_tabs._expand_tab_keys(["notas", "clientes"]) == [
+        "notas",
+        "pendentes",
+        "clientes",
+    ]
+    assert permissions_tabs._expand_tab_keys("notas") == ["n", "o", "t", "a", "s"]
+
+
+def test_permissions_tabs_module_tab_permissions_map_from_db_current_contract(tmp_path):
+    permissions_tabs = _permissions_tabs_module()
+
+    missing_db = _create_permissions_db(tmp_path)
+    assert (
+        permissions_tabs.tab_permissions_map_from_db(
+            _permissions_db_callback(missing_db),
+        )
+        == {}
+    )
+
+    empty_db = _create_permissions_db(tmp_path, "")
+    assert (
+        permissions_tabs.tab_permissions_map_from_db(
+            _permissions_db_callback(empty_db),
+        )
+        == {}
+    )
+
+    saved = {"viewer": ["clientes"], "editor": ["notas"], "admin": ["config"]}
+    dict_db = _create_permissions_db(tmp_path, json.dumps(saved))
+    assert (
+        permissions_tabs.tab_permissions_map_from_db(
+            _permissions_db_callback(dict_db),
+        )
+        == saved
+    )
+
+    invalid_json_db = _create_permissions_db(tmp_path, "{json-invalido")
+    assert (
+        permissions_tabs.tab_permissions_map_from_db(
+            _permissions_db_callback(invalid_json_db),
+        )
+        == {}
+    )
+
+    for non_dict in (["clientes"], "clientes", 123, True, None):
+        non_dict_db = _create_permissions_db(tmp_path, json.dumps(non_dict))
+        assert (
+            permissions_tabs.tab_permissions_map_from_db(
+                _permissions_db_callback(non_dict_db),
+            )
+            == {}
+        )
+
+
+def test_permissions_tabs_module_tab_permissions_map_closes_connections_on_read_error():
+    permissions_tabs = _permissions_tabs_module()
+
+    class SuccessfulConnection:
+        def __init__(self):
+            self.closed = False
+
+        def execute(self, _sql):
+            class Cursor:
+                def fetchone(self):
+                    return {"value": json.dumps({"viewer": ["clientes"]})}
+
+            return Cursor()
+
+        def close(self):
+            self.closed = True
+
+    class FailingConnection:
+        def __init__(self):
+            self.closed = False
+
+        def execute(self, _sql):
+            raise sqlite3.OperationalError("settings indisponivel")
+
+        def close(self):
+            self.closed = True
+
+    ok_conn = SuccessfulConnection()
+    conn = FailingConnection()
+
+    assert permissions_tabs.tab_permissions_map_from_db(lambda: ok_conn) == {
+        "viewer": ["clientes"],
+    }
+    assert ok_conn.closed is True
+
+    assert permissions_tabs.tab_permissions_map_from_db(lambda: conn) == {}
+    assert conn.closed is True
+
+    with pytest.raises(RuntimeError, match="callback falhou"):
+        permissions_tabs.tab_permissions_map_from_db(
+            lambda: (_ for _ in ()).throw(RuntimeError("callback falhou")),
+        )
+
+
+def test_permissions_tabs_module_permissions_configured_from_map_current_contract():
+    permissions_tabs = _permissions_tabs_module()
+
+    assert permissions_tabs.permissions_configured_from_map({}) is False
+    assert permissions_tabs.permissions_configured_from_map(
+        {"viewer": [], "editor": [], "admin": []},
+    ) is False
+    assert permissions_tabs.permissions_configured_from_map(
+        {"viewer": [], "editor": ["clientes"], "admin": []},
+    ) is True
+    assert permissions_tabs.permissions_configured_from_map(
+        {"viewer": "", "editor": None, "admin": 0},
+    ) is False
+    assert permissions_tabs.permissions_configured_from_map(
+        {"viewer": "", "editor": "clientes", "admin": []},
+    ) is True
+
+
+def test_permissions_tabs_module_session_has_any_tab_from_map_current_contract():
+    permissions_tabs = _permissions_tabs_module()
+    perms = {
+        "viewer": ["clientes", "pendentes"],
+        "editor": ["notas", "cfg_precos"],
+        "admin": [],
+    }
+
+    assert permissions_tabs.session_has_any_tab_from_map({"role": "admin"}, [], {}) is True
+    assert (
+        permissions_tabs.session_has_any_tab_from_map(
+            {"role": "viewer"},
+            ["clientes"],
+            {},
+        )
+        is False
+    )
+    assert (
+        permissions_tabs.session_has_any_tab_from_map(
+            {"role": "viewer"},
+            ["clientes"],
+            perms,
+        )
+        is True
+    )
+    assert (
+        permissions_tabs.session_has_any_tab_from_map(
+            {"role": "viewer"},
+            ["notas"],
+            perms,
+        )
+        is True
+    )
+    assert (
+        permissions_tabs.session_has_any_tab_from_map(
+            {"role": "editor"},
+            ["pendentes"],
+            perms,
+        )
+        is True
+    )
+    assert (
+        permissions_tabs.session_has_any_tab_from_map(
+            {"role": "viewer"},
+            ["produtos"],
+            perms,
+        )
+        is False
+    )
+    assert (
+        permissions_tabs.session_has_any_tab_from_map(
+            {"role": "unknown"},
+            ["clientes"],
+            perms,
+        )
+        is False
+    )
+    assert permissions_tabs.session_has_any_tab_from_map({}, ["clientes"], perms) is False
 
 
 def test_tab_permissions_map_current_storage_and_error_contract(isolated_app):
