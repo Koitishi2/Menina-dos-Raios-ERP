@@ -17,10 +17,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 try:
     from .schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
-    from .utils import _add_months
+    from .utils import _add_months, _normalize_name
 except ImportError:
     from schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
-    from utils import _add_months
+    from utils import _add_months, _normalize_name
 
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
@@ -264,13 +264,6 @@ CLIENT_NORMALIZE = {
     'PICANHA GRILL':'PICANHA GRILL','KOCAR':'KOCAR',
 }
 def normalize_client(name): return CLIENT_NORMALIZE.get(name, name.strip())
-
-def _normalize_name(name: str) -> str:
-    import unicodedata, re
-    s = unicodedata.normalize('NFD', (name or '').strip().lower())
-    s = s.encode('ascii', 'ignore').decode('ascii')
-    s = re.sub(r'[^a-z0-9]', '', s)
-    return s
 
 DRIVER_NORMALIZE = {
     'JUNIOR':'Junior','Jr':'Junior','JONATAN':'Jonatan','JONATHAN':'Jonatan',
