@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 try:
     from .backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip, backup_path_for_filename, restore_zip_backup_with, safety_backup_before_restore_with
-    from .orcamentos import _quote_companies, _quote_company
+    from .orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from .permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from .security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from .security_request import _client_ip, _is_trusted_proxy_host
@@ -25,7 +25,7 @@ try:
     from .utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
 except ImportError:
     from backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip, backup_path_for_filename, restore_zip_backup_with, safety_backup_before_restore_with
-    from orcamentos import _quote_companies, _quote_company
+    from orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from security_request import _client_ip, _is_trusted_proxy_host
@@ -5123,27 +5123,10 @@ def set_config(key: str, body: dict, x_token: str = Header(...)):
 
 # â”€â”€ Frontend â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 def _quote_totals(items, discount=0):
-    if len(items or []) > 20:
+    try:
+        return quote_totals_from_items(items, discount)
+    except QuoteItemsLimitError:
         raise HTTPException(400,"O orÃ§amento permite no mÃ¡ximo 20 itens.")
-    subtotal=0.0
-    normalized=[]
-    for i,it in enumerate(items or [],1):
-        qty=float(it.get("quantity") or 0)
-        unit_price=float(it.get("unit_price") or 0)
-        item_discount=float(it.get("discount") or 0)
-        line=max(qty*unit_price-item_discount,0)
-        row=dict(it)
-        row["item_order"]=int(row.get("item_order") or i)
-        row["quantity"]=qty
-        row["unit_price"]=unit_price
-        row["discount"]=item_discount
-        row["subtotal"]=line
-        row["unit"]=str(row.get("unit") or "UND").upper()
-        row["description"]=str(row.get("description") or "").strip()
-        subtotal+=line
-        normalized.append(row)
-    disc=max(float(discount or 0),0)
-    return normalized, subtotal, max(subtotal-disc,0)
 
 @app.get("/api/orcamentos/company")
 def quote_company(x_token:str=Header("")):

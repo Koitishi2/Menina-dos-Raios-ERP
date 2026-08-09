@@ -248,6 +248,145 @@ def test_quote_company_current_normalization_fallback_identity_and_type_errors(i
         quote_company(["raios"])
 
 
+def test_quote_totals_core_current_empty_single_decimal_and_defaults():
+    from backend.orcamentos import quote_totals_from_items
+
+    assert quote_totals_from_items([]) == ([], 0.0, 0.0)
+    assert quote_totals_from_items(None) == ([], 0.0, 0.0)
+
+    normalized, subtotal, total = quote_totals_from_items(
+        [
+            {
+                "quantity": 2,
+                "unit_price": 100,
+                "discount": 10,
+                "description": "  Item unico  ",
+                "unit": "kg",
+                "extra": "preservado",
+            }
+        ],
+        discount=15,
+    )
+    assert subtotal == 190.0
+    assert total == 175.0
+    assert isinstance(subtotal, float)
+    assert isinstance(total, float)
+    assert normalized == [
+        {
+            "quantity": 2.0,
+            "unit_price": 100.0,
+            "discount": 10.0,
+            "description": "Item unico",
+            "unit": "KG",
+            "extra": "preservado",
+            "item_order": 1,
+            "subtotal": 190.0,
+        }
+    ]
+
+    decimal_items, decimal_subtotal, decimal_total = quote_totals_from_items(
+        [
+            {"quantity": 1.5, "unit_price": 10.05, "discount": 0},
+            {"quantity": 2.5, "unit_price": 2.4, "discount": 0},
+        ],
+        discount=1.2,
+    )
+    assert decimal_subtotal == 21.075000000000003
+    assert decimal_total == 19.875000000000004
+    assert decimal_items[0]["subtotal"] == 15.075000000000001
+
+    default_items, default_subtotal, default_total = quote_totals_from_items([{}])
+    assert default_subtotal == 0.0
+    assert default_total == 0.0
+    assert default_items == [
+        {
+            "item_order": 1,
+            "quantity": 0.0,
+            "unit_price": 0.0,
+            "discount": 0.0,
+            "subtotal": 0.0,
+            "unit": "UND",
+            "description": "",
+        }
+    ]
+
+
+def test_quote_totals_core_current_numeric_strings_order_discounts_and_negative_values():
+    from backend.orcamentos import quote_totals_from_items
+
+    normalized, subtotal, total = quote_totals_from_items(
+        [
+            {
+                "quantity": "2",
+                "unit_price": "5.5",
+                "discount": "1",
+                "item_order": "7",
+                "unit": "cx",
+                "description": 123,
+                "keep": {"original": True},
+            },
+            {
+                "quantity": "1",
+                "unit_price": "3",
+                "discount": "0",
+                "item_order": 0,
+                "unit": "",
+                "description": "  teste  ",
+            },
+        ],
+        discount="2.5",
+    )
+    assert subtotal == 13.0
+    assert total == 10.5
+    assert normalized[0]["item_order"] == 7
+    assert normalized[0]["quantity"] == 2.0
+    assert normalized[0]["unit_price"] == 5.5
+    assert normalized[0]["discount"] == 1.0
+    assert normalized[0]["subtotal"] == 10.0
+    assert normalized[0]["unit"] == "CX"
+    assert normalized[0]["description"] == "123"
+    assert normalized[0]["keep"] == {"original": True}
+    assert normalized[1]["item_order"] == 2
+    assert normalized[1]["unit"] == "UND"
+    assert normalized[1]["description"] == "teste"
+
+    larger_item_discount, item_discount_subtotal, item_discount_total = quote_totals_from_items(
+        [{"quantity": 1, "unit_price": 10, "discount": 20}]
+    )
+    assert item_discount_subtotal == 0.0
+    assert item_discount_total == 0.0
+    assert larger_item_discount[0]["subtotal"] == 0
+
+    assert quote_totals_from_items([{"quantity": 1, "unit_price": 10}], discount=99)[2] == 0
+    assert quote_totals_from_items([{"quantity": 1, "unit_price": 10}], discount=-5)[2] == 10.0
+    assert quote_totals_from_items([{"quantity": -2, "unit_price": 10}])[1:] == (0.0, 0.0)
+    assert quote_totals_from_items([{"quantity": 2, "unit_price": -10}])[1:] == (0.0, 0.0)
+    assert quote_totals_from_items([{"quantity": 2, "unit_price": 10, "discount": -5}])[1:] == (25.0, 25.0)
+
+
+def test_quote_totals_core_current_exceptions():
+    from backend.orcamentos import QuoteItemsLimitError, quote_totals_from_items
+
+    with pytest.raises(QuoteItemsLimitError):
+        quote_totals_from_items([{} for _ in range(21)])
+
+    for payload in (
+        [{"quantity": "abc"}],
+        [{"unit_price": "abc"}],
+        [{"discount": "abc"}],
+        [{"item_order": "abc"}],
+    ):
+        with pytest.raises(ValueError):
+            quote_totals_from_items(payload)
+
+    with pytest.raises(ValueError):
+        quote_totals_from_items([{"quantity": 1}], discount="abc")
+
+    for invalid_items in ({"quantity": 1}, "texto"):
+        with pytest.raises(AttributeError):
+            quote_totals_from_items(invalid_items)
+
+
 def test_quote_totals_current_empty_single_decimal_and_defaults(isolated_app):
     quote_totals = isolated_app.module._quote_totals
 

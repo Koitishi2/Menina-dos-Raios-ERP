@@ -1,6 +1,10 @@
 from typing import Optional
 
 
+class QuoteItemsLimitError(Exception):
+    pass
+
+
 def _quote_companies():
     return {
         "estrada":{
@@ -31,3 +35,27 @@ def _quote_companies():
 def _quote_company(key:Optional[str]=None):
     companies=_quote_companies()
     return companies.get((key or "estrada").strip().lower(), companies["estrada"])
+
+
+def quote_totals_from_items(items, discount=0):
+    if len(items or []) > 20:
+        raise QuoteItemsLimitError()
+    subtotal=0.0
+    normalized=[]
+    for i,it in enumerate(items or [],1):
+        qty=float(it.get("quantity") or 0)
+        unit_price=float(it.get("unit_price") or 0)
+        item_discount=float(it.get("discount") or 0)
+        line=max(qty*unit_price-item_discount,0)
+        row=dict(it)
+        row["item_order"]=int(row.get("item_order") or i)
+        row["quantity"]=qty
+        row["unit_price"]=unit_price
+        row["discount"]=item_discount
+        row["subtotal"]=line
+        row["unit"]=str(row.get("unit") or "UND").upper()
+        row["description"]=str(row.get("description") or "").strip()
+        subtotal+=line
+        normalized.append(row)
+    disc=max(float(discount or 0),0)
+    return normalized, subtotal, max(subtotal-disc,0)
