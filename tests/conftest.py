@@ -121,6 +121,7 @@ def isolated_app(tmp_path, monkeypatch):
 
     shutil.copy2(REAL_BACKEND / "app.py", temp_backend / "app.py")
     shutil.copy2(REAL_BACKEND / "backup_admin.py", temp_backend / "backup_admin.py")
+    shutil.copy2(REAL_BACKEND / "company_config.py", temp_backend / "company_config.py")
     shutil.copy2(REAL_BACKEND / "orcamentos.py", temp_backend / "orcamentos.py")
     shutil.copy2(REAL_BACKEND / "permissions_tabs.py", temp_backend / "permissions_tabs.py")
     shutil.copy2(REAL_BACKEND / "security_auth.py", temp_backend / "security_auth.py")

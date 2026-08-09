@@ -206,6 +206,39 @@ def test_company_db_path_current_falls_back_to_db_path_when_raios_is_not_configu
     assert module.COMPANY_DBS == company_dbs_before
 
 
+def test_company_config_module_current_parametrized_helpers_do_not_import_app(tmp_path):
+    import sys
+
+    from backend.company_config import company_db_path_for, company_key_from
+
+    main_db = tmp_path / "param" / "bm_monteiro.db"
+    estrada_db = tmp_path / "param" / "menina_estrada.db"
+    raios_db = tmp_path / "param" / "raios.db"
+    company_dbs = {"raios": raios_db, "estrada": estrada_db}
+    company_dbs_before = dict(company_dbs)
+
+    assert "backend.app" not in sys.modules
+    assert company_key_from(None, company_dbs) == "raios"
+    assert company_key_from(" EsTrAdA ", company_dbs) == "estrada"
+    assert company_key_from("../estrada", company_dbs) == "raios"
+    assert company_key_from(123, company_dbs) == "raios"
+    assert company_key_from(["estrada"], company_dbs) == "raios"
+
+    assert company_db_path_for(" RAIOS ", company_dbs, main_db) == raios_db
+    assert company_db_path_for("estrada", company_dbs, main_db) == estrada_db
+    assert company_db_path_for("desconhecida", company_dbs, main_db) == raios_db
+    assert company_db_path_for(None, company_dbs, main_db) == raios_db
+    assert company_db_path_for("raios", {"estrada": estrada_db}, main_db) == main_db
+    assert isinstance(company_db_path_for("raios", company_dbs, main_db), Path)
+
+    assert not main_db.exists()
+    assert not estrada_db.exists()
+    assert not raios_db.exists()
+    assert not main_db.parent.exists()
+    assert company_dbs == company_dbs_before
+    assert "backend.app" not in sys.modules
+
+
 def test_valid_backup_name_current_prefix_extension_and_case_contract(isolated_app):
     valid_backup_name = isolated_app.module._valid_backup_name
 
