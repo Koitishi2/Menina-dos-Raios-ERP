@@ -16,10 +16,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 try:
+    from .permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys
     from .security_request import _client_ip, _is_trusted_proxy_host
     from .schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
     from .utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
 except ImportError:
+    from permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys
     from security_request import _client_ip, _is_trusted_proxy_host
     from schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
     from utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
@@ -877,19 +879,6 @@ def _tab_permissions_map()->dict:
 
 def _permissions_configured()->bool:
     return any(bool(v) for v in _tab_permissions_map().values())
-
-TAB_PERMISSION_ALIASES = {
-    "notas": ["notas", "pendentes"],
-    "pendentes": ["pendentes", "notas"],
-}
-
-def _expand_tab_keys(keys:list)->list:
-    out = []
-    for key in keys or []:
-        for item in TAB_PERMISSION_ALIASES.get(key, [key]):
-            if item not in out:
-                out.append(item)
-    return out
 
 def _session_has_any_tab(sess:dict, keys:list)->bool:
     if sess.get("role")=="admin":

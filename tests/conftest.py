@@ -120,6 +120,7 @@ def isolated_app(tmp_path, monkeypatch):
     temp_notes.mkdir(parents=True)
 
     shutil.copy2(REAL_BACKEND / "app.py", temp_backend / "app.py")
+    shutil.copy2(REAL_BACKEND / "permissions_tabs.py", temp_backend / "permissions_tabs.py")
     shutil.copy2(REAL_BACKEND / "security_request.py", temp_backend / "security_request.py")
     shutil.copy2(REAL_BACKEND / "schemas.py", temp_backend / "schemas.py")
     shutil.copy2(REAL_BACKEND / "utils.py", temp_backend / "utils.py")
