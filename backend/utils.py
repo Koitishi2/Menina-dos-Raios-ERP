@@ -11,6 +11,22 @@ def _normalize_name(name: str) -> str:
     return s
 
 
+def _normalize_client(name: str) -> str:
+    """Normaliza nome para detectar duplicatas: remove acentos, normaliza separadores."""
+    import unicodedata
+
+    s = unicodedata.normalize(
+        "NFD",
+        (name or "").strip().upper(),
+    ).encode("ascii", "ignore").decode()
+
+    import re
+
+    s = re.sub(r"\s*[-/]\s*", "/", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
 def _safe_txt(t, default="-"):
     import re
     if t is None:

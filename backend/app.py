@@ -17,10 +17,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 try:
     from .schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
-    from .utils import _add_months, _calendar_event_dict, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
+    from .utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
 except ImportError:
     from schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
-    from utils import _add_months, _calendar_event_dict, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
+    from utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
 
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
@@ -3247,16 +3247,6 @@ def get_kpi_summary(year:Optional[int]=None,month:Optional[int]=None,x_token:str
 
 
 # â”€â”€ DeduplicaÃ§Ã£o de Clientes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-def _normalize_client(name:str)->str:
-    """Normaliza nome para detectar duplicatas: remove acentos, normaliza separadores."""
-    import unicodedata
-    s = unicodedata.normalize('NFD', (name or '').strip().upper()).encode('ascii','ignore').decode()
-    # Normalize separators: " - ", "/ ", "/", " /" â†’ "/"
-    import re
-    s = re.sub(r'\s*[-/]\s*', '/', s)
-    # Collapse multiple spaces
-    s = re.sub(r'\s+', ' ', s).strip()
-    return s
 
 @app.get("/api/clients/duplicates")
 def find_duplicates(x_token:str=Header("")):
