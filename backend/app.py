@@ -16,12 +16,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 try:
+    from .backup_admin import backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip
     from .permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from .security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from .security_request import _client_ip, _is_trusted_proxy_host
     from .schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
     from .utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
 except ImportError:
+    from backup_admin import backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip
     from permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from security_request import _client_ip, _is_trusted_proxy_host
@@ -963,30 +965,10 @@ def create_backup(label:str="auto")->str:
     return fname
 
 def _backup_db_sources():
-    seen=set(); out=[]
-    def add(key,label,path):
-        p=Path(path)
-        if p.exists() and p.is_file() and p.suffix.lower()==".db" and p.resolve() not in seen:
-            seen.add(p.resolve()); out.append({"key":key,"label":label,"path":p})
-    add("raios_monteiro","Menina dos Raios / Monteiro",DB_PATH)
-    for key,path in COMPANY_DBS.items():
-        label={"raios":"Menina dos Raios / Monteiro","estrada":"Menina da Estrada"}.get(key,key)
-        add(f"empresa_{key}",label,path)
-    add("app_notes","Notas APP / Calendario",APP_NOTES_DB_PATH)
-    for p in sorted(BASE_DIR.glob("*.db")):
-        add(f"extra_{p.stem}",f"Banco extra: {p.name}",p)
-    return out
+    return backup_db_sources_from_paths(BASE_DIR, DB_PATH, COMPANY_DBS, APP_NOTES_DB_PATH)
 
 def _backup_expected_databases():
-    expected=[
-        {"key":"raios_monteiro","label":"Menina dos Raios / Monteiro","path":DB_PATH},
-        {"key":"estrada","label":"Menina da Estrada","path":COMPANY_DBS.get("estrada",BASE_DIR/"menina_estrada.db")},
-        {"key":"app_notes","label":"Notas APP / Calendario","path":APP_NOTES_DB_PATH},
-    ]
-    return [
-        {"key":item["key"],"label":item["label"],"name":Path(item["path"]).name,"exists":Path(item["path"]).exists()}
-        for item in expected
-    ]
+    return backup_expected_databases_from_paths(BASE_DIR, DB_PATH, COMPANY_DBS, APP_NOTES_DB_PATH)
 
 def _copy_sqlite_consistent(src:Path,dest:Path):
     src_conn=sqlite3.connect(str(src),timeout=20)
@@ -997,20 +979,13 @@ def _copy_sqlite_consistent(src:Path,dest:Path):
         dest_conn.close(); src_conn.close()
 
 def _backup_files():
-    return list(BACKUP_DIR.glob("bm_backup_*.db")) + list(BACKUP_DIR.glob("bm_backup_*.zip"))
+    return backup_files_from_dir(BACKUP_DIR)
 
 def _valid_backup_name(filename:str)->bool:
     return filename.startswith("bm_backup_") and filename.lower().endswith((".db",".zip"))
 
 def _backup_manifest_databases(path:Path):
-    import json as _j
-    import zipfile
-    try:
-        with zipfile.ZipFile(path,"r") as zf:
-            data=_j.loads(zf.read("manifest.json").decode("utf-8"))
-            return [d.get("filename") for d in data.get("databases",[]) if d.get("filename")]
-    except Exception:
-        return []
+    return backup_manifest_databases_from_zip(path)
 
 def backup_scheduler():
     """Thread de backup automÃ¡tico diÃ¡rio Ã s 03:00."""
