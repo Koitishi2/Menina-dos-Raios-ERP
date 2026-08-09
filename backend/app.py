@@ -18,6 +18,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Streamin
 try:
     from .backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip, backup_path_for_filename, restore_zip_backup_with, safety_backup_before_restore_with
     from .company_config import company_db_path_for, company_key_from
+    from .monteiro_periods import _pal_period_where, _pay_period_map
     from .orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from .permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from .security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
@@ -27,6 +28,7 @@ try:
 except ImportError:
     from backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip, backup_path_for_filename, restore_zip_backup_with, safety_backup_before_restore_with
     from company_config import company_db_path_for, company_key_from
+    from monteiro_periods import _pal_period_where, _pay_period_map
     from orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
@@ -3587,28 +3589,6 @@ def boletos_paid(x_token:str=Header("")):
 
 # â”€â”€ Paladar (mÃ³dulo independente) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-def _pal_period_where(period, month, year):
-    from datetime import datetime, timedelta
-    where = []; args = []
-    if period == 'quinzenal':
-        end = datetime.now().strftime('%Y-%m-%d')
-        start = (datetime.now() - timedelta(days=14)).strftime('%Y-%m-%d')
-        where.append("saledate >= ? AND saledate <= ?")
-        args.extend([start, end])
-    elif period == 'quinzenal_prev':
-        end = (datetime.now() - timedelta(days=15)).strftime('%Y-%m-%d')
-        start = (datetime.now() - timedelta(days=29)).strftime('%Y-%m-%d')
-        where.append("saledate >= ? AND saledate <= ?")
-        args.extend([start, end])
-    else:
-        if month:
-            where.append("strftime('%m',saledate)=?")
-            args.append(month.zfill(2))
-        if year:
-            where.append("strftime('%Y',saledate)=?")
-            args.append(str(year))
-    return where, args
-
 @app.get("/api/monteiro/products")
 @app.get("/api/paladar/products")
 def paladar_products(active:Optional[str]=None,search:Optional[str]=None,x_token:str=Header("")):
@@ -4786,20 +4766,6 @@ def monteiro_payments_pdf_wk(client:str="",period:Optional[str]=None,month:str="
         }, status_code=500)
 
 # â”€â”€ Monteiro: Pagamentos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-def _pay_period_map(period, month, year):
-    """Helper: retorna (month, year) a partir do period (quinzenal/mensal/anual).
-       Para quinzenal, usa mÃªs/ano corrente no backend (filtro de vendas usa
-       _pal_period_where, mas pagamentos sÃ£o filtrados por month/year).
-       Para mensal/anual, usa month/year fornecidos."""
-    from datetime import datetime as _dt
-    pm = month or ""
-    py = year or ""
-    if period == "quinzenal":
-        now = _dt.now()
-        pm = now.strftime("%m")
-        py = now.strftime("%Y")
-    return pm.zfill(2) if pm else "", str(py) if py else ""
-
 @app.get("/api/monteiro/payments")
 def list_monteiro_payments(client:str="",period:Optional[str]=None,month:str="",year:str="",x_token:str=Header("")):
     require_auth(x_token); conn=get_db()
