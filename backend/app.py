@@ -17,10 +17,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 try:
     from .schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
-    from .utils import _add_months, _normalize_name
+    from .utils import _add_months, _calendar_event_dict, _normalize_name, _safe_txt
 except ImportError:
     from schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
-    from utils import _add_months, _normalize_name
+    from utils import _add_months, _calendar_event_dict, _normalize_name, _safe_txt
 
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
@@ -4365,13 +4365,6 @@ def monteiro_client_excel(client:str="",period:Optional[str]=None,month:Optional
     return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": "attachment; filename=monteiro_clientes.xlsx"})
 
-def _safe_txt(t, default="-"):
-    import re
-    if t is None: return default
-    s = str(t)
-    s = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', s)
-    return s.encode('latin-1', errors='replace').decode('latin-1')
-
 def _monteiro_report_data(client, period, month, year):
     from datetime import datetime as _dt
     _t0=_dt.now()
@@ -6441,19 +6434,6 @@ def delete_app_note(note_id:str,x_token:str=Header("")):
 # o catch-all intercepta as chamadas e devolve index.html (HTML), causando
 # "Unexpected token '<'" no frontend ao tentar JSON.parse.
 # â”€â”€ Calendario de notificacoes do aplicativo Android â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-def _calendar_event_dict(row):
-    data=dict(row)
-    try:
-        due=datetime.strptime(str(data.get("due_date") or ""), "%Y-%m-%d").date()
-        today=date.today()
-        days_left=(due-today).days
-        data["days_left"]=days_left
-        data["in_reminder_window"]=data.get("status")=="pending" and 0 <= days_left <= int(data.get("notify_days_before") or 2)
-    except Exception:
-        data["days_left"]=None
-        data["in_reminder_window"]=False
-    return data
-
 def _clean_calendar_event(body:dict):
     title=str(body.get("title") or "").strip()[:160]
     details=str(body.get("details") or body.get("description") or "").strip()[:2000]

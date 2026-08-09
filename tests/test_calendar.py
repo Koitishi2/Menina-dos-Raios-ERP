@@ -1,3 +1,19 @@
+import pytest
+from datetime import date
+
+
+FIXED_TODAY = date(2026, 8, 9)
+
+
+def _fix_calendar_today(isolated_app, monkeypatch):
+    class FixedDate:
+        @classmethod
+        def today(cls):
+            return FIXED_TODAY
+
+    monkeypatch.setitem(isolated_app.module._calendar_event_dict.__globals__, "date", FixedDate)
+
+
 def _login(test_client, username="admin", password="admin123", company="raios"):
     response = test_client.post(
         "/api/auth/login",
@@ -23,6 +39,152 @@ def _calendar_rows(isolated_app):
         ]
     finally:
         conn.close()
+
+
+def test_calendar_event_dict_calcula_janela_com_data_controlada(isolated_app, monkeypatch):
+    _fix_calendar_today(isolated_app, monkeypatch)
+    event_dict = isolated_app.module._calendar_event_dict
+
+    hoje = event_dict({
+        "id": "hoje",
+        "due_date": "2026-08-09",
+        "status": "pending",
+        "notify_days_before": 2,
+    })
+    assert hoje["days_left"] == 0
+    assert hoje["in_reminder_window"] is True
+
+    futuro_dentro = event_dict({
+        "id": "futuro-dentro",
+        "due_date": "2026-08-11",
+        "status": "pending",
+        "notify_days_before": 2,
+    })
+    assert futuro_dentro["days_left"] == 2
+    assert futuro_dentro["in_reminder_window"] is True
+
+    futuro_fora = event_dict({
+        "id": "futuro-fora",
+        "due_date": "2026-08-12",
+        "status": "pending",
+        "notify_days_before": 2,
+    })
+    assert futuro_fora["days_left"] == 3
+    assert futuro_fora["in_reminder_window"] is False
+
+    passado = event_dict({
+        "id": "passado",
+        "due_date": "2026-08-08",
+        "status": "pending",
+        "notify_days_before": 2,
+    })
+    assert passado["days_left"] == -1
+    assert passado["in_reminder_window"] is False
+
+
+def test_calendar_event_dict_status_e_campos_preservados(isolated_app, monkeypatch):
+    _fix_calendar_today(isolated_app, monkeypatch)
+    event_dict = isolated_app.module._calendar_event_dict
+
+    completed = event_dict({
+        "id": "completed",
+        "title": "Evento concluido",
+        "details": "Detalhe original",
+        "due_date": "2026-08-09",
+        "status": "completed",
+        "notify_days_before": 2,
+        "extra": "preservado",
+    })
+    assert completed["days_left"] == 0
+    assert completed["in_reminder_window"] is False
+    assert completed["title"] == "Evento concluido"
+    assert completed["details"] == "Detalhe original"
+    assert completed["extra"] == "preservado"
+
+    status_vazio = event_dict({
+        "id": "status-vazio",
+        "due_date": "2026-08-09",
+        "status": "",
+        "notify_days_before": 2,
+    })
+    assert status_vazio["days_left"] == 0
+    assert status_vazio["in_reminder_window"] is False
+
+    status_ausente = event_dict({
+        "id": "status-ausente",
+        "due_date": "2026-08-09",
+        "notify_days_before": 2,
+    })
+    assert status_ausente["days_left"] == 0
+    assert status_ausente["in_reminder_window"] is False
+
+
+def test_calendar_event_dict_datas_invalidas_e_notify_atual(isolated_app, monkeypatch):
+    _fix_calendar_today(isolated_app, monkeypatch)
+    event_dict = isolated_app.module._calendar_event_dict
+
+    for due_date in (None, "", "2026-08-09T10:30:00"):
+        result = event_dict({
+            "id": f"due-{due_date}",
+            "due_date": due_date,
+            "status": "pending",
+            "notify_days_before": 2,
+        })
+        assert result["days_left"] is None
+        assert result["in_reminder_window"] is False
+
+    notify_none = event_dict({
+        "id": "notify-none",
+        "due_date": "2026-08-11",
+        "status": "pending",
+        "notify_days_before": None,
+    })
+    assert notify_none["days_left"] == 2
+    assert notify_none["in_reminder_window"] is True
+
+    notify_vazio = event_dict({
+        "id": "notify-vazio",
+        "due_date": "2026-08-11",
+        "status": "pending",
+        "notify_days_before": "",
+    })
+    assert notify_vazio["days_left"] == 2
+    assert notify_vazio["in_reminder_window"] is True
+
+    notify_invalido = event_dict({
+        "id": "notify-invalido",
+        "due_date": "2026-08-09",
+        "status": "pending",
+        "notify_days_before": "x",
+    })
+    assert notify_invalido["days_left"] is None
+    assert notify_invalido["in_reminder_window"] is False
+
+
+def test_calendar_event_dict_tipos_de_row_atuais(isolated_app, monkeypatch):
+    _fix_calendar_today(isolated_app, monkeypatch)
+    event_dict = isolated_app.module._calendar_event_dict
+
+    dict_comum = event_dict({
+        "id": "dict",
+        "due_date": "2026-08-09",
+        "status": "pending",
+        "notify_days_before": 2,
+    })
+    assert dict_comum["days_left"] == 0
+    assert dict_comum["in_reminder_window"] is True
+
+    pares = event_dict([
+        ("id", "pares"),
+        ("due_date", "2026-08-09"),
+        ("status", "pending"),
+        ("notify_days_before", 2),
+    ])
+    assert pares["days_left"] == 0
+    assert pares["in_reminder_window"] is True
+
+    with pytest.raises(TypeError):
+        event_dict(None)
 
 
 def test_create_app_calendar_event_simple(isolated_app):
