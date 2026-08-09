@@ -68,6 +68,20 @@ def _table_count(db_path, table):
     return _fetch_one(db_path, f"SELECT COUNT(*) AS total FROM {table}")["total"]
 
 
+def _set_tab_permissions_value(isolated_app, value):
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    try:
+        conn.execute("DELETE FROM settings WHERE key='tab_permissions'")
+        if value is not None:
+            conn.execute(
+                "INSERT INTO settings(key,value) VALUES('tab_permissions',?)",
+                (value,),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def test_expand_tab_keys_current_aliases_duplicates_and_order(isolated_app):
     expand_tab_keys = isolated_app.module._expand_tab_keys
 
@@ -105,6 +119,96 @@ def test_expand_tab_keys_current_string_type_spacing_case_and_return_independenc
     result.append("mutado")
     assert result == ["notas", "pendentes", "mutado"]
     assert isolated_app.module.TAB_PERMISSION_ALIASES == aliases_before
+
+
+def test_tab_permissions_map_current_storage_and_error_contract(isolated_app):
+    tab_permissions_map = isolated_app.module._tab_permissions_map
+
+    _set_tab_permissions_value(isolated_app, None)
+    assert tab_permissions_map() == {}
+
+    _set_tab_permissions_value(isolated_app, "")
+    assert tab_permissions_map() == {}
+
+    saved = {"viewer": ["clientes"], "editor": ["notas"], "admin": ["config"]}
+    _set_tab_permissions_value(isolated_app, json.dumps(saved))
+    assert tab_permissions_map() == saved
+
+    _set_tab_permissions_value(isolated_app, "{json-invalido")
+    assert tab_permissions_map() == {}
+
+    for non_dict in (["clientes"], "clientes", 123, True, None):
+        _set_tab_permissions_value(isolated_app, json.dumps(non_dict))
+        assert tab_permissions_map() == {}
+
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    try:
+        conn.execute("DROP TABLE settings")
+        conn.commit()
+    finally:
+        conn.close()
+    assert tab_permissions_map() == {}
+
+
+def test_permissions_configured_current_empty_and_non_empty_semantics(isolated_app):
+    permissions_configured = isolated_app.module._permissions_configured
+
+    _set_tab_permissions_value(isolated_app, None)
+    assert permissions_configured() is False
+
+    _set_tab_permissions_value(isolated_app, "")
+    assert permissions_configured() is False
+
+    _set_tab_permissions_value(
+        isolated_app,
+        json.dumps({"viewer": [], "editor": [], "admin": []}),
+    )
+    assert permissions_configured() is False
+
+    _set_tab_permissions_value(
+        isolated_app,
+        json.dumps({"viewer": [], "editor": ["clientes"], "admin": []}),
+    )
+    assert permissions_configured() is True
+
+    _set_tab_permissions_value(isolated_app, json.dumps({"viewer": ""}))
+    assert permissions_configured() is False
+
+    _set_tab_permissions_value(isolated_app, json.dumps({"viewer": "clientes"}))
+    assert permissions_configured() is True
+
+    _set_tab_permissions_value(isolated_app, "{json-invalido")
+    assert permissions_configured() is False
+
+
+def test_session_has_any_tab_current_roles_direct_matches_and_aliases(isolated_app):
+    session_has_any_tab = isolated_app.module._session_has_any_tab
+
+    _set_tab_permissions_value(isolated_app, None)
+    assert session_has_any_tab({"role": "admin"}, ["qualquer"]) is True
+    assert session_has_any_tab({"role": "viewer"}, ["clientes"]) is False
+    assert session_has_any_tab({}, ["clientes"]) is False
+
+    _set_tab_permissions_value(
+        isolated_app,
+        json.dumps(
+            {
+                "viewer": ["clientes", "pendentes"],
+                "editor": ["notas", "cfg_precos"],
+                "admin": [],
+            }
+        ),
+    )
+    assert session_has_any_tab({"role": "admin"}, []) is True
+    assert session_has_any_tab({"role": "viewer"}, []) is False
+    assert session_has_any_tab({"role": "viewer"}, ["clientes"]) is True
+    assert session_has_any_tab({"role": "viewer"}, ["produtos"]) is False
+    assert session_has_any_tab({"role": "viewer"}, ["notas"]) is True
+    assert session_has_any_tab({"role": "editor"}, ["pendentes"]) is True
+    assert session_has_any_tab({"role": "editor"}, ["cfg_precos"]) is True
+    assert session_has_any_tab({"role": "editor"}, ["clientes"]) is False
+    assert session_has_any_tab({"role": "unknown"}, ["clientes"]) is False
+    assert session_has_any_tab({}, ["clientes"]) is False
 
 
 def test_config_prices_history_audit_and_permissions(isolated_app):
