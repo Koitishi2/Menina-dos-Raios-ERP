@@ -16,12 +16,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 try:
-    from .permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys
+    from .permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from .security_request import _client_ip, _is_trusted_proxy_host
     from .schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
     from .utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
 except ImportError:
-    from permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys
+    from permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from security_request import _client_ip, _is_trusted_proxy_host
     from schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
     from utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
@@ -867,25 +867,13 @@ def role_has_tab_permission(role:str, permission_key:str)->bool:
         conn.close()
 
 def _tab_permissions_map()->dict:
-    conn=get_control_db()
-    try:
-        row=conn.execute("SELECT value FROM settings WHERE key='tab_permissions'").fetchone()
-        perms=json.loads(row["value"]) if row and row["value"] else {}
-        return perms if isinstance(perms,dict) else {}
-    except Exception:
-        return {}
-    finally:
-        conn.close()
+    return tab_permissions_map_from_db(get_control_db)
 
 def _permissions_configured()->bool:
-    return any(bool(v) for v in _tab_permissions_map().values())
+    return permissions_configured_from_map(_tab_permissions_map())
 
 def _session_has_any_tab(sess:dict, keys:list)->bool:
-    if sess.get("role")=="admin":
-        return True
-    perms=_tab_permissions_map()
-    allowed=perms.get(sess.get("role",""),[]) if isinstance(perms,dict) else []
-    return any(k in allowed for k in _expand_tab_keys(keys))
+    return session_has_any_tab_from_map(sess, keys, _tab_permissions_map())
 
 def require_any_tab_access(x_token:str, keys:list)->dict:
     sess=require_auth(x_token)
