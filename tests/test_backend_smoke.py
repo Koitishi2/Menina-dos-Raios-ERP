@@ -15,6 +15,15 @@ def _make_sqlite_db(path):
     return path
 
 
+def _sqlite_rows(path, sql):
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+    try:
+        return [dict(row) for row in conn.execute(sql).fetchall()]
+    finally:
+        conn.close()
+
+
 def test_backend_starts_serves_index_and_uses_temp_backup(isolated_app):
     response = isolated_app.client.get("/")
     assert response.status_code == 200
@@ -296,4 +305,94 @@ def test_backup_db_sources_current_discovery_dedup_and_order_contract(
         ("extra_bm_monteiro", "bm_monteiro.db"),
         ("extra_extra_data", "extra_data.db"),
         ("extra_menina_estrada", "menina_estrada.db"),
+    ]
+
+
+def test_copy_sqlite_consistent_current_valid_copy_to_missing_destination(isolated_app, tmp_path):
+    copy_sqlite_consistent = isolated_app.module._copy_sqlite_consistent
+    src = tmp_path / "source.db"
+    dest = tmp_path / "dest.db"
+    conn = sqlite3.connect(src)
+    conn.execute("CREATE TABLE marker(id INTEGER PRIMARY KEY, value TEXT)")
+    conn.executemany(
+        "INSERT INTO marker(value) VALUES(?)",
+        [(f"linha-{index}",) for index in range(25)],
+    )
+    conn.execute("CREATE TABLE secondary(name TEXT, amount REAL)")
+    conn.execute("INSERT INTO secondary(name, amount) VALUES('total', 123.45)")
+    conn.commit()
+    conn.close()
+
+    copy_sqlite_consistent(src, dest)
+
+    assert dest.exists()
+    assert dest.stat().st_size > 0
+    assert _sqlite_rows(dest, "SELECT value FROM marker ORDER BY id") == [
+        {"value": f"linha-{index}"} for index in range(25)
+    ]
+    assert _sqlite_rows(dest, "SELECT name, amount FROM secondary") == [
+        {"name": "total", "amount": 123.45}
+    ]
+
+    write_conn = sqlite3.connect(dest)
+    try:
+        write_conn.execute("INSERT INTO marker(value) VALUES('pos-copia')")
+        write_conn.commit()
+    finally:
+        write_conn.close()
+
+
+def test_copy_sqlite_consistent_current_overwrites_existing_destination(isolated_app, tmp_path):
+    copy_sqlite_consistent = isolated_app.module._copy_sqlite_consistent
+    src = _make_sqlite_db(tmp_path / "source.db")
+    dest = tmp_path / "dest.db"
+    conn = sqlite3.connect(dest)
+    conn.execute("CREATE TABLE old_data(value TEXT)")
+    conn.execute("INSERT INTO old_data(value) VALUES('sera removido')")
+    conn.commit()
+    conn.close()
+
+    copy_sqlite_consistent(src, dest)
+
+    assert _sqlite_rows(dest, "SELECT value FROM marker") == [{"value": "ok"}]
+    with pytest.raises(sqlite3.OperationalError, match="no such table: old_data"):
+        _sqlite_rows(dest, "SELECT value FROM old_data")
+
+
+def test_copy_sqlite_consistent_current_error_contract_and_connections_close(
+    isolated_app,
+    tmp_path,
+):
+    copy_sqlite_consistent = isolated_app.module._copy_sqlite_consistent
+
+    missing_src = tmp_path / "missing.db"
+    missing_dest = tmp_path / "missing_dest.db"
+    copy_sqlite_consistent(missing_src, missing_dest)
+    assert missing_src.exists()
+    assert missing_dest.exists()
+    assert _sqlite_rows(
+        missing_dest,
+        "SELECT name FROM sqlite_master WHERE type='table'",
+    ) == []
+
+    invalid_src = tmp_path / "invalid.db"
+    invalid_src.write_text("nao sou sqlite", encoding="utf-8")
+    invalid_dest = tmp_path / "invalid_dest.db"
+    with pytest.raises(sqlite3.DatabaseError):
+        copy_sqlite_consistent(invalid_src, invalid_dest)
+
+    valid_src = _make_sqlite_db(tmp_path / "valid_source.db")
+    invalid_dest_path = tmp_path / "sem_pasta" / "dest.db"
+    with pytest.raises(sqlite3.OperationalError):
+        copy_sqlite_consistent(valid_src, invalid_dest_path)
+
+    reopened_src = sqlite3.connect(valid_src)
+    try:
+        reopened_src.execute("INSERT INTO marker(value) VALUES('apos-erro')")
+        reopened_src.commit()
+    finally:
+        reopened_src.close()
+    assert _sqlite_rows(valid_src, "SELECT value FROM marker ORDER BY id") == [
+        {"value": "ok"},
+        {"value": "apos-erro"},
     ]
