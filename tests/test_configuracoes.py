@@ -1,6 +1,7 @@
 import json
 import sqlite3
 import uuid
+from datetime import datetime
 
 
 def _login(test_client, username="admin", password="admin123", company="raios"):
@@ -182,7 +183,12 @@ def test_config_prices_history_audit_and_permissions(isolated_app):
     )
     assert history.status_code == 200
     history_rows = history.json()
-    assert [row["price"] for row in history_rows] == [14.25, 13.75]
+    history_dates = [row["effective_date"] for row in history_rows]
+    assert history_dates == sorted(history_dates, reverse=True)
+    assert [(row["effective_date"], row["price"]) for row in history_rows] == [
+        (datetime.now().strftime("%Y-%m-%d"), 13.75),
+        ("2026-08-08", 14.25),
+    ]
     assert history_rows[0]["changed_by"] == "editor_config_precos"
 
     audit = isolated_app.client.get("/api/audit-log", headers=_headers(admin_token))

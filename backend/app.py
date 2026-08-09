@@ -15,7 +15,12 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
-from pydantic import BaseModel
+try:
+    from .schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
+    from .utils import _add_months
+except ImportError:
+    from schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
+    from utils import _add_months
 
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
@@ -1171,9 +1176,6 @@ async def company_context_middleware(request: Request, call_next):
         CURRENT_COMPANY.reset(token)
 
 # â”€â”€ Auth endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-class LoginIn(BaseModel):
-    username:str; password:str
-
 @app.post("/api/auth/login")
 def login(body:LoginIn, request:Request):
     ip = _client_ip(request)
@@ -1245,15 +1247,6 @@ def change_own_password(body:dict,x_token:str=Header("")):
     return {"ok":True}
 
 # â”€â”€ User management (admin only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-class UserIn(BaseModel):
-    username:str; password:str; full_name:Optional[str]=None; role:str="editor"
-
-class AdminMessageIn(BaseModel):
-    user_id: str
-    title: str
-    body: str
-    expires_days: Optional[int] = 7
-
 @app.get("/api/users")
 def list_users(x_token:str=Header("")):
     require_admin(x_token)
@@ -1394,13 +1387,6 @@ def mark_admin_message_seen(message_id:str,x_token:str=Header("")):
     return {"ok":True}
 
 # â”€â”€ Sales â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-class SaleIn(BaseModel):
-    sale_type:str; sale_date:str; sale_time:Optional[str]=None
-    client:Optional[str]=None; product:Optional[str]=None; nf_number:Optional[str]=None
-    quantity:float=0; unit_price:float=0; total:Optional[float]=None
-    notes:Optional[str]=None; delivery_person:Optional[str]=None
-    plate:Optional[str]=None; source:str="manual"
-
 @app.get("/api/sales")
 def list_sales(sale_type:Optional[str]=None,month:Optional[int]=None,
                year:Optional[int]=None,search:Optional[str]=None,
@@ -2038,9 +2024,6 @@ def product_stats(product:str,year:Optional[int]=None,x_token:str=Header("")):
             "clients":len(clients),"avg_price":(unit_sum/transactions if transactions else 0)}}
 
 # â”€â”€ PreÃ§os â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-class PriceUpdate(BaseModel):
-    key:str; price:float; price_min:Optional[float]=None; price_max:Optional[float]=None
-
 @app.get("/api/prices")
 def get_prices(x_token:str=Header("")):
     require_auth(x_token); conn=get_db()
@@ -2321,11 +2304,6 @@ def server_info():
             "hostname":hostname}
 
 # â”€â”€ Clientes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-class ClientIn(BaseModel):
-    name:str; cnpj:Optional[str]=None; cpf:Optional[str]=None
-    phone:Optional[str]=None; email:Optional[str]=None
-    address:Optional[str]=None; city:Optional[str]=None; notes:Optional[str]=None
-
 @app.get("/api/clients")
 def list_clients(search:Optional[str]=None,x_token:str=Header("")):
     require_auth(x_token); conn=get_db()
@@ -6504,15 +6482,6 @@ def _clean_calendar_event(body:dict):
     if status not in ("pending","completed"):
         status="pending"
     return title,details,due_date,notify_days_before,reminders_per_day,status
-
-def _add_months(date_str:str,months:int)->str:
-    import calendar as _cal
-    base=datetime.strptime(date_str,"%Y-%m-%d").date()
-    month=base.month-1+months
-    year=base.year+month//12
-    month=month%12+1
-    day=min(base.day,_cal.monthrange(year,month)[1])
-    return date(year,month,day).isoformat()
 
 def _auto_complete_expired_calendar_events(conn):
     today=date.today().isoformat()

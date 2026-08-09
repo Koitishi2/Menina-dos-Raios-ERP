@@ -120,6 +120,8 @@ def isolated_app(tmp_path, monkeypatch):
     temp_notes.mkdir(parents=True)
 
     shutil.copy2(REAL_BACKEND / "app.py", temp_backend / "app.py")
+    shutil.copy2(REAL_BACKEND / "schemas.py", temp_backend / "schemas.py")
+    shutil.copy2(REAL_BACKEND / "utils.py", temp_backend / "utils.py")
     shutil.copy2(REAL_STATIC / "index.html", temp_static / "index.html")
 
     db_paths = {
@@ -146,6 +148,7 @@ def isolated_app(tmp_path, monkeypatch):
 
     monkeypatch.setenv("BACKUP_DIR", str(temp_backup))
     monkeypatch.setenv("CORS_ORIGINS", "*")
+    monkeypatch.syspath_prepend(str(temp_backend))
     sys.modules.pop("backend.app", None)
 
     module_name = f"isolated_backend_app_{uuid.uuid4().hex}"
