@@ -2,7 +2,7 @@
 Menina dos Raios Ltda â€” Backend v15
 Multi-usuÃ¡rio Â· SessÃµes Â· HistÃ³rico por conta Â· Placa Â· Hora Â· PreÃ§o por data
 """
-import os, sys, re, uuid, sqlite3, webbrowser, threading, io, json, hashlib, socket, hmac, logging, ipaddress, shutil
+import os, sys, re, uuid, sqlite3, webbrowser, threading, io, json, hashlib, socket, hmac, logging, shutil
 from contextvars import ContextVar
 from contextlib import contextmanager
 from collections import defaultdict
@@ -16,9 +16,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 try:
+    from .security_request import _client_ip, _is_trusted_proxy_host
     from .schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
     from .utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
 except ImportError:
+    from security_request import _client_ip, _is_trusted_proxy_host
     from schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
     from utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
 
@@ -101,26 +103,6 @@ _LOGIN_ATTEMPTS: dict = {}     # ip â†’ [(timestamp_unix, success_bool), ..
 LOGIN_RATE_WINDOW = 60          # janela onde contamos falhas
 LOGIN_RATE_MAX_FAILS = 10       # mÃ¡x falhas na janela antes de bloquear
 LOGIN_RATE_BLOCK_SECS = 300     # tempo de bloqueio apÃ³s estourar (5min)
-
-def _is_trusted_proxy_host(host: str) -> bool:
-    try:
-        ip = ipaddress.ip_address(host)
-        return ip.is_loopback or ip.is_private
-    except Exception:
-        return False
-
-def _client_ip(request) -> str:
-    """Pega IP real apenas quando o request veio de proxy local/confiavel."""
-    try:
-        direct = request.client.host if request.client else "?"
-        if _is_trusted_proxy_host(direct):
-            xff = request.headers.get("x-forwarded-for", "")
-            if xff: return xff.split(",")[0].strip()
-            xreal = request.headers.get("x-real-ip", "")
-            if xreal: return xreal.strip()
-        return direct
-    except Exception:
-        return "?"
 
 def _check_login_rate(ip: str):
     """Retorna (permitido: bool, segundos_para_desbloqueio: int)."""
