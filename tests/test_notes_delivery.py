@@ -1,0 +1,816 @@
+import json
+import sqlite3
+import uuid
+
+
+def _login(test_client, username="admin", password="admin123", company="raios"):
+    response = test_client.post(
+        "/api/auth/login",
+        headers={"x-company": company},
+        json={"username": username, "password": password},
+    )
+    assert response.status_code == 200
+    return response.json()["token"]
+
+
+def _headers(token, company="raios"):
+    return {"x-token": token, "x-company": company}
+
+
+def _sale_payload(**overrides):
+    payload = {
+        "sale_type": "NF",
+        "sale_date": "2026-08-05",
+        "sale_time": "08:00",
+        "client": "Cliente Nota Entrega",
+        "product": "Produto Nota Entrega",
+        "nf_number": "NF-ENT-001",
+        "quantity": 1,
+        "unit_price": 100,
+        "total": 100,
+        "notes": "nota temporaria de entrega",
+        "delivery_person": "Lucas",
+        "plate": "ENT-0001",
+        "source": "manual",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _create_sale(test_client, token, company="raios", **overrides):
+    response = test_client.post(
+        "/api/sales",
+        headers=_headers(token, company),
+        json=_sale_payload(**overrides),
+    )
+    assert response.status_code == 200
+    return response.json()
+
+
+def _list_sales(test_client, token, company="raios", query=""):
+    response = test_client.get(
+        f"/api/sales{query}",
+        headers=_headers(token, company),
+    )
+    assert response.status_code == 200
+    return response.json()
+
+
+def _mark_delivered(test_client, token, sale_id, company="raios", **body):
+    response = test_client.put(
+        f"/api/sales/{sale_id}/delivered",
+        headers=_headers(token, company),
+        json=body,
+    )
+    assert response.status_code == 200
+    return response.json()
+
+
+def _app_note_payload(**overrides):
+    payload = {
+        "external_id": f"nota-app-{uuid.uuid4().hex}",
+        "client": "Cliente Nota App",
+        "date": "20/08/2026",
+        "items": [
+            {
+                "product": "Produto App Original",
+                "quantity": 1,
+                "weight": 1,
+                "unit": "KG",
+                "unit_price": 10,
+            }
+        ],
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _create_app_note_mobile(test_client, isolated_app, **overrides):
+    response = test_client.post(
+        "/api/app-notes/mobile",
+        headers={"x-app-token": isolated_app.module.APP_NOTES_TOKEN},
+        json=_app_note_payload(**overrides),
+    )
+    assert response.status_code == 200
+    return response.json()["note"]
+
+
+def test_app_notes_db_initializes_schema_and_returns_open_connection(isolated_app):
+    conn = isolated_app.module.get_app_notes_db()
+    try:
+        assert conn.execute("SELECT 1").fetchone()[0] == 1
+        tables = {
+            row["name"]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        assert {
+            "app_notes",
+            "app_note_items",
+            "app_note_submissions",
+            "app_notes_meta",
+            "app_calendar_events",
+        }.issubset(tables)
+
+        indexes = {
+            row["name"]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='index'"
+            ).fetchall()
+        }
+        assert {
+            "idx_app_notes_client",
+            "idx_app_notes_date",
+            "idx_app_note_items_note",
+            "idx_app_note_submissions_note",
+            "idx_app_calendar_due_status",
+        }.issubset(indexes)
+    finally:
+        conn.close()
+
+
+def test_app_notes_db_migrates_legacy_notes_submissions_and_merges_duplicates(isolated_app):
+    legacy = sqlite3.connect(isolated_app.db_paths["app_notes"])
+    try:
+        legacy.executescript(
+            """
+            CREATE TABLE app_notes(
+                id TEXT PRIMARY KEY,
+                external_id TEXT NOT NULL UNIQUE,
+                client TEXT NOT NULL DEFAULT '',
+                note_date TEXT NOT NULL DEFAULT '',
+                total REAL NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                source TEXT NOT NULL DEFAULT 'android'
+            );
+            CREATE TABLE app_note_items(
+                id TEXT PRIMARY KEY,
+                note_id TEXT NOT NULL,
+                product TEXT NOT NULL DEFAULT '',
+                quantity REAL NOT NULL DEFAULT 0,
+                unit TEXT NOT NULL DEFAULT '',
+                unit_price REAL NOT NULL DEFAULT 0,
+                position INTEGER NOT NULL DEFAULT 0
+            );
+            """
+        )
+        legacy.executemany(
+            """INSERT INTO app_notes(id,external_id,client,note_date,total,created_at,updated_at)
+               VALUES(?,?,?,?,?,?,?)""",
+            [
+                ("nota-keep", "ext-keep", "Cliente Duplicado", "24/08/2026", 0, "2026-08-24T08:00:00", "2026-08-24T08:00:00"),
+                ("nota-dup", "ext-dup", "cliente duplicado", "24/08/2026", 0, "2026-08-24T08:05:00", "2026-08-24T08:05:00"),
+            ],
+        )
+        legacy.executemany(
+            """INSERT INTO app_note_items(id,note_id,product,quantity,unit,unit_price,position)
+               VALUES(?,?,?,?,?,?,?)""",
+            [
+                ("item-keep", "nota-keep", "Produto A", 2, "KG", 5, 0),
+                ("item-dup", "nota-dup", "Produto B", 3, "UN", 7, 0),
+            ],
+        )
+        legacy.commit()
+    finally:
+        legacy.close()
+
+    conn = isolated_app.module.get_app_notes_db()
+    try:
+        note_columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(app_notes)").fetchall()
+        }
+        item_columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(app_note_items)").fetchall()
+        }
+        assert {"status", "completed_at"}.issubset(note_columns)
+        assert {"weight", "quantity_provided", "price_provided"}.issubset(item_columns)
+
+        notes = conn.execute("SELECT * FROM app_notes ORDER BY id").fetchall()
+        assert len(notes) == 1
+        assert notes[0]["id"] == "nota-keep"
+        assert notes[0]["total"] == 31
+
+        items = conn.execute(
+            "SELECT note_id,product,quantity,weight,quantity_provided,price_provided,position "
+            "FROM app_note_items ORDER BY position"
+        ).fetchall()
+        assert [item["note_id"] for item in items] == ["nota-keep", "nota-keep"]
+        assert [item["product"] for item in items] == ["Produto B", "Produto A"]
+        assert [item["weight"] for item in items] == [3, 2]
+        assert [item["quantity_provided"] for item in items] == [1, 1]
+        assert [item["price_provided"] for item in items] == [1, 1]
+        assert [item["position"] for item in items] == [0, 1]
+
+        submissions = conn.execute(
+            "SELECT external_id,note_id FROM app_note_submissions ORDER BY external_id"
+        ).fetchall()
+        assert [dict(row) for row in submissions] == [
+            {"external_id": "ext-dup", "note_id": "nota-keep"},
+            {"external_id": "ext-keep", "note_id": "nota-keep"},
+        ]
+        marker = conn.execute(
+            "SELECT value FROM app_notes_meta WHERE key='merge_client_day_v1'"
+        ).fetchone()
+        assert marker["value"] == "done"
+        assert conn.execute("SELECT COUNT(*) FROM app_note_items").fetchone()[0] == 2
+    finally:
+        conn.close()
+
+
+def test_app_note_mobile_create_multiple_items_submission_and_total(isolated_app):
+    payload = {
+        "external_id": "nota-app-mobile-multiplos-itens",
+        "client": "Cliente Nota App Mobile",
+        "date": "23/08/2026",
+        "items": [
+            {
+                "product": "Produto Mobile A",
+                "quantity": 2,
+                "weight": 2,
+                "unit": "KG",
+                "unit_price": 7.5,
+            },
+            {
+                "product": "Produto Mobile B",
+                "quantity": 3,
+                "weight": 3,
+                "unit": "UN",
+                "unit_price": 4,
+            },
+        ],
+    }
+    response = isolated_app.client.post(
+        "/api/app-notes/mobile",
+        headers={"x-app-token": isolated_app.module.APP_NOTES_TOKEN},
+        json=payload,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["duplicate"] is False
+    assert body["merged"] is False
+    assert body["note"]["client"] == "Cliente Nota App Mobile"
+    assert body["note"]["note_date"] == "23/08/2026"
+    assert body["note"]["total"] == 27
+    assert [item["product"] for item in body["note"]["items"]] == [
+        "Produto Mobile A",
+        "Produto Mobile B",
+    ]
+
+    conn = sqlite3.connect(isolated_app.db_paths["app_notes"])
+    conn.row_factory = sqlite3.Row
+    try:
+        note = conn.execute(
+            "SELECT id,client,note_date,total,status FROM app_notes WHERE external_id=?",
+            ("nota-app-mobile-multiplos-itens",),
+        ).fetchone()
+        items = conn.execute(
+            "SELECT product,weight,unit_price,position FROM app_note_items WHERE note_id=? ORDER BY position",
+            (body["note"]["id"],),
+        ).fetchall()
+        submission = conn.execute(
+            "SELECT note_id FROM app_note_submissions WHERE external_id=?",
+            ("nota-app-mobile-multiplos-itens",),
+        ).fetchone()
+    finally:
+        conn.close()
+    assert dict(note)["client"] == "Cliente Nota App Mobile"
+    assert dict(note)["note_date"] == "23/08/2026"
+    assert dict(note)["total"] == 27
+    assert dict(note)["status"] == "pending"
+    assert [dict(item)["product"] for item in items] == ["Produto Mobile A", "Produto Mobile B"]
+    assert [dict(item)["position"] for item in items] == [0, 1]
+    assert dict(submission)["note_id"] == body["note"]["id"]
+
+    created_after_mobile_create = _create_app_note_mobile(
+        isolated_app.client,
+        isolated_app,
+        external_id="nota-app-apos-create-mobile",
+        client="Cliente Escrita Posterior",
+    )
+    assert created_after_mobile_create["client"] == "Cliente Escrita Posterior"
+
+
+def test_notes_list_pending_nf_filters_and_delivery_sync(isolated_app):
+    token = _login(isolated_app.client)
+    nf_pending = _create_sale(
+        isolated_app.client,
+        token,
+        client="Cliente Nota Pendente",
+        nf_number="NF-PENDENTE",
+        sale_date="2026-08-10",
+        sale_time="08:00",
+        delivery_person="Lucas",
+    )
+    nf_other_driver = _create_sale(
+        isolated_app.client,
+        token,
+        client="Cliente Nota Outro Entregador",
+        nf_number="NF-OUTRO-DRIVER",
+        sale_date="2026-08-11",
+        sale_time="09:00",
+        delivery_person="Bruno",
+    )
+    pr_sale = _create_sale(
+        isolated_app.client,
+        token,
+        sale_type="PR",
+        client="Cliente Prod Rural",
+        nf_number="PR-ENTREGA",
+        sale_date="2026-08-12",
+        sale_time="10:00",
+        delivery_person="Lucas",
+    )
+
+    nf_rows = _list_sales(
+        isolated_app.client,
+        token,
+        query="?sale_type=NF&year=2026&month=8",
+    )
+    assert {row["id"] for row in nf_rows} == {
+        nf_pending["id"],
+        nf_other_driver["id"],
+    }
+    assert all(row["sale_type"] == "NF" for row in nf_rows)
+    assert all(row["delivered"] is None for row in nf_rows)
+
+    driver_rows = _list_sales(
+        isolated_app.client,
+        token,
+        query="?sale_type=NF&year=2026&month=8&driver=Lucas",
+    )
+    assert [row["id"] for row in driver_rows] == [nf_pending["id"]]
+
+    search_rows = _list_sales(
+        isolated_app.client,
+        token,
+        query="?search=NF-PENDENTE",
+    )
+    assert [row["id"] for row in search_rows] == [nf_pending["id"]]
+
+    all_august = _list_sales(
+        isolated_app.client,
+        token,
+        query="?year=2026&month=8",
+    )
+    assert {row["id"] for row in all_august} == {
+        nf_pending["id"],
+        nf_other_driver["id"],
+        pr_sale["id"],
+    }
+
+    sync = isolated_app.client.get(
+        "/api/sales/delivery-sync",
+        headers=_headers(token),
+    )
+    assert sync.status_code == 200
+    sync_by_id = {row["id"]: row for row in sync.json()}
+    assert sync_by_id[nf_pending["id"]] == {
+        "id": nf_pending["id"],
+        "delivered": None,
+        "delivered_at": None,
+    }
+
+
+def test_notes_individual_delivery_requery_already_delivered_and_missing_id(isolated_app):
+    token = _login(isolated_app.client)
+    sale = _create_sale(
+        isolated_app.client,
+        token,
+        nf_number="NF-MARCAR-001",
+        sale_date="2026-08-13",
+        sale_time="08:30",
+    )
+
+    marked = _mark_delivered(
+        isolated_app.client,
+        token,
+        sale["id"],
+        delivered="sim",
+        delivered_at="2026-08-13T12:00:00",
+    )
+    assert marked == {"ok": True}
+
+    after_mark = _list_sales(
+        isolated_app.client,
+        token,
+        query="?search=NF-MARCAR-001",
+    )
+    assert after_mark[0]["delivered"] == "sim"
+    assert after_mark[0]["delivered_at"] == "2026-08-13T12:00:00"
+
+    already_delivered = _mark_delivered(
+        isolated_app.client,
+        token,
+        sale["id"],
+        delivered="sim",
+        delivered_at="2026-08-13T12:00:00",
+    )
+    assert already_delivered == {"ok": True}
+
+    cleared = _mark_delivered(
+        isolated_app.client,
+        token,
+        sale["id"],
+        delivered=None,
+        delivered_at=None,
+    )
+    assert cleared == {"ok": True}
+    after_clear = _list_sales(
+        isolated_app.client,
+        token,
+        query="?search=NF-MARCAR-001",
+    )
+    assert after_clear[0]["delivered"] is None
+    assert after_clear[0]["delivered_at"] is None
+
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    count_before_missing = conn.execute("SELECT COUNT(*) FROM sales").fetchone()[0]
+    conn.close()
+
+    missing = _mark_delivered(
+        isolated_app.client,
+        token,
+        "id-inexistente-entrega",
+        delivered="sim",
+        delivered_at="2026-08-13T13:00:00",
+    )
+    assert missing == {"ok": True}
+
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    count_after_missing = conn.execute("SELECT COUNT(*) FROM sales").fetchone()[0]
+    conn.close()
+    assert count_after_missing == count_before_missing
+
+
+def test_notes_bulk_delivery_and_duplicate_nf_behavior(isolated_app):
+    token = _login(isolated_app.client)
+    first = _create_sale(
+        isolated_app.client,
+        token,
+        client="Cliente Nota Duplicada",
+        product="Produto Duplicado A",
+        nf_number="NF-DUPLICADA",
+        sale_date="2026-08-14",
+        sale_time="08:00",
+    )
+    second = _create_sale(
+        isolated_app.client,
+        token,
+        client="Cliente Nota Duplicada",
+        product="Produto Duplicado B",
+        nf_number="NF-DUPLICADA",
+        sale_date="2026-08-14",
+        sale_time="08:05",
+        total=150,
+        unit_price=150,
+    )
+    third = _create_sale(
+        isolated_app.client,
+        token,
+        client="Cliente Nota Lote",
+        nf_number="NF-LOTE",
+        sale_date="2026-08-15",
+        sale_time="09:00",
+    )
+
+    duplicate_rows = _list_sales(
+        isolated_app.client,
+        token,
+        query="?search=NF-DUPLICADA",
+    )
+    assert {row["id"] for row in duplicate_rows} == {first["id"], second["id"]}
+
+    one_marked = _mark_delivered(
+        isolated_app.client,
+        token,
+        first["id"],
+        delivered="sim",
+        delivered_at="2026-08-14T12:00:00",
+    )
+    assert one_marked == {"ok": True}
+
+    duplicate_after_one = {
+        row["id"]: row
+        for row in _list_sales(
+            isolated_app.client,
+            token,
+            query="?search=NF-DUPLICADA",
+        )
+    }
+    assert duplicate_after_one[first["id"]]["delivered"] == "sim"
+    assert duplicate_after_one[second["id"]]["delivered"] is None
+
+    bulk = isolated_app.client.put(
+        "/api/sales/bulk-delivered",
+        headers=_headers(token),
+        json={
+            "ids": [second["id"], third["id"]],
+            "delivered": "sim",
+            "delivered_at": "2026-08-15T12:00:00",
+        },
+    )
+    assert bulk.status_code == 200
+    assert bulk.json() == {"ok": True, "updated": 2}
+
+    after_bulk = {
+        row["id"]: row
+        for row in _list_sales(
+            isolated_app.client,
+            token,
+            query="?year=2026&month=8",
+        )
+    }
+    assert after_bulk[second["id"]]["delivered"] == "sim"
+    assert after_bulk[third["id"]]["delivered"] == "sim"
+
+    clear_bulk = isolated_app.client.put(
+        "/api/sales/bulk-delivered",
+        headers=_headers(token),
+        json={"ids": [first["id"], second["id"]], "delivered": ""},
+    )
+    assert clear_bulk.status_code == 200
+    assert clear_bulk.json() == {"ok": True, "updated": 2}
+
+    empty_bulk = isolated_app.client.put(
+        "/api/sales/bulk-delivered",
+        headers=_headers(token),
+        json={"ids": []},
+    )
+    assert empty_bulk.status_code == 200
+    assert empty_bulk.json() == {"ok": True, "updated": 0}
+
+    missing_bulk = isolated_app.client.put(
+        "/api/sales/bulk-delivered",
+        headers=_headers(token),
+        json={"ids": ["id-inexistente-lote"], "delivered": "sim"},
+    )
+    assert missing_bulk.status_code == 200
+    assert missing_bulk.json() == {"ok": True, "updated": 0}
+
+
+def test_notes_delivery_authentication_and_role_permissions(isolated_app):
+    token = _login(isolated_app.client)
+    sale = _create_sale(
+        isolated_app.client,
+        token,
+        nf_number="NF-PERMISSAO",
+    )
+
+    no_token_list = isolated_app.client.get("/api/sales?sale_type=NF")
+    assert no_token_list.status_code == 401
+
+    no_token_sync = isolated_app.client.get("/api/sales/delivery-sync")
+    assert no_token_sync.status_code == 401
+
+    no_token_mark = isolated_app.client.put(
+        f"/api/sales/{sale['id']}/delivered",
+        json={"delivered": "sim"},
+    )
+    assert no_token_mark.status_code == 401
+
+    no_token_bulk = isolated_app.client.put(
+        "/api/sales/bulk-delivered",
+        json={"ids": [sale["id"]], "delivered": "sim"},
+    )
+    assert no_token_bulk.status_code == 401
+
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    viewer_id = str(uuid.uuid4())
+    editor_id = str(uuid.uuid4())
+    conn.execute(
+        "INSERT INTO users(id, username, password_hash, full_name, role, active) VALUES(?,?,?,?,?,1)",
+        (
+            viewer_id,
+            "viewer_entregas",
+            isolated_app.module.hash_password("viewer123"),
+            "Viewer Entregas",
+            "viewer",
+        ),
+    )
+    conn.execute(
+        "INSERT INTO users(id, username, password_hash, full_name, role, active) VALUES(?,?,?,?,?,1)",
+        (
+            editor_id,
+            "editor_entregas",
+            isolated_app.module.hash_password("editor123"),
+            "Editor Entregas",
+            "editor",
+        ),
+    )
+    conn.execute(
+        "INSERT OR REPLACE INTO settings(key,value) VALUES('tab_permissions',?)",
+        (json.dumps({"viewer": [], "editor": [], "admin": []}),),
+    )
+    conn.commit()
+    conn.close()
+
+    viewer_token = _login(isolated_app.client, "viewer_entregas", "viewer123")
+    editor_token = _login(isolated_app.client, "editor_entregas", "editor123")
+
+    viewer_list = isolated_app.client.get(
+        "/api/sales?sale_type=NF",
+        headers=_headers(viewer_token),
+    )
+    assert viewer_list.status_code == 200
+
+    viewer_sync = isolated_app.client.get(
+        "/api/sales/delivery-sync",
+        headers=_headers(viewer_token),
+    )
+    assert viewer_sync.status_code == 200
+
+    viewer_mark = isolated_app.client.put(
+        f"/api/sales/{sale['id']}/delivered",
+        headers=_headers(viewer_token),
+        json={"delivered": "sim"},
+    )
+    assert viewer_mark.status_code == 403
+
+    viewer_bulk = isolated_app.client.put(
+        "/api/sales/bulk-delivered",
+        headers=_headers(viewer_token),
+        json={"ids": [sale["id"]], "delivered": "sim"},
+    )
+    assert viewer_bulk.status_code == 403
+
+    editor_mark = isolated_app.client.put(
+        f"/api/sales/{sale['id']}/delivered",
+        headers=_headers(editor_token),
+        json={"delivered": "sim", "delivered_at": "2026-08-05T12:00:00"},
+    )
+    assert editor_mark.status_code == 200
+    assert editor_mark.json() == {"ok": True}
+
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    conn.execute(
+        "INSERT OR REPLACE INTO settings(key,value) VALUES('tab_permissions',?)",
+        (json.dumps({"viewer": ["produtos"], "editor": [], "admin": []}),),
+    )
+    conn.commit()
+    conn.close()
+
+    restrictive_list = isolated_app.client.get(
+        "/api/sales?sale_type=NF",
+        headers=_headers(viewer_token),
+    )
+    assert restrictive_list.status_code == 403
+
+    restrictive_sync = isolated_app.client.get(
+        "/api/sales/delivery-sync",
+        headers=_headers(viewer_token),
+    )
+    assert restrictive_sync.status_code == 403
+
+
+def test_notes_delivery_isolated_by_x_company(isolated_app):
+    token = _login(isolated_app.client)
+    raios_sale = _create_sale(
+        isolated_app.client,
+        token,
+        company="raios",
+        client="Cliente Entrega Raios",
+        nf_number="NF-RAIOS-ENTREGA",
+    )
+    estrada_sale = _create_sale(
+        isolated_app.client,
+        token,
+        company="estrada",
+        client="Cliente Entrega Estrada",
+        nf_number="NF-ESTRADA-ENTREGA",
+    )
+
+    _mark_delivered(
+        isolated_app.client,
+        token,
+        raios_sale["id"],
+        company="raios",
+        delivered="sim",
+        delivered_at="2026-08-05T12:00:00",
+    )
+
+    raios_rows = _list_sales(
+        isolated_app.client,
+        token,
+        company="raios",
+        query="?search=NF-RAIOS-ENTREGA",
+    )
+    assert [row["id"] for row in raios_rows] == [raios_sale["id"]]
+    assert raios_rows[0]["delivered"] == "sim"
+
+    estrada_rows = _list_sales(
+        isolated_app.client,
+        token,
+        company="estrada",
+        query="?search=NF-ESTRADA-ENTREGA",
+    )
+    assert [row["id"] for row in estrada_rows] == [estrada_sale["id"]]
+    assert estrada_rows[0]["delivered"] is None
+
+
+def test_app_note_update_replaces_items_and_preserves_status_behavior(isolated_app):
+    token = _login(isolated_app.client)
+    note = _create_app_note_mobile(isolated_app.client, isolated_app)
+
+    update_payload = {
+        "client": "Cliente Nota App Editada",
+        "date": "21/08/2026",
+        "status": "completed",
+        "items": [
+            {
+                "product": "Produto App A",
+                "quantity": 2,
+                "weight": 2,
+                "unit": "KG",
+                "unit_price": 10,
+            },
+            {
+                "product": "Produto App B",
+                "quantity": 3,
+                "weight": 3,
+                "unit": "UN",
+                "unit_price": 5,
+            },
+        ],
+    }
+    updated = isolated_app.client.put(
+        f"/api/app-notes/{note['id']}",
+        headers=_headers(token),
+        json=update_payload,
+    )
+    assert updated.status_code == 200
+    body = updated.json()
+    assert body["ok"] is True
+    assert body["note"]["client"] == "Cliente Nota App Editada"
+    assert body["note"]["note_date"] == "21/08/2026"
+    assert body["note"]["status"] == "completed"
+    assert body["note"]["total"] == 35
+    assert [item["product"] for item in body["note"]["items"]] == [
+        "Produto App A",
+        "Produto App B",
+    ]
+
+    conn = sqlite3.connect(isolated_app.db_paths["app_notes"])
+    conn.row_factory = sqlite3.Row
+    row = conn.execute(
+        "SELECT client,note_date,total,status,completed_at FROM app_notes WHERE id=?",
+        (note["id"],),
+    ).fetchone()
+    items = conn.execute(
+        "SELECT product,weight,unit_price,position FROM app_note_items WHERE note_id=? ORDER BY position",
+        (note["id"],),
+    ).fetchall()
+    conn.close()
+    assert dict(row)["client"] == "Cliente Nota App Editada"
+    assert dict(row)["note_date"] == "21/08/2026"
+    assert dict(row)["total"] == 35
+    assert dict(row)["status"] == "completed"
+    assert dict(row)["completed_at"]
+    assert [dict(item)["product"] for item in items] == ["Produto App A", "Produto App B"]
+
+
+def test_app_note_update_missing_id_preserves_404_and_does_not_lock_db(isolated_app):
+    token = _login(isolated_app.client)
+    init_conn = isolated_app.module.get_app_notes_db()
+    init_conn.close()
+    conn = sqlite3.connect(isolated_app.db_paths["app_notes"])
+    notes_before = conn.execute("SELECT COUNT(*) FROM app_notes").fetchone()[0]
+    items_before = conn.execute("SELECT COUNT(*) FROM app_note_items").fetchone()[0]
+    conn.close()
+
+    missing = isolated_app.client.put(
+        "/api/app-notes/nota-app-inexistente",
+        headers=_headers(token),
+        json={
+            "client": "Cliente Ausente",
+            "date": "22/08/2026",
+            "items": [
+                {
+                    "product": "Produto Ausente",
+                    "quantity": 1,
+                    "weight": 1,
+                    "unit": "KG",
+                    "unit_price": 8,
+                }
+            ],
+        },
+    )
+    assert missing.status_code == 404
+
+    conn = sqlite3.connect(isolated_app.db_paths["app_notes"])
+    notes_after = conn.execute("SELECT COUNT(*) FROM app_notes").fetchone()[0]
+    items_after = conn.execute("SELECT COUNT(*) FROM app_note_items").fetchone()[0]
+    conn.close()
+    assert notes_after == notes_before
+    assert items_after == items_before
+
+    # A escrita seguinte confirma que a conexao foi fechada mesmo no caminho de erro.
+    created_after_error = _create_app_note_mobile(
+        isolated_app.client,
+        isolated_app,
+        external_id="nota-app-apos-404",
+        client="Cliente Depois Do Erro",
+    )
+    assert created_after_error["client"] == "Cliente Depois Do Erro"

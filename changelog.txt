@@ -1,3 +1,70 @@
+=================================================================
+v1.0.150 - [2026-08-08] - Fase 1A de revisão de textos e encoding
+---------------------------------------------------------------
+Arquivos: backend/app.py, backend/static/index.html, changelog.txt
+Motivo:   Iniciar a refatoração segura da aplicação pela revisão de
+          textos estáticos, comentários e registros de alteração, sem
+          mudar lógica, rotas, banco de dados ou normalizadores.
+
+Mudanças:
+  - Criada branch exclusiva para a Fase 1A.
+  - Criado backup local dos arquivos analisados antes da revisão.
+  - Preservados padrões sensíveis de produto, cliente, regex, parser,
+    alias, normalização e chaves de negócio.
+  - Corrigido trecho do changelog que ainda tinha acentos substituídos
+    por "?" em entradas antigas.
+  - Nenhuma modularização ou migração de banco foi executada nesta fase.
+
+=================================================================
+v1.0.149 - [2026-08-08] - Editor com acesso a placas cadastradas
+---------------------------------------------------------------
+Arquivos: backend/static/index.html, backend/app.py
+Motivo:   O perfil editor nao conseguia visualizar/usar corretamente as
+          placas cadastradas quando a permissao de Configuracoes estava
+          liberada, porque a frota fica junto da sub-area de Precos.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.149.
+  - Editor com acesso a Configuracoes passa a receber tambem a sub-area
+    Precos/Frota na normalizacao das permissoes do frontend.
+  - Backend passou a reconhecer a mesma regra para permitir acesso de editor
+    a operacoes vinculadas a Precos/Frota quando Configuracoes estiver liberada.
+  - Corrigido o padrao do backend quando ainda nao existe matriz de permissoes
+    salva, evitando bloqueio indevido do editor na Frota.
+  - Mantida a leitura de veiculos/placas para usuarios autenticados em todas
+    as paginas que usam seletor de veiculo.
+=================================================================
+v1.0.148 - [2026-08-06] - Configuracoes da Estrada sem WhatsApp e NF
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   A aba Menina da Estrada ainda exibia as sub-abas WhatsApp e
+          Verificar NF dentro de Configuracoes, mas essas funcoes pertencem
+          apenas as outras areas do sistema.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.148.
+  - Criada lista de sub-abas de Configuracoes filtrada por empresa ativa.
+  - Na Menina da Estrada, WhatsApp e Verificar NF ficam ocultos e nao abrem
+    mesmo por chamada direta de switchConfigView.
+  - A matriz de permissoes tambem deixa de mostrar essas duas sub-abas quando
+    a empresa ativa for Menina da Estrada.
+  - Mantidas as sub-abas WhatsApp e Verificar NF nas demais areas.
+
+=================================================================
+v1.0.147 - [2026-08-06] - Precos editaveis na Menina da Estrada
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Em Configuracoes > Precos da Menina da Estrada, o botao de
+          editar produto aparecia vazio e as acoes de preco podiam ser
+          bloqueadas pela blindagem de eventos inline.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.147.
+  - Liberados os handlers seguros de precos na blindagem do innerHTML.
+  - Botao de edicao de preco passou a exibir o texto "Editar".
+  - Campo de preco agora aceita valores com virgula ou ponto.
+  - Mantida a separacao por empresa via cabecalho x-company existente.
+
 ================================================================
   Menina dos Raios — Changelog do Sistema
   Local de trabalho:  C:\Menina dos Raios\bm_app
@@ -7,6 +74,116 @@
                        Deploy: ATUALIZAR.bat (scp + systemctl restart)
   Convenção: entradas novas vão NO TOPO (ordem cronológica reversa).
              Cada alteração com versão única (ex: 1.0.8, 1.0.9…).
+=================================================================
+v1.0.146 - [2026-08-01] - Periodo mobile atualiza cards do consolidado
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   No celular, as setas do seletor de mes alteravam o rotulo, mas
+          os cards do consolidado continuavam com os valores do mes atual.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.146.
+  - Criado recalculo local dos cards do consolidado mobile usando o periodo
+    selecionado no seletor superior.
+  - As setas de mes e atalhos mobile agora atualizam total consolidado,
+    NF-e, Produtor Rural, Avulso, Avarias, ticket medio e contador.
+  - Mantido desktop sem alteracao.
+
+=================================================================
+v1.0.145 - [2026-08-01] - Notificacoes mobile sem painel vazio
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   O sino podia abrir uma faixa inferior de Notas Pendentes 0 no
+          celular, ocupando a tela sem mostrar informacoes.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.145.
+  - O sino no mobile nao abre mais o drawer quando nao ha notificacoes
+    renderizadas.
+  - O drawer mobile ganhou altura minima quando houver conteudo, evitando
+    aparência de barra inferior pequena.
+  - Mantida a regra de ocultar/remover completamente o painel ao tocar em
+    Ocultar sino.
+
+=================================================================
+v1.0.144 - [2026-08-01] - Hotfix do drawer de notificacoes no mobile
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Em alguns celulares, o painel de notificacoes permanecia como uma
+          barra fixa inferior mesmo depois da correcao anterior.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.144.
+  - O drawer de notificacoes no mobile agora fica com display none quando
+    fechado ou quando o sino esta oculto.
+  - A acao Ocultar sino passou a chamar a funcao diretamente no botao.
+  - A limpeza do mobile tambem aplica hidden/display none no drawer e overlay.
+  - Mantido foco exclusivo em notificacoes mobile.
+
+=================================================================
+v1.0.143 - [2026-08-01] - Sino mobile sem barra inferior persistente
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Ao ocultar o sino no celular, o sistema deixava uma faixa fixa
+          de notificacoes no rodape, cobrindo busca, conteudo e navegacao.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.143.
+  - No mobile, a opcao Ocultar sino agora fecha drawer, overlay, toast e
+    qualquer barra temporaria de notificacoes imediatamente.
+  - Persistencia mobile ajustada para localStorage mobileBellHidden=true.
+  - Removido qualquer restaurador fixo no rodape em telas de celular.
+  - Adicionada restauracao discreta em Mais > Preferencias da tela >
+    Mostrar notificacoes.
+  - Desktop mantido sem alteracao de comportamento.
+
+=================================================================
+v1.0.140 - [2026-07-31] - Entregadores no modal de venda para todos os cargos
+---------------------------------------------------------------
+Arquivos: backend/static/index.html
+Motivo:   Entregadores cadastrados apareciam para quem passava pela tela de
+          configuracoes, mas podiam nao aparecer no modal Lancar Venda para
+          outros cargos.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.140.
+  - O modal Lancar Venda agora carrega a lista oficial de entregadores ao abrir.
+  - Filtros e seletor de entregador passam a combinar entregadores cadastrados
+    e nomes historicos usados em vendas.
+  - Mantido foco somente no fluxo de entregadores.
+
+=================================================================
+v1.0.139 - [2026-07-31] - Hotfix do carregamento de entregadores
+---------------------------------------------------------------
+Arquivos: backend/app.py; backend/static/index.html
+Motivo:   A lista de entregadores ficava carregando sem finalizar porque a
+          rota /api/drivers/list usava um ordenador inexistente no backend.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.139.
+  - Corrigido o ordenamento da lista de entregadores no backend.
+  - A tela de Entregadores agora mostra erro claro se a rota falhar, em vez
+    de deixar o spinner preso.
+  - Mantido o foco somente na estrutura de entregadores.
+
+=================================================================
+v1.0.138 - [2026-07-31] - Entregadores com cadastro real
+---------------------------------------------------------------
+Arquivos: backend/app.py; backend/static/index.html
+Motivo:   Na aba Entregadores, adicionar novo funcionario parecia nao fazer
+          nada porque o nome era colocado apenas em um seletor temporario.
+          Remover/renomear tambem dependia somente de nomes ja existentes
+          em vendas.
+
+Mudancas:
+  - APP_VERSION atualizado para 1.0.138.
+  - Criada tabela drivers em cada banco de empresa.
+  - Criado endpoint POST /api/drivers para salvar entregadores.
+  - Listas de entregadores agora combinam funcionarios cadastrados e nomes
+    historicos usados em vendas.
+  - Renomear e remover entregador passam a atualizar o cadastro e as vendas.
+  - Dropdowns de entregador foram sincronizados com a lista oficial.
+
 =================================================================
 v1.0.137 - [2026-07-25] - Botoes da aba Notas APP corrigidos
 ---------------------------------------------------------------
@@ -133,53 +310,53 @@ Mudancas:
 v1.0.128 - [2026-07-18] - Backup identificado como pacote ZIP multi-banco
 ---------------------------------------------------------------
 Arquivos: backend/app.py, backend/static/index.html
-Motivo:   A tela de Backup podia dar a impress?o de que o backup novo havia
-          voltado a ser um arquivo .db ?nico, embora o backend continuasse
+Motivo:   A tela de Backup podia dar a impressão de que o backup novo havia
+          voltado a ser um arquivo .db único, embora o backend continuasse
           criando pacote .zip com os bancos registrados.
 
-Mudan?as:
+Mudanças:
   - APP_VERSION atualizado para 1.0.128.
-  - Tela de Backup agora informa claramente que backups novos s?o pacotes
+  - Tela de Backup agora informa claramente que backups novos são pacotes
     .zip multi-banco.
-  - Texto de restaura??o diferencia pacote .zip atual de arquivo .db antigo
+  - Texto de restauração diferencia pacote .zip atual de arquivo .db antigo
     aceito apenas por compatibilidade.
-  - Endpoint de cria??o de backup retorna kind e included_databases, permitindo
+  - Endpoint de criação de backup retorna kind e included_databases, permitindo
     confirmar na interface quais bancos entraram no pacote.
 
-v1.0.127 - [2026-07-18] - Backup reorganizado e bot?es din?micos blindados
+v1.0.127 - [2026-07-18] - Backup reorganizado e botões dinâmicos blindados
 ---------------------------------------------------------------
 Arquivos: backend/static/index.html
-Motivo:   Na aba Backup, os bot?es Baixar, Remover e Restaurar n?o
+Motivo:   Na aba Backup, os botões Baixar, Remover e Restaurar não
           respondiam porque a lista era renderizada com onclick inline.
-          A tela ainda aparecia como Import/Export e mantinha a ?rea de
-          importar Excel, que n?o deveria mais ficar dispon?vel.
+          A tela ainda aparecia como Import/Export e mantinha a área de
+          importar Excel, que não deveria mais ficar disponível.
 
-Mudan?as:
+Mudanças:
   - APP_VERSION atualizado para 1.0.127.
   - Sub-aba Import/Export renomeada visualmente para Backup.
-  - Removida da interface a fun??o de importar Excel.
-  - Layout de Backup reorganizado com status, a??es, exporta??o Excel,
-    restaura??o por arquivo e lista de backups.
-  - Bot?es Restaurar/Baixar/Remover da lista passaram a usar
+  - Removida da interface a função de importar Excel.
+  - Layout de Backup reorganizado com status, ações, exportação Excel,
+    restauração por arquivo e lista de backups.
+  - Botões Restaurar/Baixar/Remover da lista passaram a usar
     data-backup-action e listener delegado.
-  - Exclus?o de backup agora codifica o nome do arquivo na URL.
-  - Criada camada restrita para preservar handlers din?micos conhecidos
+  - Exclusão de backup agora codifica o nome do arquivo na URL.
+  - Criada camada restrita para preservar handlers dinâmicos conhecidos
     como data-safe-click/data-safe-input/data-safe-change, evitando novos
-    bot?es mudos em listas renderizadas por innerHTML.
+    botões mudos em listas renderizadas por innerHTML.
 
-v1.0.126 - [2026-07-18] - Corre??o de notas duplicadas na aba Notas
+v1.0.126 - [2026-07-18] - Correção de notas duplicadas na aba Notas
 ---------------------------------------------------------------
 Arquivos: backend/static/index.html
 Motivo:   A aba Notas exibia uma linha por produto da mesma NF, repetindo
           a mesma nota quando a venda tinha mais de um item.
 
-Mudan?as:
+Mudanças:
   - APP_VERSION atualizado para 1.0.126.
-  - Criado agrupamento central por cliente, data e n?mero da NF.
-  - Listas Pendentes, Entregues e N?o Entregue agora mostram uma nota por NF.
-  - A??es de marcar entregue, desfazer e marca??o em lote expandem para todos
+  - Criado agrupamento central por cliente, data e número da NF.
+  - Listas Pendentes, Entregues e Não Entregue agora mostram uma nota por NF.
+  - Ações de marcar entregue, desfazer e marcação em lote expandem para todos
     os itens da mesma NF, evitando status parcial e nova duplicidade.
-  - O sino/notifica??es passa a usar a mesma l?gica de agrupamento ao salvar.
+  - O sino/notificações passa a usar a mesma lógica de agrupamento ao salvar.
 
 v1.0.125 - [2026-07-18] - Correção da edição na aba Orçamento
 ---------------------------------------------------------------
@@ -3133,6 +3310,7 @@ Alterações:
 Resultado / testes: o que foi verificado.
 
 =================================================================
+
 
 
 

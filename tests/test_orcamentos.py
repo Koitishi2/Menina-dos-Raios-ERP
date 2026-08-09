@@ -1,0 +1,630 @@
+import sqlite3
+import uuid
+
+from fastapi.testclient import TestClient
+
+
+PDF_BLOCKED_REASON = (
+    "BLOQUEADO: geracao/visualizacao de PDF de orcamento e feita no frontend por impressao do navegador; "
+    "nao ha rota backend JSON/PDF propria para testar sem navegador."
+)
+
+
+def _login(test_client, username="admin", password="admin123", company="raios"):
+    response = test_client.post(
+        "/api/auth/login",
+        headers={"x-company": company},
+        json={"username": username, "password": password},
+    )
+    assert response.status_code == 200
+    return response.json()["token"]
+
+
+def _headers(token, company="raios"):
+    return {"x-token": token, "x-company": company}
+
+
+def _create_temp_user(isolated_app, username, password, role, company="raios"):
+    conn = sqlite3.connect(isolated_app.db_paths[company])
+    user_id = str(uuid.uuid4())
+    conn.execute(
+        "INSERT INTO users(id, username, password_hash, full_name, role, active) VALUES(?,?,?,?,?,1)",
+        (
+            user_id,
+            username,
+            isolated_app.module.hash_password(password),
+            f"Usuario {role} Orcamentos {company}",
+            role,
+        ),
+    )
+    conn.commit()
+    conn.close()
+    return user_id
+
+
+def _product_payload(name=None, **overrides):
+    payload = {
+        "name": name or f"Produto Orcamento {uuid.uuid4().hex[:8]}",
+        "code": "ORC-001",
+        "unit": "und",
+        "default_price": 85,
+        "description": "Produto temporario de orcamento",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _quote_payload(client_name="Cliente Orcamento Padrao", **overrides):
+    payload = {
+        "company_key": "estrada",
+        "client_name": client_name,
+        "attention": "Compras",
+        "client_cnpj": "00.000.000/0001-00",
+        "client_ie": "ISENTO",
+        "client_phone": "5595999999999",
+        "client_email": "cliente@example.test",
+        "client_address": "Rua Teste, 123",
+        "client_district": "Centro",
+        "client_city": "Boa Vista",
+        "client_state": "RR",
+        "client_zip": "69300-000",
+        "issue_date": "2026-07-17",
+        "issue_time": "10:30:00",
+        "validity_days": 7,
+        "delivery_deadline": "A combinar",
+        "payment_terms": "Boleto 15 dias",
+        "observations": "Observacao temporaria",
+        "discount": 15,
+        "status": "emitido",
+        "items": [
+            {
+                "product_id": None,
+                "item_order": 1,
+                "code": "ORC-001",
+                "description": "Item Orcamento A",
+                "quantity": 2,
+                "unit": "und",
+                "unit_price": 100,
+                "discount": 10,
+            },
+            {
+                "product_id": None,
+                "item_order": 2,
+                "code": "ORC-002",
+                "description": "Item Orcamento B",
+                "quantity": 1,
+                "unit": "kg",
+                "unit_price": 50,
+                "discount": 0,
+            },
+        ],
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _post_product(test_client, token, company="raios", **overrides):
+    response = test_client.post(
+        "/api/orcamentos/products",
+        headers=_headers(token, company),
+        json=_product_payload(**overrides),
+    )
+    assert response.status_code == 200
+    return response.json()
+
+
+def _post_quote(test_client, token, company="raios", **overrides):
+    response = test_client.post(
+        "/api/orcamentos",
+        headers=_headers(token, company),
+        json=_quote_payload(**overrides),
+    )
+    assert response.status_code == 200
+    return response.json()
+
+
+def _table_count(db_path, table):
+    conn = sqlite3.connect(db_path)
+    try:
+        return conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+    finally:
+        conn.close()
+
+
+def _quote_db_snapshot(db_path, quote_id):
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        quote = conn.execute("SELECT * FROM quotes WHERE id=?", (quote_id,)).fetchone()
+        items = conn.execute(
+            "SELECT * FROM quote_items WHERE quote_id=? ORDER BY item_order, id",
+            (quote_id,),
+        ).fetchall()
+        return {
+            "quote": dict(quote) if quote else None,
+            "items": [dict(row) for row in items],
+        }
+    finally:
+        conn.close()
+
+
+def _assert_db_accepts_write(db_path):
+    conn = sqlite3.connect(db_path, timeout=0.5)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.rollback()
+    finally:
+        conn.close()
+
+
+def test_orcamentos_company_metadata_and_pdf_backend_route_status(isolated_app):
+    token = _login(isolated_app.client)
+
+    company = isolated_app.client.get("/api/orcamentos/company", headers=_headers(token))
+    assert company.status_code == 200
+    body = company.json()
+    assert body["default"] == "estrada"
+    assert {row["key"] for row in body["companies"]} >= {"raios", "estrada"}
+
+    route_paths = {
+        route.path
+        for route in isolated_app.module.app.routes
+        if getattr(route, "path", "").startswith("/api/orcamentos")
+    }
+    assert not any("pdf" in path.lower() for path in route_paths), PDF_BLOCKED_REASON
+
+
+def test_orcamento_products_crud_search_soft_delete_and_company_isolation(isolated_app):
+    raios_token = _login(isolated_app.client)
+    _create_temp_user(isolated_app, "admin_orc_estrada", "admin123", "admin", company="estrada")
+    estrada_token = _login(isolated_app.client, "admin_orc_estrada", "admin123", company="estrada")
+
+    raios_product = _post_product(
+        isolated_app.client,
+        raios_token,
+        company="raios",
+        name="Produto Orcamento Raios",
+        code="RAI-001",
+        default_price=90,
+    )
+    estrada_product = _post_product(
+        isolated_app.client,
+        estrada_token,
+        company="estrada",
+        name="Produto Orcamento Estrada",
+        code="EST-001",
+        default_price=120,
+    )
+
+    assert raios_product["unit"] == "UND"
+    assert estrada_product["unit"] == "UND"
+    assert _table_count(isolated_app.db_paths["raios"], "quote_products") == 1
+    assert _table_count(isolated_app.db_paths["estrada"], "quote_products") == 1
+
+    raios_list = isolated_app.client.get(
+        "/api/orcamentos/products?search=Produto Orcamento",
+        headers=_headers(raios_token, "raios"),
+    )
+    estrada_list = isolated_app.client.get(
+        "/api/orcamentos/products?search=Produto Orcamento",
+        headers=_headers(estrada_token, "estrada"),
+    )
+    assert raios_list.status_code == 200
+    assert estrada_list.status_code == 200
+    assert [row["name"] for row in raios_list.json()] == ["Produto Orcamento Raios"]
+    assert [row["name"] for row in estrada_list.json()] == ["Produto Orcamento Estrada"]
+
+    duplicate = isolated_app.client.post(
+        "/api/orcamentos/products",
+        headers=_headers(raios_token),
+        json=_product_payload(name="Produto Orcamento Raios"),
+    )
+    assert duplicate.status_code == 400
+
+    updated = isolated_app.client.put(
+        f"/api/orcamentos/products/{raios_product['id']}",
+        headers=_headers(raios_token),
+        json=_product_payload(
+            name="Produto Orcamento Raios Editado",
+            code="RAI-002",
+            unit="cx",
+            default_price=95.5,
+            description="Descricao editada",
+            active=1,
+        ),
+    )
+    assert updated.status_code == 200
+    assert updated.json()["name"] == "Produto Orcamento Raios Editado"
+    assert updated.json()["unit"] == "CX"
+    assert updated.json()["default_price"] == 95.5
+
+    deleted = isolated_app.client.delete(
+        f"/api/orcamentos/products/{raios_product['id']}",
+        headers=_headers(raios_token),
+    )
+    assert deleted.status_code == 200
+    assert deleted.json() == {"ok": True}
+
+    active_after_delete = isolated_app.client.get(
+        "/api/orcamentos/products?search=Raios Editado",
+        headers=_headers(raios_token),
+    )
+    all_after_delete = isolated_app.client.get(
+        "/api/orcamentos/products?active=0&search=Raios Editado",
+        headers=_headers(raios_token),
+    )
+    assert active_after_delete.status_code == 200
+    assert active_after_delete.json() == []
+    assert all_after_delete.status_code == 200
+    assert all_after_delete.json()[0]["active"] == 0
+
+
+def test_orcamentos_create_read_list_update_delete_and_calculations(isolated_app):
+    token = _login(isolated_app.client)
+    product = _post_product(
+        isolated_app.client,
+        token,
+        name="Produto Orcamento Item",
+        code="ITM-001",
+        default_price=100,
+    )
+
+    created = _post_quote(
+        isolated_app.client,
+        token,
+        client_name="Cliente Orcamento CRUD",
+        items=[
+            {
+                "product_id": product["id"],
+                "item_order": 1,
+                "code": product["code"],
+                "description": product["description"],
+                "quantity": 2,
+                "unit": product["unit"],
+                "unit_price": 100,
+                "discount": 10,
+            },
+            {
+                "product_id": None,
+                "item_order": 2,
+                "code": "SERV-001",
+                "description": "Servico avulso",
+                "quantity": 1,
+                "unit": "serv",
+                "unit_price": 50,
+                "discount": 0,
+            },
+        ],
+        discount=15,
+    )
+    quote = created["quote"]
+    items = created["items"]
+    assert quote["quote_number"] == 1
+    assert quote["created_by"] == "admin"
+    assert quote["subtotal"] == 240
+    assert quote["discount"] == 15
+    assert quote["total"] == 225
+    assert len(items) == 2
+    assert items[0]["subtotal"] == 190
+    assert items[0]["unit"] == "UND"
+    assert items[1]["subtotal"] == 50
+    assert items[1]["unit"] == "SERV"
+
+    quote_id = quote["id"]
+    fetched = isolated_app.client.get(f"/api/orcamentos/{quote_id}", headers=_headers(token))
+    listed = isolated_app.client.get(
+        "/api/orcamentos?search=Cliente Orcamento CRUD",
+        headers=_headers(token),
+    )
+    assert fetched.status_code == 200
+    assert fetched.json()["company"]["key"] == "estrada"
+    assert fetched.json()["quote"]["id"] == quote_id
+    assert listed.status_code == 200
+    assert listed.json()[0]["id"] == quote_id
+    assert listed.json()[0]["total"] == 225
+
+    updated = isolated_app.client.put(
+        f"/api/orcamentos/{quote_id}",
+        headers=_headers(token),
+        json=_quote_payload(
+            client_name="Cliente Orcamento Editado",
+            company_key="raios",
+            issue_date="2026-07-18",
+            issue_time="11:00:00",
+            discount=20,
+            status="rascunho",
+            items=[
+                {
+                    "product_id": product["id"],
+                    "item_order": 1,
+                    "code": "ITM-EDIT",
+                    "description": "Item editado",
+                    "quantity": 3,
+                    "unit": "cx",
+                    "unit_price": 80,
+                    "discount": 5,
+                }
+            ],
+        ),
+    )
+    assert updated.status_code == 200
+    updated_json = updated.json()
+    assert updated_json["company"]["key"] == "raios"
+    assert updated_json["quote"]["client_name"] == "Cliente Orcamento Editado"
+    assert updated_json["quote"]["status"] == "rascunho"
+    assert updated_json["quote"]["subtotal"] == 235
+    assert updated_json["quote"]["discount"] == 20
+    assert updated_json["quote"]["total"] == 215
+    assert len(updated_json["items"]) == 1
+    assert updated_json["items"][0]["unit"] == "CX"
+    assert updated_json["items"][0]["subtotal"] == 235
+
+    deleted = isolated_app.client.delete(f"/api/orcamentos/{quote_id}", headers=_headers(token))
+    after_delete = isolated_app.client.get(f"/api/orcamentos/{quote_id}", headers=_headers(token))
+    db_after_delete = _quote_db_snapshot(isolated_app.db_paths["raios"], quote_id)
+    assert deleted.status_code == 200
+    assert deleted.json() == {"ok": True}
+    assert after_delete.status_code == 404
+    assert db_after_delete == {"quote": None, "items": []}
+
+
+def test_orcamentos_current_validation_for_empty_unknown_and_zero_quantity_items(isolated_app):
+    token = _login(isolated_app.client)
+
+    no_items = isolated_app.client.post(
+        "/api/orcamentos",
+        headers=_headers(token),
+        json=_quote_payload(items=[]),
+    )
+    no_client = isolated_app.client.post(
+        "/api/orcamentos",
+        headers=_headers(token),
+        json=_quote_payload(client_name=""),
+    )
+    assert no_items.status_code == 400
+    assert no_client.status_code == 400
+
+    zero_qty_and_large_discount = isolated_app.client.post(
+        "/api/orcamentos",
+        headers=_headers(token),
+        json=_quote_payload(
+            client_name="Cliente Orcamento Item Sem Produto",
+            discount=10,
+            items=[
+                {
+                    "product_id": None,
+                    "item_order": 1,
+                    "code": "ZERO",
+                    "description": "Quantidade zero aceita atualmente",
+                    "quantity": 0,
+                    "unit": "und",
+                    "unit_price": 100,
+                    "discount": 0,
+                },
+                {
+                    "product_id": None,
+                    "item_order": 2,
+                    "code": "NEG",
+                    "description": "Desconto maior que linha zera subtotal",
+                    "quantity": 1,
+                    "unit": "und",
+                    "unit_price": 5,
+                    "discount": 50,
+                },
+            ],
+        ),
+    )
+    assert zero_qty_and_large_discount.status_code == 200
+    body = zero_qty_and_large_discount.json()
+    assert body["quote"]["subtotal"] == 0
+    assert body["quote"]["discount"] == 10
+    assert body["quote"]["total"] == 0
+    assert body["items"][0]["product_id"] is None
+    assert body["items"][0]["quantity"] == 0
+    assert body["items"][0]["subtotal"] == 0
+    assert body["items"][1]["subtotal"] == 0
+
+    quotes_before = _table_count(isolated_app.db_paths["raios"], "quotes")
+    items_before = _table_count(isolated_app.db_paths["raios"], "quote_items")
+
+    # PENDENCIA: a rota deve tratar product_id inexistente e retornar erro controlado, em vez de deixar IntegrityError escapar.
+    with TestClient(isolated_app.module.app, raise_server_exceptions=False) as non_raising_client:
+        unknown_product = non_raising_client.post(
+            "/api/orcamentos",
+            headers=_headers(token),
+            json=_quote_payload(
+                client_name="Cliente Orcamento Produto Inexistente",
+                discount=10,
+                items=[
+                    {
+                        "product_id": 999999,
+                        "item_order": 1,
+                        "code": "UNKNOWN",
+                        "description": "Produto inexistente dispara erro interno atualmente",
+                        "quantity": 1,
+                        "unit": "und",
+                        "unit_price": 100,
+                        "discount": 0,
+                    }
+                ],
+            ),
+        )
+    assert unknown_product.status_code == 500
+    assert _table_count(isolated_app.db_paths["raios"], "quotes") == quotes_before
+    assert _table_count(isolated_app.db_paths["raios"], "quote_items") == items_before
+
+    valid_quote_after_error = isolated_app.client.get(
+        f"/api/orcamentos/{body['quote']['id']}",
+        headers=_headers(token),
+    )
+    assert valid_quote_after_error.status_code == 200
+    assert valid_quote_after_error.json()["quote"]["total"] == 0
+
+    quote_id = body["quote"]["id"]
+    before_update_error = _quote_db_snapshot(isolated_app.db_paths["raios"], quote_id)
+
+    # PENDENCIA: a rota deve tratar product_id inexistente no update e retornar erro controlado.
+    # Comportamento atual preservado: HTTP 500, sem gravacao parcial e sem manter lock no SQLite.
+    with TestClient(isolated_app.module.app, raise_server_exceptions=False) as non_raising_client:
+        unknown_product_update = non_raising_client.put(
+            f"/api/orcamentos/{quote_id}",
+            headers=_headers(token),
+            json=_quote_payload(
+                client_name="Cliente Orcamento Update Produto Inexistente",
+                discount=25,
+                items=[
+                    {
+                        "product_id": 999999,
+                        "item_order": 1,
+                        "code": "UNKNOWN-UPD",
+                        "description": "Produto inexistente no update dispara erro interno atualmente",
+                        "quantity": 1,
+                        "unit": "und",
+                        "unit_price": 100,
+                        "discount": 0,
+                    }
+                ],
+            ),
+        )
+    assert unknown_product_update.status_code == 500
+    assert _quote_db_snapshot(isolated_app.db_paths["raios"], quote_id) == before_update_error
+    _assert_db_accepts_write(isolated_app.db_paths["raios"])
+
+    valid_quote_after_update_error = isolated_app.client.get(
+        f"/api/orcamentos/{quote_id}",
+        headers=_headers(token),
+    )
+    assert valid_quote_after_update_error.status_code == 200
+    assert valid_quote_after_update_error.json()["quote"]["total"] == 0
+
+    with TestClient(isolated_app.module.app, raise_server_exceptions=False) as non_raising_client:
+        missing_quote_update = non_raising_client.put(
+            "/api/orcamentos/999999",
+            headers=_headers(token),
+            json=_quote_payload(client_name="Cliente Orcamento Inexistente"),
+        )
+    assert missing_quote_update.status_code == 500
+    _assert_db_accepts_write(isolated_app.db_paths["raios"])
+    assert len(valid_quote_after_error.json()["items"]) == 2
+
+
+def test_orcamentos_auth_permissions_current_behavior(isolated_app):
+    admin_token = _login(isolated_app.client)
+    _create_temp_user(isolated_app, "editor_orcamentos", "editor123", "editor")
+    _create_temp_user(isolated_app, "viewer_orcamentos", "viewer123", "viewer")
+    editor_token = _login(isolated_app.client, "editor_orcamentos", "editor123")
+    viewer_token = _login(isolated_app.client, "viewer_orcamentos", "viewer123")
+
+    endpoints = [
+        "/api/orcamentos/company",
+        "/api/orcamentos/products",
+        "/api/orcamentos",
+    ]
+    for endpoint in endpoints:
+        response = isolated_app.client.get(endpoint)
+        assert response.status_code == 401
+
+    viewer_products = isolated_app.client.get(
+        "/api/orcamentos/products",
+        headers=_headers(viewer_token),
+    )
+    viewer_quotes = isolated_app.client.get(
+        "/api/orcamentos",
+        headers=_headers(viewer_token),
+    )
+    assert viewer_products.status_code == 200
+    assert viewer_quotes.status_code == 200
+
+    viewer_create_product = isolated_app.client.post(
+        "/api/orcamentos/products",
+        headers=_headers(viewer_token),
+        json=_product_payload(name="Produto Viewer Orcamento"),
+    )
+    viewer_create_quote = isolated_app.client.post(
+        "/api/orcamentos",
+        headers=_headers(viewer_token),
+        json=_quote_payload(client_name="Cliente Viewer Orcamento"),
+    )
+    assert viewer_create_product.status_code == 403
+    assert viewer_create_quote.status_code == 403
+
+    editor_product = isolated_app.client.post(
+        "/api/orcamentos/products",
+        headers=_headers(editor_token),
+        json=_product_payload(name="Produto Editor Orcamento"),
+    )
+    editor_quote = isolated_app.client.post(
+        "/api/orcamentos",
+        headers=_headers(editor_token),
+        json=_quote_payload(client_name="Cliente Editor Orcamento"),
+    )
+    assert editor_product.status_code == 200
+    assert editor_quote.status_code == 200
+
+    invalid_token = isolated_app.client.get(
+        "/api/orcamentos",
+        headers=_headers("token-invalido"),
+    )
+    assert invalid_token.status_code == 401
+
+    admin_quote = isolated_app.client.post(
+        "/api/orcamentos",
+        headers=_headers(admin_token),
+        json=_quote_payload(client_name="Cliente Admin Orcamento"),
+    )
+    assert admin_quote.status_code == 200
+
+
+def test_orcamentos_are_isolated_by_x_company_current_behavior(isolated_app):
+    raios_token = _login(isolated_app.client)
+    _create_temp_user(isolated_app, "admin_orc_estrada_iso", "admin123", "admin", company="estrada")
+    estrada_token = _login(
+        isolated_app.client,
+        "admin_orc_estrada_iso",
+        "admin123",
+        company="estrada",
+    )
+
+    raios_quote = _post_quote(
+        isolated_app.client,
+        raios_token,
+        company="raios",
+        client_name="Cliente Orcamento Raios Isolado",
+    )
+    estrada_quote = _post_quote(
+        isolated_app.client,
+        estrada_token,
+        company="estrada",
+        client_name="Cliente Orcamento Estrada Isolado",
+    )
+
+    assert raios_quote["quote"]["quote_number"] == 1
+    assert estrada_quote["quote"]["quote_number"] == 1
+    assert _table_count(isolated_app.db_paths["raios"], "quotes") == 1
+    assert _table_count(isolated_app.db_paths["estrada"], "quotes") == 1
+
+    raios_list = isolated_app.client.get(
+        "/api/orcamentos",
+        headers=_headers(raios_token, "raios"),
+    )
+    estrada_list = isolated_app.client.get(
+        "/api/orcamentos",
+        headers=_headers(estrada_token, "estrada"),
+    )
+    assert raios_list.status_code == 200
+    assert estrada_list.status_code == 200
+    assert [row["client_name"] for row in raios_list.json()] == ["Cliente Orcamento Raios Isolado"]
+    assert [row["client_name"] for row in estrada_list.json()] == [
+        "Cliente Orcamento Estrada Isolado"
+    ]
+
+    raios_cannot_read_estrada_id = isolated_app.client.get(
+        f"/api/orcamentos/{estrada_quote['quote']['id']}",
+        headers=_headers(raios_token, "raios"),
+    )
+    # Comportamento atual: IDs reiniciam por banco; o mesmo id pode existir em ambas as empresas.
+    assert raios_cannot_read_estrada_id.status_code == 200
+    assert (
+        raios_cannot_read_estrada_id.json()["quote"]["client_name"]
+        == "Cliente Orcamento Raios Isolado"
+    )

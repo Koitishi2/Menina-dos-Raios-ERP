@@ -1,2 +1,25 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Normalize text files in the repository and keep source files with LF locally.
+* text=auto eol=lf
+
+# Windows scripts should keep CRLF when checked out.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files must never be line-ending normalized.
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+*.wal binary
+*.shm binary
+*.zip binary
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.xlsx binary
+*.xls binary
+*.docx binary

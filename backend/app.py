@@ -293,7 +293,7 @@ def parse_avaria_text(text: str, prices: Dict[str,float]) -> tuple:
     if raw in ['0','','nan','None']: return 0.0, []
     clean=re.sub(r'\([^)]*\)','',raw,flags=re.IGNORECASE).strip()
     if not clean or clean=='0': return 0.0, []
-    parts=re.split(r'[,;/]|(?<=[a-zA-ZÃ€-Ã¿\d])\s*-\s*(?=\d)',clean)
+    parts=re.split(r'[,;/]|(?<=[A-Za-zÀ-ÿ\d])\s*-\s*(?=\d)',clean)
     total=0.0; items=[]
     for part in parts:
         p=part.strip().upper()
@@ -301,7 +301,7 @@ def parse_avaria_text(text: str, prices: Dict[str,float]) -> tuple:
         m=re.match(r'^(\d+(?:[.,]\d+)?)\s*(.+)$',p)
         if not m: continue
         qty=float(m.group(1).replace(',','.')); desc=m.group(2).strip()
-        if re.search(r'V[AÃ]CUO',desc): key='MAC_VACUO'; product='Macaxeira a VÃ¡cuo'
+        if re.search(r'V[AÁÃ]CUO',desc): key='MAC_VACUO'; product='Macaxeira a VÃ¡cuo'
         elif re.search(r'CHIPS',desc) and re.search(r'MAC',desc): key='MAC_CHIPS'; product='Macaxeira Chips'
         elif re.search(r'MASSA.*MAC|MAC.*MASSA',desc): key='MASSA_MAC'; product='Massa de Macaxeira'
         elif re.search(r'PCT|PACOTE|PCK|KG.*MAC|MAC.*KG',desc) and re.search(r'MAC',desc): key='MAC_PCT'; product='Macaxeira com Casca (KG)'
@@ -519,6 +519,13 @@ def init_db(company: str = None):
         active     INTEGER NOT NULL DEFAULT 1,
         notes      TEXT,
         created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS drivers (
+        id         TEXT PRIMARY KEY,
+        name       TEXT NOT NULL UNIQUE,
+        active     INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
     );
     CREATE TABLE IF NOT EXISTS app_config (
         key   TEXT PRIMARY KEY,
@@ -862,8 +869,15 @@ def role_has_tab_permission(role:str, permission_key:str)->bool:
     conn=get_control_db()
     try:
         row=conn.execute("SELECT value FROM settings WHERE key='tab_permissions'").fetchone()
-        perms=json.loads(row["value"]) if row and row["value"] else {}
+        defaults={
+            "viewer":["consolidado","nf","pr","avulso","avaria","projecao","grafico","clientes","produtividade","boletos","pendentes","produtos"],
+            "editor":["consolidado","nf","pr","avulso","avaria","projecao","grafico","clientes","produtividade","boletos","pendentes","produtos","config","cfg_precos"],
+            "admin":["consolidado","nf","pr","avulso","avaria","projecao","grafico","clientes","produtividade","boletos","pendentes","produtos","config","cfg_precos","cfg_registro","cfg_importar","cfg_whatsapp","cfg_sebrae"],
+        }
+        perms=json.loads(row["value"]) if row and row["value"] else defaults
         allowed=perms.get(role,[]) if isinstance(perms,dict) else []
+        if role=="editor" and permission_key=="cfg_precos" and ("config" in allowed or any(str(k).startswith("cfg_") for k in allowed)):
+            return True
         return any(k in allowed for k in _expand_tab_keys([permission_key]))
     except Exception:
         return False
@@ -1466,20 +1480,27 @@ def clear_imports(x_token:str=Header("")):
 @app.put("/api/sales/{sale_id}")
 def update_sale(sale_id:str,body:dict,x_token:str=Header("")):
     sess=require_editor_tab_access(x_token,["consolidado","nf","pr","avulso","avaria","pendentes"]); conn=get_db()
-    old=conn.execute("SELECT * FROM sales WHERE id=?",(sale_id,)).fetchone()
-    if not old: conn.close(); raise HTTPException(404,"Venda nÃ£o encontrada.")
-    fields=["sale_date","sale_time","client","product","nf_number","quantity",
-            "unit_price","total","notes","delivery_person","plate","sale_type",
-            "delivered","delivered_at"]
-    # Se produto estÃ¡ sendo alterado, normaliza com o sale_type vigente
-    if "product" in body and body["product"]:
-        st = body.get("sale_type", old["sale_type"]) or "NF"
-        body["product"] = norm_p(body["product"], st)
-    for f in fields:
-        if f in body:
-            conn.execute(f"UPDATE sales SET {f}=? WHERE id=?",(body[f],sale_id))
-    log_action(conn,sess,"EDIT_SALE","","",str(old["product"]),"venda editada","",str(old["sale_date"]),"")
-    conn.commit(); clear_sales_cache(); conn.close(); return {"ok":True}
+    try:
+        old=conn.execute("SELECT * FROM sales WHERE id=?",(sale_id,)).fetchone()
+        if not old: raise HTTPException(404,"Venda nÃ£o encontrada.")
+        fields=["sale_date","sale_time","client","product","nf_number","quantity",
+                "unit_price","total","notes","delivery_person","plate","sale_type",
+                "delivered","delivered_at"]
+        # Se produto estÃ¡ sendo alterado, normaliza com o sale_type vigente
+        if "product" in body and body["product"]:
+            st = body.get("sale_type", old["sale_type"]) or "NF"
+            body["product"] = norm_p(body["product"], st)
+        for f in fields:
+            if f in body:
+                conn.execute(f"UPDATE sales SET {f}=? WHERE id=?",(body[f],sale_id))
+        log_action(conn,sess,"EDIT_SALE","","",str(old["product"]),"venda editada","",str(old["sale_date"]),"")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    clear_sales_cache(); return {"ok":True}
 
 @app.put("/api/sales/{sale_id}/delivered")
 def update_delivery_status(sale_id:str,body:dict,x_token:str=Header("")):
@@ -2049,15 +2070,26 @@ def add_product(body:dict,x_token:str=Header("")):
 @app.put("/api/prices")
 def update_price(update:PriceUpdate,x_token:str=Header("")):
     sess=require_prices_access(x_token); conn=get_db()
-    old=conn.execute("SELECT price,label FROM product_prices WHERE key=?",(update.key,)).fetchone()
-    old_price=old["price"] if old else 0; label=old["label"] if old else update.key
-    today=datetime.now().strftime("%Y-%m-%d")
-    conn.execute("UPDATE product_prices SET price=?,price_min=?,price_max=?,updated_at=datetime('now') WHERE key=?",
-                 (update.price,update.price_min,update.price_max,update.key))
-    conn.execute("INSERT INTO price_history(id,key,price,effective_date,note,changed_by) VALUES(?,?,?,?,?,?)",
-                 (str(uuid.uuid4()),update.key,update.price,today,"Alterado via painel",sess["username"]))
-    log_action(conn,sess,"PRICE_CHANGE",update.key,label,"price",str(old_price),str(update.price),today,"Alterado via painel")
-    conn.commit(); conn.close(); clear_price_cache(); return {"ok":True}
+    try:
+        old=conn.execute("SELECT price,label FROM product_prices WHERE key=?",(update.key,)).fetchone()
+        old_price=old["price"] if old else 0; label=old["label"] if old else update.key
+        today=datetime.now().strftime("%Y-%m-%d")
+        conn.execute("UPDATE product_prices SET price=?,price_min=?,price_max=?,updated_at=datetime('now') WHERE key=?",
+                     (update.price,update.price_min,update.price_max,update.key))
+        conn.execute("INSERT INTO price_history(id,key,price,effective_date,note,changed_by) VALUES(?,?,?,?,?,?)",
+                     (str(uuid.uuid4()),update.key,update.price,today,"Alterado via painel",sess["username"]))
+        log_action(conn,sess,"PRICE_CHANGE",update.key,label,"price",str(old_price),str(update.price),today,"Alterado via painel")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    try:
+        clear_price_cache()
+    except Exception:
+        logger.exception("Falha ao limpar cache de precos apos atualizacao")
+    return {"ok":True}
 
 @app.put("/api/prices/label")
 def update_label(body:dict,x_token:str=Header("")):
@@ -2114,14 +2146,25 @@ def add_price_history(body:dict,x_token:str=Header("")):
     if not key or price<0: raise HTTPException(400,"Dados invÃ¡lidos.")
     old_price=get_price_on_date(key,eff)
     conn=get_db()
-    label_row=conn.execute("SELECT label FROM product_prices WHERE key=?",(key,)).fetchone()
-    label=label_row["label"] if label_row else key
-    conn.execute("INSERT INTO price_history(id,key,price,effective_date,note,changed_by) VALUES(?,?,?,?,?,?)",
-                 (str(uuid.uuid4()),key,price,eff,note,sess["username"]))
-    if eff<=datetime.now().strftime("%Y-%m-%d"):
-        conn.execute("UPDATE product_prices SET price=?,updated_at=datetime('now') WHERE key=?",(price,key))
-    log_action(conn,sess,"PRICE_HISTORY",key,label,"price",str(old_price),str(price),eff,note)
-    conn.commit(); conn.close(); clear_price_cache(); return {"ok":True}
+    try:
+        label_row=conn.execute("SELECT label FROM product_prices WHERE key=?",(key,)).fetchone()
+        label=label_row["label"] if label_row else key
+        conn.execute("INSERT INTO price_history(id,key,price,effective_date,note,changed_by) VALUES(?,?,?,?,?,?)",
+                     (str(uuid.uuid4()),key,price,eff,note,sess["username"]))
+        if eff<=datetime.now().strftime("%Y-%m-%d"):
+            conn.execute("UPDATE product_prices SET price=?,updated_at=datetime('now') WHERE key=?",(price,key))
+        log_action(conn,sess,"PRICE_HISTORY",key,label,"price",str(old_price),str(price),eff,note)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    try:
+        clear_price_cache()
+    except Exception:
+        logger.exception("Falha ao limpar cache de precos apos historico")
+    return {"ok":True}
 
 @app.delete("/api/prices/history/{entry_id}")
 def delete_price_history(entry_id:str,x_token:str=Header("")):
@@ -2138,10 +2181,54 @@ def get_audit_log(x_token:str=Header("")):
 @app.get("/api/drivers/list")
 def get_drivers_list(x_token:str=Header("")):
     require_auth(x_token); conn=get_db()
-    rows=conn.execute("SELECT DISTINCT delivery_person,COUNT(*) as entregas,SUM(total) as total_val "
-                      "FROM sales WHERE delivery_person IS NOT NULL "
-                      "GROUP BY delivery_person ORDER BY delivery_person").fetchall()
-    conn.close(); return [dict(r) for r in rows]
+    rows=conn.execute("""
+        SELECT name AS delivery_person
+        FROM drivers
+        WHERE active=1
+        UNION
+        SELECT DISTINCT delivery_person AS delivery_person
+        FROM sales
+        WHERE delivery_person IS NOT NULL AND TRIM(delivery_person)!=''
+    """).fetchall()
+    stats_rows=conn.execute("""
+        SELECT delivery_person, COUNT(*) AS entregas, SUM(total) AS total_val
+        FROM sales
+        WHERE delivery_person IS NOT NULL AND TRIM(delivery_person)!=''
+        GROUP BY delivery_person
+    """).fetchall()
+    conn.close()
+    stats={r["delivery_person"]:dict(r) for r in stats_rows}
+    merged={}
+    for r in rows:
+        name=(r["delivery_person"] or "").strip()
+        if not name:
+            continue
+        item=merged.setdefault(name,{"delivery_person":name,"entregas":0,"total_val":0})
+        if name in stats:
+            item["entregas"]=stats[name].get("entregas") or 0
+            item["total_val"]=stats[name].get("total_val") or 0
+    return sorted(merged.values(), key=lambda r: str(r["delivery_person"] or "").lower())
+
+@app.post("/api/drivers")
+def create_driver(body:dict,x_token:str=Header("")):
+    require_prices_access(x_token)
+    name=(body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400,"Nome obrigatorio.")
+    conn=get_db()
+    try:
+        existing=conn.execute("SELECT id FROM drivers WHERE lower(name)=lower(?)",(name,)).fetchone()
+        if existing:
+            conn.execute("UPDATE drivers SET name=?, active=1, updated_at=datetime('now') WHERE id=?",(name,existing["id"]))
+        else:
+            conn.execute("INSERT INTO drivers(id,name,active) VALUES(?,?,1)",(str(uuid.uuid4()),name))
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.rollback()
+        raise HTTPException(409,"Entregador ja cadastrado.")
+    finally:
+        conn.close()
+    return {"ok":True,"driver":name}
 
 @app.get("/api/vehicles")
 def list_vehicles(x_token:str=Header("")):
@@ -2183,8 +2270,19 @@ def rename_driver(body:dict,x_token:str=Header("")):
     new_name=body.get("new_name","").strip()
     if not old_name or not new_name: raise HTTPException(400,"Nomes obrigatÃ³rios.")
     conn=get_db()
-    n=conn.execute("UPDATE sales SET delivery_person=? WHERE delivery_person=?",(new_name,old_name)).rowcount
-    conn.commit(); conn.close()
+    try:
+        existing=conn.execute("SELECT id FROM drivers WHERE lower(name)=lower(?)",(old_name,)).fetchone()
+        if existing:
+            conn.execute("UPDATE drivers SET name=?, active=1, updated_at=datetime('now') WHERE id=?",(new_name,existing["id"]))
+        else:
+            conn.execute("INSERT OR IGNORE INTO drivers(id,name,active) VALUES(?,?,1)",(str(uuid.uuid4()),new_name))
+        n=conn.execute("UPDATE sales SET delivery_person=? WHERE delivery_person=?",(new_name,old_name)).rowcount
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
     return {"ok":True,"updated":n}
 
 
@@ -2196,6 +2294,7 @@ def delete_driver(name:str,x_token:str=Header("")):
     if not name: raise HTTPException(400,"Nome obrigatÃ³rio.")
     conn=get_db()
     try:
+        conn.execute("UPDATE drivers SET active=0, updated_at=datetime('now') WHERE name=?",(name,))
         n=conn.execute("UPDATE sales SET delivery_person=NULL WHERE delivery_person=?",(name,)).rowcount
         conn.commit()
     except Exception as e:
@@ -2714,22 +2813,31 @@ async def import_excel(file:UploadFile=File(...),x_token:str=Header("")):
         elif "AVULSO" in su: all_recs+=extract_avulsos(xl,sheet,prices)
     if not all_recs: raise HTTPException(400,"Nenhum dado encontrado.")
     conn=get_db(); added=0
-    for rec in all_recs:
-        try:
-            conn.execute("""INSERT INTO sales(id,sale_type,sale_date,sale_time,client,product,
-                nf_number,quantity,unit_price,total,notes,delivery_person,plate,source,created_by,created_at)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (str(uuid.uuid4()),rec["sale_type"],rec["sale_date"],rec.get("sale_time"),
-                 rec.get("client"),rec.get("product"),rec.get("nf_number"),rec["quantity"],
-                 rec["unit_price"],rec["total"],rec.get("notes"),rec.get("delivery_person"),
-                 None,rec["source"],sess["username"],datetime.now().isoformat()))
-            added+=1
-        except Exception: pass
-    conn.commit()
-    log_id=str(uuid.uuid4())
-    conn.execute("INSERT INTO import_log(id,filename,rows_added,status,imported_by) VALUES(?,?,?,?,?)",
-                 (log_id,file.filename,added,"ok",sess["username"]))
-    conn.commit(); clear_sales_cache(); conn.close()
+    try:
+        for rec in all_recs:
+            try:
+                conn.execute("""INSERT INTO sales(id,sale_type,sale_date,sale_time,client,product,
+                    nf_number,quantity,unit_price,total,notes,delivery_person,plate,source,created_by,created_at)
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (str(uuid.uuid4()),rec["sale_type"],rec["sale_date"],rec.get("sale_time"),
+                     rec.get("client"),rec.get("product"),rec.get("nf_number"),rec["quantity"],
+                     rec["unit_price"],rec["total"],rec.get("notes"),rec.get("delivery_person"),
+                     None,rec["source"],sess["username"],datetime.now().isoformat()))
+                added+=1
+            except Exception: pass
+        log_id=str(uuid.uuid4())
+        conn.execute("INSERT INTO import_log(id,filename,rows_added,status,imported_by) VALUES(?,?,?,?,?)",
+                     (log_id,file.filename,added,"ok",sess["username"]))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    try:
+        clear_sales_cache()
+    except Exception:
+        logger.exception("Falha ao limpar cache de vendas apos importacao")
     return {"imported":added,"total_in_file":len(all_recs)}
 
 
@@ -2983,20 +3091,25 @@ def set_tab_permissions(body:dict,x_token:str=Header("")):
     import json as _j
     val=_j.dumps(body)
     conn=get_control_db()
-    # Ensure settings table has correct structure
     try:
-        conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
-    except Exception: pass
-    # Delete + insert to guarantee update regardless of existing constraints
-    conn.execute("DELETE FROM settings WHERE key='tab_permissions'")
-    conn.execute("INSERT INTO settings(key,value) VALUES('tab_permissions',?)",(val,))
-    conn.commit()
-    # Verify it was saved
-    row=conn.execute("SELECT value FROM settings WHERE key='tab_permissions'").fetchone()
-    conn.close()
-    if not row or row["value"]!=val:
-        raise HTTPException(500,"Falha ao salvar permissÃµes no banco.")
-    return {"ok":True,"saved":_j.loads(val)}
+        # Ensure settings table has correct structure
+        try:
+            conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+        except Exception: pass
+        # Delete + insert to guarantee update regardless of existing constraints
+        conn.execute("DELETE FROM settings WHERE key='tab_permissions'")
+        conn.execute("INSERT INTO settings(key,value) VALUES('tab_permissions',?)",(val,))
+        conn.commit()
+        # Verify it was saved
+        row=conn.execute("SELECT value FROM settings WHERE key='tab_permissions'").fetchone()
+        if not row or row["value"]!=val:
+            raise HTTPException(500,"Falha ao salvar permissÃµes no banco.")
+        return {"ok":True,"saved":_j.loads(val)}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 # â”€â”€ Ordem custom das abas (drag-and-drop / setas â–²â–¼ no painel Admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -3028,16 +3141,21 @@ async def set_tab_order(request:Request,x_token:str=Header("")):
     val=_j.dumps(body)
     conn=get_control_db()
     try:
-        conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
-    except Exception: pass
-    conn.execute("DELETE FROM settings WHERE key='tab_order'")
-    conn.execute("INSERT INTO settings(key,value) VALUES('tab_order',?)",(val,))
-    conn.commit()
-    row=conn.execute("SELECT value FROM settings WHERE key='tab_order'").fetchone()
-    conn.close()
-    if not row or row["value"]!=val:
-        raise HTTPException(500,"Falha ao salvar ordem das abas no banco.")
-    return {"ok":True,"saved":body}
+        try:
+            conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+        except Exception: pass
+        conn.execute("DELETE FROM settings WHERE key='tab_order'")
+        conn.execute("INSERT INTO settings(key,value) VALUES('tab_order',?)",(val,))
+        conn.commit()
+        row=conn.execute("SELECT value FROM settings WHERE key='tab_order'").fetchone()
+        if not row or row["value"]!=val:
+            raise HTTPException(500,"Falha ao salvar ordem das abas no banco.")
+        return {"ok":True,"saved":body}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 # â”€â”€ Config: quem pode lanÃ§ar pagamento Monteiro â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -3297,110 +3415,116 @@ def list_boletos(period:str="",status:str="",search:str="",
       - status, search: filtros pÃ³s-agregaÃ§Ã£o.
     """
     require_auth(x_token); conn=get_db()
-
-    # Monta WHERE parametrizado (sem f-string para evitar SQL injection / mÃ¡ prÃ¡tica)
-    where_parts = ["sale_type != 'AVARIA'", "client IS NOT NULL", "client != ''"]
-    args = []
-
-    # year + month tem precedÃªncia sobre period (request explÃ­cito do usuÃ¡rio)
-    if year is not None and month is not None:
-        where_parts.append("strftime('%Y-%m', sale_date) = ?")
-        args.append(f"{int(year)}-{int(month):02d}")
-    elif year is not None:
-        where_parts.append("strftime('%Y', sale_date) = ?")
-        args.append(str(int(year)))
-    elif period == "month":
-        where_parts.append("strftime('%Y-%m', sale_date) = ?")
-        args.append(datetime.now().strftime('%Y-%m'))
-    elif period == "week":
-        where_parts.append("sale_date >= ?")
-        args.append((datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d'))
-
-    where_sql = " AND ".join(where_parts)
-    sales_grouped = conn.execute(
-        f"""
-        SELECT TRIM(client) as client, sale_date,
-               SUM(total) as total_val, COUNT(*) as item_count,
-               GROUP_CONCAT(DISTINCT product) as products,
-               nf_number as sample_nf
-        FROM sales WHERE {where_sql}
-        GROUP BY TRIM(client) COLLATE NOCASE, sale_date, nf_number
-        ORDER BY sale_date DESC, TRIM(client) COLLATE NOCASE
-        """, args
-    ).fetchall()
-
-    # Carrega metadata de boletos existentes
-    boleto_meta = {}
-    for row in conn.execute("SELECT * FROM boletos").fetchall():
-        k = row['client'].strip().upper() + '|' + row['sale_date'] + '|' + (row['nf_number'] or '')
-        boleto_meta[k] = dict(row)
-
-    # Coleta boletos que precisam ser criados, faz INSERT em massa numa Ãºnica transaÃ§Ã£o
-    new_rows = []
-    for g in sales_grouped:
-        cl = g['client'].strip(); dt = g['sale_date']
-        nf = g['sample_nf'] or ''
-        k = cl.upper() + '|' + dt + '|' + nf
-        if k not in boleto_meta:
-            new_rows.append((str(uuid.uuid4()), cl, dt, nf, g['total_val'], 'pendente'))
-
-    if new_rows:
-        try:
-            conn.executemany(
-                "INSERT OR IGNORE INTO boletos(id,client,sale_date,nf_number,total_val,status) VALUES(?,?,?,?,?,?)",
-                new_rows
-            )
-            conn.commit()
-            # Re-le boletos para pegar IDs autoritativos (resolve corrida com concorrentes)
-            for row in conn.execute("SELECT * FROM boletos").fetchall():
-                k = row['client'].strip().upper() + '|' + row['sale_date'] + '|' + (row['nf_number'] or '')
-                boleto_meta[k] = dict(row)
-        except Exception:
-            pass
-
-    result = []
-    today = datetime.now().strftime('%Y-%m-%d')
-    for g in sales_grouped:
-        cl = g['client'].strip(); dt = g['sale_date']; nf = g['sample_nf'] or ''
-        k = cl.upper() + '|' + dt + '|' + nf
-        meta = boleto_meta.get(k, {})
-        bid     = meta.get('id') or str(uuid.uuid4())
-        bstatus = meta.get('status', 'pendente')
-        bdue    = meta.get('due_date')
-        bpaid   = meta.get('paid_date')
-        bnotes  = meta.get('notes')
-
-        if status and bstatus != status: continue
-        if search and search.lower() not in cl.lower(): continue
-
-        is_overdue   = bool(bdue and bdue < today and bstatus == 'pendente')
-        is_due_today = bool(bdue == today and bstatus == 'pendente')
-
-        result.append({
-            'id': bid, 'client': cl, 'sale_date': dt, 'nf_number': nf,
-            'total_val': g['total_val'], 'item_count': g['item_count'],
-            'products': g['products'], 'sample_nf': nf,
-            'due_date': bdue, 'status': bstatus, 'paid_date': bpaid, 'notes': bnotes,
-            'is_overdue': is_overdue, 'is_due_today': is_due_today
-        })
-
-    # Filtro por clientes habilitados na config de boletos
     try:
-        import json as _j
-        cfg_row = conn.execute("SELECT value FROM settings WHERE key='boleto_clients'").fetchone()
-        if cfg_row:
-            enabled = set(_j.loads(cfg_row["value"]))
-            enabled_norm = set(_normalize_name(e) for e in enabled)
-            before = len(result)
-            result = [b for b in result if _normalize_name(b["client"]) in enabled_norm]
-            print(f"[boletos] backend filtro: {before}->{len(result)} boletos")
-        else:
-            print(f"[boletos] backend: sem config de clientes, exibindo {len(result)} boletos")
-    except Exception as ex:
-        print(f"[boletos] backend erro no filtro: {ex}")
+        # Monta WHERE parametrizado (sem f-string para evitar SQL injection / mÃ¡ prÃ¡tica)
+        where_parts = ["sale_type != 'AVARIA'", "client IS NOT NULL", "client != ''"]
+        args = []
 
-    conn.close()
-    return result
+        # year + month tem precedÃªncia sobre period (request explÃ­cito do usuÃ¡rio)
+        if year is not None and month is not None:
+            where_parts.append("strftime('%Y-%m', sale_date) = ?")
+            args.append(f"{int(year)}-{int(month):02d}")
+        elif year is not None:
+            where_parts.append("strftime('%Y', sale_date) = ?")
+            args.append(str(int(year)))
+        elif period == "month":
+            where_parts.append("strftime('%Y-%m', sale_date) = ?")
+            args.append(datetime.now().strftime('%Y-%m'))
+        elif period == "week":
+            where_parts.append("sale_date >= ?")
+            args.append((datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d'))
+
+        where_sql = " AND ".join(where_parts)
+        sales_grouped = conn.execute(
+            f"""
+            SELECT TRIM(client) as client, sale_date,
+                   SUM(total) as total_val, COUNT(*) as item_count,
+                   GROUP_CONCAT(DISTINCT product) as products,
+                   nf_number as sample_nf
+            FROM sales WHERE {where_sql}
+            GROUP BY TRIM(client) COLLATE NOCASE, sale_date, nf_number
+            ORDER BY sale_date DESC, TRIM(client) COLLATE NOCASE
+            """, args
+        ).fetchall()
+
+        # Carrega metadata de boletos existentes
+        boleto_meta = {}
+        for row in conn.execute("SELECT * FROM boletos").fetchall():
+            k = row['client'].strip().upper() + '|' + row['sale_date'] + '|' + (row['nf_number'] or '')
+            boleto_meta[k] = dict(row)
+
+        # Coleta boletos que precisam ser criados, faz INSERT em massa numa Ãºnica transaÃ§Ã£o
+        new_rows = []
+        for g in sales_grouped:
+            cl = g['client'].strip(); dt = g['sale_date']
+            nf = g['sample_nf'] or ''
+            k = cl.upper() + '|' + dt + '|' + nf
+            if k not in boleto_meta:
+                new_rows.append((str(uuid.uuid4()), cl, dt, nf, g['total_val'], 'pendente'))
+
+        if new_rows:
+            try:
+                conn.executemany(
+                    "INSERT OR IGNORE INTO boletos(id,client,sale_date,nf_number,total_val,status) VALUES(?,?,?,?,?,?)",
+                    new_rows
+                )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                logger.exception("Falha ao gerar boletos automaticamente na listagem")
+            else:
+                try:
+                    # Re-le boletos para pegar IDs autoritativos (resolve corrida com concorrentes)
+                    for row in conn.execute("SELECT * FROM boletos").fetchall():
+                        k = row['client'].strip().upper() + '|' + row['sale_date'] + '|' + (row['nf_number'] or '')
+                        boleto_meta[k] = dict(row)
+                except Exception:
+                    logger.exception("Falha ao recarregar boletos apos geracao automatica")
+
+        result = []
+        today = datetime.now().strftime('%Y-%m-%d')
+        for g in sales_grouped:
+            cl = g['client'].strip(); dt = g['sale_date']; nf = g['sample_nf'] or ''
+            k = cl.upper() + '|' + dt + '|' + nf
+            meta = boleto_meta.get(k, {})
+            bid     = meta.get('id') or str(uuid.uuid4())
+            bstatus = meta.get('status', 'pendente')
+            bdue    = meta.get('due_date')
+            bpaid   = meta.get('paid_date')
+            bnotes  = meta.get('notes')
+
+            if status and bstatus != status: continue
+            if search and search.lower() not in cl.lower(): continue
+
+            is_overdue   = bool(bdue and bdue < today and bstatus == 'pendente')
+            is_due_today = bool(bdue == today and bstatus == 'pendente')
+
+            result.append({
+                'id': bid, 'client': cl, 'sale_date': dt, 'nf_number': nf,
+                'total_val': g['total_val'], 'item_count': g['item_count'],
+                'products': g['products'], 'sample_nf': nf,
+                'due_date': bdue, 'status': bstatus, 'paid_date': bpaid, 'notes': bnotes,
+                'is_overdue': is_overdue, 'is_due_today': is_due_today
+            })
+
+        # Filtro por clientes habilitados na config de boletos
+        try:
+            import json as _j
+            cfg_row = conn.execute("SELECT value FROM settings WHERE key='boleto_clients'").fetchone()
+            if cfg_row:
+                enabled = set(_j.loads(cfg_row["value"]))
+                enabled_norm = set(_normalize_name(e) for e in enabled)
+                before = len(result)
+                result = [b for b in result if _normalize_name(b["client"]) in enabled_norm]
+                print(f"[boletos] backend filtro: {before}->{len(result)} boletos")
+            else:
+                print(f"[boletos] backend: sem config de clientes, exibindo {len(result)} boletos")
+        except Exception as ex:
+            print(f"[boletos] backend erro no filtro: {ex}")
+
+        return result
+    finally:
+        conn.close()
 
 @app.get("/api/boletos/clients-config")
 def get_boleto_clients(x_token:str=Header("")):
@@ -3803,47 +3927,52 @@ def paladar_sales(period:Optional[str]=None,month:Optional[str]=None,year:Option
 @app.post("/api/paladar/sales")
 def create_paladar_sale(body:dict,x_token:str=Header("")):
     require_editor_tab_access(x_token,["consolidado","nf","avulso","pendentes"]); conn=get_db()
-    saledate=body.get("saledate")
-    items=body.get("items")
-    # Campos de cabeÃ§alho (cÃ³pia para todos os itens do grupo)
-    nf_number=body.get("nf_number","") or ""
-    driver=body.get("driver","") or ""
-    vehicle=body.get("vehicle","") or ""
-    plate=body.get("plate","") or ""
-    client=body.get("client","") or ""
-    # Suporte legado: body antigo de item Ãºnico
-    if not items:
-        items=[{"product":body.get("product"),"quantity":body.get("quantity",1),
-                "unitprice":body.get("unitprice",0),"total":body.get("total",0),
-                "notes":body.get("notes","")}]
-    if len(items) > 20:
+    try:
+        saledate=body.get("saledate")
+        items=body.get("items")
+        # Campos de cabeÃ§alho (cÃ³pia para todos os itens do grupo)
+        nf_number=body.get("nf_number","") or ""
+        driver=body.get("driver","") or ""
+        vehicle=body.get("vehicle","") or ""
+        plate=body.get("plate","") or ""
+        client=body.get("client","") or ""
+        # Suporte legado: body antigo de item Ãºnico
+        if not items:
+            items=[{"product":body.get("product"),"quantity":body.get("quantity",1),
+                    "unitprice":body.get("unitprice",0),"total":body.get("total",0),
+                    "notes":body.get("notes","")}]
+        if len(items) > 20:
+            raise HTTPException(400, "MÃ¡ximo de 20 itens por venda.")
+        import uuid
+        # Agrupar por NF: se jÃ¡ existir grupo com mesma NF+data+cliente, reaproveitar
+        group=None
+        if nf_number:
+            existing=conn.execute("SELECT sale_group FROM paladar_sales WHERE nf_number=? AND saledate=? AND client=? LIMIT 1",
+                                  (nf_number,saledate,client)).fetchone()
+            if existing:
+                group=existing["sale_group"]
+                # Atualizar campos de cabeÃ§alho no grupo existente
+                conn.execute("UPDATE paladar_sales SET driver=?,vehicle=?,plate=?,notes=? WHERE sale_group=? AND id=(SELECT MIN(id) FROM paladar_sales WHERE sale_group=?)",
+                             (driver,vehicle,plate,notes,group,group))
+        if not group:
+            group=str(uuid.uuid4())[:8]
+        ids=[]
+        for it in items:
+            conn.execute("""INSERT INTO paladar_sales(sale_group,saledate,product,quantity,unitprice,total,notes,
+                nf_number,driver,vehicle,plate,client)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (group,saledate,it.get("product"),
+                 float(it.get("quantity",1)),float(it.get("unitprice",0)),
+                 float(it.get("total",0)),it.get("notes",""),
+                 nf_number,driver,vehicle,plate,client))
+            ids.append(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
+        conn.commit()
+        return {"ids":ids,"group":group,"message":"ok"}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
         conn.close()
-        raise HTTPException(400, "MÃ¡ximo de 20 itens por venda.")
-    import uuid
-    # Agrupar por NF: se jÃ¡ existir grupo com mesma NF+data+cliente, reaproveitar
-    group=None
-    if nf_number:
-        existing=conn.execute("SELECT sale_group FROM paladar_sales WHERE nf_number=? AND saledate=? AND client=? LIMIT 1",
-                              (nf_number,saledate,client)).fetchone()
-        if existing:
-            group=existing["sale_group"]
-            # Atualizar campos de cabeÃ§alho no grupo existente
-            conn.execute("UPDATE paladar_sales SET driver=?,vehicle=?,plate=?,notes=? WHERE sale_group=? AND id=(SELECT MIN(id) FROM paladar_sales WHERE sale_group=?)",
-                         (driver,vehicle,plate,notes,group,group))
-    if not group:
-        group=str(uuid.uuid4())[:8]
-    ids=[]
-    for it in items:
-        conn.execute("""INSERT INTO paladar_sales(sale_group,saledate,product,quantity,unitprice,total,notes,
-            nf_number,driver,vehicle,plate,client)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (group,saledate,it.get("product"),
-             float(it.get("quantity",1)),float(it.get("unitprice",0)),
-             float(it.get("total",0)),it.get("notes",""),
-             nf_number,driver,vehicle,plate,client))
-        ids.append(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
-    conn.commit();     conn.close()
-    return {"ids":ids,"group":group,"message":"ok"}
 
 def _monteiro_invoice_row(conn, group_id: str):
     return conn.execute("""SELECT sale_group, invoice_file_path, invoice_original_name, invoice_mime
@@ -3986,7 +4115,16 @@ def download_monteiro_invoices_zip(body: dict, x_token: str = Header("")):
 @app.get("/api/paladar/drivers")
 def paladar_drivers_list(x_token:str=Header("")):
     require_auth(x_token); conn=get_db()
-    rows=conn.execute("SELECT DISTINCT delivery_person FROM sales WHERE delivery_person IS NOT NULL AND delivery_person!='' ORDER BY delivery_person").fetchall()
+    rows=conn.execute("""
+        SELECT name AS delivery_person
+        FROM drivers
+        WHERE active=1
+        UNION
+        SELECT DISTINCT delivery_person AS delivery_person
+        FROM sales
+        WHERE delivery_person IS NOT NULL AND TRIM(delivery_person)!=''
+        ORDER BY delivery_person
+    """).fetchall()
     conn.close(); return [r["delivery_person"] for r in rows]
 
 @app.get("/api/monteiro/vehicles")
@@ -5328,23 +5466,29 @@ def create_quote(body:dict, x_token:str=Header("")):
     if company_key not in _quote_companies(): company_key="estrada"
     now=datetime.now()
     conn=get_db()
-    next_no=(conn.execute("SELECT COALESCE(MAX(quote_number),0)+1 FROM quotes").fetchone()[0] or 1)
-    cur=conn.execute("""INSERT INTO quotes(quote_number,company_key,client_name,attention,client_cnpj,client_ie,client_phone,client_email,
-        client_address,client_district,client_city,client_state,client_zip,issue_date,issue_time,validity_days,delivery_deadline,
-        payment_terms,observations,discount,subtotal,total,status,created_by,updated_at)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))""",
-        (next_no,company_key,client,body.get("attention"),body.get("client_cnpj"),body.get("client_ie"),body.get("client_phone"),
-         body.get("client_email"),body.get("client_address"),body.get("client_district"),body.get("client_city"),
-         body.get("client_state"),body.get("client_zip"),body.get("issue_date") or now.strftime("%Y-%m-%d"),
-         body.get("issue_time") or now.strftime("%H:%M:%S"),int(body.get("validity_days") or 3),body.get("delivery_deadline"),
-         body.get("payment_terms"),body.get("observations"),float(body.get("discount") or 0),subtotal,total,
-         body.get("status") or "emitido",sess["username"]))
-    qid=cur.lastrowid
-    for it in items:
-        conn.execute("""INSERT INTO quote_items(quote_id,product_id,item_order,code,description,quantity,unit,unit_price,discount,subtotal)
-            VALUES(?,?,?,?,?,?,?,?,?,?)""",(qid,it.get("product_id"),it["item_order"],it.get("code"),it["description"],
-            it["quantity"],it["unit"],it["unit_price"],it["discount"],it["subtotal"]))
-    conn.commit(); conn.close()
+    try:
+        next_no=(conn.execute("SELECT COALESCE(MAX(quote_number),0)+1 FROM quotes").fetchone()[0] or 1)
+        cur=conn.execute("""INSERT INTO quotes(quote_number,company_key,client_name,attention,client_cnpj,client_ie,client_phone,client_email,
+            client_address,client_district,client_city,client_state,client_zip,issue_date,issue_time,validity_days,delivery_deadline,
+            payment_terms,observations,discount,subtotal,total,status,created_by,updated_at)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))""",
+            (next_no,company_key,client,body.get("attention"),body.get("client_cnpj"),body.get("client_ie"),body.get("client_phone"),
+             body.get("client_email"),body.get("client_address"),body.get("client_district"),body.get("client_city"),
+             body.get("client_state"),body.get("client_zip"),body.get("issue_date") or now.strftime("%Y-%m-%d"),
+             body.get("issue_time") or now.strftime("%H:%M:%S"),int(body.get("validity_days") or 3),body.get("delivery_deadline"),
+             body.get("payment_terms"),body.get("observations"),float(body.get("discount") or 0),subtotal,total,
+             body.get("status") or "emitido",sess["username"]))
+        qid=cur.lastrowid
+        for it in items:
+            conn.execute("""INSERT INTO quote_items(quote_id,product_id,item_order,code,description,quantity,unit,unit_price,discount,subtotal)
+                VALUES(?,?,?,?,?,?,?,?,?,?)""",(qid,it.get("product_id"),it["item_order"],it.get("code"),it["description"],
+                it["quantity"],it["unit"],it["unit_price"],it["discount"],it["subtotal"]))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
     return get_quote(qid,x_token)
 
 @app.put("/api/orcamentos/{qid}")
@@ -5357,30 +5501,42 @@ def update_quote(qid:int, body:dict, x_token:str=Header("")):
     company_key=str(body.get("company_key") or "estrada").strip().lower()
     if company_key not in _quote_companies(): company_key="estrada"
     conn=get_db()
-    conn.execute("""UPDATE quotes SET company_key=?,client_name=?,attention=?,client_cnpj=?,client_ie=?,client_phone=?,client_email=?,
-        client_address=?,client_district=?,client_city=?,client_state=?,client_zip=?,issue_date=?,issue_time=?,validity_days=?,
-        delivery_deadline=?,payment_terms=?,observations=?,discount=?,subtotal=?,total=?,status=?,updated_at=datetime('now')
-        WHERE id=?""",(company_key,client,body.get("attention"),body.get("client_cnpj"),body.get("client_ie"),body.get("client_phone"),
-        body.get("client_email"),body.get("client_address"),body.get("client_district"),body.get("client_city"),
-        body.get("client_state"),body.get("client_zip"),body.get("issue_date"),body.get("issue_time"),
-        int(body.get("validity_days") or 3),body.get("delivery_deadline"),body.get("payment_terms"),body.get("observations"),
-        float(body.get("discount") or 0),subtotal,total,body.get("status") or "emitido",qid))
-    conn.execute("DELETE FROM quote_items WHERE quote_id=?",(qid,))
-    for it in items:
-        conn.execute("""INSERT INTO quote_items(quote_id,product_id,item_order,code,description,quantity,unit,unit_price,discount,subtotal)
-            VALUES(?,?,?,?,?,?,?,?,?,?)""",(qid,it.get("product_id"),it["item_order"],it.get("code"),it["description"],
-            it["quantity"],it["unit"],it["unit_price"],it["discount"],it["subtotal"]))
-    conn.commit(); conn.close()
+    try:
+        conn.execute("""UPDATE quotes SET company_key=?,client_name=?,attention=?,client_cnpj=?,client_ie=?,client_phone=?,client_email=?,
+            client_address=?,client_district=?,client_city=?,client_state=?,client_zip=?,issue_date=?,issue_time=?,validity_days=?,
+            delivery_deadline=?,payment_terms=?,observations=?,discount=?,subtotal=?,total=?,status=?,updated_at=datetime('now')
+            WHERE id=?""",(company_key,client,body.get("attention"),body.get("client_cnpj"),body.get("client_ie"),body.get("client_phone"),
+            body.get("client_email"),body.get("client_address"),body.get("client_district"),body.get("client_city"),
+            body.get("client_state"),body.get("client_zip"),body.get("issue_date"),body.get("issue_time"),
+            int(body.get("validity_days") or 3),body.get("delivery_deadline"),body.get("payment_terms"),body.get("observations"),
+            float(body.get("discount") or 0),subtotal,total,body.get("status") or "emitido",qid))
+        conn.execute("DELETE FROM quote_items WHERE quote_id=?",(qid,))
+        for it in items:
+            conn.execute("""INSERT INTO quote_items(quote_id,product_id,item_order,code,description,quantity,unit,unit_price,discount,subtotal)
+                VALUES(?,?,?,?,?,?,?,?,?,?)""",(qid,it.get("product_id"),it["item_order"],it.get("code"),it["description"],
+                it["quantity"],it["unit"],it["unit_price"],it["discount"],it["subtotal"]))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
     return get_quote(qid,x_token)
 
 @app.delete("/api/orcamentos/{qid}")
 def delete_quote(qid:int, x_token:str=Header("")):
     require_admin_or_editor(x_token)
     conn=get_db()
-    conn.execute("DELETE FROM quote_items WHERE quote_id=?",(qid,))
-    conn.execute("DELETE FROM quotes WHERE id=?",(qid,))
-    conn.commit(); conn.close()
-    return {"ok":True}
+    try:
+        conn.execute("DELETE FROM quote_items WHERE quote_id=?",(qid,))
+        conn.execute("DELETE FROM quotes WHERE id=?",(qid,))
+        conn.commit()
+        return {"ok":True}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 def find_index():
     for p in [STATIC_DIR/"index.html",STATIC_DIR/"client"/"index.html"]:
@@ -5511,25 +5667,38 @@ def send_daily_motivation(force:bool=False):
         if not templates:
             print("[motivacao] Nenhum template motivacional encontrado no banco.")
             return {"ok":False,"reason":"no_templates","count":0}
-        contacts=conn.execute("SELECT * FROM whatsapp_contacts WHERE active=1 ORDER BY name").fetchall()
+        contacts=[dict(r) for r in conn.execute("SELECT * FROM whatsapp_contacts WHERE active=1 ORDER BY name").fetchall()]
         if not contacts: return {"ok":False,"reason":"no_contacts","count":len(templates)}
         item=templates[(now.toordinal()-1)%len(templates)]
         content=(item.get("content") or "").strip()
         message=f"*Mensagem do dia*\n\n{content}\n\n_Um excelente dia para todos nos._"
         conn.execute("INSERT OR REPLACE INTO whatsapp_config(key,value) VALUES('motivation_last_attempt',?)",[now.isoformat()])
-        sent=0;failed=0
-        for contact in contacts:
-            result=wa_send(contact["phone"],message,cfg)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    sent=0;failed=0;results=[]
+    for contact in contacts:
+        result=wa_send(contact["phone"],message,cfg)
+        results.append((contact,result))
+        if result["ok"]: sent+=1
+        else: failed+=1
+    conn=get_db()
+    try:
+        for contact,result in results:
             conn.execute("INSERT INTO whatsapp_log(id,phone,contact,event_type,message,status,response) VALUES(?,?,?,?,?,?,?)",
                          [str(uuid.uuid4()),contact["phone"],contact["name"],"motivacao",message,
                           "sent" if result["ok"] else "error",_wa_log_response(result,cfg)])
-            if result["ok"]: sent+=1
-            else: failed+=1
         if sent>0:
             conn.execute("INSERT OR REPLACE INTO whatsapp_config(key,value) VALUES('motivation_last_success',?)",[today])
         conn.commit()
         print(f"[motivacao] {today}: template {item.get('name')} | enviados={sent} falhas={failed}")
         return {"ok":sent>0,"sent":sent,"failed":failed,"templates":len(templates),"message":content}
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
@@ -5733,22 +5902,39 @@ def check_wa_triggers(body: dict, x_token: str = Header(...)):
 
         sent_results = []
         if send and messages:
-            active_contacts = conn.execute("SELECT * FROM whatsapp_contacts WHERE active=1").fetchall()
+            active_contacts = [dict(r) for r in conn.execute("SELECT * FROM whatsapp_contacts WHERE active=1").fetchall()]
+            conn.close()
+            conn = None
+            log_entries = []
             for m in messages:
                 for c in active_contacts:
                     full_msg = m["message"] + "\n\n_Enviado por Menina dos Raios_"
                     res = wa_send(c["phone"], full_msg, cfg)
-                    conn.execute(
-                        "INSERT INTO whatsapp_log (id,phone,contact,event_type,message,status,response) VALUES (?,?,?,?,?,?,?)",
-                        [str(uuid.uuid4()), c["phone"], c["name"], m["type"], full_msg,
-                         "sent" if res["ok"] else "error", _wa_log_response(res,cfg)]
-                    )
+                    log_entries.append({
+                        "phone": c["phone"], "contact": c["name"], "trigger": m["type"],
+                        "message": full_msg, "status": "sent" if res["ok"] else "error",
+                        "response": _wa_log_response(res,cfg)
+                    })
                     sent_results.append({
                         "contact": c["name"], "phone": c["phone"],
                         "trigger": m["type"], "ok": res["ok"], "response": res.get("response",""),
                         "hint": "" if res["ok"] else _wa_failure_hint(res.get("response",""))
                     })
-            conn.commit()
+            conn = get_db()
+            try:
+                for item in log_entries:
+                    conn.execute(
+                        "INSERT INTO whatsapp_log (id,phone,contact,event_type,message,status,response) VALUES (?,?,?,?,?,?,?)",
+                        [str(uuid.uuid4()), item["phone"], item["contact"], item["trigger"], item["message"],
+                         item["status"], item["response"]]
+                    )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
+                conn = None
 
         return {
             "triggers_fired": len(messages),
@@ -5767,31 +5953,44 @@ def check_wa_triggers(body: dict, x_token: str = Header(...)):
         print(f"[check_wa_triggers] ERRO: {type(e).__name__}: {e}\n{tb}")
         raise HTTPException(500, f"{type(e).__name__}: {e}")
     finally:
-        conn.close()
+        if conn is not None:
+            conn.close()
 
 @app.post("/api/whatsapp/send")
 def wa_send_endpoint(body: dict, x_token: str = Header(...)):
     require_admin(x_token)
     conn = get_db()
-    cfg  = {r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM whatsapp_config").fetchall()}
-    ids = body.get("contact_ids") or []
-    if ids:
-        ph  = ",".join(["?"] * len(ids))
-        contacts = conn.execute(f"SELECT * FROM whatsapp_contacts WHERE id IN ({ph}) AND active=1", ids).fetchall()
-    else:
-        contacts = conn.execute("SELECT * FROM whatsapp_contacts WHERE active=1").fetchall()
+    try:
+        cfg  = {r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM whatsapp_config").fetchall()}
+        ids = body.get("contact_ids") or []
+        if ids:
+            ph  = ",".join(["?"] * len(ids))
+            contacts = [dict(r) for r in conn.execute(f"SELECT * FROM whatsapp_contacts WHERE id IN ({ph}) AND active=1", ids).fetchall()]
+        else:
+            contacts = [dict(r) for r in conn.execute("SELECT * FROM whatsapp_contacts WHERE active=1").fetchall()]
+    finally:
+        conn.close()
     message    = (body.get("message") or "").strip()
     event_type = body.get("event_type", "manual")
     results    = []
     for c in contacts:
         res = wa_send(c["phone"], message, cfg)
-        conn.execute("INSERT INTO whatsapp_log (id,phone,contact,event_type,message,status,response) VALUES (?,?,?,?,?,?,?)",
-                     [str(uuid.uuid4()), c["phone"], c["name"], event_type, message,
-                      "sent" if res["ok"] else "error", _wa_log_response(res,cfg)])
         results.append({"contact": c["name"], "phone": c["phone"], "ok": res["ok"], "response": res["response"],
                         "hint": "" if res["ok"] else _wa_failure_hint(res.get("response",""))})
-    conn.commit()
-    conn.close()
+    conn = get_db()
+    try:
+        for c,res in zip(contacts,results):
+            raw_res={"ok":res["ok"],"response":res["response"]}
+            if res.get("hint"): raw_res["hint"]=res["hint"]
+            conn.execute("INSERT INTO whatsapp_log (id,phone,contact,event_type,message,status,response) VALUES (?,?,?,?,?,?,?)",
+                         [str(uuid.uuid4()), c["phone"], c["name"], event_type, message,
+                          "sent" if res["ok"] else "error", _wa_log_response(raw_res,cfg)])
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
     return {"results": results, "total": len(results)}
 
 @app.post("/api/whatsapp/test/{cid}")
@@ -6041,72 +6240,77 @@ def wa_test_message(body: dict, x_token: str = Header(...)):
 def get_app_notes_db():
     conn=sqlite3.connect(APP_NOTES_DB_PATH,timeout=20)
     conn.row_factory=sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    conn.executescript("""
-      CREATE TABLE IF NOT EXISTS app_notes(
-        id TEXT PRIMARY KEY, external_id TEXT NOT NULL UNIQUE, client TEXT NOT NULL DEFAULT '',
-        note_date TEXT NOT NULL DEFAULT '', total REAL NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL, updated_at TEXT NOT NULL, source TEXT NOT NULL DEFAULT 'android',
-        status TEXT NOT NULL DEFAULT 'pending', completed_at TEXT
-      );
-      CREATE TABLE IF NOT EXISTS app_note_items(
-        id TEXT PRIMARY KEY, note_id TEXT NOT NULL, product TEXT NOT NULL DEFAULT '',
-        quantity REAL NOT NULL DEFAULT 0, quantity_provided INTEGER NOT NULL DEFAULT 1,
-        weight REAL NOT NULL DEFAULT 0, unit TEXT NOT NULL DEFAULT '',
-        unit_price REAL NOT NULL DEFAULT 0, price_provided INTEGER NOT NULL DEFAULT 1,
-        position INTEGER NOT NULL DEFAULT 0,
-        FOREIGN KEY(note_id) REFERENCES app_notes(id) ON DELETE CASCADE
-      );
-      CREATE TABLE IF NOT EXISTS app_note_submissions(
-        external_id TEXT PRIMARY KEY, note_id TEXT NOT NULL, received_at TEXT NOT NULL,
-        FOREIGN KEY(note_id) REFERENCES app_notes(id) ON DELETE CASCADE
-      );
-      CREATE TABLE IF NOT EXISTS app_notes_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS app_calendar_events(
-        id TEXT PRIMARY KEY, title TEXT NOT NULL DEFAULT '', details TEXT NOT NULL DEFAULT '',
-        due_date TEXT NOT NULL DEFAULT '', notify_days_before INTEGER NOT NULL DEFAULT 2,
-        reminders_per_day INTEGER NOT NULL DEFAULT 4, status TEXT NOT NULL DEFAULT 'pending',
-        created_at TEXT NOT NULL, updated_at TEXT NOT NULL, completed_at TEXT
-      );
-      CREATE INDEX IF NOT EXISTS idx_app_notes_client ON app_notes(client);
-      CREATE INDEX IF NOT EXISTS idx_app_notes_date ON app_notes(note_date);
-      CREATE INDEX IF NOT EXISTS idx_app_note_items_note ON app_note_items(note_id);
-      CREATE INDEX IF NOT EXISTS idx_app_note_submissions_note ON app_note_submissions(note_id);
-      CREATE INDEX IF NOT EXISTS idx_app_calendar_due_status ON app_calendar_events(due_date,status);
-    """)
-    item_columns={r[1] for r in conn.execute("PRAGMA table_info(app_note_items)").fetchall()}
-    note_columns={r[1] for r in conn.execute("PRAGMA table_info(app_notes)").fetchall()}
-    if "status" not in note_columns:
-        conn.execute("ALTER TABLE app_notes ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'")
-    if "completed_at" not in note_columns:
-        conn.execute("ALTER TABLE app_notes ADD COLUMN completed_at TEXT")
-    if "weight" not in item_columns:
-        conn.execute("ALTER TABLE app_note_items ADD COLUMN weight REAL NOT NULL DEFAULT 0")
-        conn.execute("UPDATE app_note_items SET weight=quantity WHERE weight=0")
-    if "quantity_provided" not in item_columns:
-        conn.execute("ALTER TABLE app_note_items ADD COLUMN quantity_provided INTEGER NOT NULL DEFAULT 1")
-    if "price_provided" not in item_columns:
-        conn.execute("ALTER TABLE app_note_items ADD COLUMN price_provided INTEGER NOT NULL DEFAULT 1")
-    conn.execute("INSERT OR IGNORE INTO app_note_submissions(external_id,note_id,received_at) SELECT external_id,id,created_at FROM app_notes")
-    merged=conn.execute("SELECT value FROM app_notes_meta WHERE key='merge_client_day_v1'").fetchone()
-    if not merged:
-        groups=conn.execute("""SELECT lower(trim(client)) client_key,note_date,group_concat(id) ids
-            FROM app_notes WHERE trim(client)<>'' GROUP BY lower(trim(client)),note_date HAVING count(*)>1""").fetchall()
-        for group in groups:
-            ids=group["ids"].split(","); keep=ids[0]
-            for duplicate in ids[1:]:
-                conn.execute("UPDATE app_note_items SET note_id=? WHERE note_id=?",(keep,duplicate))
-                conn.execute("UPDATE app_note_submissions SET note_id=? WHERE note_id=?",(keep,duplicate))
-                conn.execute("DELETE FROM app_notes WHERE id=?",(duplicate,))
-            item_ids=conn.execute("SELECT id FROM app_note_items WHERE note_id=? ORDER BY position,id",(keep,)).fetchall()
-            for position,item_row in enumerate(item_ids):
-                conn.execute("UPDATE app_note_items SET position=? WHERE id=?",(position,item_row["id"]))
-            total=conn.execute("SELECT COALESCE(sum(weight*unit_price),0) total FROM app_note_items WHERE note_id=? AND price_provided=1",(keep,)).fetchone()["total"]
-            conn.execute("UPDATE app_notes SET total=?,updated_at=? WHERE id=?",(round(float(total or 0),2),datetime.now().isoformat(timespec="seconds"),keep))
-        conn.execute("INSERT OR REPLACE INTO app_notes_meta(key,value) VALUES('merge_client_day_v1','done')")
-    conn.commit()
-    return conn
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.executescript("""
+          CREATE TABLE IF NOT EXISTS app_notes(
+            id TEXT PRIMARY KEY, external_id TEXT NOT NULL UNIQUE, client TEXT NOT NULL DEFAULT '',
+            note_date TEXT NOT NULL DEFAULT '', total REAL NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL, updated_at TEXT NOT NULL, source TEXT NOT NULL DEFAULT 'android',
+            status TEXT NOT NULL DEFAULT 'pending', completed_at TEXT
+          );
+          CREATE TABLE IF NOT EXISTS app_note_items(
+            id TEXT PRIMARY KEY, note_id TEXT NOT NULL, product TEXT NOT NULL DEFAULT '',
+            quantity REAL NOT NULL DEFAULT 0, quantity_provided INTEGER NOT NULL DEFAULT 1,
+            weight REAL NOT NULL DEFAULT 0, unit TEXT NOT NULL DEFAULT '',
+            unit_price REAL NOT NULL DEFAULT 0, price_provided INTEGER NOT NULL DEFAULT 1,
+            position INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY(note_id) REFERENCES app_notes(id) ON DELETE CASCADE
+          );
+          CREATE TABLE IF NOT EXISTS app_note_submissions(
+            external_id TEXT PRIMARY KEY, note_id TEXT NOT NULL, received_at TEXT NOT NULL,
+            FOREIGN KEY(note_id) REFERENCES app_notes(id) ON DELETE CASCADE
+          );
+          CREATE TABLE IF NOT EXISTS app_notes_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);
+          CREATE TABLE IF NOT EXISTS app_calendar_events(
+            id TEXT PRIMARY KEY, title TEXT NOT NULL DEFAULT '', details TEXT NOT NULL DEFAULT '',
+            due_date TEXT NOT NULL DEFAULT '', notify_days_before INTEGER NOT NULL DEFAULT 2,
+            reminders_per_day INTEGER NOT NULL DEFAULT 4, status TEXT NOT NULL DEFAULT 'pending',
+            created_at TEXT NOT NULL, updated_at TEXT NOT NULL, completed_at TEXT
+          );
+          CREATE INDEX IF NOT EXISTS idx_app_notes_client ON app_notes(client);
+          CREATE INDEX IF NOT EXISTS idx_app_notes_date ON app_notes(note_date);
+          CREATE INDEX IF NOT EXISTS idx_app_note_items_note ON app_note_items(note_id);
+          CREATE INDEX IF NOT EXISTS idx_app_note_submissions_note ON app_note_submissions(note_id);
+          CREATE INDEX IF NOT EXISTS idx_app_calendar_due_status ON app_calendar_events(due_date,status);
+        """)
+        item_columns={r[1] for r in conn.execute("PRAGMA table_info(app_note_items)").fetchall()}
+        note_columns={r[1] for r in conn.execute("PRAGMA table_info(app_notes)").fetchall()}
+        if "status" not in note_columns:
+            conn.execute("ALTER TABLE app_notes ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'")
+        if "completed_at" not in note_columns:
+            conn.execute("ALTER TABLE app_notes ADD COLUMN completed_at TEXT")
+        if "weight" not in item_columns:
+            conn.execute("ALTER TABLE app_note_items ADD COLUMN weight REAL NOT NULL DEFAULT 0")
+            conn.execute("UPDATE app_note_items SET weight=quantity WHERE weight=0")
+        if "quantity_provided" not in item_columns:
+            conn.execute("ALTER TABLE app_note_items ADD COLUMN quantity_provided INTEGER NOT NULL DEFAULT 1")
+        if "price_provided" not in item_columns:
+            conn.execute("ALTER TABLE app_note_items ADD COLUMN price_provided INTEGER NOT NULL DEFAULT 1")
+        conn.execute("INSERT OR IGNORE INTO app_note_submissions(external_id,note_id,received_at) SELECT external_id,id,created_at FROM app_notes")
+        merged=conn.execute("SELECT value FROM app_notes_meta WHERE key='merge_client_day_v1'").fetchone()
+        if not merged:
+            groups=conn.execute("""SELECT lower(trim(client)) client_key,note_date,group_concat(id) ids
+                FROM app_notes WHERE trim(client)<>'' GROUP BY lower(trim(client)),note_date HAVING count(*)>1""").fetchall()
+            for group in groups:
+                ids=group["ids"].split(","); keep=ids[0]
+                for duplicate in ids[1:]:
+                    conn.execute("UPDATE app_note_items SET note_id=? WHERE note_id=?",(keep,duplicate))
+                    conn.execute("UPDATE app_note_submissions SET note_id=? WHERE note_id=?",(keep,duplicate))
+                    conn.execute("DELETE FROM app_notes WHERE id=?",(duplicate,))
+                item_ids=conn.execute("SELECT id FROM app_note_items WHERE note_id=? ORDER BY position,id",(keep,)).fetchall()
+                for position,item_row in enumerate(item_ids):
+                    conn.execute("UPDATE app_note_items SET position=? WHERE id=?",(position,item_row["id"]))
+                total=conn.execute("SELECT COALESCE(sum(weight*unit_price),0) total FROM app_note_items WHERE note_id=? AND price_provided=1",(keep,)).fetchone()["total"]
+                conn.execute("UPDATE app_notes SET total=?,updated_at=? WHERE id=?",(round(float(total or 0),2),datetime.now().isoformat(timespec="seconds"),keep))
+            conn.execute("INSERT OR REPLACE INTO app_notes_meta(key,value) VALUES('merge_client_day_v1','done')")
+        conn.commit()
+        return conn
+    except Exception:
+        conn.rollback()
+        conn.close()
+        raise
 
 def _clean_app_note(body:dict):
     client=str(body.get("client") or "").strip()[:120]
@@ -6175,30 +6379,36 @@ def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-toke
     if not external_id: raise HTTPException(400,"Identificador da nota obrigatÃ³rio.")
     client,note_date,items,total=_clean_app_note(body)
     conn=get_app_notes_db()
-    submission=conn.execute("SELECT note_id FROM app_note_submissions WHERE external_id=?",(external_id,)).fetchone()
-    if submission:
-        existing=conn.execute("SELECT * FROM app_notes WHERE id=?",(submission["note_id"],)).fetchone()
-        result=_app_note_dict(conn,existing); conn.close(); return {"ok":True,"duplicate":True,"merged":False,"note":result}
-    note_id=str(uuid.uuid4()); now=datetime.now().isoformat(timespec="seconds")
-    same_day=None
-    if client:
-        same_day=conn.execute("SELECT * FROM app_notes WHERE lower(trim(client))=lower(trim(?)) AND note_date=? ORDER BY created_at LIMIT 1",(client,note_date)).fetchone()
-    merged_note=bool(same_day)
-    if same_day:
-        note_id=same_day["id"]
-        start_position=conn.execute("SELECT COALESCE(max(position),-1)+1 p FROM app_note_items WHERE note_id=?",(note_id,)).fetchone()["p"]
-    else:
-        start_position=0
-        conn.execute("INSERT INTO app_notes(id,external_id,client,note_date,total,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
-                     (note_id,external_id,client,note_date,total,now,now))
-    for item in items:
-        conn.execute("INSERT INTO app_note_items(id,note_id,product,quantity,quantity_provided,weight,unit,unit_price,price_provided,position) VALUES(?,?,?,?,?,?,?,?,?,?)",
-            (str(uuid.uuid4()),note_id,item["product"],item["quantity"],int(item["quantity_provided"]),item["weight"],item["unit"],item["unit_price"],int(item["price_provided"]),start_position+item["position"]))
-    conn.execute("INSERT INTO app_note_submissions(external_id,note_id,received_at) VALUES(?,?,?)",(external_id,note_id,now))
-    accumulated=conn.execute("SELECT COALESCE(sum(weight*unit_price),0) total FROM app_note_items WHERE note_id=? AND price_provided=1",(note_id,)).fetchone()["total"]
-    conn.execute("UPDATE app_notes SET total=?,updated_at=?,status='pending',completed_at=NULL WHERE id=?",(round(float(accumulated or 0),2),now,note_id))
-    conn.commit(); row=conn.execute("SELECT * FROM app_notes WHERE id=?",(note_id,)).fetchone()
-    result=_app_note_dict(conn,row); conn.close()
+    try:
+        submission=conn.execute("SELECT note_id FROM app_note_submissions WHERE external_id=?",(external_id,)).fetchone()
+        if submission:
+            existing=conn.execute("SELECT * FROM app_notes WHERE id=?",(submission["note_id"],)).fetchone()
+            result=_app_note_dict(conn,existing); return {"ok":True,"duplicate":True,"merged":False,"note":result}
+        note_id=str(uuid.uuid4()); now=datetime.now().isoformat(timespec="seconds")
+        same_day=None
+        if client:
+            same_day=conn.execute("SELECT * FROM app_notes WHERE lower(trim(client))=lower(trim(?)) AND note_date=? ORDER BY created_at LIMIT 1",(client,note_date)).fetchone()
+        merged_note=bool(same_day)
+        if same_day:
+            note_id=same_day["id"]
+            start_position=conn.execute("SELECT COALESCE(max(position),-1)+1 p FROM app_note_items WHERE note_id=?",(note_id,)).fetchone()["p"]
+        else:
+            start_position=0
+            conn.execute("INSERT INTO app_notes(id,external_id,client,note_date,total,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
+                         (note_id,external_id,client,note_date,total,now,now))
+        for item in items:
+            conn.execute("INSERT INTO app_note_items(id,note_id,product,quantity,quantity_provided,weight,unit,unit_price,price_provided,position) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                (str(uuid.uuid4()),note_id,item["product"],item["quantity"],int(item["quantity_provided"]),item["weight"],item["unit"],item["unit_price"],int(item["price_provided"]),start_position+item["position"]))
+        conn.execute("INSERT INTO app_note_submissions(external_id,note_id,received_at) VALUES(?,?,?)",(external_id,note_id,now))
+        accumulated=conn.execute("SELECT COALESCE(sum(weight*unit_price),0) total FROM app_note_items WHERE note_id=? AND price_provided=1",(note_id,)).fetchone()["total"]
+        conn.execute("UPDATE app_notes SET total=?,updated_at=?,status='pending',completed_at=NULL WHERE id=?",(round(float(accumulated or 0),2),now,note_id))
+        conn.commit(); row=conn.execute("SELECT * FROM app_notes WHERE id=?",(note_id,)).fetchone()
+        result=_app_note_dict(conn,row)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
     return {"ok":True,"duplicate":False,"merged":merged_note,"note":result}
 
 @app.get("/api/app-notes")
@@ -6215,19 +6425,25 @@ def list_app_notes(client:Optional[str]=None,month:Optional[str]=None,year:Optio
 @app.put("/api/app-notes/{note_id}")
 def update_app_note(note_id:str,body:dict,x_token:str=Header("")):
     require_admin_or_editor(x_token); client,note_date,items,total=_clean_app_note(body); conn=get_app_notes_db()
-    if not conn.execute("SELECT 1 FROM app_notes WHERE id=?",(note_id,)).fetchone(): conn.close(); raise HTTPException(404,"Nota nÃ£o encontrada.")
-    new_status=str(body.get("status") or "").strip()
-    status_sql=""
-    status_params=[]
-    if new_status in ("pending","completed"):
-        status_sql=",status=?,completed_at=?"; status_params=[new_status,datetime.now().isoformat(timespec="seconds") if new_status=="completed" else None]
-    conn.execute("UPDATE app_notes SET client=?,note_date=?,total=?,updated_at=?"+status_sql+" WHERE id=?",
-                 [client,note_date,total,datetime.now().isoformat(timespec="seconds")]+status_params+[note_id])
-    conn.execute("DELETE FROM app_note_items WHERE note_id=?",(note_id,))
-    for item in items:
-        conn.execute("INSERT INTO app_note_items(id,note_id,product,quantity,quantity_provided,weight,unit,unit_price,price_provided,position) VALUES(?,?,?,?,?,?,?,?,?,?)",
-            (str(uuid.uuid4()),note_id,item["product"],item["quantity"],int(item["quantity_provided"]),item["weight"],item["unit"],item["unit_price"],int(item["price_provided"]),item["position"]))
-    conn.commit(); row=conn.execute("SELECT * FROM app_notes WHERE id=?",(note_id,)).fetchone(); result=_app_note_dict(conn,row); conn.close()
+    try:
+        if not conn.execute("SELECT 1 FROM app_notes WHERE id=?",(note_id,)).fetchone(): raise HTTPException(404,"Nota não encontrada.")
+        new_status=str(body.get("status") or "").strip()
+        status_sql=""
+        status_params=[]
+        if new_status in ("pending","completed"):
+            status_sql=",status=?,completed_at=?"; status_params=[new_status,datetime.now().isoformat(timespec="seconds") if new_status=="completed" else None]
+        conn.execute("UPDATE app_notes SET client=?,note_date=?,total=?,updated_at=?"+status_sql+" WHERE id=?",
+                     [client,note_date,total,datetime.now().isoformat(timespec="seconds")]+status_params+[note_id])
+        conn.execute("DELETE FROM app_note_items WHERE note_id=?",(note_id,))
+        for item in items:
+            conn.execute("INSERT INTO app_note_items(id,note_id,product,quantity,quantity_provided,weight,unit,unit_price,price_provided,position) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                (str(uuid.uuid4()),note_id,item["product"],item["quantity"],int(item["quantity_provided"]),item["weight"],item["unit"],item["unit_price"],int(item["price_provided"]),item["position"]))
+        conn.commit(); row=conn.execute("SELECT * FROM app_notes WHERE id=?",(note_id,)).fetchone(); result=_app_note_dict(conn,row)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
     return {"ok":True,"note":result}
 
 @app.put("/api/app-notes/{note_id}/status")
@@ -6330,23 +6546,28 @@ def create_app_calendar_event(body:dict,x_token:str=Header("")):
     repeat_months=max(1,min(60,repeat_months if recurring else 1))
     now=datetime.now().isoformat(timespec="seconds")
     conn=get_app_notes_db()
-    event_ids=[]
-    series_id=str(uuid.uuid4()) if repeat_months>1 else ""
-    for offset in range(repeat_months):
-        event_id=str(uuid.uuid4()); event_ids.append(event_id)
-        event_date=_add_months(due_date,offset)
-        item_details=details
-        if series_id:
-            item_details=(details+"\n\n" if details else "")+"Recorrencia: "+str(offset+1)+"/"+str(repeat_months)
-        conn.execute("""INSERT INTO app_calendar_events
-            (id,title,details,due_date,notify_days_before,reminders_per_day,status,created_at,updated_at,completed_at)
-            VALUES(?,?,?,?,?,?,?,?,?,?)""",
-            (event_id,title,item_details,event_date,notify_days_before,reminders_per_day,status,now,now,now if status=="completed" else None))
-    conn.commit()
-    rows=conn.execute("SELECT * FROM app_calendar_events WHERE id IN ({}) ORDER BY due_date ASC".format(",".join("?" for _ in event_ids)),event_ids).fetchall()
-    events=[_calendar_event_dict(r) for r in rows]
-    conn.close()
-    return {"ok":True,"event":events[0] if events else None,"events":events,"created":len(events)}
+    try:
+        event_ids=[]
+        series_id=str(uuid.uuid4()) if repeat_months>1 else ""
+        for offset in range(repeat_months):
+            event_id=str(uuid.uuid4()); event_ids.append(event_id)
+            event_date=_add_months(due_date,offset)
+            item_details=details
+            if series_id:
+                item_details=(details+"\n\n" if details else "")+"Recorrencia: "+str(offset+1)+"/"+str(repeat_months)
+            conn.execute("""INSERT INTO app_calendar_events
+                (id,title,details,due_date,notify_days_before,reminders_per_day,status,created_at,updated_at,completed_at)
+                VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                (event_id,title,item_details,event_date,notify_days_before,reminders_per_day,status,now,now,now if status=="completed" else None))
+        conn.commit()
+        rows=conn.execute("SELECT * FROM app_calendar_events WHERE id IN ({}) ORDER BY due_date ASC".format(",".join("?" for _ in event_ids)),event_ids).fetchall()
+        events=[_calendar_event_dict(r) for r in rows]
+        return {"ok":True,"event":events[0] if events else None,"events":events,"created":len(events)}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 @app.put("/api/app-calendar/{event_id}")
 def update_app_calendar_event(event_id:str,body:dict,x_token:str=Header("")):
@@ -6440,5 +6661,3 @@ if __name__=="__main__":
         init_db(company)
     port=int(os.environ.get("PORT",8765))
     uvicorn.run(app,host="0.0.0.0",port=port,log_level="warning")
-
-

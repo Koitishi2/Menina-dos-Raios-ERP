@@ -50,6 +50,11 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+backups/
+*.db
+mig-*/
+bm_app/
+Menina dos Raios/
 
 # Translations
 *.mo

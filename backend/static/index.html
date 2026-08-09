@@ -262,6 +262,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);tran
 #app.visible ~ .notif-bell{display:flex!important}
 body.notif-hidden #app.visible ~ .notif-bell{display:none!important}
 body.notif-hidden #app.visible ~ #notif-restore{display:inline-flex!important}
+body.mobile-bell-hidden #app.visible ~ .notif-bell,
+body.mobile-bell-hidden #app.visible ~ #notif-restore{display:none!important}
+body.company-estrada #cfg-btn-whatsapp,
+body.company-estrada #cfg-btn-sebrae,
+body.company-estrada #cfg-whatsapp,
+body.company-estrada #cfg-sebrae{display:none!important}
 
 /* ── Modo TV — overlay full-screen para painel de escritório/sala ──────────── */
 #tv-mode{position:fixed;inset:0;height:100%;z-index:9000;background:linear-gradient(135deg,#0a1a14 0%,#1d3b2c 50%,#2c4f3a 100%);color:#fff;display:none;overflow:hidden;font-family:'DM Sans',sans-serif;flex-direction:column}
@@ -663,7 +669,7 @@ main{max-width:1400px;margin:0 auto;padding:16px;display:flex;flex-direction:col
 .g-media-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .g-media-item{background:var(--g50);border-radius:8px;padding:10px 14px;border:1px solid var(--border)}
 
-/* ── GRÁFICO PREMIUM OVERRIDE ── */
+/* ── GRFICO PREMIUM OVERRIDE ── */
 #panel-grafico{--chart-ink:#0f172a;--chart-muted:#64748b;--chart-line:#e2e8f0}
 #panel-grafico>.g-kpis,#panel-grafico>.g-row,#panel-grafico>#media-section{animation:fadeIn .24s ease}
 #panel-grafico .chart-card{
@@ -832,7 +838,7 @@ main{max-width:1400px;margin:0 auto;padding:16px;display:flex;flex-direction:col
 .toolbar{display:flex;align-items:center;gap:8px;margin-bottom:11px;flex-wrap:wrap}
 .search-box{position:relative}
 .search-box input{padding:7px 11px 7px 30px;border:1px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;width:220px;outline:none;background:var(--card);color:var(--ink)}
-.search-box::before{content:'🔍';position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;pointer-events:none}
+.search-box::before{content:'';position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;pointer-events:none}
 .search-box input:focus{border-color:var(--g600)}
 select.filt{padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;outline:none;background:var(--card);color:var(--ink);cursor:pointer}
 select.filt:focus{border-color:var(--g600)}
@@ -1073,7 +1079,7 @@ body.tv-active #btn-top{display:none!important}
 .prod-type-btn:hover{opacity:.9}
 
 /* ────────────────────────────────────────────────────────────────────────
-   UTILITÁRIAS RESPONSIVAS (Onda 2)
+   UTILITRIAS RESPONSIVAS (Onda 2)
    ──────────────────────────────────────────────────────────────────────── */
 
 /* Modal de venda — linhas de produto (era grid 5col px fixo) */
@@ -2865,6 +2871,100 @@ body.paladar-active #notif-restore{display:none!important}
   .client-report-kpis{grid-template-columns:1fr!important}
   #client-report-modal .modal{max-height:92vh;overflow:auto}
 }
+@media (max-width:768px){
+  html,body,#app{max-width:100%;overflow-x:hidden!important}
+  body{padding-bottom:calc(74px + env(safe-area-inset-bottom,0px));}
+  header{position:sticky;top:0;z-index:150;height:auto;min-height:58px;padding:10px 12px!important}
+  header .logo{min-width:0;flex:1;padding-right:52px}
+  header .logo h1{font-size:18px!important;line-height:1.1}
+  header .logo h1,#company-title{max-width:calc(100vw - 150px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  header .logo p{font-size:11px!important}
+  header .logo img{width:42px!important;height:42px!important}
+  .header-center,.header-right,.header-right .btn-launch,.header-right .btn-nfe{display:none!important}
+  #app.visible ~ .notif-bell{display:flex!important}
+  body.notif-hidden #app.visible ~ .notif-bell,
+  body.mobile-bell-hidden #app.visible ~ .notif-bell{display:none!important}
+  #notif-restore,
+  body.notif-hidden #app.visible ~ #notif-restore,
+  body.mobile-bell-hidden #app.visible ~ #notif-restore{display:none!important}
+  .notif-bell{position:fixed!important;top:10px!important;right:10px!important;bottom:auto!important;width:44px!important;height:44px!important;border-radius:14px!important;z-index:210!important;box-shadow:none!important;background:rgba(255,255,255,.16)!important;border:1px solid rgba(255,255,255,.25)!important;color:#fff!important;transform:none!important}
+  .notif-bell .notif-badge{top:-5px!important;right:-5px!important}
+  .notif-drawer:not(.open),.notif-drawer-overlay:not(.open){display:none!important;pointer-events:none!important}
+  body.mobile-bell-hidden .notif-drawer,
+  body.mobile-bell-hidden .notif-drawer-overlay{display:none!important;pointer-events:none!important}
+  .notif-drawer{display:none!important;top:auto!important;right:0!important;left:0!important;bottom:calc(72px + env(safe-area-inset-bottom,0px))!important;width:100%!important;height:auto!important;min-height:min(440px,58dvh)!important;max-height:calc(84dvh - 72px)!important;border-radius:22px 22px 0 0!important;transform:none!important;box-shadow:0 -20px 42px rgba(15,23,42,.24)!important}
+  .notif-drawer.open{display:flex!important;transform:none!important}
+  .notif-drawer-overlay.open{display:block!important}
+  .notif-drawer-header{border-radius:22px 22px 0 0;min-height:56px}
+  .notif-drawer-close,#notif-hide-btn{min-height:44px;min-width:44px}
+  main{padding:10px!important;padding-bottom:calc(92px + env(safe-area-inset-bottom,0px))!important}
+  .tabs-wrap{display:none!important}
+  .mobile-period-switcher{display:grid!important;grid-template-columns:52px 1fr 52px;align-items:center;gap:8px;position:sticky;top:58px;z-index:140;background:var(--bg);border-bottom:1px solid var(--border);padding:8px 10px;box-shadow:0 8px 20px rgba(15,23,42,.08)}
+  .mobile-period-arrow,.mobile-period-title{min-height:44px;border:1px solid var(--border);border-radius:14px;background:var(--card);color:var(--text);font-weight:900;box-shadow:0 8px 18px rgba(15,23,42,.06)}
+  .mobile-period-arrow{font-size:28px;line-height:1}
+  .mobile-period-title{display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:15px}
+  .mobile-period-title small{font-size:10px;color:var(--muted);font-weight:700;margin-top:1px}
+  .mobile-bar{display:grid!important;grid-template-columns:repeat(5,1fr);position:fixed;left:0;right:0;bottom:0;z-index:220;min-height:calc(64px + env(safe-area-inset-bottom,0px));padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));background:var(--card);border-top:1px solid var(--border);box-shadow:0 -12px 28px rgba(15,23,42,.15);gap:2px}
+  .mobile-bar .mob-btn{display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:44px;min-height:56px;padding:4px 2px;border:0;background:transparent;color:var(--muted);font-size:10px;font-weight:800;border-radius:13px;box-shadow:none}
+  .mobile-bar .mob-btn .mob-ico{font-size:18px;line-height:1}
+  .mobile-bar .mob-btn.active{background:var(--g800);color:#fff}
+  .company-estrada .mobile-bar .mob-btn.active,.theme-estrada .mobile-bar .mob-btn.active{background:#4f46e5;color:#fff}
+  .mobile-fab{display:none!important}
+  .mobile-sheet-overlay{display:none;position:fixed;inset:0;z-index:300;background:rgba(15,23,42,.46);backdrop-filter:blur(2px)}
+  .mobile-sheet-overlay.open{display:block}
+  .mobile-bottom-sheet{display:none;position:fixed;left:0;right:0;bottom:0;z-index:310;max-height:86dvh;overflow:auto;background:var(--card);color:var(--text);border-radius:22px 22px 0 0;border:1px solid var(--border);box-shadow:0 -20px 42px rgba(15,23,42,.24);padding:14px 14px calc(18px + env(safe-area-inset-bottom,0px))}
+  .mobile-bottom-sheet.open{display:block}
+  .mobile-sheet-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+  .mobile-sheet-head h3{margin:0;font-size:17px;color:var(--g800)}
+  .mobile-sheet-close{min-width:44px;min-height:44px;border:1px solid var(--border);border-radius:12px;background:var(--card);color:var(--muted);font-size:20px}
+  .mobile-more-grid,.mobile-month-grid,.mobile-quick-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+  .mobile-month-grid{grid-template-columns:repeat(3,1fr);margin-top:10px}
+  .mobile-more-grid button,.mobile-month-grid button,.mobile-quick-grid button{min-height:44px;border:1px solid var(--border);border-radius:13px;background:var(--card);color:var(--text);font-weight:800;text-align:left;padding:10px 12px}
+  .mobile-more-grid button.active,.mobile-month-grid button.active,.mobile-quick-grid button.active{background:var(--g800);color:#fff;border-color:var(--g800)}
+  .mobile-screen-prefs{display:grid;gap:8px;padding:14px 0 0;margin-top:14px;border-top:1px solid var(--border)}
+  .mobile-screen-prefs-title{font-size:11px;font-weight:900;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+  #mobile-show-notifs-btn{display:none;min-height:44px;align-items:center;justify-content:space-between;border:1px solid var(--border);border-radius:13px;background:var(--card);color:var(--text);font-weight:900;text-align:left;padding:10px 12px}
+  body.mobile-bell-hidden #mobile-show-notifs-btn{display:flex!important}
+  .mobile-year-row{display:flex;align-items:center;justify-content:space-between;margin:10px 0}
+  .mobile-year-row button{width:44px;height:44px;border:1px solid var(--border);border-radius:12px;background:var(--card);color:var(--text);font-size:20px;font-weight:900}
+  .mobile-year-row strong{font-size:18px}
+  .sum-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+  .card,.stat-card,.kpi-card{min-width:0!important}
+  .card .value,.stat-card .value,.kpi-value,.sum-grid .card b,.sum-grid strong,.sc b,.sc .value{font-size:clamp(18px,5.2vw,24px)!important;white-space:nowrap!important;overflow-wrap:normal!important;font-variant-numeric:tabular-nums;letter-spacing:0!important}
+  .sum-grid .card,.sc,.kpi-card,.stat-card{cursor:pointer}
+  .filters,.toolbar,.filter-row{gap:8px!important}
+  .filt,input,select,textarea{font-size:16px!important;min-height:44px}
+  .period-pills{display:none!important}
+  .table-wrap,.risk-table-wrap,.proj-table-wrap,#table-area{overflow-x:hidden!important;max-width:100%!important}
+  table{min-width:0!important}
+  #table-area table thead,#panel-produtividade table thead,.responsive-card-table thead{display:none!important}
+  #table-area table,#table-area tbody,#table-area tr,#table-area td,
+  #panel-produtividade table,#panel-produtividade tbody,#panel-produtividade tr,#panel-produtividade td{display:block;width:100%!important}
+  #table-area tr,#panel-produtividade tr{margin:0 0 10px;padding:12px;border:1px solid var(--border);border-radius:14px;background:var(--card);box-shadow:0 8px 18px rgba(15,23,42,.06);cursor:pointer}
+  #table-area td,#panel-produtividade td{border:0!important;padding:4px 0!important;text-align:left!important;white-space:normal!important}
+  #table-area td:nth-child(n+4),#panel-produtividade td:nth-child(n+4){display:none!important}
+  #table-area td:first-child,#panel-produtividade td:first-child{font-size:11px;color:var(--muted);font-weight:800}
+  #table-area td:nth-child(2),#panel-produtividade td:nth-child(2){font-size:15px;font-weight:900;color:var(--text)}
+  #table-area td:nth-child(3),#panel-produtividade td:nth-child(3){font-size:13px;color:var(--muted)}
+  .modal-overlay.open{align-items:flex-end!important;padding:0!important}
+  .modal{width:100%!important;max-width:none!important;max-height:calc(100dvh - 8px)!important;border-radius:20px 20px 0 0!important;overflow:auto!important}
+  .modal .form-grid,.modal-grid{grid-template-columns:1fr!important}
+  .modal .modal-actions,.modal-actions{position:sticky;bottom:0;background:var(--card);padding-top:10px;border-top:1px solid var(--border)}
+  #mobile-production-summary{display:block;margin:0 0 12px}
+  .mobile-prod-kpis{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+  .mobile-prod-card,.mobile-prod-kpi{border:1px solid var(--border);background:var(--card);border-radius:14px;padding:12px;box-shadow:0 8px 18px rgba(15,23,42,.06)}
+  .mobile-prod-kpi small,.mobile-prod-card small{display:block;color:var(--muted);font-size:10px;font-weight:900;text-transform:uppercase}
+  .mobile-prod-kpi strong{font-size:21px;color:var(--text)}
+  .mobile-prod-list{display:grid;gap:8px}
+  .mobile-prod-card{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:62px}
+  .mobile-prod-card b{font-size:14px}
+  .mobile-prod-card .qty{font-size:18px;font-weight:900;color:var(--g800);white-space:nowrap}
+  .mobile-readonly-hidden{display:none!important}
+  .dark .mobile-period-switcher,.dark .mobile-bar,.dark .mobile-bottom-sheet,.dark .mobile-prod-card,.dark .mobile-prod-kpi{background:var(--card);color:var(--text)}
+}
+@media (min-width:769px){
+  .mobile-period-switcher,.mobile-fab,.mobile-sheet-overlay,.mobile-bottom-sheet,#mobile-production-summary{display:none!important}
+}
 </style>
 </head>
 <body>
@@ -2914,9 +3014,9 @@ body.paladar-active #notif-restore{display:none!important}
     <div><h1 id="company-title">Menina dos Raios Ltda</h1><p class="smart-ctx" id="smart-context">Controle de Vendas</p></div>
   </div>
   <div class="header-center">
-    <button class="btn-paladar-header" onclick="openPaladarApp()" title="Abrir Monteiro">🍽️ Monteiro</button>
+    <button class="btn-paladar-header" onclick="openPaladarApp()" title="Abrir Monteiro"> Monteiro</button>
     <button class="btn-company-switch" id="company-switch-btn" onclick="switchCompanyUI()" title="Trocar empresa">🚚 Menina da Estrada</button>
-    <button class="btn-orcamento-header" onclick="openOrcamentoShortcut()" title="Abrir Orçamentos">📝 Orçamentos</button>
+    <button class="btn-orcamento-header" onclick="openOrcamentoShortcut()" title="Abrir Orçamentos"> Orçamentos</button>
   </div>
   <div class="header-right">
     <span class="h-badge" id="badge-count" style="display:none">—</span>
@@ -2948,6 +3048,15 @@ body.paladar-active #notif-restore{display:none!important}
     </div>
   </div>
 </header>
+
+<div id="mobile-period-switcher" class="mobile-period-switcher" aria-label="Seletor de período mobile">
+  <button type="button" class="mobile-period-arrow" onclick="mobileShiftMonth(-1)" aria-label="Mês anterior">‹</button>
+  <button type="button" class="mobile-period-title" onclick="openMobilePeriodSheet()" aria-label="Escolher mês">
+    <span id="mobile-period-label">Este mês</span>
+    <small id="mobile-period-hint">toque para trocar</small>
+  </button>
+  <button type="button" class="mobile-period-arrow" onclick="mobileShiftMonth(1)" aria-label="Próximo mês">›</button>
+</div>
 
 <!-- Modal Lançar Venda -->
 <div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
@@ -3042,7 +3151,7 @@ body.paladar-active #notif-restore{display:none!important}
 <div class="modal-overlay" id="edit-user-modal" onclick="if(event.target===this)this.classList.remove('open')">
   <div class="modal" style="max-width:380px">
     <div class="modal-header">
-      <div class="modal-title">✏️ Editar Usuário</div>
+      <div class="modal-title"> Editar Usuário</div>
       <button class="modal-close" onclick="document.getElementById('edit-user-modal').classList.remove('open')">×</button>
     </div>
     <div style="display:flex;flex-direction:column;gap:11px">
@@ -3050,9 +3159,9 @@ body.paladar-active #notif-restore{display:none!important}
       <div class="fg"><label>Nome Completo</label><input type="text" id="eu-fullname"></div>
       <div class="fg"><label>Perfil</label>
         <select id="eu-role">
-          <option value="viewer">👁️ Viewer</option>
-          <option value="editor">✏️ Editor</option>
-          <option value="admin">⭐ Admin</option>
+          <option value="viewer"> Viewer</option>
+          <option value="editor"> Editor</option>
+          <option value="admin"> Admin</option>
         </select>
       </div>
       <div class="fg"><label>Nova Senha (deixe em branco para não alterar)</label><input type="password" id="eu-password" placeholder="••••••••" oninput="document.getElementById('eu-pw2-wrap').style.display=this.value?'block':'none'"></div>
@@ -3095,7 +3204,7 @@ body.paladar-active #notif-restore{display:none!important}
       <div class="ss">por registro</div>
     </div>
     <div class="sc" style="border-left:3px solid var(--red)">
-      <div class="sl"><span style="font-size:12px">⚠️</span>Avarias do Mês</div>
+      <div class="sl"><span style="font-size:12px">⚠</span>Avarias do Mês</div>
       <div class="sv" id="sum-avaria" style="color:var(--red)">—</div>
       <div class="sv-sub" id="sum-var-avaria"></div>
       <div class="sv-sub" id="sum-avaria-pct" style="font-size:10px;color:var(--muted)"></div>
@@ -3108,15 +3217,15 @@ body.paladar-active #notif-restore{display:none!important}
     <button class="tab" onclick="switchTab(this,'nf')">🧾 NF-e</button>
     <button class="tab" onclick="switchTab(this,'pr')">🌱 Prod. Rural</button>
     <button class="tab" onclick="switchTab(this,'avulso')">💵 Avulso</button>
-    <button class="tab" onclick="switchTab(this,'avaria')">⚠️ Avarias</button>
-    <button class="tab" onclick="switchTab(this,'projecao')">🏭 Projeção</button>
+    <button class="tab" onclick="switchTab(this,'avaria')">⚠ Avarias</button>
+    <button class="tab" onclick="switchTab(this,'projecao')"> Projeção</button>
     <button class="tab" onclick="switchTab(this,'grafico')">📈 Gráfico</button>
     <button class="tab" onclick="switchTab(this,'produtividade')">📊 Produtividade</button>
     <button class="tab" onclick="switchTab(this,'clientes')">👥 Clientes</button>
     <button class="tab" onclick="switchTab(this,'boletos')">💰 Boletos</button>
     <button class="tab" onclick="switchTab(this,'pendentes')">📋 Notas <span id="tab-pendentes-badge" style="background:#B71C1C;color:#fff;border-radius:10px;padding:0 6px;font-size:10px;font-weight:700;margin-left:2px;display:none">0</span></button>
     <button class="tab" onclick="switchTab(this,'produtos')">📦 Produtos</button>
-    <button class="tab" onclick="switchTab(this,'config')">⚙️ Configurações</button>
+    <button class="tab" onclick="switchTab(this,'config')">⚙ Configurações</button>
   </div>
 
   <!-- CONSOLIDADO -->
@@ -3177,7 +3286,7 @@ body.paladar-active #notif-restore{display:none!important}
   <div class="panel" id="panel-orcamento">
     <div class="orc-head">
       <div>
-        <h2>📝 Orçamento</h2>
+        <h2> Orçamento</h2>
         <p>Modelos de propostas com escolha da nossa empresa emissora, produtos e propostas salvos separadamente.</p>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -3247,7 +3356,7 @@ body.paladar-active #notif-restore{display:none!important}
             <div class="kpi"><div class="kpi-l">Total</div><div class="kpi-v" id="orc-total">R$ 0,00</div></div>
           </div>
           <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="saveOrcQuote()">💾 Salvar proposta</button>
-          <button class="btn btn-secondary" style="width:100%" onclick="printOrcPreview()">🖨️ Imprimir / salvar PDF</button>
+          <button class="btn btn-secondary" style="width:100%" onclick="printOrcPreview()">🖨 Imprimir / salvar PDF</button>
         </div>
       </div>
     </div>
@@ -3274,7 +3383,7 @@ body.paladar-active #notif-restore{display:none!important}
   <div class="panel" id="panel-projecao">
     <div class="proj-head">
       <div>
-        <h2>🏭 Projeção de Produção</h2>
+        <h2> Projeção de Produção</h2>
         <p>Estimativa de saída por produto usando o histórico real de vendas.</p>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -3336,7 +3445,7 @@ body.paladar-active #notif-restore{display:none!important}
     <div class="proj-cycle" id="proj-cycle"></div>
     <div class="proj-grid">
       <div class="chart-card">
-        <div class="chart-title">🏆 Produtos com maior saída</div>
+        <div class="chart-title"> Produtos com maior saída</div>
         <div style="height:260px"><canvas id="proj-chart-bar"></canvas></div>
       </div>
       <div class="chart-card">
@@ -3350,7 +3459,7 @@ body.paladar-active #notif-restore{display:none!important}
     </div>
   </div>
 
-  <!-- GRÁFICO ANUAL -->
+  <!-- GRFICO ANUAL -->
   <div class="panel" id="panel-grafico">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
       <div><h2 style="font-size:16px;font-weight:700;color:var(--g800)">📈 Painel Anual</h2>
@@ -3416,11 +3525,11 @@ body.paladar-active #notif-restore{display:none!important}
     <!-- Charts row 2 -->
     <div class="g-row g-row-3-2">
       <div class="chart-card">
-        <div class="chart-title">🏆 Top Produtos por Receita</div>
+        <div class="chart-title"> Top Produtos por Receita</div>
         <div style="height:145px"><canvas id="chart-produtos"></canvas></div>
       </div>
       <div class="chart-card">
-        <div class="chart-title">🗓️ Ranking de Meses</div>
+        <div class="chart-title">🗓 Ranking de Meses</div>
         <div id="month-perf" style="display:flex;flex-direction:column;gap:6px"></div>
       </div>
     </div>
@@ -3498,7 +3607,7 @@ body.paladar-active #notif-restore{display:none!important}
       <!-- Charts row -->
       <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:14px;margin-bottom:16px">
         <div class="card">
-          <div class="card-title" style="margin-bottom:10px">🏆 Top 10 Clientes por Volume</div>
+          <div class="card-title" style="margin-bottom:10px"> Top 10 Clientes por Volume</div>
           <div style="height:280px"><canvas id="chart-clients-bar"></canvas></div>
         </div>
         <div class="card">
@@ -3546,7 +3655,7 @@ body.paladar-active #notif-restore{display:none!important}
         <!-- Inativos -->
         <div style="display:flex;flex-direction:column;gap:0">
           <div style="background:var(--g800);color:#fff;border-radius:10px 10px 0 0;padding:12px 16px;display:flex;align-items:center;gap:8px">
-            <span style="font-size:18px">⏰</span>
+            <span style="font-size:18px"></span>
             <div>
               <div style="font-size:13px;font-weight:700">Clientes Inativos</div>
               <div style="font-size:10px;opacity:.75" id="opp-inactive-count">carregando...</div>
@@ -3633,7 +3742,7 @@ body.paladar-active #notif-restore{display:none!important}
         <button class="prod-type-btn" data-type="NF" onclick="toggleProdType('NF')" style="--tc:#1B5E20;--bg:#E8F5E9;--bc:#A5D6A7">🧾 NF-e</button>
         <button class="prod-type-btn" data-type="PR" onclick="toggleProdType('PR')" style="--tc:#33691E;--bg:#F1F8E9;--bc:#C5E1A5">🌱 Prod. Rural</button>
         <button class="prod-type-btn" data-type="AVULSO" onclick="toggleProdType('AVULSO')" style="--tc:#6A1B9A;--bg:#F3E5F5;--bc:#CE93D8">💵 Avulso</button>
-        <button class="prod-type-btn" data-type="AVARIA" onclick="toggleProdType('AVARIA')" style="--tc:#B71C1C;--bg:#FFEBEE;--bc:#FFCDD2">⚠️ Avaria</button>
+        <button class="prod-type-btn" data-type="AVARIA" onclick="toggleProdType('AVARIA')" style="--tc:#B71C1C;--bg:#FFEBEE;--bc:#FFCDD2">⚠ Avaria</button>
       </div>
       <button onclick="selectAllProdTypes()" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:12px;background:var(--card);cursor:pointer;color:var(--muted)">Todos</button>
       <button onclick="clearProdTypes()" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:12px;background:var(--card);cursor:pointer;color:var(--muted)">Limpar</button>
@@ -3667,7 +3776,7 @@ body.paladar-active #notif-restore{display:none!important}
       <div style="display:flex;gap:2px;background:var(--g50);border-radius:10px;padding:3px">
         <button id="notas-btn-pendentes" onclick="switchNotasView('pendentes')"
           style="padding:5px 14px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:var(--g800);color:#fff;display:flex;align-items:center;gap:5px">
-          ⏳ Pendentes <span id="notas-count-pend" style="background:rgba(255,255,255,.25);border-radius:9px;padding:0 6px;font-size:10px;font-weight:700">0</span>
+           Pendentes <span id="notas-count-pend" style="background:rgba(255,255,255,.25);border-radius:9px;padding:0 6px;font-size:10px;font-weight:700">0</span>
         </button>
         <button id="notas-btn-entregues" onclick="switchNotasView('entregues')"
           style="padding:5px 14px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);display:flex;align-items:center;gap:5px">
@@ -3675,7 +3784,7 @@ body.paladar-active #notif-restore{display:none!important}
         </button>
         <button id="notas-btn-nao" onclick="switchNotasView('nao')"
           style="padding:5px 14px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);display:flex;align-items:center;gap:5px">
-          ❌ Não Entregue <span id="notas-count-nao" style="background:var(--red);color:#fff;border-radius:9px;padding:0 6px;font-size:10px;font-weight:700">0</span>
+           Não Entregue <span id="notas-count-nao" style="background:var(--red);color:#fff;border-radius:9px;padding:0 6px;font-size:10px;font-weight:700">0</span>
         </button>
       </div>
       <!-- Filtros (compartilhados, semântica difere por view) -->
@@ -3733,7 +3842,7 @@ body.paladar-active #notif-restore{display:none!important}
           <select id="prod-picker" class="filt" onchange="selectProductFromPicker()" style="width:100%;margin-bottom:6px">
             <option value="">Escolha um produto para analisar...</option>
           </select>
-          <input type="text" id="prod-search" oninput="filterProductList()" placeholder="🔍 Filtrar lista de produtos..." style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;margin-bottom:6px">
+          <input type="text" id="prod-search" oninput="filterProductList()" placeholder=" Filtrar lista de produtos..." style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;margin-bottom:6px">
           <div style="display:flex;gap:6px;margin-bottom:6px">
             <button class="btn btn-secondary btn-sm" onclick="selectAllProducts()" style="flex:1">Selecionar todos</button>
             <button class="btn btn-secondary btn-sm" onclick="clearAllProducts()" style="flex:1">Limpar</button>
@@ -3788,7 +3897,7 @@ body.paladar-active #notif-restore{display:none!important}
       <div id="prod-table-wrap" class="scroll-x"><div class="empty" style="padding:24px;text-align:center;color:var(--muted);font-size:13px">Selecione pelo menos 1 produto.</div></div>
     </div>
 
-    <!-- GRÁFICO -->
+    <!-- GRFICO -->
     <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:var(--sp-md);margin-bottom:var(--sp-md);box-shadow:var(--shadow)">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
         <div style="font-size:13px;font-weight:700;color:var(--g800)" id="prod-chart-title">Visão gráfica</div>
@@ -3800,7 +3909,7 @@ body.paladar-active #notif-restore{display:none!important}
       <div style="position:relative;min-height:220px"><canvas id="prod-chart"></canvas></div>
     </div>
 
-    <!-- DETALHAMENTO POR PERÍODO -->
+    <!-- DETALHAMENTO POR PERODO -->
     <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:var(--sp-md);box-shadow:var(--shadow)">
       <div onclick="togglePeriodDetail()" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:6px;user-select:none">
         <div style="font-size:13px;font-weight:700;color:var(--g800)" id="prod-detail-title">▶ Ver detalhes por período</div>
@@ -3819,7 +3928,7 @@ body.paladar-active #notif-restore{display:none!important}
       <div style="display:flex;gap:2px;background:var(--g50);border-radius:12px;padding:4px">
         <button id="cfg-btn-precos" onclick="switchConfigView('precos')"
           style="padding:6px 16px;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;background:var(--g800);color:#fff;display:flex;align-items:center;gap:5px">
-          ⚙️ Preços
+          ⚙ Preços
         </button>
         <button id="cfg-btn-registro" onclick="switchConfigView('registro')"
           style="padding:6px 16px;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);display:flex;align-items:center;gap:5px">
@@ -3855,17 +3964,17 @@ body.paladar-active #notif-restore{display:none!important}
           📄 <span id="sebrae-file-name">Clique para escolher o PDF do Sebrae</span>
           <input type="file" id="sebrae-file" accept="application/pdf,.pdf" style="display:none" onchange="onSebraeFile(this)">
         </label>
-        <button class="btn btn-primary" id="btn-sebrae-verify" onclick="sebraeVerifyNF()" disabled style="opacity:.5">🔍 Verificar notas</button>
+        <button class="btn btn-primary" id="btn-sebrae-verify" onclick="sebraeVerifyNF()" disabled style="opacity:.5"> Verificar notas</button>
       </div>
       <div id="sebrae-result" style="display:none">
         <div id="sebrae-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px">
           <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px"><div style="font-size:10px;color:var(--muted)" id="sebrae-kpi-total-label">Total relatório</div><div style="font-size:22px;font-weight:800;color:var(--g800)" id="sebrae-kpi-total">0</div></div>
           <div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:10px;padding:12px"><div style="font-size:10px;color:#166534">✅ No sistema</div><div style="font-size:22px;font-weight:800;color:#166534" id="sebrae-kpi-found">0</div></div>
-          <div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:10px;padding:12px"><div style="font-size:10px;color:#991B1B">⚠️ Pendentes</div><div style="font-size:22px;font-weight:800;color:#991B1B" id="sebrae-kpi-missing">0</div></div>
+          <div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:10px;padding:12px"><div style="font-size:10px;color:#991B1B">⚠ Pendentes</div><div style="font-size:22px;font-weight:800;color:#991B1B" id="sebrae-kpi-missing">0</div></div>
           <div id="sebrae-kpi-cancel-wrap" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;display:none"><div style="font-size:10px;color:var(--muted)">Canceladas (ignoradas)</div><div style="font-size:22px;font-weight:800;color:var(--muted)" id="sebrae-kpi-cancel">0</div></div>
         </div>
         <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
-          <button class="btn btn-sm btn-primary" id="sf-btn-missing" onclick="sebraeFilter('missing')" style="background:#DC2626;border-color:#DC2626">⚠️ Pendentes (<span id="sf-cnt-missing">0</span>)</button>
+          <button class="btn btn-sm btn-primary" id="sf-btn-missing" onclick="sebraeFilter('missing')" style="background:#DC2626;border-color:#DC2626">⚠ Pendentes (<span id="sf-cnt-missing">0</span>)</button>
           <button class="btn btn-sm btn-secondary" id="sf-btn-found" onclick="sebraeFilter('found')">✅ No sistema (<span id="sf-cnt-found">0</span>)</button>
           <button class="btn btn-sm btn-secondary" id="sf-btn-all" onclick="sebraeFilter('all')">📄 Todas (<span id="sf-cnt-all">0</span>)</button>
         </div>
@@ -3887,10 +3996,10 @@ body.paladar-active #notif-restore{display:none!important}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start">
       <div style="display:flex;flex-direction:column;gap:12px">
         <div class="card">
-          <div class="card-title">⚙️ Preços dos Produtos</div>
+          <div class="card-title">⚙ Preços dos Produtos</div>
           <p class="card-desc" style="margin-bottom:9px">🔄 = variável. Clique no nome para editar (admin).</p>
           <div id="prices-list"><div class="loader"><div class="spin"></div></div></div>
-          <div style="margin-top:9px;padding:9px;background:#FFF3E0;border:1px solid #FFB74D;border-radius:8px;font-size:11px;color:var(--orange)">⚠️ Reimporte o Excel após alterar preços.</div>
+          <div style="margin-top:9px;padding:9px;background:#FFF3E0;border:1px solid #FFB74D;border-radius:8px;font-size:11px;color:var(--orange)">⚠ Reimporte o Excel após alterar preços.</div>
         </div>
         <div class="card">
           <div class="card-title">➕ Novo Produto</div>
@@ -3948,7 +4057,7 @@ body.paladar-active #notif-restore{display:none!important}
     <div id="cfg-registro" style="display:none">
     <div id="reg-login" style="max-width:320px;margin:30px auto;display:none">
       <div class="card" style="text-align:center">
-        <div style="font-size:36px;margin-bottom:10px">🔐</div>
+        <div style="font-size:36px;margin-bottom:10px"></div>
         <div style="font-size:15px;font-weight:700;color:var(--g800);margin-bottom:10px">Apenas administradores</div>
         <button class="btn btn-secondary" onclick="doLogout()">⬅ Voltar ao login</button>
       </div>
@@ -3957,7 +4066,7 @@ body.paladar-active #notif-restore{display:none!important}
       <!-- Header -->
       <div class="reg-admin-head" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid var(--border);flex-wrap:wrap;gap:8px">
         <div>
-          <h2 style="font-size:18px;font-weight:800;color:var(--g800)">⚙️ Administração</h2>
+          <h2 style="font-size:18px;font-weight:800;color:var(--g800)">⚙ Administração</h2>
           <p style="font-size:12px;color:var(--muted);margin-top:3px">Usuários, permissões e histórico do sistema</p>
         </div>
         <button class="btn btn-secondary btn-sm" onclick="loadAuditLog();loadTabPermissions()">↺ Atualizar</button>
@@ -3968,7 +4077,7 @@ body.paladar-active #notif-restore{display:none!important}
         <button class="reg-nav-btn active" data-reg="permissoes" onclick="switchRegView('permissoes')">🔑 Permissões</button>
         <button class="reg-nav-btn" data-reg="usuarios" onclick="switchRegView('usuarios')">👥 Usuários</button>
         <button class="reg-nav-btn" data-reg="mensagens" onclick="switchRegView('mensagens')">📢 Mensagens</button>
-        <button class="reg-nav-btn" data-reg="auditoria" onclick="switchRegView('auditoria')">🔍 Auditoria</button>
+        <button class="reg-nav-btn" data-reg="auditoria" onclick="switchRegView('auditoria')"> Auditoria</button>
       </div>
       <div class="reg-view" data-reg-view="permissoes">
       <div style="display:grid;grid-template-columns:1fr;gap:16px;margin-bottom:16px;align-items:start">
@@ -3998,13 +4107,13 @@ body.paladar-active #notif-restore{display:none!important}
           </div>
           <div id="monteiro-payment-perm" style="display:flex;gap:12px;flex-wrap:wrap;padding:8px 0">
             <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
-              <input type="checkbox" class="mpp-cb" value="admin" checked disabled style="width:16px;height:16px;accent-color:var(--g600)"> ⚙️ Admin
+              <input type="checkbox" class="mpp-cb" value="admin" checked disabled style="width:16px;height:16px;accent-color:var(--g600)"> ⚙ Admin
             </label>
             <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
-              <input type="checkbox" class="mpp-cb" value="editor" style="width:16px;height:16px;accent-color:var(--g600)"> ✏️ Editor
+              <input type="checkbox" class="mpp-cb" value="editor" style="width:16px;height:16px;accent-color:var(--g600)">  Editor
             </label>
             <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
-              <input type="checkbox" class="mpp-cb" value="viewer" style="width:16px;height:16px;accent-color:var(--g600)"> 👁️ Visualizador
+              <input type="checkbox" class="mpp-cb" value="viewer" style="width:16px;height:16px;accent-color:var(--g600)">  Visualizador
             </label>
             <button class="btn btn-primary btn-sm" onclick="saveMonteiroPaymentPerm()" style="margin-left:auto">💾 Salvar</button>
           </div>
@@ -4020,13 +4129,13 @@ body.paladar-active #notif-restore{display:none!important}
           </div>
           <div id="monteiro-calendar-perm" style="display:flex;gap:12px;flex-wrap:wrap;padding:8px 0">
             <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
-              <input type="checkbox" class="mcal-cb" value="admin" checked disabled style="width:16px;height:16px;accent-color:var(--g600)"> ⚙️ Admin
+              <input type="checkbox" class="mcal-cb" value="admin" checked disabled style="width:16px;height:16px;accent-color:var(--g600)"> ⚙ Admin
             </label>
             <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
-              <input type="checkbox" class="mcal-cb" value="editor" style="width:16px;height:16px;accent-color:var(--g600)"> ✏️ Editor
+              <input type="checkbox" class="mcal-cb" value="editor" style="width:16px;height:16px;accent-color:var(--g600)">  Editor
             </label>
             <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
-              <input type="checkbox" class="mcal-cb" value="viewer" style="width:16px;height:16px;accent-color:var(--g600)"> 👁️ Visualizador
+              <input type="checkbox" class="mcal-cb" value="viewer" style="width:16px;height:16px;accent-color:var(--g600)">  Visualizador
             </label>
             <button class="btn btn-primary btn-sm" onclick="saveMonteiroCalendarPerm()" style="margin-left:auto">💾 Salvar</button>
           </div>
@@ -4047,9 +4156,9 @@ body.paladar-active #notif-restore{display:none!important}
               <div class="fg"><label>Senha</label><input type="password" id="nu-pass" placeholder="••••••" autocomplete="new-password"></div>
               <div class="fg"><label>Perfil</label>
                 <select id="nu-role">
-                  <option value="editor">✏️ Editor</option>
-                  <option value="viewer">👁️ Visualizador</option>
-                  <option value="admin">⚙️ Admin</option>
+                  <option value="editor"> Editor</option>
+                  <option value="viewer"> Visualizador</option>
+                  <option value="admin">⚙ Admin</option>
                 </select>
               </div>
             </div>
@@ -4089,15 +4198,15 @@ body.paladar-active #notif-restore{display:none!important}
       <!-- Log de Auditoria -->
       <div class="card" style="border-top:3px solid var(--muted)">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-          <div style="font-size:14px;font-weight:700;color:var(--g800)">🔍 Log de Auditoria</div>
+          <div style="font-size:14px;font-weight:700;color:var(--g800)"> Log de Auditoria</div>
           <select id="audit-user-filter" class="filt" style="font-size:11px" onchange="applyAuditFilter()">
             <option value="">👥 Todos os usuários</option>
           </select>
           <select id="audit-action-filter" class="filt" style="font-size:11px" onchange="applyAuditFilter()">
             <option value="">📋 Todas as ações</option>
-            <option value="DELETE_SALE">🗑️ Exclusões</option>
+            <option value="DELETE_SALE">🗑 Exclusões</option>
             <option value="CREATE_SALE">➕ Criações</option>
-            <option value="EDIT_SALE">✏️ Edições</option>
+            <option value="EDIT_SALE"> Edições</option>
             <option value="PRICE_CHANGE">💲 Preços</option>
             <option value="CHANGE_PASSWORD">🔑 Senhas</option>
           </select>
@@ -4114,7 +4223,7 @@ body.paladar-active #notif-restore{display:none!important}
     <div id="cfg-importar" style="display:none">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px">
         <div>
-          <h2 style="font-size:18px;font-weight:800;color:var(--g800);margin:0">🗄️ Backup</h2>
+          <h2 style="font-size:18px;font-weight:800;color:var(--g800);margin:0">🗄 Backup</h2>
           <p style="font-size:12px;color:var(--muted);margin-top:4px">Salve, baixe, remova ou restaure o pacote <code>.zip</code> multi-banco do sistema.</p>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -4132,7 +4241,7 @@ body.paladar-active #notif-restore{display:none!important}
                 <div style="display:flex;align-items:center;gap:6px;color:var(--muted)"><div class="spin" style="width:14px;height:14px;border-width:2px"></div> Carregando...</div>
               </div>
               <div style="margin-top:10px;padding:8px;background:#FFF3E0;border-radius:7px;font-size:10px;color:var(--orange)">
-                ⏰ Backups novos são pacotes <code>.zip</code> multi-banco · automático todo dia às 03:00 · mantém os últimos 30 arquivos.
+                 Backups novos são pacotes <code>.zip</code> multi-banco · automático todo dia às 03:00 · mantém os últimos 30 arquivos.
               </div>
             </div>
 
@@ -4147,7 +4256,7 @@ body.paladar-active #notif-restore{display:none!important}
             </div>
 
             <div class="card">
-              <div class="card-title">↩️ Restaurar de arquivo</div>
+              <div class="card-title">↩ Restaurar de arquivo</div>
               <p class="card-desc">Restaure preferencialmente um pacote <code>.zip</code> multi-banco. Arquivos <code>.db</code> antigos continuam aceitos apenas por compatibilidade.</p>
               <input type="file" id="restore-file-input" accept=".zip,.db" style="display:none" onchange="restoreBackupFromFile(this)">
               <button class="btn btn-sm" onclick="document.getElementById('restore-file-input').click()" style="width:100%;justify-content:center;background:#FFF3E0;color:var(--orange);border:1px solid #FFCC80">
@@ -4159,7 +4268,7 @@ body.paladar-active #notif-restore{display:none!important}
           <div class="card" style="border:1.5px solid var(--g400)">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap">
               <div>
-                <div class="card-title" style="margin-bottom:2px">🗂️ Backups disponíveis</div>
+                <div class="card-title" style="margin-bottom:2px">🗂 Backups disponíveis</div>
                 <div style="font-size:11px;color:var(--muted)">Baixe para guardar fora do servidor ou remova arquivos antigos.</div>
               </div>
               <button class="btn btn-secondary btn-sm" onclick="loadBackups()">↺</button>
@@ -4187,13 +4296,13 @@ body.paladar-active #notif-restore{display:none!important}
       <button class="wa-sub-btn active" data-view="main" onclick="switchWaSubView('main')">📢 Disparos</button>
       <button class="wa-sub-btn" data-view="autoreply" onclick="switchWaSubView('autoreply')">🤖 Auto respostas</button>
       <button class="wa-sub-btn" data-view="templates" onclick="switchWaSubView('templates')">📦 Modelos</button>
-      <button class="wa-sub-btn" data-view="bot" onclick="switchWaSubView('bot')">⚙️ Bot</button>
+      <button class="wa-sub-btn" data-view="bot" onclick="switchWaSubView('bot')">⚙ Bot</button>
     </div>
 
     <div id="wa-view-main">
     <!-- API -->
     <div class="wa-card">
-      <div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:12px">⚙️ Configuração da API</div>
+      <div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:12px">⚙ Configuração da API</div>
       <div class="wa-provider-grid">
         <div style="grid-column:span 2">
           <label>Provedor</label>
@@ -4229,7 +4338,7 @@ body.paladar-active #notif-restore{display:none!important}
       <div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:10px">⚡ Quando notificar</div>
       <div class="wa-toggle-grid">
         <div class="wa-toggle" id="wt-boleto" onclick="waToggle('boleto')">📄 Boleto vencido</div>
-        <div class="wa-toggle" id="wt-avaria" onclick="waToggle('avaria')">⚠️ Avaria alta</div>
+        <div class="wa-toggle" id="wt-avaria" onclick="waToggle('avaria')">⚠ Avaria alta</div>
         <div class="wa-toggle" id="wt-inativo" onclick="waToggle('inativo')">😴 Cliente inativo</div>
       </div>
       <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;align-items:flex-end">
@@ -4237,7 +4346,7 @@ body.paladar-active #notif-restore{display:none!important}
         <div><label style="font-size:11px;font-weight:600;color:var(--muted);display:block;margin-bottom:3px">Inatividade (dias)</label><input id="wa-inativo-dias" type="number" min="1" placeholder="30" style="width:110px;padding:6px 10px;border:1px solid var(--border);border-radius:7px;font-size:12px;background:var(--card);color:var(--ink)"></div>
         <div><label style="font-size:11px;font-weight:600;color:var(--muted);display:block;margin-bottom:3px">Verificar a cada</label><select id="wa-auto-period" style="width:110px;padding:6px 10px;border:1px solid var(--border);border-radius:7px;font-size:12px;background:var(--card);color:var(--ink)"><option value="7">7 dias</option><option value="15">15 dias</option><option value="30">30 dias</option></select></div>
         <button class="btn btn-secondary" onclick="saveWaToggles()">💾 Salvar gatilhos</button>
-        <button class="btn btn-primary btn-sm" onclick="waCheckTriggers()" style="margin-left:auto">🔍 Verificar gatilhos</button>
+        <button class="btn btn-primary btn-sm" onclick="waCheckTriggers()" style="margin-left:auto"> Verificar gatilhos</button>
       </div>
     </div>
     
@@ -4271,7 +4380,7 @@ body.paladar-active #notif-restore{display:none!important}
       <div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:10px">📤 Envio manual</div>
       <textarea id="wa-manual-msg" rows="3" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:'DM Sans',sans-serif;background:var(--card);color:var(--ink);resize:vertical;box-sizing:border-box" placeholder="Mensagem para todos os contatos ativos..."></textarea>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
-        <button class="btn btn-secondary btn-sm" onclick="waPreviewMsg()">👁️ Prévia</button>
+        <button class="btn btn-secondary btn-sm" onclick="waPreviewMsg()"> Prévia</button>
         <button class="btn btn-primary btn-sm" onclick="waSendManual()">📲 Enviar para todos</button>
       </div>
     </div>
@@ -4290,7 +4399,7 @@ body.paladar-active #notif-restore{display:none!important}
     </div>
     </div><!-- /wa-view-main -->
 
-    <!-- ═══ Auto respostas ═══ -->
+    <!--  Auto respostas  -->
     <div id="wa-view-autoreply" style="display:none">
 
       <div class="wa-card">
@@ -4303,7 +4412,7 @@ body.paladar-active #notif-restore{display:none!important}
 
     </div><!-- /wa-view-autoreply -->
 
-    <!-- ═══ Modelos ═══ -->
+    <!--  Modelos  -->
     <div id="wa-view-templates" style="display:none">
 
       <div class="wa-card">
@@ -4316,11 +4425,11 @@ body.paladar-active #notif-restore{display:none!important}
 
     </div><!-- /wa-view-templates -->
 
-    <!-- ═══ Config do Bot ═══ -->
+    <!--  Config do Bot  -->
     <div id="wa-view-bot" style="display:none">
 
       <div class="wa-card">
-        <div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:14px">⚙️ Configurações do Bot</div>
+        <div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:14px">⚙ Configurações do Bot</div>
         <div id="wa-bot-settings-form"></div>
         <button class="btn btn-primary" onclick="saveWaBotSettings()" style="margin-top:12px">💾 Salvar configurações</button>
       </div>
@@ -4408,7 +4517,7 @@ body.paladar-active #notif-restore{display:none!important}
         </button>
         <button id="bol-btn-config" onclick="switchBolView('config')"
           style="padding:5px 14px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted)">
-          ⚙️ Configurar Clientes
+          ⚙ Configurar Clientes
         </button>
       </div>
       <div id="bol-lista-actions" style="display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;align-items:center">
@@ -4459,13 +4568,13 @@ body.paladar-active #notif-restore{display:none!important}
       <div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap">
         <div style="flex:1;min-width:280px">
           <div class="card" style="border:1.5px solid var(--g400)">
-            <div class="card-title" style="margin-bottom:4px">⚙️ Clientes com Boleto</div>
+            <div class="card-title" style="margin-bottom:4px">⚙ Clientes com Boleto</div>
             <p style="font-size:12px;color:var(--muted);margin-bottom:14px">
               Selecione quais clientes aparecem na aba Boletos. Clientes não selecionados são ignorados.
             </p>
             <div style="display:flex;gap:8px;margin-bottom:12px">
               <button class="btn btn-secondary btn-sm" onclick="selectAllBolClients(true)">✅ Selecionar todos</button>
-              <button class="btn btn-secondary btn-sm" onclick="selectAllBolClients(false)">❌ Desmarcar todos</button>
+              <button class="btn btn-secondary btn-sm" onclick="selectAllBolClients(false)"> Desmarcar todos</button>
               <button class="btn btn-primary btn-sm" onclick="saveBolClientConfig()">💾 Salvar</button>
               <div class="search-box" style="flex:1"><input type="text" id="bol-client-search" placeholder="Filtrar..." oninput="filterBolClients()"></div>
             </div>
@@ -4520,13 +4629,70 @@ body.paladar-active #notif-restore{display:none!important}
   
 </main>
 
-<!-- MOBILE STICKY BAR -->
-<div class="mobile-bar">
-  <button class="mob-btn primary" onclick="openModal()">➕ Lançar</button>
-  <button class="mob-btn" onclick="switchTab(document.querySelector('.tab'),'nf')">🧾 NF-e</button>
-  <button class="mob-btn pal-btn" onclick="openPaladarApp()">🍽️ Monteiro</button>
-  <button class="mob-btn" onclick="document.getElementById('notif-bell').click()">🔔 <span id="mob-notif-count" style="display:none">0</span></button>
-  <button class="mob-btn" onclick="switchTab(document.querySelector('.tab'),'pendentes')">📋 Notas</button>
+<!-- MOBILE APP NAV -->
+<div class="mobile-bar" id="mobile-bottom-nav" role="navigation" aria-label="Navegação principal mobile">
+  <button type="button" class="mob-btn" data-mobile-tab="consolidado" onclick="mobileSwitchTab('consolidado')"><span class="mob-ico">📊</span><span>Resumo</span></button>
+  <button type="button" class="mob-btn" data-mobile-tab="produtividade" onclick="mobileSwitchTab('produtividade')"><span class="mob-ico"></span><span>Produção</span></button>
+  <button type="button" class="mob-btn" data-mobile-tab="nf" onclick="mobileSwitchTab('nf')"><span class="mob-ico">🧾</span><span>Vendas</span></button>
+  <button type="button" class="mob-btn" data-mobile-tab="grafico" onclick="mobileSwitchTab('grafico')"><span class="mob-ico">📈</span><span>Gráficos</span></button>
+  <button type="button" class="mob-btn" onclick="openMobileMoreSheet()"><span class="mob-ico">☰</span><span>Mais</span></button>
+</div>
+<button type="button" class="mobile-fab" onclick="openModal()" aria-label="Lançar venda">+</button>
+
+<div class="mobile-sheet-overlay" id="mobile-more-overlay" onclick="closeMobileMoreSheet()"></div>
+<div class="mobile-bottom-sheet" id="mobile-more-sheet" role="dialog" aria-modal="true" aria-label="Mais abas">
+  <div class="mobile-sheet-head">
+    <h3>Mais abas</h3>
+    <button type="button" class="mobile-sheet-close" onclick="closeMobileMoreSheet()" aria-label="Fechar">×</button>
+  </div>
+  <div class="mobile-more-grid">
+    <button type="button" data-more-tab="consolidado" onclick="mobileSwitchTab('consolidado')">📊 Consolidado</button>
+    <button type="button" data-more-tab="nf" onclick="mobileSwitchTab('nf')">🧾 NF-e</button>
+    <button type="button" data-more-tab="pr" onclick="mobileSwitchTab('pr')">🌱 Prod. Rural</button>
+    <button type="button" data-more-tab="avulso" onclick="mobileSwitchTab('avulso')">💵 Avulso</button>
+    <button type="button" data-more-tab="avaria" onclick="mobileSwitchTab('avaria')">⚠ Avarias</button>
+    <button type="button" data-more-tab="projecao" onclick="mobileSwitchTab('projecao')"> Projeção</button>
+    <button type="button" data-more-tab="grafico" onclick="mobileSwitchTab('grafico')">📈 Gráficos</button>
+    <button type="button" data-more-tab="produtividade" onclick="mobileSwitchTab('produtividade')">📊 Produção</button>
+    <button type="button" data-more-tab="clientes" onclick="mobileSwitchTab('clientes')">👥 Clientes</button>
+    <button type="button" data-more-tab="boletos" onclick="mobileSwitchTab('boletos')">💰 Boletos</button>
+    <button type="button" data-more-tab="pendentes" onclick="mobileSwitchTab('pendentes')">📋 Notas</button>
+    <button type="button" data-more-tab="produtos" onclick="mobileSwitchTab('produtos')">📦 Produtos</button>
+    <button type="button" data-more-tab="config" onclick="mobileSwitchTab('config')">⚙ Configurações</button>
+  </div>
+  <div class="mobile-screen-prefs">
+    <div class="mobile-screen-prefs-title">Preferencias da tela</div>
+    <button type="button" id="mobile-show-notifs-btn" onclick="restoreMobileBell()">Mostrar notificacoes <span>🔔</span></button>
+  </div>
+</div>
+
+<div class="mobile-sheet-overlay" id="mobile-period-overlay" onclick="closeMobilePeriodSheet()"></div>
+<div class="mobile-bottom-sheet" id="mobile-period-sheet" role="dialog" aria-modal="true" aria-label="Escolher período">
+  <div class="mobile-sheet-head">
+    <h3>Período</h3>
+    <button type="button" class="mobile-sheet-close" onclick="closeMobilePeriodSheet()" aria-label="Fechar">×</button>
+  </div>
+  <div class="mobile-quick-grid">
+    <button type="button" data-mobile-quick="month" onclick="mobileApplyQuickPeriod('month')">Este mês</button>
+    <button type="button" data-mobile-quick="prev-month" onclick="mobileApplyQuickPeriod('prev-month')">Mês passado</button>
+    <button type="button" data-mobile-quick="year" onclick="mobileApplyQuickPeriod('year')">Este ano</button>
+    <button type="button" data-mobile-quick="7d" onclick="mobileApplyQuickPeriod('7d')">7 dias</button>
+  </div>
+  <div class="mobile-year-row">
+    <button type="button" onclick="mobileShiftYear(-1)" aria-label="Ano anterior">‹</button>
+    <strong id="mobile-period-year">2026</strong>
+    <button type="button" onclick="mobileShiftYear(1)" aria-label="Próximo ano">›</button>
+  </div>
+  <div class="mobile-month-grid" id="mobile-month-grid"></div>
+</div>
+
+<div class="mobile-sheet-overlay" id="mobile-detail-overlay" onclick="closeMobileDetailSheet()"></div>
+<div class="mobile-bottom-sheet" id="mobile-detail-sheet" role="dialog" aria-modal="true" aria-label="Detalhes">
+  <div class="mobile-sheet-head">
+    <h3 id="mobile-detail-title">Detalhes</h3>
+    <button type="button" class="mobile-sheet-close" onclick="closeMobileDetailSheet()" aria-label="Fechar">×</button>
+  </div>
+  <div id="mobile-detail-body"></div>
 </div>
 
 </div><!-- end #app -->
@@ -4552,14 +4718,15 @@ body.paladar-active #notif-restore{display:none!important}
 </div>
 
 <script>
-const APP_VERSION = '1.0.137';
+const APP_VERSION = '1.0.149';
 
 (function hardenInnerHTML(){
   const desc = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
   const blockedTags = new Set(['SCRIPT','IFRAME','OBJECT','EMBED','LINK','META','BASE']);
   const urlAttrs = new Set(['href','src','xlink:href','formaction','poster']);
   const safeInlineNames = [
-    'filterDonut','loadConsolidado','editLabel','openClientReportModal','exportClientPDF',
+    'filterDonut','loadConsolidado','editLabel','editPrice','updatePrice','deleteProduct','addProduct',
+    'openClientReportModal','exportClientPDF',
     'previewClientMonthlyReport','generateClientMonthlyPDF',
     'openClientModal','deleteClient','openClientOpportunity','filterBoletosPagos',
     'toggleMonthGroup','revertBoletoPayment','setBolClientEnabled','doMerge','ignoreDup',
@@ -4652,14 +4819,14 @@ const IDLE_TIMEOUT_MS = 20 * 60 * 1000;
 let _idleTimer = null;
 let idleWarnTimer = null;
 let _idleBound = false;
-let allSales=[],allPrices=[],allPricesCompany='',chartInstances={},pdashChart=null,currentFile=null,donutActiveFilter=null;
+let allSales=[],allPrices=[],allPricesCompany='',allDrivers=[],chartInstances={},pdashChart=null,currentFile=null,donutActiveFilter=null;
 let PAGE_SIZE=100; let currentPage=1;
 let _typePageSize=100; let _typePage={};
 const MONTHS=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const MS=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const TC={NF:'#1B5E20',PR:'#66BB6A',AVULSO:'#6A1B9A',AVARIA:'#B71C1C'};
 const TL={NF:'NF-e',PR:'Prod. Rural',AVULSO:'Avulso',AVARIA:'Avaria'};
-const TI={NF:'🧾',PR:'🌱',AVULSO:'💵',AVARIA:'⚠️'};
+const TI={NF:'🧾',PR:'🌱',AVULSO:'💵',AVARIA:'⚠'};
 function typeColor(type){
   if(activeCompany==='estrada'){
     const estrada={NF:'#4F46E5',PR:'#A5B4FC',AVULSO:'#7C3AED',AVARIA:'#B71C1C'};
@@ -4704,7 +4871,7 @@ function apiHeaders(extra){
 
 function fixMojibakeText(value){
   var s=String(value==null?'':value);
-  if(!/(Ã[\u0080-\u00BF]|Â[\u0080-\u00BF]|â[€œš€¦€¢”–]|ðŸ)/.test(s))return s;
+  if(!/(Ã[\u0080-\u00BF]|Â[\u0080-\u00BF]|â[€œš€¦€¢–]|ðŸ)/.test(s))return s;
   if(/Ã[\u0080-\u00BF]/.test(s)){
     try{
       s=s.replace(/(?:Ã[\u0080-\u00BF])+/g,function(chunk){
@@ -4714,9 +4881,9 @@ function fixMojibakeText(value){
     }catch(e){}
   }
   [
-    [/ðŸ˜´/g,'😴'], [/ðŸ“„/g,'📄'], [/ðŸ”´/g,'🔴'], [/ðŸŸ /g,'🟠'],
-    [/âš ï¸/g,'⚠️'], [/âœ…/g,'✅'], [/âŒ/g,'❌'], [/â€¢/g,'•'],
-    [/â€”/g,' - '], [/â€“/g,'-'], [/â€¦/g,'...'], [/Â·/g,' - '],
+    [/ðŸ˜´/g,'😴'], [/ðŸ“„/g,'📄'], [/ðŸ´/g,'🔴'], [/ðŸŸ /g,'🟠'],
+    [/âš ï¸/g,'⚠'], [/âœ…/g,'✅'], [/âŒ/g,''], [/â€¢/g,'•'],
+    [/â€/g,' - '], [/â€“/g,'-'], [/â€¦/g,'...'], [/Â·/g,' - '],
     [/Âº/g,'º'], [/Âª/g,'ª'], [/Â°/g,'°'], [/Â§/g,'§'], [/Â/g,'']
   ].forEach(function(pair){s=s.replace(pair[0],pair[1]);});
   return s;
@@ -4800,17 +4967,21 @@ function applyEstradaProductorRuralUI(){
 }
 
 function applyCompanyConfigUI(){
-  var isEstrada=activeCompany==='estrada';
-  ['precos','registro'].forEach(function(k){
+  var allowed=getCompanyConfigSubIds();
+  CONFIG_SUBTABS_DEF.forEach(function(t){
+    var k=t[0];
     var b=document.getElementById('cfg-btn-'+k);
-    if(b) b.style.display='flex';
+    var v=document.getElementById('cfg-'+k);
+    var show=allowed.indexOf(k)>=0;
+    if(b){
+      b.style.display=show?'flex':'none';
+      b.disabled=!show;
+      b.setAttribute('aria-hidden', show?'false':'true');
+    }
+    if(!show && v) v.style.display='none';
   });
-  ['importar','whatsapp','sebrae'].forEach(function(k){
-    var b=document.getElementById('cfg-btn-'+k);
-    if(b) b.style.display=isEstrada?'none':'flex';
-  });
-  if(isEstrada && ['whatsapp','sebrae'].indexOf(window._cfgActive)>=0){
-    window._cfgActive='precos';
+  if(allowed.indexOf(window._cfgActive)<0){
+    window._cfgActive=allowed.indexOf('precos')>=0?'precos':(allowed[0]||'');
   }
   if(session && typeof applyConfigSubPerms==='function'){
     applyConfigSubPerms(session.role);
@@ -4833,7 +5004,7 @@ function resetIdleTimer(){
 function showIdleWarning(){
   const el=document.getElementById('toast');
   if(!el) return;
-  el.textContent='⚠️ Sua sessão expira em 1 minuto por inatividade.';
+  el.textContent='⚠ Sua sessão expira em 1 minuto por inatividade.';
   el.className='show warning';
   clearTimeout(el._t);
   el._t=setTimeout(()=>{ el.className=''; },55000);
@@ -4858,7 +5029,7 @@ function toggleTheme(){
   const isDark=html.getAttribute('data-theme')==='dark';
   html.setAttribute('data-theme',isDark?'light':'dark');
   var icon=document.getElementById('theme-menu-icon'),label=document.getElementById('theme-menu-label');
-  if(isDark){icon.textContent='🌙';if(label)label.textContent='Tema Escuro';}else{icon.textContent='☀️';if(label)label.textContent='Tema Claro';}
+  if(isDark){icon.textContent='🌙';if(label)label.textContent='Tema Escuro';}else{icon.textContent='☀';if(label)label.textContent='Tema Claro';}
   localStorage.setItem('theme',isDark?'light':'dark');
   if(chartInstances.main) loadConsolidado();
 }
@@ -4866,7 +5037,7 @@ function initTheme(){
   const saved=localStorage.getItem('theme')||'light';
   document.documentElement.setAttribute('data-theme',saved);
   var icon=document.getElementById('theme-menu-icon'),label=document.getElementById('theme-menu-label');
-  if(saved==='dark'){icon.textContent='☀️';if(label)label.textContent='Tema Claro';}else{icon.textContent='🌙';if(label)label.textContent='Tema Escuro';}
+  if(saved==='dark'){icon.textContent='☀';if(label)label.textContent='Tema Claro';}else{icon.textContent='🌙';if(label)label.textContent='Tema Escuro';}
 }
 // ── SKINS (paletas de cor da marca) ──
 function applySkin(id){
@@ -4932,7 +5103,7 @@ function showApp(){
   if(muSess){
     if(session.expiresAt){
       var rem=Math.round((new Date(session.expiresAt)-new Date())/3600000);
-      muSess.textContent=rem>0?'⏱ Expira em '+rem+'h':'⏱ Sessão expirada';
+      muSess.textContent=rem>0?' Expira em '+rem+'h':' Sessão expirada';
     }else{muSess.textContent='';}
   }
   var ndName=document.getElementById('nd-name');
@@ -4999,7 +5170,7 @@ async function switchCompanyUI(target){
       if(m)name=m[1];
     }
     if(active && name) switchTab(active,name);
-    if(name==='config' && activeCompany==='estrada') switchConfigView('registro');
+    if(name==='config' && activeCompany==='estrada') switchConfigView('precos');
     toast('Empresa ativa: '+(COMPANY_META[activeCompany]||COMPANY_META.raios).title);
   }catch(e){
     toast(e.message,'error');
@@ -5141,7 +5312,7 @@ async function loadAll(){
     filterTable();
     await loadPricesForForm();
     await refreshAppNotesNotifications();
-  }catch(e){document.getElementById('table-area').innerHTML=`<div class="empty">❌ ${e.message}</div>`;}
+  }catch(e){document.getElementById('table-area').innerHTML=`<div class="empty"> ${e.message}</div>`;}
 }
 
 function calcVariation(sales, type){
@@ -5215,7 +5386,10 @@ async function updateSummary(){
 // Ensure gráfico re-renders if visible
 function populateFilters(){
   const prods=[...new Set(allSales.map(s=>prodCanonicalName(s.product,s.sale_type)).filter(Boolean))].sort();
-  const drvs=[...new Set(allSales.map(s=>s.delivery_person).filter(Boolean))].sort();
+  const drvs=[...new Set([]
+    .concat((allDrivers||[]).map(function(d){return typeof d==='string'?d:(d.delivery_person||d.name||'');}))
+    .concat(allSales.map(s=>s.delivery_person))
+    .filter(Boolean))].sort();
   const pSel=document.getElementById('filter-product');const curP=pSel.value;
   pSel.innerHTML='<option value="">Todos os produtos</option>';
   prods.forEach(p=>{const o=document.createElement('option');o.value=p;o.textContent=p;if(p===curP)o.selected=true;pSel.appendChild(o);});
@@ -5245,6 +5419,22 @@ async function loadPricesForForm(force){
     allPricesCompany='';
     renderProductSelectFromPrices();
     return allPrices;
+  }
+}
+async function loadDriversForForm(force){
+  if(!force && Array.isArray(allDrivers) && allDrivers.length){
+    refreshAllDropdowns();
+    return allDrivers;
+  }
+  try{
+    var drivers=await api('/api/drivers/list');
+    allDrivers=Array.isArray(drivers)?drivers:[];
+    refreshAllDropdowns();
+    return allDrivers;
+  }catch(e){
+    console.warn('drivers form:',e);
+    refreshAllDropdowns();
+    return allDrivers||[];
   }
 }
 function autoFillPrice(){
@@ -5847,7 +6037,7 @@ function renderTypePanel(type){
   const topP=Object.entries(byProd).sort((a,b)=>b[1]-a[1]).slice(0,5);
   c.innerHTML=`
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
-      ${type==='AVARIA'?`<div style="display:flex;gap:2px;background:var(--g50);border-radius:10px;padding:3px"><button type="button" id="av-btn-lista" data-avaria-action="view" data-view="lista" style="padding:5px 14px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:var(--red);color:#fff">⚠️ Avarias</button><button type="button" id="av-btn-clientes" data-avaria-action="view" data-view="clientes" style="padding:5px 14px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted)">👥 Por Cliente</button></div>`:(`<h2 style="font-size:15px;font-weight:700;color:var(--g800)">${TI[type]} ${TL[type]}</h2>`)}
+      ${type==='AVARIA'?`<div style="display:flex;gap:2px;background:var(--g50);border-radius:10px;padding:3px"><button type="button" id="av-btn-lista" data-avaria-action="view" data-view="lista" style="padding:5px 14px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:var(--red);color:#fff">⚠ Avarias</button><button type="button" id="av-btn-clientes" data-avaria-action="view" data-view="clientes" style="padding:5px 14px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted)">👥 Por Cliente</button></div>`:(`<h2 style="font-size:15px;font-weight:700;color:var(--g800)">${TI[type]} ${TL[type]}</h2>`)}
       <select class="filt" id="${mfId}" data-type-filter="${type}" style="margin-left:auto">
         <option value="">Todos os meses</option>
         ${MONTHS.map((m,i)=>`<option value="${String(i+1).padStart(2,'0')}" ${curM===String(i+1).padStart(2,'0')?'selected':''}>${m}</option>`).join('')}
@@ -5909,7 +6099,7 @@ function renderTypePanel(type){
   },50);
 }
 
-// ── GRÁFICO ANUAL ──────────────────────────────────────────────────────────────
+// ── GRFICO ANUAL ──────────────────────────────────────────────────────────────
 let chartDonut=null,chartProd=null;
 async function loadConsolidado(){
   const year=document.getElementById('year-select')?.value||new Date().getFullYear();
@@ -5969,7 +6159,7 @@ async function loadConsolidado(){
               if(ctx.dataset.label==='Meta')return `Meta: ${fmt(ctx.raw)}`;
               const v=Number(ctx.raw);if(!v)return null;
               const isAvaria=ctx.dataset.label==='Avaria';
-              return `${isAvaria?'⚠️ ':''}${ctx.dataset.label}: ${isAvaria?'-':''}${fmt(Math.abs(v))}`;
+              return `${isAvaria?'⚠ ':''}${ctx.dataset.label}: ${isAvaria?'-':''}${fmt(Math.abs(v))}`;
             },
             footer:items=>{
               let r=0,a=0;
@@ -6020,7 +6210,7 @@ async function loadConsolidado(){
             const type=dTypes[ctx.dataIndex];
             const pctBase=type==='AVARIA'?receitaBruta:donutBase;
             const pct=pctBase>0?(ctx.raw/pctBase*100):0;
-            return `${type==='AVARIA'?'⚠️ ':''}${ctx.label}: ${type==='AVARIA'?'-':''}${fmt(ctx.raw)} (${pct.toFixed(1)}%)`;
+            return `${type==='AVARIA'?'⚠ ':''}${ctx.label}: ${type==='AVARIA'?'-':''}${fmt(ctx.raw)} (${pct.toFixed(1)}%)`;
           }}}}}});
     // Legend: receitas + avaria destacada em vermelho
     document.getElementById('donut-legend').innerHTML=
@@ -6394,7 +6584,7 @@ function handleDrop(e){e.preventDefault();document.getElementById('drop-zone').c
 function fileSelected(f){if(!f)return;currentFile=f;document.getElementById('drop-label').textContent='📄 '+f.name;document.getElementById('btn-import').disabled=false;}
 async function doImport(){
   if(!currentFile)return;
-  const btn=document.getElementById('btn-import');btn.disabled=true;btn.textContent='⏳ Importando...';
+  const btn=document.getElementById('btn-import');btn.disabled=true;btn.textContent=' Importando...';
   const fd=new FormData();fd.append('file',currentFile);
   try{
     const r=await api('/api/import-excel',{method:'POST',body:fd});
@@ -6412,7 +6602,7 @@ async function clearImports(){
   const imported = allSales.filter(s=>s.source==='excel').length;
   const manual = allSales.filter(s=>s.source!=='excel').length;
   if(!confirm(
-    `⚠️ Confirmar remoção dos registros importados:\n\n` +
+    `⚠ Confirmar remoção dos registros importados:\n\n` +
     `• ${imported} registros do Excel serão REMOVIDOS\n` +
     `• ${manual} registros manuais serão mantidos\n\n` +
     `Deseja continuar?`
@@ -6527,7 +6717,16 @@ document.addEventListener('click',e=>{if(!e.target.closest('.user-chip')){const 
 async function loadPrices(){
   // Load each separately so one failure doesn't block others
   try{const prices=await api('/api/prices');allPrices=Array.isArray(prices)?prices:[];allPricesCompany=activeCompany;renderPricesList(allPrices);renderProductSelectFromPrices();}catch(e){console.warn('prices:',e);}
-  try{const drivers=await api('/api/drivers/list');renderDriversList(drivers);}catch(e){console.warn('drivers:',e);}
+  try{
+    const drivers=await api('/api/drivers/list');
+    allDrivers=Array.isArray(drivers)?drivers:[];
+    renderDriversList(allDrivers);
+  }catch(e){
+    console.warn('drivers:',e);
+    allDrivers=[];
+    const el=document.getElementById('drivers-list');
+    if(el)el.innerHTML='<div style="color:var(--red);font-size:12px">Erro ao carregar entregadores: '+(e.message||'tente atualizar')+'</div>';
+  }
   try{
     const vehicles=await api('/api/vehicles');
     renderVehiclesList(vehicles);
@@ -6554,6 +6753,15 @@ function canManagePrices(){
   var perms=(window._tabPermissions && session && window._tabPermissions[session.role]) || [];
   return perms.indexOf('cfg_precos')>=0;
 }
+function parsePriceValue(value){
+  var s=String(value==null?'':value).trim();
+  if(!s)return NaN;
+  s=s.replace(/\s/g,'').replace(/R\$/gi,'');
+  if(s.indexOf(',')>=0){
+    s=s.replace(/\./g,'').replace(',','.');
+  }
+  return Number(s);
+}
 const DK=['MAC_UNIT','MAC_PCT','MAC_VACUO','MAC_CHIPS','MASSA_MAC','ALHO_250G','ALHO_KG','PASTA_ALHO','PRE_COZIDA','ABOBORA','ABOBORA_JAC'];
 function renderPricesList(prices){
   const el=document.getElementById('prices-list');if(!el)return;
@@ -6570,8 +6778,8 @@ function renderPricesList(prices){
       </div>
       <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
         <span style="font-size:10px;color:var(--muted)">R$</span>
-        <input type="number" step="0.01" min="0" class="price-input" value="${Number(p.price).toFixed(2)}" onchange="updatePrice('${p.key}',this.value,this)">
-        ${canManage?`<button onclick="editPrice('${p.key}','${p.label}',${p.price})" class="del-btn" style="background:#FEF3C7;color:#92400E" title="Editar preço">✏️</button>`:''}
+        <input type="text" inputmode="decimal" class="price-input" ${canManage?'':'disabled'} value="${Number(p.price).toFixed(2).replace('.',',')}" onchange="updatePrice('${p.key}',this.value,this)">
+        ${canManage?`<button type="button" onclick="editPrice('${p.key}','${String(p.label||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'")}',${Number(p.price)||0})" class="del-btn price-edit-btn" style="background:#FEF3C7;color:#92400E;min-width:54px;padding:5px 8px;font-weight:700" title="Editar preço">Editar</button>`:''}
         ${canManage?`<button onclick="deleteProduct('${p.key}','${(p.label||'').replace(/'/g,"\\"+"'")}',${DK.includes(p.key)?1:0})" class="del-btn" title="Remover produto">✕</button>`:'<div style="width:18px"></div>'}
       </div>
     </div>`).join('');
@@ -6587,16 +6795,19 @@ function editLabel(key,el){
   input.onblur=save;input.onkeydown=e=>{if(e.key==='Enter')save();if(e.key==='Escape')loadPrices();};
 }
 async function updatePrice(key,val,input){
-  try{await api('/api/prices',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,price:parseFloat(val)})});
-    toast('✅ Salvo');input.style.background='#E8F5E9';setTimeout(()=>input.style.background='',1200);}
+  const price=parsePriceValue(val);
+  if(!Number.isFinite(price)||price<0){toast('Preço inválido.','error');loadPrices();return;}
+  try{await api('/api/prices',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,price:price})});
+    if(input)input.value=price.toFixed(2).replace('.',',');
+    toast('✅ Salvo');if(input){input.style.background='#E8F5E9';setTimeout(()=>input.style.background='',1200);}}
   catch(e){toast(e.message,'error');}
 }
 function toggleVF(){const show=document.getElementById('np-variable').value==='1';document.getElementById('np-vf').style.display=show?'flex':'none';}
 async function addProduct(){
   const key=document.getElementById('np-key').value.trim().toUpperCase().replace(/\s+/g,'_');
-  const label=document.getElementById('np-label').value.trim();const price=parseFloat(document.getElementById('np-price').value)||0;
+  const label=document.getElementById('np-label').value.trim();const price=parsePriceValue(document.getElementById('np-price').value)||0;
   const isVar=document.getElementById('np-variable').value==='1';const range=document.getElementById('np-range').value.split('-');
-  const pmin=range[0]?parseFloat(range[0]):null;const pmax=range[1]?parseFloat(range[1]):null;
+  const pmin=range[0]?parsePriceValue(range[0]):null;const pmax=range[1]?parsePriceValue(range[1]):null;
   if(!key||!label){toast('Preencha chave e nome.','error');return;}
   try{await api('/api/prices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,label,price,is_variable:isVar,price_min:pmin,price_max:pmax})});
     toast('✅ Produto adicionado!');['np-key','np-label','np-price','np-range'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});loadPrices();}
@@ -6628,7 +6839,7 @@ function renderDriversList(drivers){
     label.style.cssText='flex:1;font-size:13px;font-weight:500';
     label.innerHTML='👤 <b>'+name+'</b><span style="font-size:10px;color:var(--muted)">'+info+'</span>';
     const editBtn=document.createElement('button');
-    editBtn.className='del-btn';editBtn.title='Renomear';editBtn.textContent='✏️';
+    editBtn.className='del-btn';editBtn.title='Renomear';editBtn.textContent='';
     editBtn.style.cssText='background:#FEF3C7;color:#92400E';
     editBtn.onclick=function(){editDriver(name);};
     const delBtn=document.createElement('button');
@@ -6642,9 +6853,17 @@ function renderDriversList(drivers){
 async function addDriver(){
   const name=document.getElementById('new-driver').value.trim();if(!name){toast('Digite o nome.','error');return;}
   const c=name.charAt(0).toUpperCase()+name.slice(1).toLowerCase();
-  const mSel=document.getElementById('driver-select-modal');
-  if(mSel&&![...mSel.options].some(o=>o.value===c)){const o=document.createElement('option');o.value=c;o.textContent=c;mSel.appendChild(o);}
-  document.getElementById('new-driver').value='';toast('✅ '+c+' adicionado.');
+  try{
+    await api('/api/drivers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:c})});
+    document.getElementById('new-driver').value='';
+    toast('Entregador adicionado.');
+    await loadPrices();
+    refreshAllDropdowns();
+    return;
+  }catch(e){
+    toast(e.message||'Erro ao adicionar entregador.','error');
+    return;
+  }
 }
 
 // ── CALCULADORA AVARIA ─────────────────────────────────────────────────────────
@@ -6685,7 +6904,7 @@ async function loadUsers(){
         <td style="padding:6px 7px"><div style="font-weight:600">${u.username}</div><div style="font-size:10px;color:var(--muted)">${u.full_name||''}</div></td>
         <td style="padding:6px 7px"><span class="role-badge role-${u.role}">${u.role}</span></td>
         <td style="padding:6px 7px;text-align:center"><input type="checkbox" ${u.active?'checked':''} onchange="toggleUser('${u.id}',this.checked)" ${u.username==='admin'?'disabled':''}></td>
-        <td style="padding:4px 5px;white-space:nowrap">${u.username!=='admin'?`<button class="del-btn" onclick="openEditUser('${u.id}')" title="Editar">✏️</button><button class="del-btn" onclick="deleteUser('${u.id}','${u.username}')">✕</button>`:''}</td>
+        <td style="padding:4px 5px;white-space:nowrap">${u.username!=='admin'?`<button class="del-btn" onclick="openEditUser('${u.id}')" title="Editar"></button><button class="del-btn" onclick="deleteUser('${u.id}','${u.username}')">✕</button>`:''}</td>
       </tr>`).join('')}</tbody></table>`;
   }catch(e){toast(e.message,'error');}
 }
@@ -6814,7 +7033,7 @@ function renderAuditRow(r){
             <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
               <div style="flex-shrink:0">
                 <div style="font-size:9px;color:var(--muted);margin-bottom:2px">${new Date(r.timestamp).toLocaleString('pt-BR')}</div>
-                <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;${ac}">${r.action==='DELETE_SALE'?'🗑️ Excluído':r.action==='CREATE_SALE'?'➕ Criado':'✏️ Editado'}</span>
+                <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;${ac}">${r.action==='DELETE_SALE'?'🗑 Excluído':r.action==='CREATE_SALE'?'➕ Criado':' Editado'}</span>
                 <div style="font-size:11px;font-weight:700;margin-top:4px">${r.username||'—'}</div>
               </div>
               <div style="flex:1;display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px 14px">
@@ -6896,7 +7115,7 @@ function applyAuditFilter(keepPage){
   const sumEl=document.getElementById('audit-user-summary');
   if(userF&&sumEl){
     const byAction={};rows.forEach(r=>{byAction[r.action]=(byAction[r.action]||0)+1;});
-    const icons={DELETE_SALE:'🗑️',CREATE_SALE:'➕',EDIT_SALE:'✏️',PRICE_CHANGE:'💲',CHANGE_PASSWORD:'🔑',RENAME_PRODUCT:'🏷️'};
+    const icons={DELETE_SALE:'🗑',CREATE_SALE:'➕',EDIT_SALE:'',PRICE_CHANGE:'💲',CHANGE_PASSWORD:'🔑',RENAME_PRODUCT:''};
     sumEl.style.display='block';
     sumEl.innerHTML=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <div style="font-size:12px;font-weight:700;color:var(--g800)">👤 ${userF}</div>
@@ -7034,7 +7253,7 @@ async function deleteBackup(filename){
 
 async function restoreBackup(filename){
   const msg=
-    '⚠️ ATENÇÃO — RESTAURAR BACKUP\n\n' +
+    '⚠ ATENÇÃO — RESTAURAR BACKUP\n\n' +
     'Isso vai SUBSTITUIR os bancos de dados atuais pelo conteúdo de:\n' +
     '   ' + filename + '\n\n' +
     'Tudo que foi feito após esse backup será PERDIDO nos bancos restaurados\n' +
@@ -7061,7 +7280,7 @@ async function restoreBackupFromFile(input){
     toast('Selecione um arquivo .zip ou .db','error'); input.value=''; return;
   }
   const msg=
-    '⚠️ ATENÇÃO — RESTAURAR DE ARQUIVO\n\n' +
+    '⚠ ATENÇÃO — RESTAURAR DE ARQUIVO\n\n' +
     'Você está prestes a SUBSTITUIR os bancos de dados atuais pelo conteúdo de:\n' +
     '   ' + f.name + ' (' + (f.size/1024/1024).toFixed(2) + ' MB)\n\n' +
     'Os dados atuais dos bancos restaurados serão substituídos\n' +
@@ -7201,7 +7420,7 @@ async function editSale(saleId){
 
     // Change modal title and button text
     const title = document.querySelector('#modal-overlay .modal-title');
-    if(title) title.innerHTML = '✏️ Editar Venda';
+    if(title) title.innerHTML = ' Editar Venda';
     const saveBtn = document.querySelector('#modal-overlay button[onclick="submitSaleMulti()"]');
     if(saveBtn) saveBtn.textContent = '💾 Salvar alterações';
 
@@ -7211,7 +7430,7 @@ async function editSale(saleId){
       warnEl = document.createElement('div');
       warnEl.id = 'edit-mode-warning';
       warnEl.style.cssText = 'background:#FEF3C7;color:#92400E;border-left:3px solid #F59E0B;padding:8px 12px;border-radius:6px;font-size:11px;margin-bottom:10px';
-      warnEl.innerHTML = '✏️ <b>Modo edição</b> — alterando venda #'+saleId.slice(0,8)+'. Apenas o primeiro produto será mantido.';
+      warnEl.innerHTML = ' <b>Modo edição</b> — alterando venda #'+saleId.slice(0,8)+'. Apenas o primeiro produto será mantido.';
       const formGrid = document.querySelector('#sale-form .form-grid');
       if(formGrid) formGrid.parentNode.insertBefore(warnEl, formGrid);
     }
@@ -7297,7 +7516,7 @@ async function openModal(){
   document.getElementById('modal-overlay').classList.add('open');
   const d=document.getElementById('sf-date');if(d&&!d.value)d.value=new Date().toISOString().slice(0,10);
   const t=document.getElementById('sf-time');if(t&&!t.value)t.value=new Date().toTimeString().slice(0,5);
-  await loadPricesForForm(true);
+  await Promise.all([loadPricesForForm(true),loadDriversForForm(true)]);
   const saleLines=document.getElementById('sale-lines');
   if(saleLines)saleLines.innerHTML='';
   _saleLineCount=0;
@@ -7495,12 +7714,12 @@ async function generateClientMonthlyPDF(){
     d.monthly.forEach(function(m,i){rect(M,y,W-M*2,7,i%2?'#fff':stripe);tx(m.month.split('-').reverse().join('/'),M+2,y+5,7);tx(m.sale_days,M+52,y+5,7,'#172033',false,'right');tx(qty(m.quantity),M+105,y+5,7,'#172033',false,'right');tx(money(m.total),W-M-2,y+5,7,primary,true,'right');y+=7;});
     y+=7;tx('Produtos no periodo',M,y,10,primary,true);y+=5;d.products.slice(0,12).forEach(function(p,i){if(y>270){pdf.addPage();y=M;}rect(M,y,W-M*2,7,i%2?'#fff':stripe);tx((p.product||'Sem produto').slice(0,45),M+2,y+5,7);tx(qty(p.quantity),M+130,y+5,7,'#172033',false,'right');tx(money(p.total),W-M-2,y+5,7,primary,true,'right');y+=7;});
     y+=7;tx('Detalhamento cronologico',M,y,10,primary,true);y+=5;d.sales.forEach(function(s,i){if(y>272){pdf.addPage();y=M;}rect(M,y,W-M*2,7,i%2?'#fff':'#F7FAF7');tx(new Date(s.sale_date+'T00:00:00').toLocaleDateString('pt-BR'),M+2,y+5,6);tx((s.product||'').slice(0,34),M+30,y+5,6);tx(qty(s.quantity),M+145,y+5,6,'#172033',false,'right');tx(money(s.total),W-M-2,y+5,6,primary,true,'right');y+=7;});
-    const pages=pdf.internal.getNumberOfPages();for(let p=1;p<=pages;p++){pdf.setPage(p);tx(company.nome_fantasia,M,291,7,'#6B7280');tx('Pagina '+p+'/'+pages,W-M,291,7,'#6B7280',false,'right');}const safe=d.client.name.replace(/[^a-zA-Z0-9À-ÿ]+/g,'_');pdf.save('Vendas_'+safe+'_'+d.start_month+'_a_'+d.end_month+'.pdf');toast('Relatorio mensal gerado!');
+    const pages=pdf.internal.getNumberOfPages();for(let p=1;p<=pages;p++){pdf.setPage(p);tx(company.nome_fantasia,M,291,7,'#6B7280');tx('Pagina '+p+'/'+pages,W-M,291,7,'#6B7280',false,'right');}const safe=d.client.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'_');pdf.save('Vendas_'+safe+'_'+d.start_month+'_a_'+d.end_month+'.pdf');toast('Relatorio mensal gerado!');
   }catch(e){showClientReportMessage(e.message,'error');toast(e.message,'error');}finally{if(btn){btn.disabled=false;btn.textContent='PDF';}}
 }
 
 
-// ━━ MÓDULO CLIENTES ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  MÓDULO CLIENTES 
 let _clients = [], _selectedClient = null;
 
 function fmtCNPJstr(c){
@@ -7611,8 +7830,8 @@ function renderClientDetail(data,sales){
     +'<div style="font-size:11px;color:var(--muted)">'+(c.city||'')+(c.cnpj?' · CNPJ: '+fmtCNPJstr(c.cnpj):'')+'</div></div>'
     +'</div>'
     +'<div style="display:flex;gap:7px;flex-wrap:wrap">'
-    +'<button class="btn btn-secondary btn-sm" onclick="openClientModal(\''+c.id+'\')">✏️ Editar</button>'
-    +'<button class="btn btn-danger btn-sm" onclick="deleteClient(\''+c.id+'\')">🗑️</button>'
+    +'<button class="btn btn-secondary btn-sm" onclick="openClientModal(\''+c.id+'\')"> Editar</button>'
+    +'<button class="btn btn-danger btn-sm" onclick="deleteClient(\''+c.id+'\')">🗑</button>'
     +(c.phone?'<a href="https://wa.me/55'+c.phone.replace(/\D/g,'')+'" target="_blank" class="btn btn-sm" style="background:#25D366;color:#fff">💬 WhatsApp</a>':'')
     +'<button onclick="exportClientPDF(\''+c.id+'\')" class="btn btn-sm" style="background:#c0392b;color:#fff" title="Gerar relatorio mensal por intervalo">📄 Relatorio mensal</button>'
     +'</div></div>'
@@ -7620,7 +7839,7 @@ function renderClientDetail(data,sales){
     +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">'
     +'<div style="background:var(--g50);border-radius:var(--radius);padding:11px"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:3px">📞 Telefone</div><div style="font-size:13px;font-weight:600">'+(c.phone||'—')+'</div></div>'
     +'<div style="background:var(--g50);border-radius:var(--radius);padding:11px"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:3px">📧 E-mail</div><div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(c.email||'—')+'</div></div>'
-    +'<div style="background:var(--g50);border-radius:var(--radius);padding:11px"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:3px">📍 Endereço</div><div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(c.address||'—')+'</div></div>'
+    +'<div style="background:var(--g50);border-radius:var(--radius);padding:11px"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:3px"> Endereço</div><div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(c.address||'—')+'</div></div>'
     +'</div>'
     // KPIs
     +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">'
@@ -7632,7 +7851,7 @@ function renderClientDetail(data,sales){
     // Top Products + Monthly
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:11px">'
     +'<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px">'
-    +'<div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:10px">🏆 Produtos mais comprados</div>'
+    +'<div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:10px"> Produtos mais comprados</div>'
     +(byProd.length?byProd.map(function(p,i){
       const pct=s.total_value?((p.val/s.total_value)*100).toFixed(0):0;
       return '<div style="display:flex;align-items:center;gap:7px;margin-bottom:7px">'
@@ -7676,14 +7895,14 @@ function renderClientDetail(data,sales){
     }).join('')
     +'</tbody></table></div>'
     :'<div style="color:var(--muted);font-size:12px;padding:8px 0">Nenhuma compra encontrada.</div>')
-    +(c.notes?'<div style="margin-top:10px;padding:9px;background:var(--g50);border-radius:7px;border-left:3px solid var(--g400);font-size:12px;color:var(--muted)">📝 '+c.notes+'</div>':'')
+    +(c.notes?'<div style="margin-top:10px;padding:9px;background:var(--g50);border-radius:7px;border-left:3px solid var(--g400);font-size:12px;color:var(--muted)"> '+c.notes+'</div>':'')
     +'</div></div>';
 }
 
 function openClientModal(id){
   const c=id?_clients.find(function(cl){return cl.id===id;}):null;
   const el=function(eid){return document.getElementById(eid);};
-  if(el('client-modal-title'))el('client-modal-title').textContent=c?'✏️ Editar Cliente':'👥 Novo Cliente';
+  if(el('client-modal-title'))el('client-modal-title').textContent=c?' Editar Cliente':'👥 Novo Cliente';
   if(el('cm-id'))el('cm-id').value=c&&c.id||'';
   if(el('cm-name'))el('cm-name').value=c&&c.name||'';
   if(el('cm-cnpj'))el('cm-cnpj').value=c&&c.cnpj?fmtCNPJstr(c.cnpj):'';
@@ -7760,7 +7979,7 @@ async function quickRegisterClient(){
 async function editPrice(key, currentLabel, currentPrice){
   const novoPreco=prompt('Novo preço para "'+currentLabel+'" (atual: R$ '+Number(currentPrice).toFixed(2)+'):',Number(currentPrice).toFixed(2));
   if(novoPreco===null)return;
-  const p=parseFloat(novoPreco);
+  const p=parsePriceValue(novoPreco);
   if(isNaN(p)||p<0){toast('Preço inválido.','error');return;}
   try{
     await api('/api/prices',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key,price:p})});
@@ -7795,7 +8014,7 @@ async function editDriver(name){
   if(!novo||novo.trim()===name)return;
   try{
     await api('/api/drivers/rename',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_name:name,new_name:novo.trim()})});
-    toast('Entregador renomeado!');loadPrices();
+    toast('Entregador renomeado!');await loadPrices();refreshAllDropdowns();
   }catch(e){toast(e.message,'error');}
 }
 
@@ -7814,7 +8033,7 @@ async function deleteDriver(name){
 }
 
 
-// ━━ PRODUTIVIDADE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  PRODUTIVIDADE 
 let _chartProd = null;
 
 async function getMetaMensalValue(){
@@ -7935,7 +8154,7 @@ async function loadProdutividade(){
     +'<div style="font-size:9px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">📊 Média por dia</div>'
     +'<div style="font-size:16px;font-weight:700;font-family:monospace">'+fmt(avgDay)+'</div></div>'
     +'<div style="background:#FFEBEE;border:1px solid #FFCDD2;border-radius:var(--radius);padding:12px">'
-    +'<div style="font-size:9px;color:var(--red);text-transform:uppercase;margin-bottom:3px">⚠️ Avarias</div>'
+    +'<div style="font-size:9px;color:var(--red);text-transform:uppercase;margin-bottom:3px">⚠ Avarias</div>'
     +'<div style="font-size:16px;font-weight:700;color:var(--red);font-family:monospace">'+fmt(totalAv)+'</div></div>';
 
   await renderProdutividadeProjection({
@@ -8022,7 +8241,7 @@ function loadProdDayDetail(){
       +'<div style="background:var(--g800);color:#fff;border-radius:8px;padding:4px 12px;font-weight:700;font-size:13px">'+parseInt(d)+'/'+parseInt(m)+'</div>'
       +'<div style="font-size:12px;color:var(--muted)">'+data.count+' venda(s)</div>'
       +'<div style="margin-left:auto;font-size:14px;font-weight:700;font-family:monospace;color:var(--g800)">'+fmt(liq)+'</div>'
-      +(data.avaria?'<div style="font-size:11px;color:var(--red)">⚠️ Avaria: −'+fmt(data.avaria)+'</div>':'')
+      +(data.avaria?'<div style="font-size:11px;color:var(--red)">⚠ Avaria: −'+fmt(data.avaria)+'</div>':'')
       +'</div>'
       +'<div style="display:flex;gap:14px;flex-wrap:wrap">'
       +(data.byType.NF?'<span style="font-size:11px"><b>NF-e:</b> '+fmt(data.byType.NF)+'</span>':'')
@@ -8063,7 +8282,7 @@ function _updateProdBtns(){
 }
 
 
-// ━━ ANALYTICS DE CLIENTES ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  ANALYTICS DE CLIENTES 
 let _anData = null, _anSort = 'total_val', _anOpp = 'inactive';
 let _chartBar = null, _chartDonut = null;
 
@@ -8077,8 +8296,19 @@ function switchRegView(view){
     b.classList.toggle('active', b.getAttribute('data-reg')===view);
   });
 }
-function getAllowedConfigSubs(role){
+function getCompanyConfigSubIds(){
   var all=CONFIG_SUBTABS_DEF.map(function(t){return t[0];});
+  if(activeCompany==='estrada'){
+    return all.filter(function(id){return ['whatsapp','sebrae'].indexOf(id)<0;});
+  }
+  return all;
+}
+function getCompanyConfigSubDefs(){
+  var ids=getCompanyConfigSubIds();
+  return CONFIG_SUBTABS_DEF.filter(function(t){return ids.indexOf(t[0])>=0;});
+}
+function getAllowedConfigSubs(role){
+  var all=getCompanyConfigSubIds();
   if(role==='admin') return all;
   var perms=(window._tabPermissions&&window._tabPermissions[role])||[];
   return all.filter(function(id){return perms.indexOf('cfg_'+id)>=0;});
@@ -8113,9 +8343,10 @@ function applyConfigSubPerms(role){
   return allowed;
 }
 function switchConfigView(view){
-  if(activeCompany==='estrada' && ['whatsapp','sebrae'].indexOf(view)>=0) view='precos';
+  var companyAllowed=getCompanyConfigSubIds();
+  if(companyAllowed.indexOf(view)<0) view=companyAllowed.indexOf('precos')>=0?'precos':(companyAllowed[0]||'');
   applyCompanyConfigUI();
-  var allowed=session ? applyConfigSubPerms(session.role) : CONFIG_SUBTABS_DEF.map(function(t){return t[0];});
+  var allowed=session ? applyConfigSubPerms(session.role) : companyAllowed;
   if(session && session.role!=='admin'){
     if(!allowed.length){
       toast('Seu perfil nao tem sub-abas de Configuracoes liberadas.','error');
@@ -8220,7 +8451,7 @@ function renderAnCards(s, data){
     +'<div style="font-size:10px;color:var(--muted)">com compras registradas</div></div>'
 
     +'<button type="button" onclick="openClientOpportunity(\'inactive\')" title="Ver clientes inativos" style="text-align:left;width:100%;background:'+(s.inactive_count>0?'#FFF3E0':'var(--card)')+';border:1px solid '+(s.inactive_count>0?'#FFB74D':'var(--border)')+';border-radius:var(--radius);padding:13px;cursor:pointer;font-family:inherit;transition:transform .15s,box-shadow .15s">'
-    +'<div style="font-size:9px;color:'+(s.inactive_count>0?'#E65100':'var(--muted)')+';text-transform:uppercase;margin-bottom:3px">⏰ Inativos há +'+days+' dias</div>'
+    +'<div style="font-size:9px;color:'+(s.inactive_count>0?'#E65100':'var(--muted)')+';text-transform:uppercase;margin-bottom:3px"> Inativos há +'+days+' dias</div>'
     +'<div style="font-size:22px;font-weight:700;color:'+(s.inactive_count>0?'#E65100':'var(--g800)')+'">'+s.inactive_count+'</div>'
     +'<div style="font-size:10px;color:var(--muted)">clientes sem compra · clique para ver</div></button>'
 
@@ -8438,7 +8669,7 @@ function renderAnOpportunity(type){
 
 
 
-// ━━ PERMISSÕES DE ABAS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  PERMISSÕES DE ABAS 
 const ALL_TABS_DEF=[
   ['consolidado','Consolidado'],['nf','NF-e'],['pr','Prod. Rural'],
   ['avulso','Avulso'],['avaria','Avarias'],['projecao','Projeção'],
@@ -8449,7 +8680,7 @@ const ALL_TABS_DEF=[
 ];
 // Sub-abas dentro de Configurações — permissionáveis por perfil (chave cfg_<id>).
 const CONFIG_SUBTABS_DEF=[
-  ['precos','⚙️ Preços'],['registro','📋 Registro / Admin'],
+  ['precos','⚙ Preços'],['registro','📋 Registro / Admin'],
   ['importar','📂 Backup'],['whatsapp','📱 WhatsApp'],
   ['sebrae','📋 Verificar NF']
 ];
@@ -8484,6 +8715,9 @@ function migratePerms(p){
       var hasCfgSub=p[role].some(function(t){return CFG_KEYS.indexOf(t)>=0;});
       if(role==='admin' || (p[role].indexOf('config')>=0 && !hasCfgSub)){
         CFG_KEYS.forEach(function(c){ if(p[role].indexOf(c)<0) p[role].push(c); });
+      }
+      if(role==='editor' && (p[role].indexOf('config')>=0 || hasCfgSub) && p[role].indexOf('cfg_precos')<0){
+        p[role].push('cfg_precos');
       }
     }
   });
@@ -8548,13 +8782,13 @@ function renderPermsMatrix(perms,el){
   });
   t+='</tbody></table>';
   // Seção: sub-abas de Configurações (chaves cfg_<id>)
-  t+='<div style="margin-top:14px;font-size:11px;font-weight:700;color:var(--g800);padding:0 2px">⚙️ Sub-abas de Configurações</div>';
+  t+='<div style="margin-top:14px;font-size:11px;font-weight:700;color:var(--g800);padding:0 2px">⚙ Sub-abas de Configurações</div>';
   t+='<div style="font-size:10px;color:var(--muted);margin:2px 0 6px;padding:0 2px">Controle fino do que cada perfil vê dentro de Configurações (ex: liberar só "Verificar NF" para o Editor).</div>';
   t+='<table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr>';
   t+='<th style="padding:6px 9px;text-align:left;border-bottom:1px solid var(--border)">Sub-aba</th>';
   roles.forEach(function(r){t+='<th style="padding:6px 9px;text-align:center;border-bottom:1px solid var(--border)">'+rl[r]+'</th>';});
   t+='</tr></thead><tbody>';
-  CONFIG_SUBTABS_DEF.forEach(function(sub,i){
+  getCompanyConfigSubDefs().forEach(function(sub,i){
     var key='cfg_'+sub[0];
     t+='<tr style="background:'+(i%2===0?'var(--g50)':'var(--card)')+';border-bottom:1px solid var(--border)">';
     t+='<td style="padding:6px 9px;font-weight:600">'+sub[1]+'</td>';
@@ -8728,7 +8962,7 @@ function switchClientView(view){
 }
 
 
-// ━━ OPORTUNIDADES ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  OPORTUNIDADES 
 async function loadOportunidades(){
   const days = document.getElementById('opp-inactive-days')&&document.getElementById('opp-inactive-days').value||'30';
   const type  = document.getElementById('opp-type')&&document.getElementById('opp-type').value||'';
@@ -8825,7 +9059,7 @@ async function loadOportunidades(){
 }
 
 
-// ━━ AVARIA POR CLIENTE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  AVARIA POR CLIENTE 
 function switchAvariaView(view){
   const lista=document.getElementById('av-lista');
   const clientes=document.getElementById('av-clientes');
@@ -8869,7 +9103,7 @@ function initAvariaCalendar(){
     +'<div id="av-cal-footer" style="margin-top:12px;margin-bottom:20px"></div>'
     // Ranking section (filtered by month)
     +'<div style="border-top:2px solid var(--border);padding-top:16px;margin-top:8px">'
-    +'<div id="av-ranking-title" style="font-size:14px;font-weight:700;color:var(--g800);margin-bottom:12px">🏆 Ranking de Avarias por Cliente</div>'
+    +'<div id="av-ranking-title" style="font-size:14px;font-weight:700;color:var(--g800);margin-bottom:12px"> Ranking de Avarias por Cliente</div>'
     +'<div id="av-ranking-content"></div>'
     +'</div>';
 
@@ -9031,7 +9265,7 @@ function renderAvariaRanking(){
   var monthNum=parseInt(monthSel);
   var mNames=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
-  if(titleEl) titleEl.innerHTML='🏆 Ranking de Avarias — <span style="color:#B71C1C">'+mNames[monthNum-1]+' '+yearSel+'</span>';
+  if(titleEl) titleEl.innerHTML=' Ranking de Avarias — <span style="color:#B71C1C">'+mNames[monthNum-1]+' '+yearSel+'</span>';
 
   // Filtra vendas do mês selecionado
   function inMonth(s){
@@ -9067,7 +9301,7 @@ function renderAvariaRanking(){
     +'<div style="font-size:18px;font-weight:700">'+fmt(totalEntregasVal)+'</div>'
     +'<div style="font-size:10px;opacity:.7">'+entregas.length+' registros · '+diasEntrega+' dias</div></div>'
     +'<div style="background:#FFEBEE;border:1px solid #FFCDD2;border-radius:10px;padding:12px;text-align:center">'
-    +'<div style="font-size:9px;text-transform:uppercase;color:#B71C1C;margin-bottom:4px">⚠️ Avarias no mês</div>'
+    +'<div style="font-size:9px;text-transform:uppercase;color:#B71C1C;margin-bottom:4px">⚠ Avarias no mês</div>'
     +'<div style="font-size:18px;font-weight:700;color:#B71C1C">'+fmt(totalAvariasVal)+'</div>'
     +'<div style="font-size:10px;color:#B71C1C">'+avarias.length+' registros · '+diasAvaria+' dias</div></div>'
     +'<div style="background:#FFF3E0;border:1px solid #FFE0B2;border-radius:10px;padding:12px;text-align:center">'
@@ -9134,7 +9368,7 @@ function renderAvariaRanking(){
       +'<span style="color:var(--muted)">· '+r.entDays.size+' dias</span>'
       +'</div>'
       +'<div style="display:flex;align-items:center;gap:4px;padding:3px 8px;background:#FFEBEE;border-radius:6px">'
-      +'<span style="color:#B71C1C">⚠️ Avarias:</span>'
+      +'<span style="color:#B71C1C">⚠ Avarias:</span>'
       +'<b style="color:#B71C1C">'+r.avCount+' reg.</b>'
       +'<span style="color:#B71C1C">·</span>'
       +'<b style="color:#B71C1C">'+fmt(r.avTotal)+'</b>'
@@ -9215,7 +9449,7 @@ function toggleNFGroup(ek){
 }
 
 
-// ━━ BOLETOS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  BOLETOS 
 let _boletos = [];
 // Bulk selection (Set de IDs de boletos selecionados pra marcar como pagos em massa)
 const _bolBulkSelection = new Set();
@@ -9307,7 +9541,7 @@ function renderBoletosCards(s){
   const actN = (c,clr) => c===cur ? ';outline:2px solid '+clr+';outline-offset:-2px' : '';
   el.innerHTML =
     '<button type="button" data-bol-filter="" style="width:100%;text-align:left;border:none;background:var(--g800);color:#fff;border-radius:var(--radius);padding:13px;cursor:pointer;transition:.15s'+(cur===''?';outline:2px solid var(--g500);outline-offset:-2px':'')+'" title="Filtrar: todos pendentes">'
-    +'<div style="font-size:9px;opacity:.7;text-transform:uppercase;margin-bottom:3px">⏳ A Receber</div>'
+    +'<div style="font-size:9px;opacity:.7;text-transform:uppercase;margin-bottom:3px"> A Receber</div>'
     +'<div style="font-size:20px;font-weight:700;font-family:monospace">'+fmt(s.total_pendente||0)+'</div>'
     +'<div style="font-size:10px;opacity:.7;margin-top:2px">pendentes</div></button>'
 
@@ -9375,7 +9609,7 @@ function renderBoletosTable(bols){
       '<td style="padding:6px;text-align:center"><input type="date" min="2020-01-01" max="2100-12-31" value="'+(b.due_date||'')+'" data-bid="'+b.id+'" style="border:1px solid var(--border);border-radius:6px;padding:3px 6px;font-size:11px;background:var(--card);color:var(--ink);'+(isOverdue?'border-color:#B71C1C;color:#B71C1C':isDueToday?'border-color:#E65100;color:#E65100':'')+'"></td>'+
       '<td style="padding:6px;text-align:center">'+
         '<select data-bol-status="'+b.id+'" style="border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;background:'+(isPago?'#E8F5E9':'var(--card)')+';color:'+(isPago?'#1B5E20':'var(--ink)')+';font-weight:600;cursor:pointer">'+
-          '<option value="pendente"'+(b.status==='pendente'?' selected':'')+'>⏳ Pendente</option>'+
+          '<option value="pendente"'+(b.status==='pendente'?' selected':'')+'> Pendente</option>'+
           '<option value="pago"'+(b.status==='pago'?' selected':'')+'>✅ Pago</option>'+
         '</select>'+
       '</td>'+
@@ -9490,7 +9724,7 @@ async function confirmBulkPay(){
   const date = input.value;
   const ids = Array.from(_bolBulkSelection);
   if(!ids.length){ closeBulkPayModal(); return; }
-  if(btn){ btn.disabled = true; btn.textContent = '⏳ Processando...'; }
+  if(btn){ btn.disabled = true; btn.textContent = ' Processando...'; }
   let ok = 0, fail = 0;
   // Atualiza em paralelo (Promise.all com Promise.allSettled-like manual)
   await Promise.all(ids.map(async id => {
@@ -9507,7 +9741,7 @@ async function confirmBulkPay(){
   _bolBulkSelection.clear();
   if(btn){ btn.disabled = false; btn.textContent = '✅ Confirmar todos'; }
   if(fail === 0) toast('✅ '+ok+' boleto(s) marcado(s) como pago(s)');
-  else toast('⚠️ '+ok+' OK, '+fail+' falharam','error');
+  else toast('⚠ '+ok+' OK, '+fail+' falharam','error');
   // Refresh da lista — boletos pagos saem da view de pendentes automaticamente
   await loadBoletos();
 }
@@ -9767,7 +10001,7 @@ function renderBoletosPagos(groups){
 function toggleMonthGroup(id){
   const body = document.getElementById(id);
   const arr = document.getElementById(id+'-arr');
-  if(!body) return;
+  if(!body) return 0;
   const visible = body.style.display !== 'none';
   body.style.display = visible ? 'none' : 'block';
   if(arr) arr.style.transform = visible ? '' : 'rotate(90deg)';
@@ -9934,11 +10168,11 @@ async function initBolClientConfig(){
 }
 
 
-// ━━ MESCLAR CLIENTES ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  MESCLAR CLIENTES 
 async function loadDuplicates(){
   const el=document.getElementById('duplicates-list');if(!el){toast('Elemento não encontrado.','error');return;}
   const btn=document.getElementById('btn-check-dups');
-  if(btn){btn.disabled=true;btn.textContent='🔍 Verificando...';}
+  if(btn){btn.disabled=true;btn.textContent=' Verificando...';}
   el.innerHTML='<div style="padding:24px;text-align:center;color:var(--muted)"><div class="spin" style="width:22px;height:22px;border-width:2px;margin:0 auto 10px"></div>Verificando duplicatas...</div>';
   try{
     const dups=await api('/api/clients/duplicates');
@@ -9984,10 +10218,10 @@ async function loadDuplicates(){
     // Store duplicate data for merge
     window._dups=dups;
   }catch(e){
-    el.innerHTML='<div style="background:#FFEBEE;border:1px solid #FFCDD2;border-radius:10px;padding:16px;color:#B71C1C;font-size:13px">❌ Erro: '+e.message+'</div>';
+    el.innerHTML='<div style="background:#FFEBEE;border:1px solid #FFCDD2;border-radius:10px;padding:16px;color:#B71C1C;font-size:13px"> Erro: '+e.message+'</div>';
   }finally{
     const btn=document.getElementById('btn-check-dups');
-    if(btn){btn.disabled=false;btn.textContent='🔍 Verificar Duplicatas';}
+    if(btn){btn.disabled=false;btn.textContent=' Verificar Duplicatas';}
   }
 }
 
@@ -10097,7 +10331,7 @@ function loadVehiclesForModal(vehicles){
   });
   const manual = document.createElement('option');
   manual.value = 'manual';
-  manual.textContent = '✏️ Digitar placa manualmente';
+  manual.textContent = ' Digitar placa manualmente';
   sel.appendChild(manual);
 }
 
@@ -10227,7 +10461,7 @@ function renderNotaButtons(id, saleType){
     +'<button class="'+simCls+'" data-nota-action="sim" data-nota-id="'+id+'" '
     +'aria-label="Marcar nota como entregue" aria-pressed="'+(st==='sim')+'">✅ SIM</button>'
     +'<button class="'+naoCls+'" data-nota-action="nao" data-nota-id="'+id+'" '
-    +'aria-label="Marcar nota como NÃO entregue" aria-pressed="'+(st==='nao')+'">❌ NÃO</button>'
+    +'aria-label="Marcar nota como NÃO entregue" aria-pressed="'+(st==='nao')+'"> NÃO</button>'
     +'</div>';
   if(st==='sim' && info && info.deliveredAt){
     html += '<div style="font-size:9px;color:#1B5E20;margin-top:2px">Entregue em '+fmtDate(info.deliveredAt)+'</div>';
@@ -10545,7 +10779,7 @@ function renderDeliveredList(){
           +'<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding-top:6px;border-top:1px solid var(--border);margin-top:6px">'
             +'<div style="font-size:11px;color:#1B5E20;font-weight:600">Entregue em '+(dt?fmtDate(dt):'—')+'</div>'
             +'<div style="display:flex;gap:4px">'
-              +'<button class="del-btn" data-nota-open-delivery="'+s.id+'" title="Alterar data" style="background:#FEF3C7;color:#92400E">✏️</button>'
+              +'<button class="del-btn" data-nota-open-delivery="'+s.id+'" title="Alterar data" style="background:#FEF3C7;color:#92400E"></button>'
               +'<button class="del-btn" data-nota-unmark="'+s.id+'" title="Desmarcar entrega">↶</button>'
             +'</div>'
           +'</div>'
@@ -10581,7 +10815,7 @@ function renderNaoEntregueList(){
     +'</tr></thead><tbody>'
     + list.map(function(s){
         return '<tr>'
-          +'<td style="text-align:center"><span style="color:var(--red);font-size:14px">❌</span></td>'
+          +'<td style="text-align:center"><span style="color:var(--red);font-size:14px"></span></td>'
           +'<td>'+fmtDate(s.sale_date)+'</td>'
           +'<td><b>'+(s.client||'—')+'</b></td>'
           +'<td class="mono" style="font-size:10px">'+(s.nf_number?'<span class="nf-tag">'+s.nf_number+'</span>':'—')+'</td>'
@@ -10715,13 +10949,30 @@ function markDelivered(id){
 
 // ── Drawer ───────────────────────────────────────────────────────────────
 const NOTIF_HIDDEN_KEY='monteiro_notif_bell_hidden';
+const MOBILE_BELL_HIDDEN_KEY='mobileBellHidden';
 function isNotifBellHidden(){
+  if(isMobileView()){
+    try{return localStorage.getItem(MOBILE_BELL_HIDDEN_KEY)==='true';}catch(e){return false;}
+  }
   try{return localStorage.getItem(NOTIF_HIDDEN_KEY)==='1';}catch(e){return false;}
 }
 function applyNotifBellVisibility(){
-  document.body.classList.toggle('notif-hidden', isNotifBellHidden());
+  var hidden=isNotifBellHidden();
+  document.body.classList.toggle('notif-hidden', hidden);
+  document.body.classList.toggle('mobile-bell-hidden', isMobileView() && hidden);
+  if(isMobileView() && hidden) cleanupMobileNotificationSurfaces();
 }
 function setNotifBellHidden(hidden){
+  if(isMobileView()){
+    try{
+      if(hidden) localStorage.setItem(MOBILE_BELL_HIDDEN_KEY,'true');
+      else localStorage.removeItem(MOBILE_BELL_HIDDEN_KEY);
+    }catch(e){}
+    if(hidden) cleanupMobileNotificationSurfaces();
+    applyNotifBellVisibility();
+    updateNotifBadge();
+    return 0;
+  }
   try{localStorage.setItem(NOTIF_HIDDEN_KEY, hidden?'1':'0');}catch(e){}
   if(hidden){
     const drawer=document.getElementById('notif-drawer');
@@ -10733,17 +10984,74 @@ function setNotifBellHidden(hidden){
 function showNotifBell(){
   setNotifBellHidden(false);
 }
+function restoreMobileBell(){
+  try{localStorage.removeItem(MOBILE_BELL_HIDDEN_KEY);}catch(e){}
+  const drawer=document.getElementById('notif-drawer');
+  const overlay=document.getElementById('notif-drawer-overlay');
+  [drawer,overlay].forEach(function(el){
+    if(el){
+      el.hidden=false;
+      el.style.display='';
+    }
+  });
+  document.body.classList.remove('mobile-bell-hidden','notif-hidden');
+  applyNotifBellVisibility();
+  updateNotifBadge();
+  closeMobileMoreSheet();
+}
+function cleanupMobileNotificationSurfaces(){
+  if(!isMobileView()) return;
+  const classes=['show','open','active','visible','notification-banner-active'];
+  const drawer=document.getElementById('notif-drawer');
+  const overlay=document.getElementById('notif-drawer-overlay');
+  [drawer,overlay].forEach(function(el){
+    if(el){
+      classes.forEach(function(c){ el.classList.remove(c); });
+      el.hidden=true;
+      el.style.display='none';
+    }
+  });
+  classes.forEach(function(c){ document.body.classList.remove(c); });
+  document.body.style.overflow='';
+  ['notification-banner','pending-notes-bar','bell-hide-banner','mobile-notification-toast','notification-drawer'].forEach(function(name){
+    document.querySelectorAll('.'+name+',#'+name).forEach(function(el){ el.remove(); });
+  });
+  var toastEl=document.getElementById('toast');
+  if(toastEl){
+    toastEl.className='';
+    toastEl.textContent='';
+    toastEl.style.display='none';
+  }
+}
 function toggleNotificationDrawer(){
   const drawer = document.getElementById('notif-drawer');
   const overlay = document.getElementById('notif-drawer-overlay');
   if(!drawer || !overlay) return;
+  if(isMobileView() && isNotifBellHidden()){
+    cleanupMobileNotificationSurfaces();
+    return;
+  }
   const isOpen = drawer.classList.contains('open');
   if(isOpen){
     drawer.classList.remove('open');
     overlay.classList.remove('open');
+    if(isMobileView()){
+      drawer.hidden=true;
+      overlay.hidden=true;
+      drawer.style.display='none';
+      overlay.style.display='none';
+    }
     document.body.style.overflow='';
   } else {
-    renderDrawerList();
+    var totalNotifications=renderDrawerList();
+    if(isMobileView() && !totalNotifications){
+      cleanupMobileNotificationSurfaces();
+      return;
+    }
+    drawer.hidden=false;
+    overlay.hidden=false;
+    drawer.style.display='';
+    overlay.style.display='';
     drawer.classList.add('open');
     overlay.classList.add('open');
     document.body.style.overflow='hidden';
@@ -10775,10 +11083,277 @@ function closeNavAndSwitch(btn,name){
   if(tab) switchTab(tab,name); else switchTab(document.querySelector('.tab'),name);
 }
 
+const MOBILE_MONTHS_SHORT=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const MOBILE_MONTHS_LONG=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+let mobilePeriodState=(function(){
+  var ref=periodReferenceDate();
+  return {month:String(ref.getMonth()+1).padStart(2,'0'),year:ref.getFullYear(),mode:'month'};
+})();
+
+function isMobileView(){
+  return window.matchMedia&&window.matchMedia('(max-width: 768px)').matches;
+}
+function mobileFindTab(name){
+  return Array.from(document.querySelectorAll('.tabs-wrap .tab')).find(function(t){
+    return String(t.getAttribute('onclick')||'').indexOf("'"+name+"'")>=0;
+  })||document.querySelector('.tabs-wrap .tab');
+}
+function mobileActiveTabName(){
+  var panel=document.querySelector('.panel.active[id^="panel-"]');
+  return panel?panel.id.replace('panel-',''):'consolidado';
+}
+function updateMobileNavState(name){
+  document.querySelectorAll('[data-mobile-tab]').forEach(function(btn){
+    btn.classList.toggle('active',btn.getAttribute('data-mobile-tab')===name);
+  });
+  document.querySelectorAll('[data-more-tab]').forEach(function(btn){
+    btn.classList.toggle('active',btn.getAttribute('data-more-tab')===name);
+  });
+}
+function mobileSwitchTab(name){
+  var tab=mobileFindTab(name);
+  if(tab&&typeof switchTab==='function') switchTab(tab,name);
+  closeMobileMoreSheet();
+  updateMobileNavState(name);
+  setTimeout(function(){applyMobilePeriodToActive(false);renderMobileProductionSummary();},0);
+}
+function openMobileMoreSheet(){
+  document.getElementById('mobile-more-overlay')?.classList.add('open');
+  document.getElementById('mobile-more-sheet')?.classList.add('open');
+  updateMobileNavState(mobileActiveTabName());
+  document.body.style.overflow='hidden';
+}
+function closeMobileMoreSheet(){
+  document.getElementById('mobile-more-overlay')?.classList.remove('open');
+  document.getElementById('mobile-more-sheet')?.classList.remove('open');
+  if(!document.querySelector('.mobile-bottom-sheet.open')) document.body.style.overflow='';
+}
+function openMobilePeriodSheet(){
+  renderMobileMonthGrid();
+  document.getElementById('mobile-period-overlay')?.classList.add('open');
+  document.getElementById('mobile-period-sheet')?.classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeMobilePeriodSheet(){
+  document.getElementById('mobile-period-overlay')?.classList.remove('open');
+  document.getElementById('mobile-period-sheet')?.classList.remove('open');
+  if(!document.querySelector('.mobile-bottom-sheet.open')) document.body.style.overflow='';
+}
+function mobileMonthStartEnd(month,year){
+  var m=Number(month);
+  return {
+    start:localISODate(new Date(Number(year),m-1,1)),
+    end:localISODate(new Date(Number(year),m,0))
+  };
+}
+function mobileSetPeriodLabel(){
+  var label=document.getElementById('mobile-period-label');
+  var yearEl=document.getElementById('mobile-period-year');
+  if(yearEl) yearEl.textContent=mobilePeriodState.year;
+  if(!label)return;
+  if(mobilePeriodState.mode==='year') label.textContent=mobilePeriodState.year;
+  else if(mobilePeriodState.mode==='7d') label.textContent='Últimos 7 dias';
+  else label.textContent=MOBILE_MONTHS_LONG[Number(mobilePeriodState.month)-1]+' '+mobilePeriodState.year;
+}
+function renderMobileMonthGrid(){
+  var grid=document.getElementById('mobile-month-grid');
+  if(!grid)return;
+  grid.innerHTML=MOBILE_MONTHS_SHORT.map(function(name,idx){
+    var value=String(idx+1).padStart(2,'0');
+    var active=mobilePeriodState.mode!=='year'&&mobilePeriodState.month===value?' active':'';
+    return '<button type="button" class="'+active+'" onclick="mobileApplyMonth(\''+value+'\')">'+name+'</button>';
+  }).join('');
+  document.querySelectorAll('[data-mobile-quick]').forEach(function(btn){
+    btn.classList.toggle('active',btn.getAttribute('data-mobile-quick')===mobilePeriodState.mode);
+  });
+  mobileSetPeriodLabel();
+}
+function mobileApplyMonth(month){
+  mobilePeriodState.month=month;
+  mobilePeriodState.mode='month';
+  applyMobilePeriodToActive(true);
+  closeMobilePeriodSheet();
+}
+function mobileShiftMonth(delta){
+  var d=new Date(Number(mobilePeriodState.year),Number(mobilePeriodState.month)-1+delta,1);
+  mobilePeriodState.month=String(d.getMonth()+1).padStart(2,'0');
+  mobilePeriodState.year=d.getFullYear();
+  mobilePeriodState.mode='month';
+  applyMobilePeriodToActive(true);
+}
+function mobileShiftYear(delta){
+  mobilePeriodState.year=Number(mobilePeriodState.year)+delta;
+  renderMobileMonthGrid();
+}
+function mobileApplyQuickPeriod(mode){
+  var now=periodReferenceDate();
+  if(mode==='prev-month'){
+    var d=new Date(now.getFullYear(),now.getMonth()-1,1);
+    mobilePeriodState.month=String(d.getMonth()+1).padStart(2,'0');
+    mobilePeriodState.year=d.getFullYear();
+    mobilePeriodState.mode='month';
+  }else if(mode==='year'){
+    mobilePeriodState.year=now.getFullYear();
+    mobilePeriodState.mode='year';
+  }else if(mode==='7d'){
+    mobilePeriodState.month=String(now.getMonth()+1).padStart(2,'0');
+    mobilePeriodState.year=now.getFullYear();
+    mobilePeriodState.mode='7d';
+  }else{
+    mobilePeriodState.month=String(now.getMonth()+1).padStart(2,'0');
+    mobilePeriodState.year=now.getFullYear();
+    mobilePeriodState.mode='month';
+  }
+  applyMobilePeriodToActive(true);
+  closeMobilePeriodSheet();
+}
+function mobileFilteredSalesForPeriod(){
+  var start=_periodFilter&&_periodFilter.start;
+  var end=_periodFilter&&_periodFilter.end;
+  return (allSales||[]).filter(function(s){
+    if(!s||!s.sale_date)return false;
+    if(start&&s.sale_date<start)return false;
+    if(end&&s.sale_date>end)return false;
+    return true;
+  });
+}
+function updateMobileSummaryCards(){
+  if(!isMobileView())return;
+  var rows=mobileFilteredSalesForPeriod();
+  var by={NF:0,PR:0,AVULSO:0,AVARIA:0};
+  var cnt={NF:0,PR:0,AVULSO:0,AVARIA:0};
+  rows.forEach(function(s){
+    var type=String(s.sale_type||'').toUpperCase();
+    var val=Number(s.total||0);
+    if(by[type]===undefined)return;
+    by[type]+=val;
+    cnt[type]+=1;
+  });
+  var receita=by.NF+by.PR+by.AVULSO;
+  var records=cnt.NF+cnt.PR+cnt.AVULSO+cnt.AVARIA;
+  var salesCount=cnt.NF+cnt.PR+cnt.AVULSO;
+  var set=function(id,value){var el=document.getElementById(id);if(el)el.textContent=value;};
+  set('sum-total',fmt(receita-by.AVARIA));
+  set('sum-records',records+' registros');
+  set('sum-nf',fmt(by.NF));
+  set('sub-nf',cnt.NF+' notas');
+  set('sum-pr',fmt(by.PR));
+  set('sub-pr',cnt.PR+' registros');
+  set('sum-avulso',fmt(by.AVULSO));
+  set('sum-avaria',fmt(by.AVARIA));
+  set('sum-avaria-pct',receita>0?'▼ '+((by.AVARIA/receita)*100).toFixed(2)+'% do faturamento':'');
+  set('sum-ticket',fmt(salesCount>0?receita/salesCount:0));
+  var hrc=document.getElementById('header-records');
+  if(hrc)hrc.textContent=records+' registros';
+}
+function applyMobilePeriodToActive(refresh){
+  mobileSetPeriodLabel();
+  renderMobileMonthGrid();
+  var active=mobileActiveTabName();
+  var m=mobilePeriodState.month;
+  var y=mobilePeriodState.year;
+  var bounds=mobileMonthStartEnd(m,y);
+  if(mobilePeriodState.mode==='year'){
+    bounds.start=localISODate(new Date(Number(y),0,1));
+    bounds.end=localISODate(new Date(Number(y),11,31));
+  }else if(mobilePeriodState.mode==='7d'){
+    var ref=periodReferenceDate();
+    var start=new Date(ref.getFullYear(),ref.getMonth(),ref.getDate());
+    start.setDate(start.getDate()-6);
+    bounds.start=localISODate(start);
+    bounds.end=localISODate(ref);
+  }
+  _periodFilter={start:bounds.start,end:bounds.end};
+  var hiddenMonth=document.getElementById('filter-month');
+  if(hiddenMonth) hiddenMonth.value='';
+  var prodMonth=document.getElementById('prod-month');
+  var prodYear=document.getElementById('prod-year');
+  if(prodMonth) prodMonth.value=mobilePeriodState.mode==='year'?'':m;
+  if(prodYear) prodYear.value=String(y);
+  ['nf','pr','avulso','avaria'].forEach(function(type){
+    var mf=document.getElementById('mf-'+type);
+    if(mf) mf.value=mobilePeriodState.mode==='year'?'':m;
+  });
+  updateMobileSummaryCards();
+  if(!refresh)return;
+  if(active==='consolidado') filterTable();
+  else if(active==='produtividade'&&typeof loadProdutividade==='function') loadProdutividade();
+  else if(active==='grafico'&&typeof loadConsolidado==='function') loadConsolidado();
+  else if(['nf','pr','avulso','avaria'].indexOf(active)>=0&&typeof renderTypePanel==='function') renderTypePanel(active);
+  else if(active==='projecao'&&typeof loadProjecaoProducao==='function') loadProjecaoProducao();
+  renderMobileProductionSummary();
+}
+function mobileSalesInSelectedMonth(includeAvaria){
+  var m=mobilePeriodState.month, y=String(mobilePeriodState.year);
+  return (allSales||[]).filter(function(s){
+    if(!s.sale_date||s.sale_date.slice(0,4)!==y||s.sale_date.slice(5,7)!==m)return false;
+    if(!includeAvaria&&s.sale_type==='avaria')return false;
+    return true;
+  });
+}
+function renderMobileProductionSummary(){
+  if(!isMobileView())return;
+  var panel=document.getElementById('panel-produtividade');
+  if(!panel)return;
+  var box=document.getElementById('mobile-production-summary');
+  if(!box){
+    box=document.createElement('div');
+    box.id='mobile-production-summary';
+    panel.insertBefore(box,panel.firstChild);
+  }
+  var sales=mobileSalesInSelectedMonth(false);
+  var prevDate=new Date(Number(mobilePeriodState.year),Number(mobilePeriodState.month)-2,1);
+  var prevM=String(prevDate.getMonth()+1).padStart(2,'0'),prevY=String(prevDate.getFullYear());
+  var prevSales=(allSales||[]).filter(function(s){return s.sale_date&&s.sale_date.slice(0,4)===prevY&&s.sale_date.slice(5,7)===prevM&&s.sale_type!=='avaria';});
+  var byProd={},totalQty=0,prevQty=0;
+  sales.forEach(function(s){var p=prodCanonicalName(s.product,s.sale_type)||s.product||'Produto';var q=Number(s.quantity)||0;totalQty+=q;byProd[p]=(byProd[p]||0)+q;});
+  prevSales.forEach(function(s){prevQty+=Number(s.quantity)||0;});
+  var top=Object.entries(byProd).sort(function(a,b){return b[1]-a[1];})[0]||['Sem movimento',0];
+  var pct=prevQty?((totalQty-prevQty)/prevQty*100):0;
+  var pctCls=pct>=0?'color:#15803d':'color:#dc2626';
+  var cards=Object.entries(byProd).sort(function(a,b){return b[1]-a[1];}).slice(0,12).map(function(item){
+    return '<button type="button" class="mobile-prod-card" onclick="openMobileDetailSheet(\'Produto\', \'<b>'+admEsc(item[0])+'</b><p>Quantidade no mês: '+fmtN(item[1])+'</p>\')"><span><small>produto</small><b>'+admEsc(item[0])+'</b></span><span class="qty">'+fmtN(item[1])+'</span></button>';
+  }).join('');
+  box.innerHTML='<div class="mobile-prod-kpis">'
+    +'<div class="mobile-prod-kpi"><small>Total produzido</small><strong>'+fmtN(totalQty)+'</strong></div>'
+    +'<div class="mobile-prod-kpi"><small>Principal produto</small><strong>'+admEsc(top[0])+'</strong></div>'
+    +'<div class="mobile-prod-kpi"><small>Vs. mês anterior</small><strong style="'+pctCls+'">'+(prevQty?(pct>=0?'↑ ':'↓ ')+Math.abs(pct).toFixed(1).replace('.',',')+'%':'-')+'</strong></div>'
+    +'<div class="mobile-prod-kpi"><small>Produtos ativos</small><strong>'+Object.keys(byProd).length+'</strong></div>'
+    +'</div><div class="mobile-prod-list">'+(cards||'<div class="empty">Nenhuma produção encontrada neste período.</div>')+'</div>';
+}
+function openMobileDetailSheet(title,html){
+  var t=document.getElementById('mobile-detail-title');
+  var b=document.getElementById('mobile-detail-body');
+  if(t)t.textContent=title||'Detalhes';
+  if(b)b.innerHTML=html||'';
+  document.getElementById('mobile-detail-overlay')?.classList.add('open');
+  document.getElementById('mobile-detail-sheet')?.classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeMobileDetailSheet(){
+  document.getElementById('mobile-detail-overlay')?.classList.remove('open');
+  document.getElementById('mobile-detail-sheet')?.classList.remove('open');
+  if(!document.querySelector('.mobile-bottom-sheet.open')) document.body.style.overflow='';
+}
+document.addEventListener('click',function(ev){
+  if(!isMobileView())return;
+  var row=ev.target&&ev.target.closest?ev.target.closest('#table-area tbody tr'):null;
+  if(!row||ev.target.closest('button,a,input,select,textarea'))return;
+  var cells=Array.from(row.children).map(function(td){return td.textContent.trim();}).filter(Boolean);
+  if(!cells.length)return;
+  openMobileDetailSheet(cells[1]||'Detalhes','<div style="display:grid;gap:10px">'+cells.map(function(v,i){return '<div class="mobile-prod-card"><small>Campo '+(i+1)+'</small><b>'+admEsc(v)+'</b></div>';}).join('')+'</div>');
+});
+window.addEventListener('salesLoaded',function(){applyMobilePeriodToActive(false);updateMobileSummaryCards();renderMobileProductionSummary();});
+window.addEventListener('resize',function(){
+  if(typeof applyNotifBellVisibility==='function') applyNotifBellVisibility();
+  if(isMobileView()){updateMobileNavState(mobileActiveTabName());renderMobileProductionSummary();}
+});
+setTimeout(function(){mobileSetPeriodLabel();updateMobileNavState(mobileActiveTabName());},0);
+
 function renderDrawerList(){
   const body = document.getElementById('notif-drawer-body');
   const countEl = document.getElementById('drawer-count');
-  if(!body) return;
+  if(!body) return 0;
   // Agrupa por NOTA — evita repetir a mesma nota uma vez por produto.
   const groups = {}; const order = [];
   getPendingSales().forEach(function(s){
@@ -10811,6 +11386,7 @@ function renderDrawerList(){
       +'</div>';
   }).join(''):'';
   body.innerHTML=appHtml+salesHtml;
+  return list.length+appList.length;
 }
 // Marca todos os produtos (linhas) de uma nota como entregues.
 function markGroupDelivered(idsCsv){
@@ -10930,7 +11506,7 @@ function onSebraeSourceChange(){
   var result=document.getElementById('sebrae-result');
   if(result) result.style.display='none';
   var btn=document.getElementById('btn-sebrae-verify');
-  if(btn){ btn.disabled=true; btn.style.opacity='.5'; btn.textContent='🔍 Verificar notas'; }
+  if(btn){ btn.disabled=true; btn.style.opacity='.5'; btn.textContent=' Verificar notas'; }
 }
 function onSebraeFile(input){
   var f=input.files&&input.files[0];
@@ -10945,7 +11521,7 @@ async function sebraeVerifyNF(){
   var source=(document.getElementById('sebrae-source')?.value||'sebrae');
   var sourceLabel=getSebraeSourceLabel();
   var btn=document.getElementById('btn-sebrae-verify');
-  if(btn){ btn.disabled=true; btn.textContent='⏳ Verificando...'; }
+  if(btn){ btn.disabled=true; btn.textContent=' Verificando...'; }
   try{
     var fd=new FormData(); fd.append('file',_sebraeFile);
     var r=await fetch('/api/sebrae/verify-nf?source='+encodeURIComponent(source),{method:'POST',headers:apiHeaders({'x-token':session.token}),body:fd});
@@ -10965,9 +11541,9 @@ async function sebraeVerifyNF(){
     document.getElementById('sebrae-result').style.display='';
     sebraeFilter('missing');
     if(data.missing_count===0) toast('✅ Todas as notas do '+sourceLabel+' já estão no sistema!');
-    else toast('⚠️ '+data.missing_count+' nota(s) pendente(s) de inserção.','warn');
-  }catch(e){ toast('❌ '+e.message,'error'); }
-  finally{ if(btn){ btn.disabled=false; btn.textContent='🔍 Verificar notas'; } }
+    else toast('⚠ '+data.missing_count+' nota(s) pendente(s) de inserção.','warn');
+  }catch(e){ toast(' '+e.message,'error'); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent=' Verificar notas'; } }
 }
 function sebraeFilter(mode){
   ['missing','found','all'].forEach(function(m){
@@ -10992,7 +11568,7 @@ function sebraeFilter(mode){
   tbody.innerHTML=rows.map(function(e){
     var badge=e.in_system
       ? '<span style="background:#F0FDF4;color:#166534;border:1px solid #86EFAC;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700">✅ Inserida</span>'
-      : '<span style="background:#FEF2F2;color:#991B1B;border:1px solid #FCA5A5;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700">⚠️ Pendente</span>';
+      : '<span style="background:#FEF2F2;color:#991B1B;border:1px solid #FCA5A5;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700">⚠ Pendente</span>';
     var val = e.value>0 ? e.value.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}) : '—';
     return '<tr style="border-bottom:1px solid var(--border)">'
       +'<td style="padding:9px 12px;font-family:monospace;font-weight:700">'+e.nf_full+'</td>'
@@ -11058,12 +11634,14 @@ setInterval(refreshAppCalendarBadge,60000);
 async function syncAllData(){
   try{
     // Refetch dados centrais em paralelo
-    const [sales, prices] = await Promise.all([
+    const [sales, prices, drivers] = await Promise.all([
       api('/api/sales'),
-      api('/api/prices')
+      api('/api/prices'),
+      api('/api/drivers/list')
     ]);
     allSales = sales;
     allPrices = prices;
+    allDrivers = Array.isArray(drivers)?drivers:[];
     window.dispatchEvent(new CustomEvent('salesLoaded'));
     // Repovoa dropdowns abertos
     refreshAllDropdowns();
@@ -11095,8 +11673,11 @@ async function syncAllData(){
 
 function refreshAllDropdowns(){
   // Drivers usados em diversos lugares: filter-driver, driver-select-modal, nv-driver, pend-driver
-  const allDrivers = Array.from(new Set(
-    (allSales||[]).map(function(s){return s.delivery_person;}).filter(Boolean)
+  const driverNames = Array.from(new Set(
+    []
+      .concat((allDrivers||[]).map(function(d){return typeof d==='string'?d:(d.delivery_person||d.name||'');}))
+      .concat((allSales||[]).map(function(s){return s.delivery_person;}))
+      .filter(Boolean)
   )).sort();
   ['filter-driver','driver-select-modal','nv-driver','pend-driver'].forEach(function(sid){
     const sel = document.getElementById(sid);
@@ -11104,11 +11685,11 @@ function refreshAllDropdowns(){
     const cur = sel.value;
     const firstOpt = sel.querySelector('option:first-child');
     const firstHtml = firstOpt ? firstOpt.outerHTML : '<option value="">Todos</option>';
-    sel.innerHTML = firstHtml + allDrivers.map(function(d){
+    sel.innerHTML = firstHtml + driverNames.map(function(d){
       return '<option value="'+d.replace(/"/g,'&quot;')+'">'+d+'</option>';
     }).join('');
     // Restaura seleção se ainda válida
-    if(cur && allDrivers.indexOf(cur)>=0) sel.value = cur;
+    if(cur && driverNames.indexOf(cur)>=0) sel.value = cur;
   });
   // Clients usados em filter-client e search
   const allClients = Array.from(new Set(
@@ -11126,7 +11707,7 @@ function refreshAllDropdowns(){
 
 
 // ────────────────────────────────────────────────────────────────────────
-// MODO RÁPIDO — seleção múltipla de pendentes
+// MODO RPIDO — seleção múltipla de pendentes
 // ────────────────────────────────────────────────────────────────────────
 const _bulkSelection = new Set();
 
@@ -11395,7 +11976,7 @@ function loadProdutos(){
   if(!Array.isArray(allSales) || allSales.length === 0){
     if(checklistEl){
       checklistEl.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:11px;padding:12px">'
-        + (typeof allSales === 'undefined' ? '⏳ Carregando dados...' : '📭 Sem vendas registradas ainda.')
+        + (typeof allSales === 'undefined' ? ' Carregando dados...' : '📭 Sem vendas registradas ainda.')
         + '</div>';
     }
     return;
@@ -11872,7 +12453,7 @@ function renderProdDetail(sales){
     return isQty ? v.toLocaleString('pt-BR',{maximumFractionDigits:2}) : fmt(v);
   };
   el.innerHTML = '<div class="scroll-x"><table><thead><tr>'
-    +'<th>PERÍODO</th>'
+    +'<th>PERODO</th>'
     + products.map(function(p){return '<th class="r" style="font-size:10px">'+p+'</th>';}).join('')
     +'<th class="r">TOTAL</th>'
     +'</tr></thead><tbody>'
@@ -12753,7 +13334,7 @@ function renderTVTopList(elId, list, totCur, avariasByClient, withBar){
     var nameSafe = _tvEscape(c.client);
     var avariaBadge = '';
     if(avariasByClient && avariasByClient[c.client]){
-      avariaBadge = '<span class="tv-top-avaria-badge">⚠️ '+_tvFmtBRK(avariasByClient[c.client].val)+'</span>';
+      avariaBadge = '<span class="tv-top-avaria-badge">⚠ '+_tvFmtBRK(avariasByClient[c.client].val)+'</span>';
     }
     var pct = totCur > 0 ? (c.val/totCur)*100 : 0;
     var barHtml = withBar
@@ -12943,7 +13524,7 @@ function renderTVTicker(allSalesArr){
     var isAvaria = s.sale_type === 'AVARIA';
     var typeLabel = {NF:'NF-e', PR:'PR', AVULSO:'Avulso', AVARIA:'Avaria'}[s.sale_type] || s.sale_type;
     var prod = s.product ? ' · ' + _tvEscape(s.product) : '';
-    var icon = isAvaria ? '⚠️ ' : '';
+    var icon = isAvaria ? '⚠ ' : '';
     var cls = isAvaria ? 'tk-avaria' : '';
     return '<span class="'+cls+'">'+
       '<span class="tk-time">'+when+'</span>'+
@@ -12952,9 +13533,9 @@ function renderTVTicker(allSalesArr){
     '</span>';
   }
 
-  var items = recent.map(buildItem).join('<span class="tk-sep">●</span>');
+  var items = recent.map(buildItem).join('<span class="tk-sep"></span>');
   // duplica para loop contínuo (a animação translateX(-50%) garante a continuidade)
-  el.innerHTML = items + '<span class="tk-sep">●</span>' + items;
+  el.innerHTML = items + '<span class="tk-sep"></span>' + items;
 }
 
 
@@ -13097,7 +13678,7 @@ async function waLoadBaileysStatus(silent) {
   if (_waStatusBusy) return;
   _waStatusBusy = true;
   if (!silent) {
-    statusEl.textContent = '⏳ Verificando serviço Baileys...';
+    statusEl.textContent = ' Verificando serviço Baileys...';
     if (qrEl) { qrEl.style.display = 'none'; qrEl.innerHTML=''; }
     _waLastQr = null;
   }
@@ -13123,14 +13704,14 @@ async function waLoadBaileysStatus(silent) {
         qrEl.style.display = 'block';
       }
     } else {
-      statusEl.innerHTML = '<span style="color:#b45309;font-weight:700">⚠️ WhatsApp desconectado</span><div style="font-size:10px;color:var(--muted);margin-top:3px">'+waLogEsc(r.message||'Sessao sem conexao. Tente reconectar ou gere um novo QR Code.')+checked+'</div>';
+      statusEl.innerHTML = '<span style="color:#b45309;font-weight:700">⚠ WhatsApp desconectado</span><div style="font-size:10px;color:var(--muted);margin-top:3px">'+waLogEsc(r.message||'Sessao sem conexao. Tente reconectar ou gere um novo QR Code.')+checked+'</div>';
       if(disconnectBtn)disconnectBtn.disabled=true;
       if (qrEl){ qrEl.style.display='none'; qrEl.innerHTML=''; }
       _waLastQr = null;
     }
   } catch(e) {
     // Em polling silencioso não fica piscando o erro; só mostra na verificação manual.
-    if (!silent) statusEl.innerHTML = '<span style="color:var(--red)">❌ Baileys inacessível: ' + waLogEsc(e.message) + '</span>';
+    if (!silent) statusEl.innerHTML = '<span style="color:var(--red)"> Baileys inacessível: ' + waLogEsc(e.message) + '</span>';
   } finally {
     _waStatusBusy = false;
   }
@@ -13200,15 +13781,15 @@ async function waCheckTriggers() {
   var el=document.getElementById('wa-trigger-result');
   if(!el)return;
   el.style.display='block';
-  el.innerHTML='<div style="text-align:center;padding:12px;color:var(--muted)">🔍 Verificando...</div>';
+  el.innerHTML='<div style="text-align:center;padding:12px;color:var(--muted)"> Verificando...</div>';
   try {
     var r=await api('/api/whatsapp/check-triggers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({send:false})});
     if(!r.triggers_fired){
       el.innerHTML='<div style="display:flex;align-items:center;gap:8px;color:#22c55e;font-weight:600;font-size:13px">✅ Nenhum gatilho foi acionado. Tudo em ordem!</div>';
       return;
     }
-    var html='<div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:8px">🔍 Resultado da verificação</div>';
-    var icons={boleto:'📄',avaria:'⚠️',inativo:'😴'};
+    var html='<div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:8px"> Resultado da verificação</div>';
+    var icons={boleto:'📄',avaria:'⚠',inativo:'😴'};
     var labels={boleto:'Boletos vencidos',avaria:'Avarias altas',inativo:'Clientes inativos'};
     r.messages.forEach(function(m){
       var preview = waFixMojibake(m.preview || '');
@@ -13221,7 +13802,7 @@ async function waCheckTriggers() {
       +'<button type="button" class="btn btn-primary btn-sm" data-wa-trigger-action="send">📤 Enviar notificações</button>'
       +'</div>';
     el.innerHTML=html;
-  } catch(e) { el.innerHTML='<div style="color:var(--red);font-size:12px">❌ '+e.message+'</div>'; }
+  } catch(e) { el.innerHTML='<div style="color:var(--red);font-size:12px"> '+e.message+'</div>'; }
 }
 
 async function waSendTriggers() {
@@ -13234,12 +13815,12 @@ async function waSendTriggers() {
     var ok=(r.sent||[]).filter(function(x){return x.ok;}).length;
     var bad=(r.sent||[]).filter(function(x){return !x.ok;}).length;
     var firstError=(r.sent||[]).find(function(x){return !x.ok;});
-    el.innerHTML='<div style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px">📤 Notificações enviadas: '+ok+' ✅'+(bad?'  '+bad+' ❌':'')+'</div>'
+    el.innerHTML='<div style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px">📤 Notificações enviadas: '+ok+' ✅'+(bad?'  '+bad+' ':'')+'</div>'
       +'<div style="margin-top:6px;font-size:11px;color:var(--muted)">'+r.triggers_fired+' gatilho(s) acionado(s) · '+(r.sent||[]).length+' envio(s)</div>'
       +(firstError?'<div style="margin-top:8px;padding:9px;background:var(--red-l);border-radius:7px;color:var(--red);font-size:11px"><b>Motivo:</b> '+waLogEsc(waFixMojibake(firstError.response||'Falha sem detalhe'))+'<br><b>Como corrigir:</b> '+waLogEsc(waFixMojibake(firstError.hint||'Consulte o log de envios.'))+'</div>':'')
       +'<div style="margin-top:8px"><button type="button" class="btn btn-secondary btn-sm" data-wa-trigger-action="close">Fechar</button></div>';
     loadWaLog();
-  } catch(e) { el.innerHTML='<div style="color:var(--red);font-size:12px">❌ '+e.message+'</div>'; }
+  } catch(e) { el.innerHTML='<div style="color:var(--red);font-size:12px"> '+e.message+'</div>'; }
 }
 
 async function loadWaContacts() {
@@ -13258,7 +13839,7 @@ async function loadWaContacts() {
         +'<div class="wa-contact-info"><div class="wa-contact-name">'+c.name+'</div><div class="wa-contact-phone">+'+c.phone+'</div></div>'
         +'<span class="'+(c.active?'wa-badge-active':'wa-badge-inactive')+'">'+(c.active?'Ativo':'Inativo')+'</span>'
         +'<button class="btn btn-secondary btn-sm" onclick="waTest(\''+c.id+'\',\''+c.name.replace(/'/g,"\'")+'\')">🧪 Testar</button>'
-        +'<button class="btn btn-sm" style="background:var(--card2);color:var(--muted)" onclick="waToggleContact(\''+c.id+'\','+(c.active?0:1)+')">'+(c.active?'⏸ Pausar':'▶ Ativar')+'</button>'
+        +'<button class="btn btn-sm" style="background:var(--card2);color:var(--muted)" onclick="waToggleContact(\''+c.id+'\','+(c.active?0:1)+')">'+(c.active?' Pausar':'▶ Ativar')+'</button>'
         +'<button class="btn btn-danger btn-sm" onclick="waDeleteContact(\''+c.id+'\',\''+c.name.replace(/'/g,"\'")+'\')">🗑</button>'
         +'</div>';
     }).join('');
@@ -13346,15 +13927,15 @@ var _waLogPage = 1;
 function waFixMojibake(v){
   var s = String(v == null ? '' : v);
   var map = [
-    [/ðŸ˜´/g,'😴'], [/ðŸ“„/g,'📄'], [/ðŸ”´/g,'🔴'], [/ðŸŸ /g,'🟠'],
-    [/âš ï¸/g,'⚠️'], [/âœ…/g,'✅'], [/âŒ/g,'❌'], [/â€¢/g,'•'],
-    [/â€”/g,' - '], [/â€“/g,'-'], [/â€¦/g,'...'], [/Â·/g,' - '],
-    [/Ãš/g,'Ú'], [/Ãº/g,'ú'], [/Ã/g,'Í'], [/Ã­/g,'í'],
+    [/ðŸ˜´/g,'😴'], [/ðŸ“„/g,'📄'], [/ðŸ´/g,'🔴'], [/ðŸŸ /g,'🟠'],
+    [/âš ï¸/g,'⚠'], [/âœ…/g,'✅'], [/âŒ/g,''], [/â€¢/g,'•'],
+    [/â€/g,' - '], [/â€“/g,'-'], [/â€¦/g,'...'], [/Â·/g,' - '],
+    [/Ãš/g,'Ú'], [/Ãº/g,'ú'], [/Ã/g,''], [/Ã­/g,'í'],
     [/Ã¡/g,'á'], [/Ã /g,'à'], [/Ã£/g,'ã'], [/Ã¢/g,'â'],
     [/Ã©/g,'é'], [/Ãª/g,'ê'], [/Ã³/g,'ó'], [/Ãµ/g,'õ'],
-    [/Ã§/g,'ç'], [/Ã‡/g,'Ç'], [/Ã/g,'Á'], [/Ã‰/g,'É'],
+    [/Ã§/g,'ç'], [/Ã‡/g,'Ç'], [/Ã/g,''], [/Ã‰/g,'É'],
     [/Ã“/g,'Ó'], [/Ã•/g,'Õ'], [/Ãªncia/g,'ência'],
-    [/ALTÍSSIMO/g,'ALTÍSSIMO'], [/ultima venda/gi,'última venda'],
+    [/ALTSSIMO/g,'ALTSSIMO'], [/ultima venda/gi,'última venda'],
     [/Periodo:/g,'Período:'], [/Taxa media:/g,'Taxa média:'],
     [/ocorrencia\\(s\\)/g,'ocorrência(s)']
   ];
@@ -13396,7 +13977,7 @@ async function loadWaLog(page) {
         +'<div style="flex:1;min-width:0"><div style="font-weight:600">'+waLogEsc(l.contact||'?')+' <span style="font-family:monospace;font-size:11px;color:var(--muted)">'+waLogEsc(l.phone)+'</span></div>'
         +'<div style="color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+waLogEsc(fullMsg)+'">'+waLogEsc(msgShort||'')+'</div>'+(l.status!=='sent'?'<button class="wa-log-diagnostic" onclick="toggleWaLogDetail(\''+detailId+'\',this)">Ver diagnostico</button>':'')+'</div>'
         +'<div style="text-align:right;flex-shrink:0;min-width:90px"><div style="font-size:10px;color:var(--muted)">'+new Date(l.sent_at).toLocaleString('pt-BR')+'</div>'
-        +'<div style="font-size:10px;font-weight:700;color:'+(l.status==='sent'?'#22c55e':'var(--red)')+'">'+(l.status==='sent'?'✅ Enviado':'❌ Erro')+'</div>'
+        +'<div style="font-size:10px;font-weight:700;color:'+(l.status==='sent'?'#22c55e':'var(--red)')+'">'+(l.status==='sent'?'✅ Enviado':' Erro')+'</div>'
         +'<div style="font-size:9px;color:var(--muted)">'+waLogEsc(l.event_type)+'</div></div>'
         +'<button class="wa-log-del" onclick="if(confirm(\'Excluir este log?\'))deleteWaLog(\''+l.id+'\')" title="Excluir">✕</button></div>'
         +(l.status!=='sent'?'<div id="'+detailId+'" class="wa-log-detail"><b>Motivo:</b> '+waLogEsc(diag.detail)+'<br><b>Como corrigir:</b> '+waLogEsc(diag.hint)+'<br><b>Provedor:</b> '+waLogEsc(diag.provider)+(diag.http?' · <b>HTTP:</b> '+waLogEsc(diag.http):'')+'<code>'+waLogEsc(waFixMojibake(l.response||'Sem resposta tecnica.'))+'</code></div>':'')+'</div>';
@@ -13456,7 +14037,7 @@ async function loadWaAutoRules(){
       if(r.rule_type==='auto_reply' && r.keyword) meta.push('🔑 '+r.keyword);
       if(r.event_key) meta.push('⚡ '+r.event_key);
       if(r.priority>0) meta.push('🎯 Prioridade '+r.priority);
-      if(r.cooldown_min>0) meta.push('⏳ '+r.cooldown_min+'min cooldown');
+      if(r.cooldown_min>0) meta.push(' '+r.cooldown_min+'min cooldown');
       return '<div class="wa-rule-row">'
         +'<div class="wa-rule-info"><div class="wa-rule-name">'+_waRuleIcon(r.rule_type)+' '+r.name+'</div>'
         +'<div class="wa-rule-meta"><span class="wa-rule-tag '+(r.rule_type==='auto_reply'?'reply':'trigger')+'">'+_waRuleLabel(r.rule_type)+'</span>'
@@ -13464,7 +14045,7 @@ async function loadWaAutoRules(){
         +'</div></div>'
         +'<button class="wa-rule-switch'+(r.enabled?' on':'')+'" onclick="waToggleAutoRule(\''+r.id+'\','+(r.enabled?'0':'1')+')" title="'+(r.enabled?'Desativar':'Ativar')+'"></button>'
         +'<div class="wa-rule-actions">'
-        +'<button onclick="waOpenAutoRuleModal(\''+r.id+'\')" title="Editar">✏️</button>'
+        +'<button onclick="waOpenAutoRuleModal(\''+r.id+'\')" title="Editar"></button>'
         +'<button class="danger" onclick="waDeleteAutoRule(\''+r.id+'\',\''+r.name.replace(/'/g,"\'")+'\')" title="Excluir">🗑</button>'
         +'</div></div>';
     }).join('');
@@ -13473,7 +14054,7 @@ async function loadWaAutoRules(){
 
 function waOpenAutoRuleModal(id){
   var rule=id ? _waRules.find(function(r){return r.id===id;}) : null;
-  document.getElementById('wa-rule-modal-title').textContent=rule ? '✏️ Editar regra' : '➕ Nova regra';
+  document.getElementById('wa-rule-modal-title').textContent=rule ? ' Editar regra' : '➕ Nova regra';
   document.getElementById('war-edit-id').value=rule ? rule.id : '';
   document.getElementById('war-name').value=rule ? rule.name : '';
   document.getElementById('war-type').value=rule ? rule.rule_type : 'trigger';
@@ -13576,7 +14157,7 @@ async function loadWaTemplates(){
         +'<div class="wa-rule-info"><div class="wa-rule-name">📦 '+t.name+catLabel+'</div>'
         +'<div class="wa-rule-meta" style="color:var(--g600)">'+(t.content||'').slice(0,80)+(t.content&&t.content.length>80?'…':'')+'</div></div>'
         +'<div class="wa-rule-actions">'
-        +'<button onclick="waOpenTemplateModal(\''+t.id+'\')" title="Editar">✏️</button>'
+        +'<button onclick="waOpenTemplateModal(\''+t.id+'\')" title="Editar"></button>'
         +'<button onclick="waDuplicateTemplate(\''+t.id+'\')" title="Duplicar">📋</button>'
         +'<button class="danger" onclick="waDeleteTemplate(\''+t.id+'\',\''+t.name.replace(/'/g,"\'")+'\')" title="Excluir">🗑</button>'
         +'</div></div>';
@@ -13586,7 +14167,7 @@ async function loadWaTemplates(){
 
 function waOpenTemplateModal(id){
   var tpl=id ? _waTemplates.find(function(t){return t.id===id;}) : null;
-  document.getElementById('wa-tpl-modal-title').textContent=tpl ? '✏️ Editar modelo' : '➕ Novo modelo';
+  document.getElementById('wa-tpl-modal-title').textContent=tpl ? ' Editar modelo' : '➕ Novo modelo';
   document.getElementById('wat-edit-id').value=tpl ? tpl.id : '';
   document.getElementById('wat-name').value=tpl ? tpl.name : '';
   document.getElementById('wat-cat').value=tpl ? (tpl.category||'') : '';
@@ -13657,10 +14238,10 @@ async function loadWaBotSettings(){
       +'<div class="wa-bot-item"><label>💬 Auto respostas</label><div class="wa-toggle-wrap"><input type="checkbox" id="wbs-auto-reply-enabled"'+(s.auto_reply_enabled==='1'?' checked':'')+'></div></div>'
       +'<div class="wa-bot-item"><label>🧪 Modo teste</label><div class="wa-toggle-wrap"><input type="checkbox" id="wbs-test-mode"'+(s.test_mode==='1'?' checked':'')+'></div></div>'
       +'<div class="wa-bot-item"><label>🚫 Bloquear grupos</label><div class="wa-toggle-wrap"><input type="checkbox" id="wbs-block-groups"'+(s.block_groups==='1'?' checked':'')+'></div></div>'
-      +'<div class="wa-bot-item"><label>🔁 Bloquear duplicado</label><div class="wa-toggle-wrap"><input type="checkbox" id="wbs-block-duplicate"'+(s.block_duplicate==='1'?' checked':'')+'></div></div>'
-      +'<div class="wa-bot-item"><label>⏰ Horário início</label><input type="time" id="wbs-auto-reply-from" value="'+(s.auto_reply_from||'08:00')+'"></div>'
-      +'<div class="wa-bot-item"><label>⏰ Horário fim</label><input type="time" id="wbs-auto-reply-to" value="'+(s.auto_reply_to||'19:00')+'"></div>'
-      +'<div class="wa-bot-item"><label>⏱ Intervalo min (seg)</label><input type="number" id="wbs-min-interval" value="'+(s.min_interval_secs||'30')+'" min="1"></div>'
+      +'<div class="wa-bot-item"><label> Bloquear duplicado</label><div class="wa-toggle-wrap"><input type="checkbox" id="wbs-block-duplicate"'+(s.block_duplicate==='1'?' checked':'')+'></div></div>'
+      +'<div class="wa-bot-item"><label> Horário início</label><input type="time" id="wbs-auto-reply-from" value="'+(s.auto_reply_from||'08:00')+'"></div>'
+      +'<div class="wa-bot-item"><label> Horário fim</label><input type="time" id="wbs-auto-reply-to" value="'+(s.auto_reply_to||'19:00')+'"></div>'
+      +'<div class="wa-bot-item"><label> Intervalo min (seg)</label><input type="number" id="wbs-min-interval" value="'+(s.min_interval_secs||'30')+'" min="1"></div>'
       +'<div class="wa-bot-item"><label>📊 Máx/dia/cliente</label><input type="number" id="wbs-max-per-day" value="'+(s.max_per_day_per_client||'10')+'" min="0"></div>'
       +'</div>';
   }catch(e){ el.innerHTML='<div class="wa-empty">'+e.message+'</div>'; }
@@ -13683,7 +14264,7 @@ async function saveWaBotSettings(){
 
 // ─── fim WhatsApp ──────────────────────────────────────
 
-// ━━ PALADAR APP (overlay independente) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  PALADAR APP (overlay independente) 
 let palChart1 = null, palChart2 = null, palChart3 = null, palChart4 = null;
 let _palItems = [];
 
@@ -13855,11 +14436,11 @@ function renderAppNotes(data){
       ? appNoteActionButton('status',n.id,'✅ Concluir','btn btn-primary btn-sm','', 'data-app-note-status="completed"')
       : appNoteActionButton('status',n.id,'↩ Voltar para pendente','btn btn-secondary btn-sm','', 'data-app-note-status="pending"');
     var actions='<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">'
-      +appNoteActionButton('view',n.id,'👁 Ver','btn btn-secondary btn-sm')
+      +appNoteActionButton('view',n.id,' Ver','btn btn-secondary btn-sm')
       +appNoteActionButton('receipt',n.id,'🧾 Recibo','btn btn-sm','background:#fef3c7;color:#92400e;border:1px solid #fcd34d')
-      +(canEdit?appNoteActionButton('edit',n.id,'✏️ Editar','btn btn-secondary btn-sm')+statusAction+appNoteActionButton('delete',n.id,'🗑 Remover','btn btn-sm','background:#fee2e2;color:#b91c1c;border:1px solid #fecaca'):'')
+      +(canEdit?appNoteActionButton('edit',n.id,' Editar','btn btn-secondary btn-sm')+statusAction+appNoteActionButton('delete',n.id,'🗑 Remover','btn btn-sm','background:#fee2e2;color:#b91c1c;border:1px solid #fecaca'):'')
       +'</div>';
-    var statusBadge=_appNotesStatus==='pending'?'<span style="background:#FEF3C7;color:#92400E;border-radius:999px;padding:3px 9px;font-size:9px;font-weight:800">⏳ Pendente</span>':'<span style="background:#DCFCE7;color:#166534;border-radius:999px;padding:3px 9px;font-size:9px;font-weight:800">✅ Concluída</span>';
+    var statusBadge=_appNotesStatus==='pending'?'<span style="background:#FEF3C7;color:#92400E;border-radius:999px;padding:3px 9px;font-size:9px;font-weight:800"> Pendente</span>':'<span style="background:#DCFCE7;color:#166534;border-radius:999px;padding:3px 9px;font-size:9px;font-weight:800">✅ Concluída</span>';
     return '<section class="card" style="padding:0;overflow:hidden;margin-bottom:14px;border:1px solid var(--border)">'
       +'<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:14px 16px;background:var(--card)">'
       +'<div style="min-width:110px"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;font-weight:700">Data</div><div style="font-size:14px;font-weight:800;color:var(--g800);margin-top:3px">'+admEsc(n.note_date||'—')+'</div></div>'
@@ -13908,7 +14489,7 @@ function printAppNoteReceipt(id){
   var emitido=new Date().toLocaleString('pt-BR');
   var html='<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Recibo - '+admEsc(n.client||'Cliente')+'</title><style>'
     +'@page{size:A4;margin:12mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#172033;margin:0;font-size:12px}.sheet{max-width:190mm;margin:auto;border:1px solid #cbd5e1;padding:18px}.head{display:flex;justify-content:space-between;gap:20px;border-bottom:3px solid #4f46e5;padding-bottom:12px;margin-bottom:16px}.brand{font-size:24px;font-weight:900;color:#4f46e5}.sub{font-size:11px;color:#64748b;margin-top:3px}.receipt-title{text-align:right;font-size:20px;font-weight:900}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;background:#f8fafc;border:1px solid #e2e8f0;padding:12px;margin-bottom:16px}.label{font-size:9px;text-transform:uppercase;color:#64748b;font-weight:700}.value{font-size:13px;font-weight:700;margin-top:2px}table{width:100%;border-collapse:collapse}th{background:#eef2ff;color:#3730a3;text-align:left;font-size:9px;text-transform:uppercase;padding:8px;border:1px solid #c7d2fe}td{padding:9px 8px;border:1px solid #e2e8f0}.num{text-align:right;white-space:nowrap}.total{margin-left:auto;margin-top:14px;width:270px;border:2px solid #4f46e5;padding:12px;text-align:right}.total-label{font-size:10px;color:#64748b;text-transform:uppercase}.total-value{font-size:22px;font-weight:900;color:#4f46e5;margin-top:3px}.note{margin-top:14px;padding:10px;background:#fffbeb;border:1px solid #fde68a;color:#92400e}.signatures{display:grid;grid-template-columns:1fr 1fr;gap:50px;margin-top:60px}.sign{text-align:center;border-top:1px solid #334155;padding-top:6px}.footer{margin-top:24px;text-align:center;color:#94a3b8;font-size:9px}.no-print{margin:0 auto 12px;display:block;padding:10px 22px;background:#4f46e5;color:white;border:0;border-radius:7px;font-weight:700;cursor:pointer}@media print{.no-print{display:none}.sheet{border:0;padding:0}}</style></head><body>'
-    +'<button class="no-print" onclick="window.print()">🖨️ Imprimir recibo</button><main class="sheet"><header class="head"><div><div class="brand">🍽️ Monteiro</div><div class="sub">Menina dos Raios Ltda · Sistema de Vendas Independente</div></div><div><div class="receipt-title">RECIBO DE PEDIDO</div><div class="sub">Nota APP nº '+admEsc(String(n.id||'—'))+'</div></div></header>'
+    +'<button class="no-print" onclick="window.print()">🖨 Imprimir recibo</button><main class="sheet"><header class="head"><div><div class="brand"> Monteiro</div><div class="sub">Menina dos Raios Ltda · Sistema de Vendas Independente</div></div><div><div class="receipt-title">RECIBO DE PEDIDO</div><div class="sub">Nota APP nº '+admEsc(String(n.id||'—'))+'</div></div></header>'
     +'<section class="meta"><div><div class="label">Cliente</div><div class="value">'+admEsc(n.client||'Sem cliente')+'</div></div><div><div class="label">Data do pedido</div><div class="value">'+admEsc(n.note_date||'—')+'</div></div><div><div class="label">Situação</div><div class="value">'+status+'</div></div><div><div class="label">Emitido em</div><div class="value">'+admEsc(emitido)+'</div></div></section>'
     +'<table><thead><tr><th>#</th><th>Produto</th><th>Tipo</th><th style="text-align:right">Medida</th><th style="text-align:right">Valor unitário</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>'+(itens||'<tr><td colspan="6">Nenhum produto informado.</td></tr>')+'</tbody></table>'
     +'<div class="total"><div class="total-label">Total do pedido</div><div class="total-value">'+appNoteMoney(n.total)+'</div></div>'
@@ -14052,7 +14633,7 @@ function renderAppCalendar(data){
   kpis.innerHTML=''
     +'<div class="card" style="padding:12px"><div style="font-size:10px;color:var(--muted);text-transform:uppercase">📌 '+(_appCalendarStatus==='pending'?'Pendentes':'Concluídas')+'</div><div style="font-size:20px;font-weight:800;color:var(--g800);margin-top:3px">'+displayEvents.length+'</div></div>'
     +'<div class="card" style="padding:12px"><div style="font-size:10px;color:var(--muted);text-transform:uppercase">🔔 Avisando no celular</div><div style="font-size:20px;font-weight:800;color:var(--g800);margin-top:3px">'+urgent+'</div></div>'
-    +'<div class="card" style="padding:12px;background:#4F46E5;color:#fff"><div style="font-size:10px;opacity:.75;text-transform:uppercase">⏱ Padrão</div><div style="font-size:15px;font-weight:800;margin-top:3px">2 dias antes · 4x ao dia</div></div>';
+    +'<div class="card" style="padding:12px;background:#4F46E5;color:#fff"><div style="font-size:10px;opacity:.75;text-transform:uppercase"> Padrão</div><div style="font-size:15px;font-weight:800;margin-top:3px">2 dias antes · 4x ao dia</div></div>';
   if(!displayEvents.length){wrap.innerHTML='<div class="wa-empty" style="padding:42px">Nenhuma notificação '+(_appCalendarStatus==='pending'?'pendente':'concluída')+' neste período.</div>';return;}
   var canEdit=session&&['admin','editor'].includes(session.role);
   wrap.innerHTML='<table style="width:100%;min-width:840px;border-collapse:collapse;font-size:12px"><thead><tr style="background:#F1F5F3;color:var(--muted);text-transform:uppercase;font-size:9px"><th style="padding:10px 12px;text-align:left">Data</th><th style="padding:10px 12px;text-align:left">Notificação</th><th style="padding:10px 12px;text-align:center">Aviso</th><th style="padding:10px 12px;text-align:center">Status</th><th style="padding:10px 12px;text-align:right">Ações</th></tr></thead><tbody>'
@@ -14065,7 +14646,7 @@ function renderAppCalendar(data){
       var idsText=admEsc(e.ids.join(','));
       var idText=admEsc(String(e.id||''));
       var actions=canEdit?'<div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">'
-        +(e.isGroup?'<button class="btn btn-secondary btn-sm" data-appcal-action="series" data-ids="'+idsText+'">👁 Meses</button>':'<button class="btn btn-secondary btn-sm" data-appcal-action="edit" data-id="'+idText+'">✏️ Editar</button>')
+        +(e.isGroup?'<button class="btn btn-secondary btn-sm" data-appcal-action="series" data-ids="'+idsText+'"> Meses</button>':'<button class="btn btn-secondary btn-sm" data-appcal-action="edit" data-id="'+idText+'"> Editar</button>')
         +(e.status==='pending'?'<button class="btn btn-primary btn-sm" data-appcal-action="'+(e.isGroup?'series-status':'status')+'" data-id="'+idText+'" data-ids="'+idsText+'" data-status="completed">✅ Concluir</button>':'<button class="btn btn-secondary btn-sm" data-appcal-action="'+(e.isGroup?'series-status':'status')+'" data-id="'+idText+'" data-ids="'+idsText+'" data-status="pending">↩ Pendente</button>')
         +'<button class="btn btn-sm" style="background:#fee2e2;color:#b91c1c;border:1px solid #fecaca" data-appcal-action="'+(e.isGroup?'series-delete':'delete')+'" data-id="'+idText+'" data-ids="'+idsText+'">🗑 Remover</button></div>':'';
       var dateText=e.isGroup?appCalendarDate(e.start_date)+' a '+appCalendarDate(e.end_date):appCalendarDate(e.due_date);
@@ -14380,7 +14961,7 @@ async function downloadPaladarInvoicesZip(){
     if(!confirm('Nenhuma nota marcada. Baixar TODAS as '+groups.length+' notas anexadas nesta tela?')) return;
   }
   try{
-    toast('⏳ Preparando ZIP de '+groups.length+' nota(s)...');
+    toast(' Preparando ZIP de '+groups.length+' nota(s)...');
     var r = await fetch('/api/monteiro/invoices/zip', {
       method:'POST',
       headers:{'Content-Type':'application/json','x-token':(typeof session!=='undefined'?session.token:'')||''},
@@ -14394,7 +14975,7 @@ async function downloadPaladarInvoicesZip(){
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
     toast('✅ Download iniciado ('+groups.length+' nota(s)).');
-  }catch(e){ toast('❌ '+e.message,'error'); }
+  }catch(e){ toast(' '+e.message,'error'); }
 }
 
 async function openPaladarSaleModal(){
@@ -14770,8 +15351,8 @@ async function loadPaladarSales(){
       var rowBg = idx%2===0 ? 'var(--card)' : 'var(--g50)';
       var hasInvoice = !!g.invoice_file_path;
       var invoiceCell = hasInvoice
-        ? '<input type="checkbox" class="pal-inv-check" data-sg="'+String(sg).replace(/"/g,'&quot;')+'" onclick="event.stopPropagation()" title="Selecionar para download" style="margin-right:6px;vertical-align:middle;cursor:pointer;width:15px;height:15px">'+'<button class="btn btn-sm" style="background:#DCFCE7;color:#166534;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px;margin-right:4px" onclick="openPaladarInvoice(\''+sg+'\')" title="'+((g.invoice_original_name||'Ver nota fiscal').replace(/"/g,'&quot;'))+'">👁️ Ver</button><button class="btn btn-sm" style="background:#EEF2FF;color:#4F46E5;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px" onclick="promptUploadPaladarInvoice(\''+sg+'\')" title="Trocar nota fiscal">↻ Trocar</button>'
-        : '<button class="btn btn-sm" style="background:#FEF3C7;color:#92400E;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px" onclick="promptUploadPaladarInvoice(\''+sg+'\')" title="Enviar nota fiscal">⬆️ Anexar</button>';
+        ? '<input type="checkbox" class="pal-inv-check" data-sg="'+String(sg).replace(/"/g,'&quot;')+'" onclick="event.stopPropagation()" title="Selecionar para download" style="margin-right:6px;vertical-align:middle;cursor:pointer;width:15px;height:15px">'+'<button class="btn btn-sm" style="background:#DCFCE7;color:#166534;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px;margin-right:4px" onclick="openPaladarInvoice(\''+sg+'\')" title="'+((g.invoice_original_name||'Ver nota fiscal').replace(/"/g,'&quot;'))+'"> Ver</button><button class="btn btn-sm" style="background:#EEF2FF;color:#4F46E5;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px" onclick="promptUploadPaladarInvoice(\''+sg+'\')" title="Trocar nota fiscal">↻ Trocar</button>'
+        : '<button class="btn btn-sm" style="background:#FEF3C7;color:#92400E;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px" onclick="promptUploadPaladarInvoice(\''+sg+'\')" title="Enviar nota fiscal">⬆ Anexar</button>';
       html += '<tr style="border-bottom:1px solid var(--border);background:'+rowBg+'">'
         +'<td style="padding:8px 6px;text-align:center"><span onclick="togglePalGroup(\''+sg+'\')" style="cursor:pointer;font-size:13px;user-select:none">'+(isExp?'▼':'▶')+'</span></td>'
         +'<td style="padding:8px 10px">'+(g.saledate||'—')+'</td>'
@@ -14784,7 +15365,7 @@ async function loadPaladarSales(){
         +'<td style="padding:8px 10px;text-align:center;white-space:nowrap">'+invoiceCell+'</td>'
         +'<td style="padding:8px 10px;text-align:center;white-space:nowrap">'
         +'<button class="btn btn-sm" style="background:#EEF2FF;color:#4F46E5;border:none;padding:4px 9px;border-radius:6px;cursor:pointer;font-size:11px;margin-right:4px" onclick="editPaladarGroupClient(\''+sg+'\')" title="Editar cliente">✎</button>'
-        +'<button class="btn btn-sm" style="background:var(--red-l);color:var(--red);border:none;padding:4px 9px;border-radius:6px;cursor:pointer;font-size:11px" onclick="deletePaladarGroup(\''+sg+'\')" title="Excluir NF">🗑️</button></td>'
+        +'<button class="btn btn-sm" style="background:var(--red-l);color:var(--red);border:none;padding:4px 9px;border-radius:6px;cursor:pointer;font-size:11px" onclick="deletePaladarGroup(\''+sg+'\')" title="Excluir NF">🗑</button></td>'
         +'</tr>';
       // Itens expandidos
       if(isExp && g.items && g.items.length){
@@ -14867,8 +15448,8 @@ async function loadPaladarProducts(){
             +'<td style="padding:8px 10px;text-align:right;font-family:monospace;color:#4F46E5;font-weight:600">'+price+'</td>'
             +'<td style="padding:8px 10px;text-align:center;font-size:11px">'+status+'</td>'
             +'<td style="padding:8px 10px;text-align:center;white-space:nowrap">'
-            +'<button class="btn btn-sm" onclick="editPaladarProduct('+p.id+')" style="background:var(--purple-l);color:#4F46E5;border:none;padding:3px 8px;border-radius:5px;cursor:pointer;font-size:11px;margin-right:4px">✏️</button>'
-            +'<button class="btn btn-sm" onclick="deletePaladarProduct('+p.id+')" style="background:var(--red-l);color:var(--red);border:none;padding:3px 8px;border-radius:5px;cursor:pointer;font-size:11px">🗑️</button>'
+            +'<button class="btn btn-sm" onclick="editPaladarProduct('+p.id+')" style="background:var(--purple-l);color:#4F46E5;border:none;padding:3px 8px;border-radius:5px;cursor:pointer;font-size:11px;margin-right:4px"></button>'
+            +'<button class="btn btn-sm" onclick="deletePaladarProduct('+p.id+')" style="background:var(--red-l);color:var(--red);border:none;padding:3px 8px;border-radius:5px;cursor:pointer;font-size:11px">🗑</button>'
             +'</td></tr>';
         }).join('')
         +'</tbody></table></div>';
@@ -14961,7 +15542,7 @@ async function loadPaladarClients(){
       + clis.map(function(c, i){
         var cname=(c.client||'—').replace(/'/g,"\'");
         return '<tr style="border-bottom:1px solid var(--border);background:'+(i%2===0?'var(--card)':'var(--g50)')+'">'
-          +'<td style="padding:8px 10px;font-weight:600;cursor:pointer;color:#4F46E5" onclick="showPaladarClientDetail(\''+cname+'\')">🔍 '+(c.client||'—')+'</td>'
+          +'<td style="padding:8px 10px;font-weight:600;cursor:pointer;color:#4F46E5" onclick="showPaladarClientDetail(\''+cname+'\')"> '+(c.client||'—')+'</td>'
           +'<td style="padding:8px 10px;text-align:right;font-family:monospace">'+(c.num_vendas||0)+'</td>'
           +'<td style="padding:8px 10px;text-align:right;font-family:monospace">'+(c.qty_total||0).toLocaleString('pt-BR',{maximumFractionDigits:1})+'</td>'
           +'<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:700;color:#4F46E5">R$ '+(c.total||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>'
@@ -15019,7 +15600,7 @@ async function showPaladarClientDetail(client){
         +'<th style="padding:6px 8px;text-align:right">Total R$</th><th style="padding:6px 8px;text-align:right">Preço médio</th>'
         +'<th style="padding:6px 8px;text-align:right">Ocorrências</th></tr></thead><tbody>'
         +prods.map(function(p,i){
-          var star=(p.product===topProd)?' ⭐':'';
+          var star=(p.product===topProd)?' ':'';
           return '<tr style="border-bottom:1px solid var(--border);background:'+(i%2===0?'var(--card)':'var(--g50)')+'">'
             +'<td style="padding:6px 8px;font-weight:600">'+p.product+star+'</td>'
             +'<td style="padding:6px 8px;text-align:right;font-family:monospace">'+(p.qty||0).toLocaleString('pt-BR',{maximumFractionDigits:1})+'</td>'
@@ -15069,7 +15650,7 @@ async function _downloadBlob(url, filename, btn, fallbackUrl){
     if(btn.dataset.loading==='1') return;
     btn.dataset.loading='1';
     var orig=btn.textContent;
-    btn.textContent='⏳ Gerando...';
+    btn.textContent=' Gerando...';
     btn.style.opacity='.6';
     btn.disabled=true;
   }
@@ -15401,7 +15982,7 @@ function renderCoverageBands(nts, pp, containerEl) {
   html += '<div class="pal-paid-band-grid">';
   periods.forEach(function (b) {
     const cls = b.kind === 'paid' ? 'paid' : b.kind === 'partial' ? 'partial' : 'open';
-    const label = cls === 'paid' ? '✅ Pago' : cls === 'partial' ? '⚠️ Parcial' : '🔴 Em aberto';
+    const label = cls === 'paid' ? '✅ Pago' : cls === 'partial' ? '⚠ Parcial' : '🔴 Em aberto';
     html += `<div class="pal-paid-band ${cls}">`;
     html += `<div class="pal-paid-band-title">${label}</div>`;
     html += `<div class="pal-paid-band-range">${b.label}</div>`;
@@ -15682,7 +16263,7 @@ function closePaladarProductModal(){
 function editPaladarProduct(id){
   var p = _palProductsCache.find(function(x){ return x.id === id; });
   if(!p) return;
-  document.getElementById('pal-product-modal-title').textContent = '✏️ Editar Produto';
+  document.getElementById('pal-product-modal-title').textContent = ' Editar Produto';
   document.getElementById('pal-prod-name').value = p.name;
   document.getElementById('pal-prod-price').value = p.suggested_price || '';
   document.getElementById('pal-prod-edit-id').value = id;
@@ -16297,7 +16878,7 @@ function renderAvariaRanking(){
         +'<td data-label="Avariado" class="r mono" style="font-weight:800;color:#b91c1c">'+fmt(r.avTotal)+'</td>'
         +'<td data-label="Ocorr." class="r mono">'+r.avCount+'</td>'
         +'<td data-label="Severidade"><div class="risk-bar"><span style="width:'+Math.max(6,Math.round((barVal/(max||1))*100))+'%"></span></div><div style="margin-top:5px">'+badge+'</div><div style="font-size:10px;color:var(--muted);margin-top:4px">Risco: taxa '+Number(r.rate||0).toFixed(1).replace('.',',')+'% · '+fmt(r.avTotal)+'</div></td>'
-        +'<td data-label="Ações"><div class="risk-actions"><button type="button" class="btn btn-secondary btn-sm" title="Ver entregue e retornado do mês" data-avaria-action="client-month" data-client="'+clientAttr+'">👁</button><button type="button" class="btn btn-secondary btn-sm" title="Filtrar calendário por cliente" data-avaria-action="filter-client" data-client="'+clientAttr+'">📅</button><button type="button" class="btn btn-secondary btn-sm" title="Abrir Clientes" data-avaria-action="open-clientes">👤</button></div></td>'
+        +'<td data-label="Ações"><div class="risk-actions"><button type="button" class="btn btn-secondary btn-sm" title="Ver entregue e retornado do mês" data-avaria-action="client-month" data-client="'+clientAttr+'"></button><button type="button" class="btn btn-secondary btn-sm" title="Filtrar calendário por cliente" data-avaria-action="filter-client" data-client="'+clientAttr+'">📅</button><button type="button" class="btn btn-secondary btn-sm" title="Abrir Clientes" data-avaria-action="open-clientes">👤</button></div></td>'
       +'</tr>';
     }).join('')+'</tbody></table></div>';
 }
@@ -16307,6 +16888,113 @@ function renderAvariaRiskChart(rows){
   if(avRiskChart)avRiskChart.destroy();
   avRiskChart=new Chart(c,{type:'bar',data:{labels:rows.map(function(r){return String(r.client||'').length>18?String(r.client).slice(0,17)+'…':r.client;}),datasets:[{data:rows.map(function(r){return r.avTotal;}),backgroundColor:rows.map(function(r){return r.level==='high'?'#dc2626':(r.level==='med'?'#f97316':'#22c55e');}),borderRadius:6}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){var r=rows[ctx.dataIndex];return fmt(ctx.raw)+' · '+Number(r.rate||0).toFixed(1).replace('.',',')+'% · '+r.avCount+' ocorr.';}}}},scales:{x:{ticks:{callback:function(v){return fmt(v);}},grid:{color:'var(--border)'}},y:{grid:{display:false}}}}});
 }
+
+function showMobileReadOnlyNotice(){
+  toast('No celular, este painel está disponível apenas para consulta. Para lançar ou editar informações, acesse pelo computador.','info');
+}
+function mobileNormalizeText(txt){
+  return String(txt||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+}
+function isMobileReadOnlyAllowed(el){
+  if(!el)return false;
+  if(el.closest('.mobile-bar,.mobile-period-switcher,#mobile-period-sheet,#mobile-more-sheet,#mobile-detail-sheet'))return true;
+  if(el.closest('.notif-drawer-header'))return true;
+  var oc=mobileNormalizeText(el.getAttribute('onclick')||'');
+  var txt=mobileNormalizeText(el.textContent||el.getAttribute('aria-label')||el.getAttribute('title')||'');
+  var allowed=['switchtab','mobileswitchtab','openmobile','closemobile','mobileapply','mobileshift','togglemobilenav','togglenotificationdrawer','closenavandswitch','load','filter','buscar','atualizar','limpar','pdf','excel','csv','recibo','visualizar','ver ','detalhe','fechar','cancelar','ocultar sino','tema','modo tv','sair'];
+  return allowed.some(function(k){return oc.indexOf(k)>=0||txt.indexOf(k)>=0;});
+}
+function isMobileMutatingElement(el){
+  if(!isMobileView()||!el)return false;
+  if(isMobileReadOnlyAllowed(el))return false;
+  var txt=mobileNormalizeText(el.textContent||el.value||el.getAttribute('aria-label')||el.getAttribute('title')||'');
+  var oc=mobileNormalizeText(el.getAttribute('onclick')||'');
+  var idc=mobileNormalizeText((el.id||'')+' '+(el.className||'')+' '+Array.from(el.attributes||[]).map(function(a){return a.name+'='+a.value;}).join(' '));
+  var hay=txt+' '+oc+' '+idc;
+  return /(lancar|adicionar|novo|nova|editar|excluir|remover|salvar|importar|alterar|gerenciar|confirmar|concluir|marcar entregue|pagar|pagamento|delete|edit|save|submit|add|remove|bulk|openmodal|open.*modal|confirm)/.test(hay);
+}
+function applyMobileReadOnlyUI(){
+  var mobile=isMobileView();
+  document.body.classList.toggle('mobile-readonly',mobile);
+  if(!mobile){
+    document.querySelectorAll('.mobile-readonly-hidden').forEach(function(el){el.classList.remove('mobile-readonly-hidden');});
+    return 0;
+  }
+  document.querySelectorAll('button,a,input[type="button"],input[type="submit"]').forEach(function(el){
+    if(isMobileMutatingElement(el)&&!el.classList.contains('mobile-readonly-hidden'))el.classList.add('mobile-readonly-hidden');
+  });
+  document.querySelectorAll('input,select,textarea').forEach(function(el){
+    if(el.closest('.mobile-period-switcher,#mobile-period-sheet')||el.type==='search'||el.type==='text'&&/buscar|cliente|produto/i.test(el.placeholder||''))return;
+    if(el.closest('#login-screen'))return;
+    if(/date|month|search|text|select-one/.test(el.type||'')&&el.closest('main'))return;
+    if(el.closest('.modal,.paladar-modal-box'))el.setAttribute('readonly','readonly');
+  });
+}
+function installMobileReadOnlyGuards(){
+  var guarded=[
+    'openModal','submitSale','submitSaleMulti','addSaleLine','editSale','deleteSale',
+    'addProduct','deleteProduct','editLabel','editPrice','addDriver','editDriver','deleteDriver',
+    'addVehicle','deleteVehicle','openClientModal','deleteClient','openEditUser','deleteUser',
+    'openDeliveryDateModal','confirmDeliveryDate','openBulkDeliveryModal','confirmBulkDelivery','openUndoModal','confirmUndoDelivery',
+    'openBulkPayModal','confirmBulkPay','openPaymentModal','openEditPaymentModal','savePayment','deletePayment',
+    'openAppNoteModal','saveAppNote','deleteAppNote','openAppCalendarModal','saveAppCalendarEvent','deleteAppCalendarEvent','deleteAppCalendarSeries',
+    'openPaladarSaleModal','savePaladarSale','addPaladarItem','editPaladarSaleItem','openPaladarItemEditModal','savePaladarItemEdit',
+    'editPaladarGroupClient','savePaladarGroupEdit','deletePaladarSale','deletePaladarGroup',
+    'openPaladarProductModal','editPaladarProduct','savePaladarProduct','deletePaladarProduct',
+    'editOrcProduct','deleteOrcProduct','editOrcQuote','deleteOrcQuote','saveOrcProduct','saveOrcQuote','addOrcItem',
+    'deleteBackup','createBackup','quickRegisterClient','saveNewPassword','openWaContactModal','deleteWaLog'
+  ];
+  guarded.forEach(function(name){
+    var fn=window[name];
+    if(typeof fn!=='function'||fn.__mobileReadOnlyGuard)return;
+    var wrapped=function(){
+      if(isMobileView()){
+        showMobileReadOnlyNotice();
+        return false;
+      }
+      return fn.apply(this,arguments);
+    };
+    wrapped.__mobileReadOnlyGuard=true;
+    wrapped.__original=fn;
+    window[name]=wrapped;
+  });
+  document.addEventListener('click',function(ev){
+    if(!isMobileView())return;
+    var el=ev.target&&ev.target.closest?ev.target.closest('button,a,input[type="button"],input[type="submit"]'):null;
+    if(!el||!isMobileMutatingElement(el))return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    ev.stopImmediatePropagation();
+    showMobileReadOnlyNotice();
+  },true);
+  document.addEventListener('submit',function(ev){
+    if(!isMobileView())return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    showMobileReadOnlyNotice();
+  },true);
+  document.addEventListener('keydown',function(ev){
+    if(!isMobileView())return;
+    if((ev.ctrlKey||ev.metaKey)&&['s','enter'].indexOf(String(ev.key||'').toLowerCase())>=0){
+      ev.preventDefault();
+      showMobileReadOnlyNotice();
+    }
+  },true);
+  document.addEventListener('click',function(ev){
+    if(!isMobileView())return;
+    var card=ev.target&&ev.target.closest?ev.target.closest('.sum-grid .card,.sc,.kpi-card,.stat-card'):null;
+    if(!card||ev.target.closest('button,a,input,select,textarea'))return;
+    var lines=Array.from(card.querySelectorAll('*')).map(function(n){return n.textContent.trim();}).filter(Boolean);
+    var unique=Array.from(new Set(lines)).slice(0,8);
+    if(unique.length)openMobileDetailSheet(unique[0]||'Indicador','<div style="display:grid;gap:10px">'+unique.map(function(v){return '<div class="mobile-prod-card"><b>'+admEsc(v)+'</b></div>';}).join('')+'</div>');
+  });
+  var observer=new MutationObserver(function(){applyMobileReadOnlyUI();});
+  observer.observe(document.documentElement,{childList:true,subtree:true});
+  applyMobileReadOnlyUI();
+  window.addEventListener('resize',applyMobileReadOnlyUI);
+  window.addEventListener('salesLoaded',function(){setTimeout(applyMobileReadOnlyUI,0);});
+}
+setTimeout(installMobileReadOnlyGuards,0);
 </script>
 
 
@@ -16498,7 +17186,7 @@ function renderAvariaRiskChart(rows){
           <div class="tv-kpi-sub" id="tv-kpi-dias-sub">média —/dia</div>
         </div>
         <div class="tv-kpi danger">
-          <div class="tv-kpi-label">⚠️ Avarias do Mês</div>
+          <div class="tv-kpi-label">⚠ Avarias do Mês</div>
           <div class="tv-kpi-value" id="tv-kpi-avaria">R$ 0</div>
           <div class="tv-kpi-sub" id="tv-kpi-avaria-sub">—</div>
           <div id="tv-kpi-avaria-proj" style="font-size:11px;opacity:.85;margin-top:5px;padding-top:5px;border-top:1px solid rgba(252,165,165,.2)"></div>
@@ -16532,13 +17220,13 @@ function renderAvariaRiskChart(rows){
     <div id="tv-slide-2" class="tv-slide tv-slide-bg">
       <div class="tv-grid">
         <div class="tv-card">
-          <div class="tv-card-title">🏅 Top 8 Clientes</div>
+          <div class="tv-card-title"> Top 8 Clientes</div>
           <ul class="tv-top-list" id="tv-top10-list">
             <li class="tv-empty">—</li>
           </ul>
         </div>
         <div class="tv-card">
-          <div class="tv-card-title">⚠️ Projeção de Avarias</div>
+          <div class="tv-card-title">⚠ Projeção de Avarias</div>
           <div class="tv-avaria-proj-bar" id="tv-avaria-proj-bar">
             <div class="tv-avaria-proj-row"><!-- populated dynamically --></div>
             <div class="tv-avaria-proj-row"><!-- populated dynamically --></div>
@@ -16569,7 +17257,7 @@ function renderAvariaRiskChart(rows){
           </div>
         </div>
         <div class="tv-card">
-          <div class="tv-card-title">🏆 Entregadores</div>
+          <div class="tv-card-title"> Entregadores</div>
           <ul class="tv-drivers-list" id="tv-drivers-detail-list">
             <li class="tv-empty">—</li>
           </ul>
@@ -16594,7 +17282,7 @@ function renderAvariaRiskChart(rows){
   </div>
 
   <div class="tv-footer">
-    <button class="tv-exit" onclick="exitTVMode()" aria-label="Sair do Modo TV">← Sair do Modo TV</button>
+    <button class="tv-exit" onclick="exitTVMode()" aria-label="Sair do Modo TV"> Sair do Modo TV</button>
     <span class="center-info">
       <span class="tv-slide-dots" id="tv-slide-dots">
         <span class="tv-slide-dot active" data-slide="0"></span>
@@ -16611,7 +17299,7 @@ function renderAvariaRiskChart(rows){
   <div class="notif-drawer-header">
     <div style="font-size:14px;font-weight:700">📋 Notas Pendentes <span id="drawer-count">0</span></div>
     <div style="display:flex;align-items:center;gap:6px">
-      <button type="button" id="notif-hide-btn" style="border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;padding:5px 8px;font-size:11px;font-weight:800;cursor:pointer">Ocultar sino</button>
+      <button type="button" id="notif-hide-btn" onclick="setNotifBellHidden(true)" style="border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;padding:5px 8px;font-size:11px;font-weight:800;cursor:pointer">Ocultar sino</button>
       <button class="notif-drawer-close" onclick="toggleNotificationDrawer()" aria-label="Fechar">×</button>
     </div>
   </div>
@@ -16640,8 +17328,8 @@ function renderAvariaRiskChart(rows){
     <button class="nav-drawer-item" data-tab="nf" onclick="closeNavAndSwitch(this,'nf')"><span class="nd-icon">🧾</span>NF-e</button>
     <button class="nav-drawer-item" data-tab="pr" onclick="closeNavAndSwitch(this,'pr')"><span class="nd-icon">🌱</span>Prod. Rural</button>
     <button class="nav-drawer-item" data-tab="avulso" onclick="closeNavAndSwitch(this,'avulso')"><span class="nd-icon">💵</span>Avulso</button>
-    <button class="nav-drawer-item" data-tab="avaria" onclick="closeNavAndSwitch(this,'avaria')"><span class="nd-icon">⚠️</span>Avarias</button>
-    <button class="nav-drawer-item" data-tab="projecao" onclick="closeNavAndSwitch(this,'projecao')"><span class="nd-icon">🏭</span>Projeção</button>
+    <button class="nav-drawer-item" data-tab="avaria" onclick="closeNavAndSwitch(this,'avaria')"><span class="nd-icon">⚠</span>Avarias</button>
+    <button class="nav-drawer-item" data-tab="projecao" onclick="closeNavAndSwitch(this,'projecao')"><span class="nd-icon"></span>Projeção</button>
     <button class="nav-drawer-item" data-tab="grafico" onclick="closeNavAndSwitch(this,'grafico')"><span class="nd-icon">📈</span>Gráfico</button>
     <button class="nav-drawer-item" data-tab="pendentes" onclick="closeNavAndSwitch(this,'pendentes')"><span class="nd-icon">📋</span>Notas <span class="nd-badge" id="nd-badge-pendentes" style="display:none">0</span></button>
     <div class="nav-drawer-section-title">Consultas</div>
@@ -16650,10 +17338,10 @@ function renderAvariaRiskChart(rows){
     <button class="nav-drawer-item" data-tab="produtividade" onclick="closeNavAndSwitch(this,'produtividade')"><span class="nd-icon">📊</span>Produtividade</button>
     <button class="nav-drawer-item" data-tab="produtos" onclick="closeNavAndSwitch(this,'produtos')"><span class="nd-icon">📦</span>Produtos</button>
     <div class="nav-drawer-divider"></div>
-    <button class="nav-drawer-item" onclick="toggleMobileNav();openPaladarApp()"><span class="nd-icon">🍽️</span>Monteiro</button>
+    <button class="nav-drawer-item" onclick="toggleMobileNav();openPaladarApp()"><span class="nd-icon"></span>Monteiro</button>
     <button class="nav-drawer-item" onclick="toggleMobileNav();switchCompanyUI()"><span class="nd-icon">🚚</span>Trocar empresa</button>
-    <button class="nav-drawer-item" onclick="toggleMobileNav();openOrcamentoShortcut()"><span class="nd-icon">📝</span>Orçamentos</button>
-    <button class="nav-drawer-item" data-tab="config" onclick="closeNavAndSwitch(this,'config')"><span class="nd-icon">⚙️</span>Configurações</button>
+    <button class="nav-drawer-item" onclick="toggleMobileNav();openOrcamentoShortcut()"><span class="nd-icon"></span>Orçamentos</button>
+    <button class="nav-drawer-item" data-tab="config" onclick="closeNavAndSwitch(this,'config')"><span class="nd-icon">⚙</span>Configurações</button>
   </div>
   <div class="nav-drawer-footer">
     <button class="nd-footer-btn" onclick="toggleMobileNav();toggleTheme()"><span id="nd-theme-icon">🌙</span> Tema</button>
@@ -16667,13 +17355,13 @@ function renderAvariaRiskChart(rows){
   <!-- Header -->
   <div style="background:#4F46E5;color:#fff;padding:14px 20px;display:grid;grid-template-columns:minmax(260px,1fr) auto minmax(260px,1fr);align-items:center;gap:12px;flex-shrink:0">
     <div style="display:flex;align-items:center;gap:12px;min-width:0">
-      <div style="font-size:22px;font-weight:800;letter-spacing:-.03em;display:flex;align-items:center;gap:8px;white-space:nowrap">🍽️ Monteiro</div>
+      <div style="font-size:22px;font-weight:800;letter-spacing:-.03em;display:flex;align-items:center;gap:8px;white-space:nowrap"> Monteiro</div>
       <div style="font-size:12px;opacity:.7;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Sistema de Vendas Independente</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;justify-content:center">
       <button class="pal-company-shortcut-btn" data-pal-company="raios" onclick="switchCompanyFromMonteiro('raios')" title="Ir para Menina dos Raios">⚡ Menina dos Raios</button>
       <button class="pal-company-shortcut-btn" data-pal-company="estrada" onclick="switchCompanyFromMonteiro('estrada')" title="Ir para Menina da Estrada">🚚 Menina da Estrada</button>
-      <button class="pal-orcamento-desktop-btn" onclick="openOrcamentoFromMonteiro()" title="Abrir Orçamentos">📝 Orçamentos</button>
+      <button class="pal-orcamento-desktop-btn" onclick="openOrcamentoFromMonteiro()" title="Abrir Orçamentos"> Orçamentos</button>
     </div>
     <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end">
       <button onclick="openPaladarSaleModal()" style="background:rgba(255,255,255,.2);color:#fff;border:none;padding:7px 14px;border-radius:8px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;transition:background .15s">➕ Lançar Venda</button>
@@ -16710,7 +17398,7 @@ function renderAvariaRiskChart(rows){
         <option value="2024">2024</option><option value="2025">2025</option>
         <option value="2026">2026</option><option value="2027">2027</option>
       </select>
-      <button class="btn btn-secondary btn-sm" onclick="loadPaladarSummary();loadPaladarSales();loadPaladarClients();loadPaladarPayments();loadAppNotes();loadAppCalendar()" style="font-size:11px;padding:4px 10px">🔍 Filtrar</button>
+      <button class="btn btn-secondary btn-sm" onclick="loadPaladarSummary();loadPaladarSales();loadPaladarClients();loadPaladarPayments();loadAppNotes();loadAppCalendar()" style="font-size:11px;padding:4px 10px"> Filtrar</button>
     </div>
   </div>
 
@@ -16755,11 +17443,11 @@ function renderAvariaRiskChart(rows){
         </div>
       </div>
       <div class="card" style="padding:14px">
-        <div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:10px">🏆 Top Produtos</div>
+        <div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:10px"> Top Produtos</div>
         <div id="pal-top-produtos"></div>
       </div>
       <div class="card" style="padding:14px;margin-top:14px">
-        <div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:8px">🏆 Melhor Dia</div>
+        <div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:8px"> Melhor Dia</div>
         <div id="pal-melhor-dia" style="color:var(--muted);font-size:12px">—</div>
       </div>
     </div>
@@ -16776,7 +17464,7 @@ function renderAvariaRiskChart(rows){
         <input type="text" id="pal-filter-nf" class="form-input" placeholder="NF..." style="font-size:12px;padding:5px 10px;width:110px" oninput="loadPaladarSales()">
         <input type="text" id="pal-filter-driver" class="form-input" placeholder="Entregador..." style="font-size:12px;padding:5px 10px;width:120px" oninput="loadPaladarSales()">
         <input type="text" id="pal-filter-vehicle" class="form-input" placeholder="Veículo / Placa..." style="font-size:12px;padding:5px 10px;width:140px" oninput="loadPaladarSales()">
-        <button type="button" onclick="downloadPaladarInvoicesZip()" title="Baixar em ZIP as notas fiscais marcadas (ou todas as anexadas nesta tela, se nenhuma marcada)" style="border:1.5px solid #166534;color:#166534;background:#DCFCE7;padding:6px 12px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">⬇️ Baixar notas (ZIP)</button>
+        <button type="button" onclick="downloadPaladarInvoicesZip()" title="Baixar em ZIP as notas fiscais marcadas (ou todas as anexadas nesta tela, se nenhuma marcada)" style="border:1.5px solid #166534;color:#166534;background:#DCFCE7;padding:6px 12px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">⬇ Baixar notas (ZIP)</button>
       </div>
       <div id="pal-lanc-table-wrap"><div class="loader"><div class="spin"></div></div></div>
     </div>
@@ -16796,7 +17484,7 @@ function renderAvariaRiskChart(rows){
         <select id="pal-filter-cli-name" class="form-input" style="font-size:12px;padding:5px 10px;width:220px" onchange="loadPaladarClients()">
           <option value="">Todos os clientes</option>
         </select>
-        <button class="btn btn-secondary btn-sm" onclick="loadPaladarClients()" style="font-size:11px;padding:4px 10px">🔍 Filtrar</button>
+        <button class="btn btn-secondary btn-sm" onclick="loadPaladarClients()" style="font-size:11px;padding:4px 10px"> Filtrar</button>
         <div style="flex:1"></div>
         <button class="btn btn-sm" onclick="exportPaladarAllExcel()" style="font-size:11px;padding:4px 10px;background:#22c55e;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-family:inherit">📥 Excel todos</button>
         <button class="btn btn-sm" onclick="exportPaladarAllPDF(this)" style="font-size:11px;padding:4px 10px;background:#EF4444;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-family:inherit">📄 PDF todos</button>
@@ -16815,7 +17503,7 @@ function renderAvariaRiskChart(rows){
           <div style="font-size:18px;font-weight:700;font-family:monospace;color:var(--g800);margin-top:4px" id="pal-cli-ticket">—</div>
         </div>
         <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px">
-          <div style="font-size:10px;color:var(--muted);text-transform:uppercase">🏆 Cliente Líder</div>
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase"> Cliente Líder</div>
           <div style="font-size:13px;font-weight:700;color:var(--g800);margin-top:4px" id="pal-cli-lider">—</div>
         </div>
       </div>
@@ -16872,7 +17560,7 @@ function renderAvariaRiskChart(rows){
       <button class="btn btn-secondary btn-sm" onclick="loadAppNotes()">↻ Atualizar</button>
     </div>
     <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:8px">
-      <button id="app-notes-tab-pending" class="btn btn-primary btn-sm" onclick="switchAppNotesStatus('pending')">⏳ Pendentes <span id="app-notes-pending-count">0</span></button>
+      <button id="app-notes-tab-pending" class="btn btn-primary btn-sm" onclick="switchAppNotesStatus('pending')"> Pendentes <span id="app-notes-pending-count">0</span></button>
       <button id="app-notes-tab-completed" class="btn btn-secondary btn-sm" onclick="switchAppNotesStatus('completed')">✅ Concluídas</button>
     </div>
     <div id="app-notes-kpis" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px"></div>
@@ -16893,7 +17581,7 @@ function renderAvariaRiskChart(rows){
       <button class="btn btn-secondary btn-sm" onclick="loadAppCalendar()">↻ Atualizar</button>
     </div>
     <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:8px">
-      <button id="app-calendar-tab-pending" class="btn btn-primary btn-sm" onclick="switchAppCalendarStatus('pending')">⏳ Pendentes <span id="app-calendar-pending-count">0</span></button>
+      <button id="app-calendar-tab-pending" class="btn btn-primary btn-sm" onclick="switchAppCalendarStatus('pending')"> Pendentes <span id="app-calendar-pending-count">0</span></button>
       <button id="app-calendar-tab-completed" class="btn btn-secondary btn-sm" onclick="switchAppCalendarStatus('completed')">✅ Concluídas</button>
     </div>
     <div id="app-calendar-kpis" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px"></div>
@@ -16908,7 +17596,7 @@ function renderAvariaRiskChart(rows){
     <!-- Filtros -->
     <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
       <input type="text" id="pal-pag-cliente" list="pal-client-list" placeholder="👤 Cliente..." style="font-size:12px;padding:5px 10px;width:220px;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--ink);font-family:inherit" onchange="loadPaladarPayments()">
-      <div style="font-size:11px;color:var(--muted)">Use o seletor de período ⬆️ acima para quinzenal/mensal/anual</div>
+      <div style="font-size:11px;color:var(--muted)">Use o seletor de período ⬆ acima para quinzenal/mensal/anual</div>
       <div style="flex:1"></div>
       <div id="pag-active-client" style="display:none;font-size:11px;font-weight:700;color:#4F46E5;background:#EEF2FF;padding:4px 10px;border-radius:6px"></div>
       <button class="btn btn-primary btn-sm" id="btn-lancar-pagamento" onclick="openPaymentModal()">💰 Lançar pagamento</button>
@@ -16935,7 +17623,7 @@ function renderAvariaRiskChart(rows){
         <div style="font-size:16px;font-weight:700;font-family:monospace;color:var(--g800);margin-top:4px" id="pag-total-pago">—</div>
       </div>
       <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px">
-        <div style="font-size:9px;color:var(--muted);text-transform:uppercase">⚖️ Saldo</div>
+        <div style="font-size:9px;color:var(--muted);text-transform:uppercase">⚖ Saldo</div>
         <div style="font-size:16px;font-weight:700;font-family:monospace;color:var(--g800);margin-top:4px" id="pag-saldo">—</div>
       </div>
       <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px">
@@ -17009,7 +17697,7 @@ function renderAvariaRiskChart(rows){
   <div id="app-note-modal" onclick="if(event.target===this)closeAppNoteModal()" style="position:fixed;inset:0;z-index:9600;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);padding:16px">
     <div style="background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px;width:min(680px,96vw);max-height:90vh;overflow:auto">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px">
-        <div style="font-size:16px;font-weight:800;color:#4F46E5">✏️ Editar Nota APP</div>
+        <div style="font-size:16px;font-weight:800;color:#4F46E5"> Editar Nota APP</div>
         <button onclick="closeAppNoteModal()" style="background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer">&times;</button>
       </div>
       <input type="hidden" id="app-note-id">
@@ -17040,7 +17728,7 @@ function renderAvariaRiskChart(rows){
   <div id="paladar-sale-modal" onclick="if(event.target===this)closePaladarSaleModal()" style="position:fixed;inset:0;z-index:9500;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.55)">
     <div class="paladar-modal-box" style="background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:24px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <div style="font-size:16px;font-weight:700;color:#4F46E5">🍽️ Lançar Venda Monteiro</div>
+        <div style="font-size:16px;font-weight:700;color:#4F46E5"> Lançar Venda Monteiro</div>
         <button onclick="closePaladarSaleModal()" style="background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer;padding:0;line-height:1">&times;</button>
       </div>
       <div class="paladar-modal-body">
@@ -17200,3 +17888,4 @@ function renderAvariaRiskChart(rows){
 
 </body>
 </html>
+
