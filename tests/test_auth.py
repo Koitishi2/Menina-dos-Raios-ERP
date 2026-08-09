@@ -2,6 +2,8 @@ import sqlite3
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
+import pytest
+
 
 def _login(client, username="admin", password="admin123", company="raios"):
     return client.post(
@@ -16,6 +18,18 @@ class _FakeRequest:
         if include_client:
             self.client = SimpleNamespace(host=direct_host) if direct_host is not None else None
         self.headers = headers or {}
+
+
+@pytest.fixture
+def isolated_login_rate_state(isolated_app):
+    module = isolated_app.module
+    original = dict(module._LOGIN_ATTEMPTS)
+    module._LOGIN_ATTEMPTS.clear()
+    try:
+        yield module
+    finally:
+        module._LOGIN_ATTEMPTS.clear()
+        module._LOGIN_ATTEMPTS.update(original)
 
 
 def test_is_trusted_proxy_host_current_ipaddress_contract(isolated_app):
@@ -145,6 +159,122 @@ def test_client_ip_current_malformed_request_paths_do_not_escape_exceptions(isol
     )
     request_with_header_object_without_get.headers = []
     assert client_ip(request_with_header_object_without_get) == "?"
+
+
+def test_login_rate_check_current_empty_below_limit_blocked_and_expired(
+    isolated_login_rate_state,
+    monkeypatch,
+):
+    module = isolated_login_rate_state
+    check_login_rate = module._check_login_rate
+    attempts = module._LOGIN_ATTEMPTS
+    monkeypatch.setattr(module._time_mod, "time", lambda: 1000.0)
+
+    assert check_login_rate("203.0.113.10") == (True, 0)
+    assert attempts["203.0.113.10"] == []
+
+    attempts["203.0.113.10"] = [(995.0, False)] * (module.LOGIN_RATE_MAX_FAILS - 1)
+    assert check_login_rate("203.0.113.10") == (True, 0)
+
+    attempts["203.0.113.10"].append((990.0, False))
+    assert check_login_rate("203.0.113.10") == (
+        False,
+        module.LOGIN_RATE_BLOCK_SECS - 10,
+    )
+
+    monkeypatch.setattr(module._time_mod, "time", lambda: 1049.0)
+    assert check_login_rate("203.0.113.10") == (
+        False,
+        module.LOGIN_RATE_BLOCK_SECS - 59,
+    )
+
+    monkeypatch.setattr(module._time_mod, "time", lambda: 1061.0)
+    assert check_login_rate("203.0.113.10") == (True, 0)
+    assert attempts["203.0.113.10"]
+
+    monkeypatch.setattr(module._time_mod, "time", lambda: 1296.0)
+    assert check_login_rate("203.0.113.10") == (True, 0)
+    assert attempts["203.0.113.10"] == []
+
+
+def test_login_rate_check_current_separates_ips_and_prunes_block_window(
+    isolated_login_rate_state,
+    monkeypatch,
+):
+    module = isolated_login_rate_state
+    check_login_rate = module._check_login_rate
+    attempts = module._LOGIN_ATTEMPTS
+    monkeypatch.setattr(module._time_mod, "time", lambda: 2000.0)
+
+    attempts["203.0.113.10"] = [(1995.0, False)] * module.LOGIN_RATE_MAX_FAILS
+    attempts["198.51.100.20"] = [(1995.0, False)] * (module.LOGIN_RATE_MAX_FAILS - 1)
+    attempts["192.0.2.30"] = [
+        (2000.0 - module.LOGIN_RATE_BLOCK_SECS, False),
+        (1999.0, True),
+    ]
+
+    assert check_login_rate("203.0.113.10") == (
+        False,
+        module.LOGIN_RATE_BLOCK_SECS - 5,
+    )
+    assert check_login_rate("198.51.100.20") == (True, 0)
+    assert check_login_rate("192.0.2.30") == (True, 0)
+    assert attempts["192.0.2.30"] == [(1999.0, True)]
+
+
+def test_record_login_current_failures_success_clear_and_check_interaction(
+    isolated_login_rate_state,
+    monkeypatch,
+):
+    module = isolated_login_rate_state
+    record_login = module._record_login
+    check_login_rate = module._check_login_rate
+    attempts = module._LOGIN_ATTEMPTS
+    now = {"value": 3000.0}
+    monkeypatch.setattr(module._time_mod, "time", lambda: now["value"])
+
+    record_login("203.0.113.10", False)
+    assert attempts["203.0.113.10"] == [(3000.0, False)]
+    assert check_login_rate("203.0.113.10") == (True, 0)
+
+    for index in range(1, module.LOGIN_RATE_MAX_FAILS):
+        now["value"] = 3000.0 + index
+        record_login("203.0.113.10", False)
+
+    assert len(attempts["203.0.113.10"]) == module.LOGIN_RATE_MAX_FAILS
+    assert check_login_rate("203.0.113.10") == (
+        False,
+        module.LOGIN_RATE_BLOCK_SECS - 9,
+    )
+
+    record_login("198.51.100.20", False)
+    assert check_login_rate("198.51.100.20") == (True, 0)
+
+    record_login("203.0.113.10", True)
+    assert "203.0.113.10" not in attempts
+    assert check_login_rate("203.0.113.10") == (True, 0)
+
+
+def test_record_login_current_large_state_cleanup_contract(
+    isolated_login_rate_state,
+    monkeypatch,
+):
+    module = isolated_login_rate_state
+    record_login = module._record_login
+    attempts = module._LOGIN_ATTEMPTS
+    monkeypatch.setattr(module._time_mod, "time", lambda: 5000.0)
+
+    for index in range(10001):
+        attempts[f"10.0.{index // 255}.{index % 255}"] = [
+            (5000.0 - module.LOGIN_RATE_BLOCK_SECS, False),
+        ]
+    attempts["203.0.113.10"] = [(4999.0, False)]
+
+    record_login("198.51.100.20", False)
+
+    assert "203.0.113.10" in attempts
+    assert "198.51.100.20" in attempts
+    assert len(attempts) == 2
 
 
 def test_valid_login_and_me_with_company_header(isolated_app):
