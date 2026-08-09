@@ -16,14 +16,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 try:
-    from .backup_admin import backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip
+    from .backup_admin import _copy_sqlite_consistent, _is_sqlite_file, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip
     from .permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from .security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from .security_request import _client_ip, _is_trusted_proxy_host
     from .schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
     from .utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
 except ImportError:
-    from backup_admin import backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip
+    from backup_admin import _copy_sqlite_consistent, _is_sqlite_file, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip
     from permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from security_request import _client_ip, _is_trusted_proxy_host
@@ -969,14 +969,6 @@ def _backup_db_sources():
 
 def _backup_expected_databases():
     return backup_expected_databases_from_paths(BASE_DIR, DB_PATH, COMPANY_DBS, APP_NOTES_DB_PATH)
-
-def _copy_sqlite_consistent(src:Path,dest:Path):
-    src_conn=sqlite3.connect(str(src),timeout=20)
-    dest_conn=sqlite3.connect(str(dest),timeout=20)
-    try:
-        src_conn.backup(dest_conn)
-    finally:
-        dest_conn.close(); src_conn.close()
 
 def _backup_files():
     return backup_files_from_dir(BACKUP_DIR)
@@ -2835,14 +2827,6 @@ def backup_status(x_token:str=Header("")):
             "included_databases":[x["path"].name for x in _backup_db_sources()]}
 
 # â”€â”€ Restore endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-def _is_sqlite_file(path:Path)->bool:
-    """Confere se o arquivo comeÃ§a com a assinatura mÃ¡gica do SQLite 3."""
-    try:
-        with open(path,"rb") as f:
-            return f.read(16).startswith(b"SQLite format 3")
-    except Exception:
-        return False
-
 def _safety_backup_before_restore()->str:
     """Cria backup de seguranÃ§a multi-banco antes de uma restauraÃ§Ã£o."""
     return create_backup("pre_restore")

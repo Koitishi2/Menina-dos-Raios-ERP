@@ -1,4 +1,5 @@
 import json
+import sqlite3
 import zipfile
 from pathlib import Path
 
@@ -43,3 +44,21 @@ def backup_manifest_databases_from_zip(path):
             return [d.get("filename") for d in data.get("databases",[]) if d.get("filename")]
     except Exception:
         return []
+
+
+def _copy_sqlite_consistent(src:Path,dest:Path):
+    src_conn=sqlite3.connect(str(src),timeout=20)
+    dest_conn=sqlite3.connect(str(dest),timeout=20)
+    try:
+        src_conn.backup(dest_conn)
+    finally:
+        dest_conn.close(); src_conn.close()
+
+
+def _is_sqlite_file(path:Path)->bool:
+    """Confere se o arquivo comeca com a assinatura magica do SQLite 3."""
+    try:
+        with open(path,"rb") as f:
+            return f.read(16).startswith(b"SQLite format 3")
+    except Exception:
+        return False
