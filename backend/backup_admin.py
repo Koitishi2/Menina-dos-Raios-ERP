@@ -1,7 +1,11 @@
 import json
+import shutil
 import sqlite3
+import tempfile
 import zipfile
 from pathlib import Path
+
+from fastapi import HTTPException
 
 
 def backup_db_sources_from_paths(base_dir, db_path, company_dbs, app_notes_db_path):
@@ -66,3 +70,34 @@ def _is_sqlite_file(path:Path)->bool:
             return f.read(16).startswith(b"SQLite format 3")
     except Exception:
         return False
+
+
+def safety_backup_before_restore_with(create_backup_func)->str:
+    """Cria backup de seguranca multi-banco antes de uma restauracao."""
+    return create_backup_func("pre_restore")
+
+
+def restore_zip_backup_with(src:Path, base_dir, db_path, app_notes_db_path, company_dbs):
+    restored=[]
+    allowed={p.name for p in [db_path, app_notes_db_path, *company_dbs.values()]}
+    with tempfile.TemporaryDirectory() as td:
+        tmpdir=Path(td)
+        with zipfile.ZipFile(src,"r") as zf:
+            members=[m for m in zf.namelist() if m.startswith("databases/") and m.lower().endswith(".db")]
+            if not members:
+                raise HTTPException(400,"Pacote de backup nÃ£o possui bancos de dados.")
+            for m in members:
+                name=Path(m).name
+                if not name or name not in allowed:
+                    continue
+                out=tmpdir/name
+                with zf.open(m) as rf, open(out,"wb") as wf:
+                    wf.write(rf.read())
+                if not _is_sqlite_file(out):
+                    raise HTTPException(400,f"Banco invÃ¡lido dentro do backup: {name}")
+                target=Path(base_dir)/name
+                shutil.copy2(str(out),str(target))
+                restored.append(name)
+    if not restored:
+        raise HTTPException(400,"Nenhum banco reconhecido foi restaurado.")
+    return restored

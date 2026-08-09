@@ -16,14 +16,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 try:
-    from .backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip
+    from .backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip, restore_zip_backup_with, safety_backup_before_restore_with
     from .permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from .security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from .security_request import _client_ip, _is_trusted_proxy_host
     from .schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
     from .utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
 except ImportError:
-    from backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip
+    from backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip, restore_zip_backup_with, safety_backup_before_restore_with
     from permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from security_request import _client_ip, _is_trusted_proxy_host
@@ -2825,36 +2825,10 @@ def backup_status(x_token:str=Header("")):
 
 # â”€â”€ Restore endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 def _safety_backup_before_restore()->str:
-    """Cria backup de seguranÃ§a multi-banco antes de uma restauraÃ§Ã£o."""
-    return create_backup("pre_restore")
+    return safety_backup_before_restore_with(create_backup)
 
 def _restore_zip_backup(src:Path):
-    import shutil
-    import tempfile
-    import zipfile
-    restored=[]
-    allowed={p.name for p in [DB_PATH, APP_NOTES_DB_PATH, *COMPANY_DBS.values()]}
-    with tempfile.TemporaryDirectory() as td:
-        tmpdir=Path(td)
-        with zipfile.ZipFile(src,"r") as zf:
-            members=[m for m in zf.namelist() if m.startswith("databases/") and m.lower().endswith(".db")]
-            if not members:
-                raise HTTPException(400,"Pacote de backup nÃ£o possui bancos de dados.")
-            for m in members:
-                name=Path(m).name
-                if not name or name not in allowed:
-                    continue
-                out=tmpdir/name
-                with zf.open(m) as rf, open(out,"wb") as wf:
-                    wf.write(rf.read())
-                if not _is_sqlite_file(out):
-                    raise HTTPException(400,f"Banco invÃ¡lido dentro do backup: {name}")
-                target=BASE_DIR/name
-                shutil.copy2(str(out),str(target))
-                restored.append(name)
-    if not restored:
-        raise HTTPException(400,"Nenhum banco reconhecido foi restaurado.")
-    return restored
+    return restore_zip_backup_with(src, BASE_DIR, DB_PATH, APP_NOTES_DB_PATH, COMPANY_DBS)
 
 @app.post("/api/admin/backup/{filename}/restore")
 def restore_backup(filename:str,x_token:str=Header("")):
