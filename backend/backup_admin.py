@@ -37,6 +37,10 @@ def backup_files_from_dir(backup_dir):
     return list(backup_dir.glob("bm_backup_*.db")) + list(backup_dir.glob("bm_backup_*.zip"))
 
 
+def _valid_backup_name(filename:str)->bool:
+    return filename.startswith("bm_backup_") and filename.lower().endswith((".db",".zip"))
+
+
 def backup_manifest_databases_from_zip(path):
     try:
         with zipfile.ZipFile(path,"r") as zf:
