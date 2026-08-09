@@ -16,6 +16,15 @@ def _make_sqlite_db(path):
     return path
 
 
+def _make_sqlite_db_with_marker(path, value):
+    conn = sqlite3.connect(path)
+    conn.execute("CREATE TABLE marker(id INTEGER PRIMARY KEY, value TEXT)")
+    conn.execute("INSERT INTO marker(value) VALUES(?)", (value,))
+    conn.commit()
+    conn.close()
+    return path
+
+
 def _sqlite_rows(path, sql):
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
@@ -57,6 +66,16 @@ def _configure_temp_backup_env(isolated_app, tmp_path, monkeypatch):
         "extra_db": extra_db,
         "ignored": ignored,
     }
+
+
+def _write_restore_zip(path, members):
+    with zipfile.ZipFile(path, "w") as zf:
+        for arcname, source in members:
+            if isinstance(source, bytes):
+                zf.writestr(arcname, source)
+            else:
+                zf.write(source, arcname=arcname)
+    return path
 
 
 def test_backend_starts_serves_index_and_uses_temp_backup(isolated_app):
@@ -544,6 +563,112 @@ def test_safety_backup_before_restore_current_error_contract(
         isolated_app.module._safety_backup_before_restore()
     assert not missing_backup_dir.exists()
     assert _sqlite_rows(env["main_db"], "SELECT value FROM marker") == [{"value": "ok"}]
+
+
+def test_restore_zip_backup_current_valid_allowlist_and_destination_contract(
+    isolated_app,
+    tmp_path,
+    monkeypatch,
+):
+    env = _configure_temp_backup_env(isolated_app, tmp_path, monkeypatch)
+    restored_main = _make_sqlite_db_with_marker(tmp_path / "restored_main.db", "restored-main")
+    restored_notes = _make_sqlite_db_with_marker(tmp_path / "restored_notes.db", "restored-notes")
+    unknown_db = _make_sqlite_db_with_marker(tmp_path / "unknown.db", "unknown")
+    archive = _write_restore_zip(
+        tmp_path / "restore.zip",
+        [
+            ("databases/bm_monteiro.db", restored_main),
+            ("databases/app_notes.db", restored_notes),
+            ("databases/unknown.db", unknown_db),
+            ("databases/ignored.txt", b"fora"),
+        ],
+    )
+
+    restored = isolated_app.module._restore_zip_backup(archive)
+
+    assert restored == ["bm_monteiro.db", "app_notes.db"]
+    assert _sqlite_rows(env["main_db"], "SELECT value FROM marker") == [
+        {"value": "restored-main"}
+    ]
+    assert _sqlite_rows(env["app_notes"], "SELECT value FROM marker") == [
+        {"value": "restored-notes"}
+    ]
+    assert _sqlite_rows(env["estrada_db"], "SELECT value FROM marker") == [{"value": "ok"}]
+    assert not (env["base_dir"] / "unknown.db").exists()
+
+    conn = sqlite3.connect(env["main_db"])
+    try:
+        conn.execute("INSERT INTO marker(value) VALUES('apos-restore')")
+        conn.commit()
+    finally:
+        conn.close()
+    assert _sqlite_rows(env["main_db"], "SELECT value FROM marker ORDER BY id") == [
+        {"value": "restored-main"},
+        {"value": "apos-restore"},
+    ]
+
+
+def test_restore_zip_backup_current_zip_error_contract(
+    isolated_app,
+    tmp_path,
+    monkeypatch,
+):
+    _configure_temp_backup_env(isolated_app, tmp_path, monkeypatch)
+
+    with pytest.raises(FileNotFoundError):
+        isolated_app.module._restore_zip_backup(tmp_path / "missing.zip")
+
+    not_zip = tmp_path / "not_zip.zip"
+    not_zip.write_text("nao sou zip", encoding="utf-8")
+    with pytest.raises(zipfile.BadZipFile):
+        isolated_app.module._restore_zip_backup(not_zip)
+
+    empty_zip = _write_restore_zip(tmp_path / "empty.zip", [])
+    with pytest.raises(isolated_app.module.HTTPException) as no_members:
+        isolated_app.module._restore_zip_backup(empty_zip)
+    assert no_members.value.status_code == 400
+    assert no_members.value.detail == "Pacote de backup nÃ£o possui bancos de dados."
+
+    no_known = _write_restore_zip(
+        tmp_path / "no_known.zip",
+        [("databases/unknown.db", _make_sqlite_db(tmp_path / "unknown_restore.db"))],
+    )
+    with pytest.raises(isolated_app.module.HTTPException) as no_restored:
+        isolated_app.module._restore_zip_backup(no_known)
+    assert no_restored.value.status_code == 400
+    assert no_restored.value.detail == "Nenhum banco reconhecido foi restaurado."
+
+
+def test_restore_zip_backup_current_invalid_sqlite_and_textual_path_contract(
+    isolated_app,
+    tmp_path,
+    monkeypatch,
+):
+    env = _configure_temp_backup_env(isolated_app, tmp_path, monkeypatch)
+
+    invalid_sqlite = _write_restore_zip(
+        tmp_path / "invalid_sqlite.zip",
+        [("databases/bm_monteiro.db", b"nao sou sqlite")],
+    )
+    with pytest.raises(isolated_app.module.HTTPException) as invalid:
+        isolated_app.module._restore_zip_backup(invalid_sqlite)
+    assert invalid.value.status_code == 400
+    assert invalid.value.detail == "Banco invÃ¡lido dentro do backup: bm_monteiro.db"
+    assert _sqlite_rows(env["main_db"], "SELECT value FROM marker") == [{"value": "ok"}]
+
+    traversal_db = _make_sqlite_db_with_marker(tmp_path / "traversal.db", "via-traversal")
+    traversal_zip = _write_restore_zip(
+        tmp_path / "traversal.zip",
+        [("databases/..\\bm_monteiro.db", traversal_db.read_bytes())],
+    )
+
+    restored = isolated_app.module._restore_zip_backup(traversal_zip)
+
+    assert restored == ["bm_monteiro.db"]
+    assert _sqlite_rows(env["main_db"], "SELECT value FROM marker") == [
+        {"value": "via-traversal"}
+    ]
+    assert not (env["base_dir"].parent / "bm_monteiro.db").exists()
 
 
 def test_copy_sqlite_consistent_current_valid_copy_to_missing_destination(isolated_app, tmp_path):
