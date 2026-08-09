@@ -121,6 +121,91 @@ def test_lifespan_created_only_temp_databases(isolated_app):
     isolated_app.assert_real_unchanged()
 
 
+def test_company_key_current_normalization_fallback_and_state(isolated_app):
+    module = isolated_app.module
+    company_key = module._company_key
+    current_before = module.CURRENT_COMPANY.get()
+    company_dbs_before = dict(module.COMPANY_DBS)
+
+    cases = [
+        (None, "raios"),
+        ("", "raios"),
+        ("   ", "raios"),
+        ("raios", "raios"),
+        ("RAIOS", "raios"),
+        ("RaIoS", "raios"),
+        ("estrada", "estrada"),
+        (" ESTRADA ", "estrada"),
+        ("EsTrAdA", "estrada"),
+        ("desconhecida", "raios"),
+        ("../estrada", "raios"),
+        (123, "raios"),
+        ([], "raios"),
+        (["estrada"], "raios"),
+    ]
+    for value, expected in cases:
+        result = company_key(value)
+        assert result == expected
+        assert isinstance(result, str)
+
+    assert module.CURRENT_COMPANY.get() == current_before
+    assert module.COMPANY_DBS == company_dbs_before
+
+
+def test_company_db_path_current_selection_fallback_and_no_filesystem_side_effects(
+    isolated_app, tmp_path, monkeypatch
+):
+    module = isolated_app.module
+    company_db_path = module._company_db_path
+    main_db = tmp_path / "paths" / "bm_monteiro.db"
+    estrada_db = tmp_path / "paths" / "menina_estrada.db"
+    raios_alt_db = tmp_path / "paths" / "raios_alt.db"
+
+    monkeypatch.setattr(module, "DB_PATH", main_db)
+    monkeypatch.setattr(module, "COMPANY_DBS", {"raios": raios_alt_db, "estrada": estrada_db})
+    company_dbs_before = dict(module.COMPANY_DBS)
+
+    assert company_db_path("raios") == raios_alt_db
+    assert company_db_path(" RAIOS ") == raios_alt_db
+    assert company_db_path("estrada") == estrada_db
+    assert company_db_path(" EsTrAdA ") == estrada_db
+    assert company_db_path("desconhecida") == raios_alt_db
+    assert company_db_path(None) == raios_alt_db
+    assert company_db_path("") == raios_alt_db
+    assert company_db_path(123) == raios_alt_db
+    assert isinstance(company_db_path("raios"), Path)
+
+    assert not main_db.exists()
+    assert not estrada_db.exists()
+    assert not raios_alt_db.exists()
+    assert not main_db.parent.exists()
+    assert module.COMPANY_DBS == company_dbs_before
+
+
+def test_company_db_path_current_falls_back_to_db_path_when_raios_is_not_configured(
+    isolated_app, tmp_path, monkeypatch
+):
+    module = isolated_app.module
+    company_db_path = module._company_db_path
+    main_db = tmp_path / "missing_raios" / "bm_monteiro.db"
+    estrada_db = tmp_path / "missing_raios" / "menina_estrada.db"
+
+    monkeypatch.setattr(module, "DB_PATH", main_db)
+    monkeypatch.setattr(module, "COMPANY_DBS", {"estrada": estrada_db})
+    company_dbs_before = dict(module.COMPANY_DBS)
+
+    assert module._company_key("raios") == "raios"
+    assert company_db_path("raios") == main_db
+    assert company_db_path("desconhecida") == main_db
+    assert company_db_path(None) == main_db
+    assert company_db_path("estrada") == estrada_db
+
+    assert not main_db.exists()
+    assert not estrada_db.exists()
+    assert not main_db.parent.exists()
+    assert module.COMPANY_DBS == company_dbs_before
+
+
 def test_valid_backup_name_current_prefix_extension_and_case_contract(isolated_app):
     valid_backup_name = isolated_app.module._valid_backup_name
 
