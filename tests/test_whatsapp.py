@@ -144,6 +144,103 @@ def _install_tracked_db(monkeypatch, isolated_app, fail_log_insert=False):
     return state
 
 
+def test_wa_failure_hint_current_keyword_mapping_and_precedence(isolated_app):
+    hint = isolated_app.module._wa_failure_hint
+
+    credential_hint = "Token/API Key recusado. Confira a credencial no provedor."
+    not_found_hint = "Endpoint ou instancia nao encontrado. Confira URL e Instance ID."
+    limit_hint = "Limite de envios atingido. Aguarde ou confira o plano do provedor."
+    timeout_hint = "A API nao respondeu no prazo. Verifique se o servico esta online."
+    connection_hint = "Confira URL, porta, firewall e se o servico do WhatsApp esta ativo."
+    config_hint = "Preencha URL da API e token e salve a configuracao."
+    fallback_hint = "Confira token, instancia, conexao do WhatsApp e formato do telefone."
+
+    for detail in ("401", "403", "unauthorized", "FORBIDDEN"):
+        assert hint(detail) == credential_hint
+    for detail in ("404", "not found"):
+        assert hint(detail) == not_found_hint
+    for detail in ("429", "limit exceeded"):
+        assert hint(detail) == limit_hint
+    for detail in ("timeout", "timed out"):
+        assert hint(detail) == timeout_hint
+    for detail in ("connection failed", "refused", "connect error"):
+        assert hint(detail) == connection_hint
+    for detail in ("API nao configurada", "provedor configurado incorretamente"):
+        assert hint(detail) == config_hint
+
+    assert hint("401 and 404") == credential_hint
+    assert hint(None) == fallback_hint
+    assert hint("") == fallback_hint
+    assert hint("erro inesperado") == fallback_hint
+
+    try:
+        hint(123)
+    except Exception as exc:
+        assert type(exc) is AttributeError
+    else:
+        raise AssertionError("_wa_failure_hint aceita int atualmente, mas deveria levantar AttributeError")
+
+
+def test_wa_log_response_current_json_fields_defaults_unicode_and_missing_values(isolated_app):
+    log_response = isolated_app.module._wa_log_response
+
+    sent = log_response({"ok": True, "response": "mensagem enviada"}, {"provider": "baileys"})
+    assert sent == json.dumps(
+        {"provider": "baileys", "response": "mensagem enviada", "hint": ""},
+        ensure_ascii=False,
+    )
+    assert json.loads(sent) == {
+        "provider": "baileys",
+        "response": "mensagem enviada",
+        "hint": "",
+    }
+
+    failed = log_response({"ok": False, "response": "401 unauthorized"}, {})
+    assert json.loads(failed) == {
+        "provider": "ultramsg",
+        "response": "401 unauthorized",
+        "hint": "Token/API Key recusado. Confira a credencial no provedor.",
+    }
+
+    missing_response = log_response({}, {})
+    assert json.loads(missing_response) == {
+        "provider": "ultramsg",
+        "response": "Sem resposta do provedor.",
+        "hint": "Confira token, instancia, conexao do WhatsApp e formato do telefone.",
+    }
+
+    unicode_log = log_response({"ok": False, "response": "não enviado ✅"}, {"provider": "zapi"})
+    assert "não enviado ✅" in unicode_log
+    assert "\\u00e3" not in unicode_log
+    assert "\\u2705" not in unicode_log
+    assert json.loads(unicode_log)["provider"] == "zapi"
+
+
+def test_wa_log_response_current_truncation_limit(isolated_app):
+    log_response = isolated_app.module._wa_log_response
+
+    base = json.dumps(
+        {"provider": "ultramsg", "response": "", "hint": ""},
+        ensure_ascii=False,
+    )
+    max_response_without_truncation = 2000 - len(base)
+
+    below = log_response({"ok": True, "response": "A" * (max_response_without_truncation - 1)}, {})
+    assert len(below) == 1999
+    assert json.loads(below)["response"] == "A" * (max_response_without_truncation - 1)
+
+    exact = log_response({"ok": True, "response": "A" * max_response_without_truncation}, {})
+    assert len(exact) == 2000
+    assert json.loads(exact)["response"] == "A" * max_response_without_truncation
+
+    above = log_response({"ok": True, "response": "A" * (max_response_without_truncation + 1)}, {})
+    assert len(above) == 2000
+    assert above == json.dumps(
+        {"provider": "ultramsg", "response": "A" * (max_response_without_truncation + 1), "hint": ""},
+        ensure_ascii=False,
+    )[:2000]
+
+
 def test_whatsapp_send_uses_active_contacts_without_open_sqlite_during_send(isolated_app, monkeypatch):
     token = _login(isolated_app.client)
     _add_contact(isolated_app.db_paths["raios"], "Contato Um", "559500000001", active=1)
