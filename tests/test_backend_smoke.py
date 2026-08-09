@@ -462,6 +462,90 @@ def test_create_backup_current_error_and_empty_source_contract(
     assert _sqlite_rows(env["main_db"], "SELECT value FROM marker") == [{"value": "ok"}]
 
 
+def test_safety_backup_before_restore_current_pre_restore_zip_contract(
+    isolated_app,
+    tmp_path,
+    monkeypatch,
+):
+    env = _configure_temp_backup_env(isolated_app, tmp_path, monkeypatch)
+
+    filename = isolated_app.module._safety_backup_before_restore()
+    backup_path = env["backup_dir"] / filename
+
+    assert filename.startswith("bm_backup_")
+    assert filename.endswith("_pre_restore.zip")
+    assert isolated_app.module._valid_backup_name(filename) is True
+    assert backup_path.exists()
+    assert backup_path.stat().st_size > 0
+    assert not backup_path.resolve().is_relative_to(Path.cwd().resolve())
+
+    with zipfile.ZipFile(backup_path, "r") as zf:
+        names = zf.namelist()
+        assert "manifest.json" in names
+        assert "databases/bm_monteiro.db" in names
+        assert "databases/menina_estrada.db" in names
+        assert "databases/app_notes.db" in names
+        assert "databases/extra_data.db" in names
+        manifest = json.loads(zf.read("manifest.json").decode("utf-8"))
+        copied_main = tmp_path / "pre_restore_main.db"
+        copied_main.write_bytes(zf.read("databases/bm_monteiro.db"))
+
+    assert manifest["label"] == "pre_restore"
+    assert manifest["version"] == "multi-db-v1"
+    assert [item["filename"] for item in manifest["databases"]] == [
+        "bm_monteiro.db",
+        "menina_estrada.db",
+        "app_notes.db",
+        "extra_data.db",
+    ]
+    assert _sqlite_rows(copied_main, "SELECT value FROM marker") == [{"value": "ok"}]
+    assert _sqlite_rows(env["main_db"], "SELECT value FROM marker") == [{"value": "ok"}]
+
+    source_conn = sqlite3.connect(env["main_db"])
+    try:
+        source_conn.execute("INSERT INTO marker(value) VALUES('apos-safety')")
+        source_conn.commit()
+    finally:
+        source_conn.close()
+    assert _sqlite_rows(env["main_db"], "SELECT value FROM marker ORDER BY id") == [
+        {"value": "ok"},
+        {"value": "apos-safety"},
+    ]
+
+
+def test_safety_backup_before_restore_current_error_contract(
+    isolated_app,
+    tmp_path,
+    monkeypatch,
+):
+    base_dir = tmp_path / "empty_backend"
+    backup_dir = tmp_path / "backups"
+    base_dir.mkdir()
+    backup_dir.mkdir()
+
+    monkeypatch.setattr(isolated_app.module, "BASE_DIR", base_dir)
+    monkeypatch.setattr(isolated_app.module, "BACKUP_DIR", backup_dir)
+    monkeypatch.setattr(isolated_app.module, "DB_PATH", base_dir / "missing_main.db")
+    monkeypatch.setattr(
+        isolated_app.module,
+        "COMPANY_DBS",
+        {"raios": base_dir / "missing_main.db", "estrada": base_dir / "missing_estrada.db"},
+    )
+    monkeypatch.setattr(isolated_app.module, "APP_NOTES_DB_PATH", base_dir / "missing_notes.db")
+
+    assert isolated_app.module._safety_backup_before_restore() == ""
+    assert list(backup_dir.glob("bm_backup_*")) == []
+
+    env = _configure_temp_backup_env(isolated_app, tmp_path / "with_sources", monkeypatch)
+    missing_backup_dir = tmp_path / "missing_backup_dir"
+    monkeypatch.setattr(isolated_app.module, "BACKUP_DIR", missing_backup_dir)
+
+    with pytest.raises(FileNotFoundError):
+        isolated_app.module._safety_backup_before_restore()
+    assert not missing_backup_dir.exists()
+    assert _sqlite_rows(env["main_db"], "SELECT value FROM marker") == [{"value": "ok"}]
+
+
 def test_copy_sqlite_consistent_current_valid_copy_to_missing_destination(isolated_app, tmp_path):
     copy_sqlite_consistent = isolated_app.module._copy_sqlite_consistent
     src = tmp_path / "source.db"
