@@ -68,6 +68,45 @@ def _table_count(db_path, table):
     return _fetch_one(db_path, f"SELECT COUNT(*) AS total FROM {table}")["total"]
 
 
+def test_expand_tab_keys_current_aliases_duplicates_and_order(isolated_app):
+    expand_tab_keys = isolated_app.module._expand_tab_keys
+
+    assert expand_tab_keys([]) == []
+    assert expand_tab_keys(None) == []
+    assert expand_tab_keys(["notas"]) == ["notas", "pendentes"]
+    assert expand_tab_keys(["pendentes"]) == ["pendentes", "notas"]
+    assert expand_tab_keys(["clientes"]) == ["clientes"]
+    assert expand_tab_keys(["notas", "clientes"]) == ["notas", "pendentes", "clientes"]
+    assert expand_tab_keys(["notas", "notas", "pendentes"]) == ["notas", "pendentes"]
+    assert expand_tab_keys(["clientes", "clientes", "notas"]) == ["clientes", "notas", "pendentes"]
+    assert expand_tab_keys(("notas", "clientes")) == ["notas", "pendentes", "clientes"]
+
+    from_set = expand_tab_keys({"notas", "clientes"})
+    assert isinstance(from_set, list)
+    assert set(from_set) == {"notas", "pendentes", "clientes"}
+    assert len(from_set) == 3
+
+
+def test_expand_tab_keys_current_string_type_spacing_case_and_return_independence(isolated_app):
+    expand_tab_keys = isolated_app.module._expand_tab_keys
+    aliases_before = {
+        key: list(value)
+        for key, value in isolated_app.module.TAB_PERMISSION_ALIASES.items()
+    }
+
+    assert expand_tab_keys("notas") == ["n", "o", "t", "a", "s"]
+    assert expand_tab_keys("") == []
+    assert expand_tab_keys(" notas ") == [" ", "n", "o", "t", "a", "s"]
+    assert expand_tab_keys([" notas "]) == [" notas "]
+    assert expand_tab_keys(["NOTAS"]) == ["NOTAS"]
+    assert expand_tab_keys([None]) == [None]
+
+    result = expand_tab_keys(["notas"])
+    result.append("mutado")
+    assert result == ["notas", "pendentes", "mutado"]
+    assert isolated_app.module.TAB_PERMISSION_ALIASES == aliases_before
+
+
 def test_config_prices_history_audit_and_permissions(isolated_app):
     admin_token = _login(isolated_app.client)
     _create_temp_user(isolated_app, "editor_config_precos", "editor123", "editor")
