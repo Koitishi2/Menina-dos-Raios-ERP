@@ -17,11 +17,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 try:
     from .permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
+    from .security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from .security_request import _client_ip, _is_trusted_proxy_host
     from .schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
     from .utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
 except ImportError:
     from permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
+    from security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from security_request import _client_ip, _is_trusted_proxy_host
     from schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
     from utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
@@ -96,42 +98,6 @@ def validate_password(pw: str, username: str = "") -> None:
         raise HTTPException(400, "Esta senha Ã© muito comum. Escolha uma diferente.")
     if username and lower == username.lower():
         raise HTTPException(400, "A senha nÃ£o pode ser igual ao nome de usuÃ¡rio.")
-
-# â”€â”€ Rate limit de login (em memÃ³ria, por IP) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# Sem dependÃªncia externa. Reinicia ao restart do serviÃ§o (aceitÃ¡vel: brute-force
-# real precisaria de muitas tentativas apÃ³s o reinÃ­cio tambÃ©m).
-import time as _time_mod
-_LOGIN_ATTEMPTS: dict = {}     # ip â†’ [(timestamp_unix, success_bool), ...]
-LOGIN_RATE_WINDOW = 60          # janela onde contamos falhas
-LOGIN_RATE_MAX_FAILS = 10       # mÃ¡x falhas na janela antes de bloquear
-LOGIN_RATE_BLOCK_SECS = 300     # tempo de bloqueio apÃ³s estourar (5min)
-
-def _check_login_rate(ip: str):
-    """Retorna (permitido: bool, segundos_para_desbloqueio: int)."""
-    now = _time_mod.time()
-    history = _LOGIN_ATTEMPTS.get(ip, [])
-    # MantÃ©m sÃ³ entradas dentro da janela de bloqueio
-    history = [(t,s) for (t,s) in history if now - t < LOGIN_RATE_BLOCK_SECS]
-    _LOGIN_ATTEMPTS[ip] = history
-    # Conta falhas recentes (na janela curta de detecÃ§Ã£o)
-    recent_fails = [t for (t,s) in history if not s and now - t < LOGIN_RATE_WINDOW]
-    if len(recent_fails) >= LOGIN_RATE_MAX_FAILS:
-        oldest_fail = min(recent_fails)
-        retry = int(LOGIN_RATE_BLOCK_SECS - (now - oldest_fail))
-        return (False, max(retry, 1))
-    return (True, 0)
-
-def _record_login(ip: str, success: bool):
-    """Registra tentativa. Em sucesso, limpa histÃ³rico do IP."""
-    if success:
-        _LOGIN_ATTEMPTS.pop(ip, None); return
-    _LOGIN_ATTEMPTS.setdefault(ip, []).append((_time_mod.time(), False))
-    # ProteÃ§Ã£o: limpa dict se crescer demais (ataque tentando OOM)
-    if len(_LOGIN_ATTEMPTS) > 10000:
-        now = _time_mod.time()
-        for k in list(_LOGIN_ATTEMPTS.keys()):
-            _LOGIN_ATTEMPTS[k] = [(t,s) for (t,s) in _LOGIN_ATTEMPTS[k] if now - t < LOGIN_RATE_BLOCK_SECS]
-            if not _LOGIN_ATTEMPTS[k]: del _LOGIN_ATTEMPTS[k]
 
 BASE_DIR   = Path(__file__).parent
 BACKUP_DIR = Path(os.environ.get("BACKUP_DIR", str(BASE_DIR.parent / "backups"))).resolve()
