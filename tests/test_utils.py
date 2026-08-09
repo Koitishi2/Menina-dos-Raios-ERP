@@ -46,6 +46,45 @@ def test_normalize_name_is_idempotent_for_its_current_output(isolated_app):
     assert normalize(normalized) == normalized
 
 
+def test_normalize_client_current_basic_text_contract(isolated_app):
+    normalize_client = isolated_app.module._normalize_client
+
+    assert normalize_client(None) == ""
+    assert normalize_client("") == ""
+    assert normalize_client("   Cliente Teste   ") == "CLIENTE TESTE"
+    assert normalize_client("Cliente ABC") == "CLIENTE ABC"
+    assert normalize_client("cLiEnTe AbC") == "CLIENTE ABC"
+    assert normalize_client("S\u00e3o Lu\u00eds A\u00e7ougue") == "SAO LUIS ACOUGUE"
+    assert normalize_client("Cliente    com     espa\u00e7os") == "CLIENTE COM ESPACOS"
+    assert normalize_client("Cliente 123 Loja 45") == "CLIENTE 123 LOJA 45"
+
+
+def test_normalize_client_current_separator_and_punctuation_contract(isolated_app):
+    normalize_client = isolated_app.module._normalize_client
+
+    assert normalize_client("Cliente - Filial") == "CLIENTE/FILIAL"
+    assert normalize_client("Cliente / Filial") == "CLIENTE/FILIAL"
+    assert normalize_client("Cliente - / Filial") == "CLIENTE//FILIAL"
+    assert normalize_client("Cliente, Ltda. (Matriz)") == "CLIENTE, LTDA. (MATRIZ)"
+    assert normalize_client("D'\u00c1vila Com\u00e9rcio") == "D'AVILA COMERCIO"
+    assert normalize_client("  loja -  S\u00e3o / Lu\u00eds   123  ") == "LOJA/SAO/LUIS 123"
+
+
+def test_normalize_client_current_unicode_mojibake_and_exceptions(isolated_app):
+    normalize_client = isolated_app.module._normalize_client
+
+    assert normalize_client("Cliente \u6771\u4eac \u2705") == "CLIENTE"
+    assert normalize_client("A\u00c3\u2021OUQUE S\u00c3\u0192O LU\u00c3\u008dS") == "AAOUQUE SAO LUAS"
+    assert normalize_client("A\u00e7ougue S\u00e3o Lu\u00eds") == normalize_client("a\u00c7OUGUE SAO LUIS")
+
+    with pytest.raises(TypeError):
+        normalize_client("S\u00e3o Lu\u00eds".encode("utf-8"))
+    with pytest.raises(TypeError):
+        normalize_client("S\u00e3o Lu\u00eds".encode("latin-1"))
+    with pytest.raises(AttributeError):
+        normalize_client(12345)
+
+
 def test_safe_txt_current_none_empty_ascii_numbers_and_defaults(isolated_app):
     safe_txt = isolated_app.module._safe_txt
 
