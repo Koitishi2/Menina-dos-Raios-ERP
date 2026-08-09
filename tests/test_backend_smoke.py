@@ -3,6 +3,7 @@ import os
 import sqlite3
 import zipfile
 from pathlib import Path
+from urllib.parse import quote
 
 import pytest
 
@@ -56,6 +57,7 @@ def _configure_temp_backup_env(isolated_app, tmp_path, monkeypatch):
         {"raios": main_db, "estrada": estrada_db},
     )
     monkeypatch.setattr(isolated_app.module, "APP_NOTES_DB_PATH", app_notes)
+    isolated_app.module.init_db()
 
     return {
         "base_dir": base_dir,
@@ -76,6 +78,20 @@ def _write_restore_zip(path, members):
             else:
                 zf.write(source, arcname=arcname)
     return path
+
+
+def _admin_headers(isolated_app):
+    response = isolated_app.client.post(
+        "/api/auth/login",
+        headers={"x-company": "raios"},
+        json={"username": "admin", "password": "admin123"},
+    )
+    assert response.status_code == 200
+    return {"x-token": response.json()["token"]}
+
+
+def _backup_route(filename):
+    return f"/api/admin/backup/{quote(filename, safe='')}"
 
 
 def test_backend_starts_serves_index_and_uses_temp_backup(isolated_app):
@@ -669,6 +685,200 @@ def test_restore_zip_backup_current_invalid_sqlite_and_textual_path_contract(
         {"value": "via-traversal"}
     ]
     assert not (env["base_dir"].parent / "bm_monteiro.db").exists()
+
+
+def test_backup_routes_current_listing_status_and_manual_backup_contract(
+    isolated_app,
+    tmp_path,
+    monkeypatch,
+):
+    env = _configure_temp_backup_env(isolated_app, tmp_path, monkeypatch)
+    headers = _admin_headers(isolated_app)
+    existing_zip = _write_restore_zip(
+        env["backup_dir"] / "bm_backup_20260101_000000_manual.zip",
+        [("databases/bm_monteiro.db", env["main_db"])],
+    )
+    existing_db = _make_sqlite_db(env["backup_dir"] / "bm_backup_20260101_000001_manual.db")
+    os.utime(existing_zip, (1000, 1000))
+    os.utime(existing_db, (2000, 2000))
+
+    listing = isolated_app.client.get("/api/admin/backups", headers=headers)
+    assert listing.status_code == 200
+    listed = listing.json()
+    assert [item["filename"] for item in listed] == [
+        "bm_backup_20260101_000001_manual.db",
+        "bm_backup_20260101_000000_manual.zip",
+    ]
+    assert listed[0]["kind"] == "banco"
+    assert listed[0]["databases"] == ["bm_monteiro.db"]
+    assert listed[1]["kind"] == "pacote"
+    assert listed[1]["databases"] == []
+
+    status = isolated_app.client.get("/api/admin/backup-status", headers=headers)
+    assert status.status_code == 200
+    status_payload = status.json()
+    assert status_payload["total"] == 2
+    assert status_payload["last"]["filename"] == "bm_backup_20260101_000001_manual.db"
+    assert status_payload["included_databases"] == [
+        "bm_monteiro.db",
+        "menina_estrada.db",
+        "app_notes.db",
+        "extra_data.db",
+    ]
+
+    manual = isolated_app.client.post("/api/admin/backup", headers=headers)
+    assert manual.status_code == 200
+    manual_payload = manual.json()
+    assert manual_payload["ok"] is True
+    assert manual_payload["filename"].endswith("_manual.zip")
+    assert (env["backup_dir"] / manual_payload["filename"]).exists()
+
+
+def test_backup_routes_current_download_delete_and_textual_escape_contract(
+    isolated_app,
+    tmp_path,
+    monkeypatch,
+):
+    env = _configure_temp_backup_env(isolated_app, tmp_path, monkeypatch)
+    headers = _admin_headers(isolated_app)
+    simple = env["backup_dir"] / "bm_backup_20260101_000000_manual.db"
+    simple.write_bytes(b"simple-backup")
+    subdir = env["backup_dir"] / "bm_backup_sub"
+    subdir.mkdir()
+    nested = subdir / "inside.zip"
+    nested.write_bytes(b"nested-backup")
+    escape_parent = env["backup_dir"].parent
+    escaped = escape_parent / "outside.zip"
+    escaped.write_bytes(b"outside-backup")
+    (env["backup_dir"] / "bm_backup_x").mkdir()
+    escape_filename = "bm_backup_x\\..\\..\\outside.zip"
+    resolved_escape = (env["backup_dir"] / escape_filename).resolve()
+    assert resolved_escape == escaped.resolve()
+    assert resolved_escape.is_relative_to(tmp_path.resolve())
+    assert not resolved_escape.is_relative_to(env["backup_dir"].resolve())
+
+    download_simple = isolated_app.client.get(_backup_route(simple.name), headers=headers)
+    assert download_simple.status_code == 200
+    assert download_simple.content == b"simple-backup"
+
+    download_nested = isolated_app.client.get(
+        _backup_route("bm_backup_sub\\inside.zip"),
+        headers=headers,
+    )
+    assert download_nested.status_code == 200
+    assert download_nested.content == b"nested-backup"
+
+    download_escaped = isolated_app.client.get(_backup_route(escape_filename), headers=headers)
+    assert download_escaped.status_code == 200
+    assert download_escaped.content == b"outside-backup"
+
+    unknown = isolated_app.client.get(_backup_route("bm_backup_missing.zip"), headers=headers)
+    assert unknown.status_code == 404
+    assert unknown.json()["detail"] == "Backup nÃ£o encontrado."
+
+    invalid = isolated_app.client.get(_backup_route("backup_manual.zip"), headers=headers)
+    assert invalid.status_code == 400
+    assert invalid.json()["detail"] == "Arquivo invÃ¡lido."
+
+    encoded_slash = isolated_app.client.get(
+        "/api/admin/backup/bm_backup_sub%2Finside.zip",
+        headers=headers,
+    )
+    assert encoded_slash.status_code == 200
+    assert "text/html" in encoded_slash.headers.get("content-type", "")
+    assert b"nested-backup" not in encoded_slash.content
+
+    delete_simple = isolated_app.client.delete(_backup_route(simple.name), headers=headers)
+    assert delete_simple.status_code == 200
+    assert delete_simple.json() == {"ok": True}
+    assert not simple.exists()
+
+    delete_escaped = isolated_app.client.delete(_backup_route(escape_filename), headers=headers)
+    assert delete_escaped.status_code == 200
+    assert delete_escaped.json() == {"ok": True}
+    assert not escaped.exists()
+
+
+def test_backup_route_current_restore_by_filename_contract(
+    isolated_app,
+    tmp_path,
+    monkeypatch,
+):
+    env = _configure_temp_backup_env(isolated_app, tmp_path, monkeypatch)
+    headers = _admin_headers(isolated_app)
+    restored_main = _make_sqlite_db_with_marker(tmp_path / "route_restore_main.db", "route-main")
+    archive = _write_restore_zip(
+        env["backup_dir"] / "bm_backup_20260101_000000_manual.zip",
+        [("databases/bm_monteiro.db", restored_main)],
+    )
+
+    invalid = isolated_app.client.post(_backup_route("backup_manual.zip") + "/restore", headers=headers)
+    assert invalid.status_code == 400
+    assert invalid.json()["detail"] == "Arquivo invÃ¡lido."
+
+    missing = isolated_app.client.post(_backup_route("bm_backup_missing.zip") + "/restore", headers=headers)
+    assert missing.status_code == 404
+    assert missing.json()["detail"] == "Backup nÃ£o encontrado."
+
+    response = isolated_app.client.post(_backup_route(archive.name) + "/restore", headers=headers)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["restored_from"] == archive.name
+    assert payload["restored_databases"] == ["bm_monteiro.db"]
+    assert payload["safety_backup"].endswith("_pre_restore.zip")
+    assert (env["backup_dir"] / payload["safety_backup"]).exists()
+    assert _sqlite_rows(env["main_db"], "SELECT value FROM marker") == [
+        {"value": "route-main"}
+    ]
+
+
+def test_backup_route_current_upload_restore_contract(
+    isolated_app,
+    tmp_path,
+    monkeypatch,
+):
+    env = _configure_temp_backup_env(isolated_app, tmp_path, monkeypatch)
+    headers = _admin_headers(isolated_app)
+    uploaded_db = _make_sqlite_db_with_marker(tmp_path / "uploaded.db", "uploaded-main")
+
+    bad_extension = isolated_app.client.post(
+        "/api/admin/backup/upload-restore",
+        headers=headers,
+        files={"file": ("backup.txt", b"texto", "text/plain")},
+    )
+    assert bad_extension.status_code == 400
+    assert bad_extension.json()["detail"] == "Apenas arquivos .db ou .zip sÃ£o aceitos."
+
+    bad_content = isolated_app.client.post(
+        "/api/admin/backup/upload-restore",
+        headers=headers,
+        files={"file": ("backup.db", b"texto", "application/octet-stream")},
+    )
+    assert bad_content.status_code == 400
+    assert bad_content.json()["detail"] == (
+        "Arquivo enviado nÃ£o Ã© um banco SQLite nem pacote de backup vÃ¡lido."
+    )
+
+    response = isolated_app.client.post(
+        "/api/admin/backup/upload-restore",
+        headers=headers,
+        files={"file": ("uploaded.db", uploaded_db.read_bytes(), "application/octet-stream")},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["restored_from"] == "uploaded.db"
+    assert payload["archived_as"].endswith("_uploaded.db")
+    assert payload["safety_backup"].endswith("_pre_restore.zip")
+    assert payload["restored_databases"] == ["bm_monteiro.db"]
+    assert (env["backup_dir"] / payload["archived_as"]).exists()
+    assert (env["backup_dir"] / payload["safety_backup"]).exists()
+    assert _sqlite_rows(env["main_db"], "SELECT value FROM marker") == [
+        {"value": "uploaded-main"}
+    ]
 
 
 def test_copy_sqlite_consistent_current_valid_copy_to_missing_destination(isolated_app, tmp_path):
