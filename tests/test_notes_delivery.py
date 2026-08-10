@@ -102,6 +102,24 @@ def _assert_app_note_http_error(exc_info, status_code, detail):
     assert exc_info.value.detail == detail
 
 
+def _create_temp_user(isolated_app, username, password, role):
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    try:
+        conn.execute(
+            "INSERT INTO users(id, username, password_hash, full_name, role, active) VALUES(?,?,?,?,?,1)",
+            (
+                str(uuid.uuid4()),
+                username,
+                isolated_app.module.hash_password(password),
+                f"Usuario {role} Notas APP",
+                role,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def test_clean_app_note_current_basic_header_and_return_contract(isolated_app):
     clean = isolated_app.module._clean_app_note
     assert clean.__module__ == "app_notes_domain"
@@ -1267,6 +1285,212 @@ def test_app_note_update_replaces_items_and_preserves_status_behavior(isolated_a
     assert dict(row)["status"] == "completed"
     assert dict(row)["completed_at"]
     assert [dict(item)["product"] for item in items] == ["Produto App A", "Produto App B"]
+
+
+def test_app_note_status_route_current_contract_and_permissions(isolated_app):
+    admin_token = _login(isolated_app.client)
+    _create_temp_user(isolated_app, "editor_notas_app", "editor123", "editor")
+    _create_temp_user(isolated_app, "viewer_notas_app", "viewer123", "viewer")
+    editor_token = _login(isolated_app.client, "editor_notas_app", "editor123")
+    viewer_token = _login(isolated_app.client, "viewer_notas_app", "viewer123")
+    note = _create_app_note_mobile(
+        isolated_app.client,
+        isolated_app,
+        external_id="nota-app-status-principal",
+        client="Cliente Status Principal",
+    )
+    other_note = _create_app_note_mobile(
+        isolated_app.client,
+        isolated_app,
+        external_id="nota-app-status-outra",
+        client="Cliente Status Outra",
+    )
+
+    no_token = isolated_app.client.put(
+        f"/api/app-notes/{note['id']}/status",
+        json={"status": "completed"},
+    )
+    assert no_token.status_code == 401
+    assert no_token.json()["detail"] == "SessÃ£o invÃ¡lida. FaÃ§a login novamente."
+
+    viewer = isolated_app.client.put(
+        f"/api/app-notes/{note['id']}/status",
+        headers=_headers(viewer_token),
+        json={"status": "completed"},
+    )
+    assert viewer.status_code == 403
+    assert viewer.json()["detail"] == "PermissÃ£o insuficiente."
+
+    invalid = isolated_app.client.put(
+        f"/api/app-notes/{note['id']}/status",
+        headers=_headers(admin_token),
+        json={"status": "cancelled"},
+    )
+    assert invalid.status_code == 400
+    assert invalid.json()["detail"] == "Status invÃ¡lido."
+
+    completed = isolated_app.client.put(
+        f"/api/app-notes/{note['id']}/status",
+        headers=_headers(editor_token),
+        json={"status": "completed"},
+    )
+    assert completed.status_code == 200
+    assert completed.json() == {"ok": True, "status": "completed"}
+
+    pending = isolated_app.client.put(
+        f"/api/app-notes/{note['id']}/status",
+        headers=_headers(admin_token),
+        json={"status": "pending"},
+    )
+    assert pending.status_code == 200
+    assert pending.json() == {"ok": True, "status": "pending"}
+
+    missing = isolated_app.client.put(
+        "/api/app-notes/nota-app-status-inexistente/status",
+        headers=_headers(admin_token),
+        json={"status": "completed"},
+    )
+    assert missing.status_code == 404
+    assert missing.json()["detail"] == "Nota nÃ£o encontrada."
+
+    conn = sqlite3.connect(isolated_app.db_paths["app_notes"])
+    conn.row_factory = sqlite3.Row
+    try:
+        row = conn.execute(
+            "SELECT status,completed_at FROM app_notes WHERE id=?",
+            (note["id"],),
+        ).fetchone()
+        other_row = conn.execute(
+            "SELECT status,completed_at FROM app_notes WHERE id=?",
+            (other_note["id"],),
+        ).fetchone()
+        notes_count = conn.execute("SELECT COUNT(*) FROM app_notes").fetchone()[0]
+    finally:
+        conn.close()
+
+    assert dict(row) == {"status": "pending", "completed_at": None}
+    assert dict(other_row) == {"status": "pending", "completed_at": None}
+    assert notes_count == 2
+
+    created_after_status_errors = _create_app_note_mobile(
+        isolated_app.client,
+        isolated_app,
+        external_id="nota-app-apos-erros-status",
+        client="Cliente Depois Status",
+    )
+    assert created_after_status_errors["client"] == "Cliente Depois Status"
+
+
+def test_app_note_delete_route_current_contract_cascade_and_permissions(isolated_app):
+    admin_token = _login(isolated_app.client)
+    _create_temp_user(isolated_app, "editor_delete_notas_app", "editor123", "editor")
+    _create_temp_user(isolated_app, "viewer_delete_notas_app", "viewer123", "viewer")
+    editor_token = _login(isolated_app.client, "editor_delete_notas_app", "editor123")
+    viewer_token = _login(isolated_app.client, "viewer_delete_notas_app", "viewer123")
+    note = _create_app_note_mobile(
+        isolated_app.client,
+        isolated_app,
+        external_id="nota-app-delete-principal",
+        client="Cliente Delete Principal",
+        items=[
+            {
+                "product": "Produto Delete A",
+                "quantity": 2,
+                "weight": 2,
+                "unit": "KG",
+                "unit_price": 7,
+            },
+            {
+                "product": "Produto Delete B",
+                "quantity": 3,
+                "weight": 3,
+                "unit": "UN",
+                "unit_price": 5,
+            },
+        ],
+    )
+    other_note = _create_app_note_mobile(
+        isolated_app.client,
+        isolated_app,
+        external_id="nota-app-delete-outra",
+        client="Cliente Delete Outra",
+    )
+
+    no_token = isolated_app.client.delete(f"/api/app-notes/{note['id']}")
+    assert no_token.status_code == 401
+    assert no_token.json()["detail"] == "SessÃ£o invÃ¡lida. FaÃ§a login novamente."
+
+    viewer = isolated_app.client.delete(
+        f"/api/app-notes/{note['id']}",
+        headers=_headers(viewer_token),
+    )
+    assert viewer.status_code == 403
+    assert viewer.json()["detail"] == "PermissÃ£o insuficiente."
+
+    missing = isolated_app.client.delete(
+        "/api/app-notes/nota-app-delete-inexistente",
+        headers=_headers(admin_token),
+    )
+    assert missing.status_code == 404
+    assert missing.json()["detail"] == "Nota nÃ£o encontrada."
+
+    conn = sqlite3.connect(isolated_app.db_paths["app_notes"])
+    try:
+        notes_before = conn.execute("SELECT COUNT(*) FROM app_notes").fetchone()[0]
+        items_before = conn.execute(
+            "SELECT COUNT(*) FROM app_note_items WHERE note_id=?",
+            (note["id"],),
+        ).fetchone()[0]
+        submission_before = conn.execute(
+            "SELECT COUNT(*) FROM app_note_submissions WHERE note_id=?",
+            (note["id"],),
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    assert notes_before == 2
+    assert items_before == 2
+    assert submission_before == 1
+
+    deleted = isolated_app.client.delete(
+        f"/api/app-notes/{note['id']}",
+        headers=_headers(editor_token),
+    )
+    assert deleted.status_code == 200
+    assert deleted.json() == {"ok": True}
+
+    conn = sqlite3.connect(isolated_app.db_paths["app_notes"])
+    try:
+        deleted_note = conn.execute(
+            "SELECT COUNT(*) FROM app_notes WHERE id=?",
+            (note["id"],),
+        ).fetchone()[0]
+        deleted_items = conn.execute(
+            "SELECT COUNT(*) FROM app_note_items WHERE note_id=?",
+            (note["id"],),
+        ).fetchone()[0]
+        deleted_submission = conn.execute(
+            "SELECT COUNT(*) FROM app_note_submissions WHERE note_id=?",
+            (note["id"],),
+        ).fetchone()[0]
+        other_note_count = conn.execute(
+            "SELECT COUNT(*) FROM app_notes WHERE id=?",
+            (other_note["id"],),
+        ).fetchone()[0]
+    finally:
+        conn.close()
+
+    assert deleted_note == 0
+    assert deleted_items == 0
+    assert deleted_submission == 0
+    assert other_note_count == 1
+
+    created_after_delete = _create_app_note_mobile(
+        isolated_app.client,
+        isolated_app,
+        external_id="nota-app-apos-delete",
+        client="Cliente Depois Delete",
+    )
+    assert created_after_delete["client"] == "Cliente Depois Delete"
 
 
 def test_app_note_update_missing_id_preserves_404_and_does_not_lock_db(isolated_app):
