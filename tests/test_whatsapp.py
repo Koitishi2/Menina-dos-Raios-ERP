@@ -5,6 +5,7 @@ from datetime import datetime
 from datetime import date
 from datetime import timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -108,24 +109,35 @@ class _TrackedConnection:
         self._state = state
         self._fail_log_insert = fail_log_insert
         self._closed = False
+        self._used_log_insert = False
         state["open"] += 1
 
     def execute(self, sql, args=()):
         if self._fail_log_insert and "INSERT INTO whatsapp_log" in sql:
+            self._used_log_insert = True
             raise sqlite3.OperationalError("falha controlada no log")
+        if "INSERT INTO whatsapp_log" in sql:
+            self._used_log_insert = True
         return self._conn.execute(sql, args)
 
     def commit(self):
+        self._state["commits"] += 1
+        if self._used_log_insert:
+            self._state["log_commits"] += 1
         return self._conn.commit()
 
     def rollback(self):
         self._state["rollbacks"] += 1
+        if self._used_log_insert:
+            self._state["log_rollbacks"] += 1
         return self._conn.rollback()
 
     def close(self):
         if not self._closed:
             self._closed = True
             self._state["closes"] += 1
+            if self._used_log_insert:
+                self._state["log_closes"] += 1
             self._state["open"] -= 1
         return self._conn.close()
 
@@ -135,7 +147,15 @@ class _TrackedConnection:
 
 def _install_tracked_db(monkeypatch, isolated_app, fail_log_insert=False):
     original_get_db = isolated_app.module.get_db
-    state = {"open": 0, "closes": 0, "rollbacks": 0}
+    state = {
+        "open": 0,
+        "closes": 0,
+        "commits": 0,
+        "rollbacks": 0,
+        "log_closes": 0,
+        "log_commits": 0,
+        "log_rollbacks": 0,
+    }
 
     def tracked_get_db(company=None):
         return _TrackedConnection(original_get_db(company), state, fail_log_insert=fail_log_insert)
@@ -334,6 +354,69 @@ def test_whatsapp_send_rolls_back_and_closes_when_log_persistence_fails(isolated
 
     # A escrita seguinte confirma que a conexao foi fechada e o banco nao ficou travado.
     _add_contact(isolated_app.db_paths["raios"], "Contato Depois", "559544444444", active=1)
+
+
+def test_whatsapp_test_contact_persists_log_and_closes_connection(isolated_app, monkeypatch):
+    token = _login(isolated_app.client)
+    contact_id = _add_contact(isolated_app.db_paths["raios"], "Contato Teste", "559555555555", active=1)
+    state = _install_tracked_db(monkeypatch, isolated_app)
+    sent = []
+
+    def fake_wa_send(phone, message, cfg):
+        assert state["open"] == 0
+        sent.append((phone, message, cfg.get("provider")))
+        return {"ok": True, "response": "sent"}
+
+    monkeypatch.setattr(isolated_app.module, "wa_send", fake_wa_send)
+
+    response = isolated_app.client.post(
+        f"/api/whatsapp/test/{contact_id}",
+        headers=_headers(token),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True, "response": "sent"}
+    assert len(sent) == 1
+    assert sent[0][0] == "559555555555"
+    assert state["open"] == 0
+    assert state["log_commits"] == 1
+    assert state["log_closes"] == 1
+    logs = _fetch_logs(isolated_app.db_paths["raios"])
+    assert len(logs) == 1
+    assert logs[0]["phone"] == "559555555555"
+    assert logs[0]["contact"] == "Contato Teste"
+    assert logs[0]["event_type"] == "test"
+    assert logs[0]["status"] == "sent"
+
+
+def test_whatsapp_test_contact_rolls_back_and_closes_when_log_persistence_fails(isolated_app, monkeypatch):
+    token = _login(isolated_app.client)
+    contact_id = _add_contact(isolated_app.db_paths["raios"], "Contato Teste Falha", "559566666666", active=1)
+    state = _install_tracked_db(monkeypatch, isolated_app, fail_log_insert=True)
+    sent = []
+
+    def fake_wa_send(phone, message, cfg):
+        assert state["open"] == 0
+        sent.append((phone, message, cfg.get("provider")))
+        return {"ok": True, "response": "sent"}
+
+    monkeypatch.setattr(isolated_app.module, "wa_send", fake_wa_send)
+
+    with pytest.raises(sqlite3.OperationalError, match="falha controlada no log"):
+        isolated_app.client.post(
+            f"/api/whatsapp/test/{contact_id}",
+            headers=_headers(token),
+        )
+
+    assert len(sent) == 1
+    assert sent[0][0] == "559566666666"
+    assert state["log_rollbacks"] == 1
+    assert state["open"] == 0
+    assert state["log_closes"] == 1
+    assert _fetch_logs(isolated_app.db_paths["raios"]) == []
+
+    # A escrita seguinte confirma que a conexao foi fechada e o banco nao ficou travado.
+    _add_contact(isolated_app.db_paths["raios"], "Contato Depois Teste", "559577777777", active=1)
 
 
 def test_daily_motivation_send_now_separates_db_from_provider_and_logs_results(isolated_app, monkeypatch):

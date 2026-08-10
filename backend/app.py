@@ -5725,11 +5725,16 @@ def wa_test(cid: str, x_token: str = Header(...)):
     if not res.get("ok"):
         res["hint"]=_wa_failure_hint(res.get("response",""))
     conn = get_db()
-    conn.execute("INSERT INTO whatsapp_log (id,phone,contact,event_type,message,status,response) VALUES (?,?,?,?,?,?,?)",
-                 [str(uuid.uuid4()), contact["phone"], contact["name"], "test", msg,
-                  "sent" if res["ok"] else "error", _wa_log_response(res,cfg)])
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("INSERT INTO whatsapp_log (id,phone,contact,event_type,message,status,response) VALUES (?,?,?,?,?,?,?)",
+                     [str(uuid.uuid4()), contact["phone"], contact["name"], "test", msg,
+                      "sent" if res["ok"] else "error", _wa_log_response(res,cfg)])
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
     return res
 
 @app.get("/api/whatsapp/baileys-status")
