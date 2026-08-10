@@ -2686,16 +2686,14 @@ async def import_excel(file:UploadFile=File(...),x_token:str=Header("")):
     conn=get_db(); added=0
     try:
         for rec in all_recs:
-            try:
-                conn.execute("""INSERT INTO sales(id,sale_type,sale_date,sale_time,client,product,
-                    nf_number,quantity,unit_price,total,notes,delivery_person,plate,source,created_by,created_at)
-                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (str(uuid.uuid4()),rec["sale_type"],rec["sale_date"],rec.get("sale_time"),
-                     rec.get("client"),rec.get("product"),rec.get("nf_number"),rec["quantity"],
-                     rec["unit_price"],rec["total"],rec.get("notes"),rec.get("delivery_person"),
-                     None,rec["source"],sess["username"],datetime.now().isoformat()))
-                added+=1
-            except Exception: pass
+            conn.execute("""INSERT INTO sales(id,sale_type,sale_date,sale_time,client,product,
+                nf_number,quantity,unit_price,total,notes,delivery_person,plate,source,created_by,created_at)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (str(uuid.uuid4()),rec["sale_type"],rec["sale_date"],rec.get("sale_time"),
+                 rec.get("client"),rec.get("product"),rec.get("nf_number"),rec["quantity"],
+                 rec["unit_price"],rec["total"],rec.get("notes"),rec.get("delivery_person"),
+                 None,rec["source"],sess["username"],datetime.now().isoformat()))
+            added+=1
         log_id=str(uuid.uuid4())
         conn.execute("INSERT INTO import_log(id,filename,rows_added,status,imported_by) VALUES(?,?,?,?,?)",
                      (log_id,file.filename,added,"ok",sess["username"]))
