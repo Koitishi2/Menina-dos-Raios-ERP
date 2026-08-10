@@ -104,6 +104,7 @@ def _assert_app_note_http_error(exc_info, status_code, detail):
 
 def test_clean_app_note_current_basic_header_and_return_contract(isolated_app):
     clean = isolated_app.module._clean_app_note
+    assert clean.__module__ == "app_notes_domain"
 
     client, note_date, items, total = clean(
         {
