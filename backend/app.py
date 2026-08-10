@@ -5456,15 +5456,22 @@ def create_wa_contact(body: dict, x_token: str = Header(...)):
 def update_wa_contact(cid: str, body: dict, x_token: str = Header(...)):
     require_admin(x_token)
     conn = get_db()
-    for f in ["name", "phone", "active"]:
-        if f not in body: continue
-        if f == "phone":
-            val = re.sub(r'\D', '', str(body[f]))
-            if val and not val.startswith("55"): val = "55" + val
-        else: val = body[f]
-        conn.execute(f"UPDATE whatsapp_contacts SET {f}=? WHERE id=?", [val, cid])
-    conn.commit()
-    conn.close()
+    try:
+        for f in ["name", "phone", "active"]:
+            if f not in body: continue
+            if f == "phone":
+                val = re.sub(r'\D', '', str(body[f]))
+                if val and not val.startswith("55"): val = "55" + val
+            else: val = body[f]
+            conn.execute(f"UPDATE whatsapp_contacts SET {f}=? WHERE id=?", [val, cid])
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        finally:
+            raise
+    finally:
+        conn.close()
     return {"ok": True}
 
 @app.delete("/api/whatsapp/contacts/{cid}")
@@ -5854,11 +5861,18 @@ def create_wa_auto_rule(body: dict, x_token: str = Header(...)):
 def update_wa_auto_rule(rid: str, body: dict, x_token: str = Header(...)):
     require_admin(x_token)
     conn = get_db()
-    for k in _whatsapp_rules_fields:
-        if k in body:
-            conn.execute(f"UPDATE whatsapp_auto_rules SET {k}=?, updated_at=datetime('now') WHERE id=?", [body[k], rid])
-    conn.commit()
-    conn.close()
+    try:
+        for k in _whatsapp_rules_fields:
+            if k in body:
+                conn.execute(f"UPDATE whatsapp_auto_rules SET {k}=?, updated_at=datetime('now') WHERE id=?", [body[k], rid])
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        finally:
+            raise
+    finally:
+        conn.close()
     return {"ok": True}
 
 @app.delete("/api/whatsapp/auto-rules/{rid}")
@@ -5911,11 +5925,18 @@ def create_wa_template(body: dict, x_token: str = Header(...)):
 def update_wa_template(tid: str, body: dict, x_token: str = Header(...)):
     require_admin(x_token)
     conn = get_db()
-    for f in ["name","category","content"]:
-        if f in body:
-            conn.execute(f"UPDATE whatsapp_templates SET {f}=?, updated_at=datetime('now') WHERE id=?", [body[f], tid])
-    conn.commit()
-    conn.close()
+    try:
+        for f in ["name","category","content"]:
+            if f in body:
+                conn.execute(f"UPDATE whatsapp_templates SET {f}=?, updated_at=datetime('now') WHERE id=?", [body[f], tid])
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        finally:
+            raise
+    finally:
+        conn.close()
     return {"ok": True}
 
 @app.delete("/api/whatsapp/templates/{tid}")
@@ -5944,11 +5965,18 @@ def get_wa_bot_settings(x_token: str = Header(...)):
 def save_wa_bot_settings(body: dict, x_token: str = Header(...)):
     require_admin(x_token)
     conn = get_db()
-    for k in _BOT_SETTINGS_KEYS:
-        if k in body:
-            conn.execute("INSERT OR REPLACE INTO whatsapp_config (key, value) VALUES (?,?)", [k, str(body[k])])
-    conn.commit()
-    conn.close()
+    try:
+        for k in _BOT_SETTINGS_KEYS:
+            if k in body:
+                conn.execute("INSERT OR REPLACE INTO whatsapp_config (key, value) VALUES (?,?)", [k, str(body[k])])
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        finally:
+            raise
+    finally:
+        conn.close()
     return {"ok": True}
 
 # â”€â”€ WhatsApp Test Send â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

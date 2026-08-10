@@ -111,6 +111,8 @@ class _TrackedConnection:
         fail_log_insert=False,
         fail_config_select=False,
         fail_config_write_on=None,
+        fail_sql_contains=None,
+        fail_sql_on=None,
         fail_commit=False,
     ):
         self._conn = conn
@@ -118,12 +120,16 @@ class _TrackedConnection:
         self._fail_log_insert = fail_log_insert
         self._fail_config_select = fail_config_select
         self._fail_config_write_on = fail_config_write_on
+        self._fail_sql_contains = fail_sql_contains
+        self._fail_sql_on = fail_sql_on
         self._fail_commit = fail_commit
         self._closed = False
         self._used_log_insert = False
         self._used_config_select = False
         self._used_config_write = False
         self._config_write_count = 0
+        self._used_target_sql = False
+        self._target_sql_count = 0
         state["open"] += 1
 
     def execute(self, sql, args=()):
@@ -143,6 +149,11 @@ class _TrackedConnection:
             self._config_write_count += 1
             if self._fail_config_write_on == self._config_write_count:
                 raise sqlite3.OperationalError("falha controlada na escrita config")
+        if self._fail_sql_contains and self._fail_sql_contains in normalized_sql:
+            self._used_target_sql = True
+            self._target_sql_count += 1
+            if self._fail_sql_on == self._target_sql_count:
+                raise sqlite3.OperationalError("falha controlada na escrita alvo")
         if self._fail_log_insert and "INSERT INTO whatsapp_log" in sql:
             self._used_log_insert = True
             raise sqlite3.OperationalError("falha controlada no log")
@@ -156,6 +167,8 @@ class _TrackedConnection:
             self._state["log_commits"] += 1
         if self._used_config_write:
             self._state["config_commits"] += 1
+        if self._used_target_sql:
+            self._state["target_commits"] += 1
         if self._fail_commit:
             raise sqlite3.OperationalError("falha controlada no commit")
         return self._conn.commit()
@@ -166,6 +179,8 @@ class _TrackedConnection:
             self._state["log_rollbacks"] += 1
         if self._used_config_write:
             self._state["config_rollbacks"] += 1
+        if self._used_target_sql:
+            self._state["target_rollbacks"] += 1
         return self._conn.rollback()
 
     def close(self):
@@ -178,6 +193,8 @@ class _TrackedConnection:
                 self._state["config_closes"] += 1
             if self._used_config_write:
                 self._state["config_write_closes"] += 1
+            if self._used_target_sql:
+                self._state["target_closes"] += 1
             self._state["open"] -= 1
         return self._conn.close()
 
@@ -191,6 +208,8 @@ def _install_tracked_db(
     fail_log_insert=False,
     fail_config_select=False,
     fail_config_write_on=None,
+    fail_sql_contains=None,
+    fail_sql_on=None,
     fail_commit=False,
 ):
     original_get_db = isolated_app.module.get_db
@@ -206,6 +225,9 @@ def _install_tracked_db(
         "config_write_closes": 0,
         "config_commits": 0,
         "config_rollbacks": 0,
+        "target_closes": 0,
+        "target_commits": 0,
+        "target_rollbacks": 0,
     }
 
     def tracked_get_db(company=None):
@@ -215,6 +237,8 @@ def _install_tracked_db(
             fail_log_insert=fail_log_insert,
             fail_config_select=fail_config_select,
             fail_config_write_on=fail_config_write_on,
+            fail_sql_contains=fail_sql_contains,
+            fail_sql_on=fail_sql_on,
             fail_commit=fail_commit,
         )
 
@@ -390,6 +414,161 @@ def test_whatsapp_config_save_rolls_back_and_closes_when_commit_fails(isolated_a
 
     _set_config(isolated_app.db_paths["raios"], "passo116_probe", "ok")
     assert _get_config(isolated_app.db_paths["raios"])["passo116_probe"] == "ok"
+
+
+def _seed_whatsapp_crud_target(isolated_app, target):
+    db_path = isolated_app.db_paths["raios"]
+    with sqlite3.connect(db_path) as conn:
+        if target == "contact":
+            conn.execute(
+                "INSERT INTO whatsapp_contacts(id,name,phone,active,created_by) VALUES(?,?,?,?,?)",
+                ("contact-crud", "Contato Original", "559500000000", 1, "admin"),
+            )
+        elif target == "rule":
+            conn.execute(
+                "INSERT INTO whatsapp_auto_rules(id,name,message) VALUES(?,?,?)",
+                ("rule-crud", "Regra Original", "Mensagem original"),
+            )
+        elif target == "template":
+            conn.execute(
+                "INSERT INTO whatsapp_templates(id,name,content) VALUES(?,?,?)",
+                ("template-crud", "Template Original", "Conteudo original"),
+            )
+        conn.commit()
+
+
+def _read_whatsapp_crud_target(isolated_app, target):
+    db_path = isolated_app.db_paths["raios"]
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        if target == "contact":
+            row = conn.execute("SELECT name,phone,active FROM whatsapp_contacts WHERE id='contact-crud'").fetchone()
+        elif target == "rule":
+            row = conn.execute("SELECT name,message FROM whatsapp_auto_rules WHERE id='rule-crud'").fetchone()
+        elif target == "template":
+            row = conn.execute("SELECT name,content FROM whatsapp_templates WHERE id='template-crud'").fetchone()
+        else:
+            rows = conn.execute(
+                "SELECT key,value FROM whatsapp_config WHERE key IN ('bot_active','test_mode') ORDER BY key"
+            ).fetchall()
+            return {row["key"]: row["value"] for row in rows}
+    return dict(row)
+
+
+CRUD_WRITE_CASES = [
+    (
+        "contact",
+        "UPDATE whatsapp_contacts SET",
+        lambda module: module.update_wa_contact(
+            "contact-crud",
+            {"name": "Contato Novo", "phone": "95911112222"},
+            x_token="token",
+        ),
+        {"name": "Contato Novo", "phone": "5595911112222", "active": 1},
+        {"name": "Contato Original", "phone": "559500000000", "active": 1},
+    ),
+    (
+        "rule",
+        "UPDATE whatsapp_auto_rules SET",
+        lambda module: module.update_wa_auto_rule(
+            "rule-crud",
+            {"name": "Regra Nova", "message": "Mensagem nova"},
+            x_token="token",
+        ),
+        {"name": "Regra Nova", "message": "Mensagem nova"},
+        {"name": "Regra Original", "message": "Mensagem original"},
+    ),
+    (
+        "template",
+        "UPDATE whatsapp_templates SET",
+        lambda module: module.update_wa_template(
+            "template-crud",
+            {"name": "Template Novo", "content": "Conteudo novo"},
+            x_token="token",
+        ),
+        {"name": "Template Novo", "content": "Conteudo novo"},
+        {"name": "Template Original", "content": "Conteudo original"},
+    ),
+    (
+        "bot_settings",
+        "INSERT OR REPLACE INTO whatsapp_config",
+        lambda module: module.save_wa_bot_settings(
+            {"bot_active": "1", "test_mode": "1"},
+            x_token="token",
+        ),
+        {"bot_active": "1", "test_mode": "1"},
+        {"bot_active": "1", "test_mode": "0"},
+    ),
+]
+
+
+@pytest.mark.parametrize("target, sql_marker, call, expected, original", CRUD_WRITE_CASES)
+def test_whatsapp_crud_multi_write_routes_commit_and_close_on_success(
+    isolated_app, monkeypatch, target, sql_marker, call, expected, original
+):
+    _seed_whatsapp_crud_target(isolated_app, target)
+    monkeypatch.setattr(isolated_app.module, "require_admin", lambda token: {"username": "admin", "role": "admin"})
+    state = _install_tracked_db(monkeypatch, isolated_app, fail_sql_contains=sql_marker)
+
+    result = call(isolated_app.module)
+
+    assert result == {"ok": True}
+    assert state["open"] == 0
+    assert state["target_commits"] == 1
+    assert state["target_closes"] == 1
+    assert _read_whatsapp_crud_target(isolated_app, target) == expected
+
+
+@pytest.mark.parametrize("target, sql_marker, call, expected, original", CRUD_WRITE_CASES)
+@pytest.mark.parametrize("failure_index", [1, 2])
+def test_whatsapp_crud_multi_write_routes_roll_back_and_close_on_write_failure(
+    isolated_app, monkeypatch, target, sql_marker, call, expected, original, failure_index
+):
+    _seed_whatsapp_crud_target(isolated_app, target)
+    monkeypatch.setattr(isolated_app.module, "require_admin", lambda token: {"username": "admin", "role": "admin"})
+    state = _install_tracked_db(
+        monkeypatch,
+        isolated_app,
+        fail_sql_contains=sql_marker,
+        fail_sql_on=failure_index,
+    )
+
+    with pytest.raises(sqlite3.OperationalError, match="falha controlada na escrita alvo"):
+        call(isolated_app.module)
+
+    assert state["open"] == 0
+    assert state["target_rollbacks"] == 1
+    assert state["target_closes"] == 1
+    assert _read_whatsapp_crud_target(isolated_app, target) == original
+
+    _set_config(isolated_app.db_paths["raios"], f"passo117_{target}_{failure_index}", "ok")
+    assert _get_config(isolated_app.db_paths["raios"])[f"passo117_{target}_{failure_index}"] == "ok"
+
+
+@pytest.mark.parametrize("target, sql_marker, call, expected, original", CRUD_WRITE_CASES)
+def test_whatsapp_crud_multi_write_routes_roll_back_and_close_on_commit_failure(
+    isolated_app, monkeypatch, target, sql_marker, call, expected, original
+):
+    _seed_whatsapp_crud_target(isolated_app, target)
+    monkeypatch.setattr(isolated_app.module, "require_admin", lambda token: {"username": "admin", "role": "admin"})
+    state = _install_tracked_db(
+        monkeypatch,
+        isolated_app,
+        fail_sql_contains=sql_marker,
+        fail_commit=True,
+    )
+
+    with pytest.raises(sqlite3.OperationalError, match="falha controlada no commit"):
+        call(isolated_app.module)
+
+    assert state["open"] == 0
+    assert state["target_commits"] == 1
+    assert state["target_rollbacks"] == 1
+    assert state["target_closes"] == 1
+    assert _read_whatsapp_crud_target(isolated_app, target) == original
+
+    _set_config(isolated_app.db_paths["raios"], f"passo117_{target}_commit", "ok")
+    assert _get_config(isolated_app.db_paths["raios"])[f"passo117_{target}_commit"] == "ok"
 
 
 def test_whatsapp_send_uses_active_contacts_without_open_sqlite_during_send(isolated_app, monkeypatch):
