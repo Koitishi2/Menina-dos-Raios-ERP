@@ -6081,13 +6081,16 @@ def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-toke
 @app.get("/api/app-notes")
 def list_app_notes(client:Optional[str]=None,month:Optional[str]=None,year:Optional[str]=None,status:Optional[str]=None,x_token:str=Header("")):
     require_auth(x_token); conn=get_app_notes_db(); where=[]; params=[]
-    if client: where.append("client LIKE ?"); params.append("%"+client.strip()[:120]+"%")
-    if month: where.append("substr(note_date,4,2)=?"); params.append(month.zfill(2)[:2])
-    if year: where.append("substr(note_date,7,4)=?"); params.append(year[:4])
-    if status in ("pending","completed"): where.append("status=?"); params.append(status)
-    sql="SELECT * FROM app_notes"+(" WHERE "+" AND ".join(where) if where else "")+" ORDER BY created_at DESC LIMIT 1000"
-    rows=conn.execute(sql,params).fetchall(); catalog_prices=_app_note_catalog_prices(); notes=[_app_note_dict(conn,r,catalog_prices) for r in rows]; conn.close()
-    return {"notes":notes,"count":len(notes),"total":round(sum(float(n["total"] or 0) for n in notes),2)}
+    try:
+        if client: where.append("client LIKE ?"); params.append("%"+client.strip()[:120]+"%")
+        if month: where.append("substr(note_date,4,2)=?"); params.append(month.zfill(2)[:2])
+        if year: where.append("substr(note_date,7,4)=?"); params.append(year[:4])
+        if status in ("pending","completed"): where.append("status=?"); params.append(status)
+        sql="SELECT * FROM app_notes"+(" WHERE "+" AND ".join(where) if where else "")+" ORDER BY created_at DESC LIMIT 1000"
+        rows=conn.execute(sql,params).fetchall(); catalog_prices=_app_note_catalog_prices(); notes=[_app_note_dict(conn,r,catalog_prices) for r in rows]
+        return {"notes":notes,"count":len(notes),"total":round(sum(float(n["total"] or 0) for n in notes),2)}
+    finally:
+        conn.close()
 
 @app.put("/api/app-notes/{note_id}")
 def update_app_note(note_id:str,body:dict,x_token:str=Header("")):

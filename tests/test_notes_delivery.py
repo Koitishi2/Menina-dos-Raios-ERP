@@ -611,6 +611,63 @@ def test_app_note_dict_current_items_prices_catalog_flags_and_order(isolated_app
     assert all(isinstance(item["effective_unit_price"], float) for item in serialized["items"])
 
 
+def test_app_notes_list_closes_connection_when_catalog_fails(isolated_app):
+    token = _login(isolated_app.client)
+    _create_app_note_mobile(
+        isolated_app.client,
+        isolated_app,
+        external_id="nota-app-list-catalogo-falha",
+        client="Cliente Catalogo Falha",
+    )
+
+    class TrackedConnection:
+        def __init__(self, inner):
+            self.inner = inner
+            self.close_calls = 0
+
+        def execute(self, *args, **kwargs):
+            return self.inner.execute(*args, **kwargs)
+
+        def close(self):
+            self.close_calls += 1
+            return self.inner.close()
+
+        def __getattr__(self, name):
+            return getattr(self.inner, name)
+
+    original_get_app_notes_db = isolated_app.module.get_app_notes_db
+    original_catalog_prices = isolated_app.module._app_note_catalog_prices
+    tracked = []
+
+    def tracked_get_app_notes_db():
+        conn = TrackedConnection(original_get_app_notes_db())
+        tracked.append(conn)
+        return conn
+
+    def failing_catalog_prices():
+        raise RuntimeError("catalogo falhou no passo 101")
+
+    isolated_app.module.get_app_notes_db = tracked_get_app_notes_db
+    isolated_app.module._app_note_catalog_prices = failing_catalog_prices
+    try:
+        with pytest.raises(RuntimeError, match="catalogo falhou no passo 101"):
+            isolated_app.module.list_app_notes(x_token=token)
+    finally:
+        isolated_app.module.get_app_notes_db = original_get_app_notes_db
+        isolated_app.module._app_note_catalog_prices = original_catalog_prices
+
+    assert len(tracked) == 1
+    assert tracked[0].close_calls == 1
+
+    created_after_catalog_error = _create_app_note_mobile(
+        isolated_app.client,
+        isolated_app,
+        external_id="nota-app-apos-falha-catalogo-list",
+        client="Cliente Depois Falha Catalogo",
+    )
+    assert created_after_catalog_error["client"] == "Cliente Depois Falha Catalogo"
+
+
 def test_app_notes_db_initializes_schema_and_returns_open_connection(isolated_app):
     conn = isolated_app.module.get_app_notes_db()
     try:
