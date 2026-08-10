@@ -5952,10 +5952,12 @@ def wa_test_message(body: dict, x_token: str = Header(...)):
     if not phone.startswith("55"):
         phone = "55" + phone
     conn = get_db()
-    cfg = {r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM whatsapp_config").fetchall()}
-    conn.close()
-    ok, resp = _wa_send(cfg, phone, msg)
-    return {"ok": ok, "response": resp}
+    try:
+        cfg = {r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM whatsapp_config").fetchall()}
+    finally:
+        conn.close()
+    res = wa_send(phone, msg, cfg)
+    return {"ok": res.get("ok"), "response": res.get("response")}
 
 # â”€â”€ Notas enviadas pelo aplicativo Android (banco independente) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 def get_app_notes_db():

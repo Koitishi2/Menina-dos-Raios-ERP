@@ -104,15 +104,22 @@ def _fetch_logs(db_path):
 
 
 class _TrackedConnection:
-    def __init__(self, conn, state, fail_log_insert=False):
+    def __init__(self, conn, state, fail_log_insert=False, fail_config_select=False):
         self._conn = conn
         self._state = state
         self._fail_log_insert = fail_log_insert
+        self._fail_config_select = fail_config_select
         self._closed = False
         self._used_log_insert = False
+        self._used_config_select = False
         state["open"] += 1
 
     def execute(self, sql, args=()):
+        if self._fail_config_select and "SELECT key, value FROM whatsapp_config" in sql:
+            self._used_config_select = True
+            raise sqlite3.OperationalError("falha controlada na config")
+        if "SELECT key, value FROM whatsapp_config" in sql:
+            self._used_config_select = True
         if self._fail_log_insert and "INSERT INTO whatsapp_log" in sql:
             self._used_log_insert = True
             raise sqlite3.OperationalError("falha controlada no log")
@@ -138,6 +145,8 @@ class _TrackedConnection:
             self._state["closes"] += 1
             if self._used_log_insert:
                 self._state["log_closes"] += 1
+            if self._used_config_select:
+                self._state["config_closes"] += 1
             self._state["open"] -= 1
         return self._conn.close()
 
@@ -145,7 +154,7 @@ class _TrackedConnection:
         return getattr(self._conn, name)
 
 
-def _install_tracked_db(monkeypatch, isolated_app, fail_log_insert=False):
+def _install_tracked_db(monkeypatch, isolated_app, fail_log_insert=False, fail_config_select=False):
     original_get_db = isolated_app.module.get_db
     state = {
         "open": 0,
@@ -155,10 +164,16 @@ def _install_tracked_db(monkeypatch, isolated_app, fail_log_insert=False):
         "log_closes": 0,
         "log_commits": 0,
         "log_rollbacks": 0,
+        "config_closes": 0,
     }
 
     def tracked_get_db(company=None):
-        return _TrackedConnection(original_get_db(company), state, fail_log_insert=fail_log_insert)
+        return _TrackedConnection(
+            original_get_db(company),
+            state,
+            fail_log_insert=fail_log_insert,
+            fail_config_select=fail_config_select,
+        )
 
     monkeypatch.setattr(isolated_app.module, "get_db", tracked_get_db)
     return state
@@ -417,6 +432,107 @@ def test_whatsapp_test_contact_rolls_back_and_closes_when_log_persistence_fails(
 
     # A escrita seguinte confirma que a conexao foi fechada e o banco nao ficou travado.
     _add_contact(isolated_app.db_paths["raios"], "Contato Depois Teste", "559577777777", active=1)
+
+
+def test_whatsapp_test_message_uses_wa_send_after_closing_config_connection(isolated_app, monkeypatch):
+    token = _login(isolated_app.client)
+    state = _install_tracked_db(monkeypatch, isolated_app)
+    calls = []
+
+    def fake_wa_send(phone, message, cfg):
+        assert state["open"] == 0
+        calls.append((phone, message, cfg.get("provider")))
+        return {"ok": True, "response": "sent"}
+
+    monkeypatch.setattr(isolated_app.module, "wa_send", fake_wa_send)
+
+    response = isolated_app.client.post(
+        "/api/whatsapp/test-message",
+        headers=_headers(token),
+        json={"message": " Mensagem teste ", "phone": "(95) 99999-8888"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True, "response": "sent"}
+    assert calls == [("5595999998888", "Mensagem teste", "ultramsg")]
+    assert state["open"] == 0
+    assert state["config_closes"] == 1
+
+
+def test_whatsapp_test_message_closes_connection_when_config_read_fails(isolated_app, monkeypatch):
+    token = _login(isolated_app.client)
+    state = _install_tracked_db(monkeypatch, isolated_app, fail_config_select=True)
+    calls = []
+
+    def fake_wa_send(phone, message, cfg):
+        calls.append((phone, message, cfg))
+        return {"ok": True, "response": "sent"}
+
+    monkeypatch.setattr(isolated_app.module, "wa_send", fake_wa_send)
+
+    with pytest.raises(sqlite3.OperationalError, match="falha controlada na config"):
+        isolated_app.client.post(
+            "/api/whatsapp/test-message",
+            headers=_headers(token),
+            json={"message": "Mensagem teste", "phone": "95999998888"},
+        )
+
+    assert calls == []
+    assert state["open"] == 0
+    assert state["config_closes"] == 1
+
+
+def test_whatsapp_test_message_validation_happens_before_opening_connection(isolated_app, monkeypatch):
+    opened = []
+    sent = []
+
+    def forbidden_get_db(company=None):
+        opened.append(company)
+        raise AssertionError("get_db nao deveria ser chamado")
+
+    def forbidden_wa_send(phone, message, cfg):
+        sent.append((phone, message, cfg))
+        raise AssertionError("wa_send nao deveria ser chamado")
+
+    monkeypatch.setattr(isolated_app.module, "get_db", forbidden_get_db)
+    monkeypatch.setattr(isolated_app.module, "wa_send", forbidden_wa_send)
+    monkeypatch.setattr(isolated_app.module, "require_admin", lambda token: {"username": "admin", "role": "admin"})
+
+    with pytest.raises(isolated_app.module.HTTPException) as empty_message:
+        isolated_app.module.wa_test_message({"message": "   ", "phone": "95999998888"}, x_token="token")
+    with pytest.raises(isolated_app.module.HTTPException) as missing_phone:
+        isolated_app.module.wa_test_message({"message": "Mensagem teste", "phone": ""}, x_token="token")
+
+    assert empty_message.value.status_code == 400
+    assert empty_message.value.detail == "Mensagem vazia."
+    assert missing_phone.value.status_code == 400
+    assert "Telefone" in missing_phone.value.detail
+    assert opened == []
+    assert sent == []
+
+
+def test_whatsapp_test_message_preserves_send_exception_after_config_connection_closes(isolated_app, monkeypatch):
+    token = _login(isolated_app.client)
+    state = _install_tracked_db(monkeypatch, isolated_app)
+    calls = []
+
+    def failing_wa_send(phone, message, cfg):
+        assert state["open"] == 0
+        calls.append((phone, message, cfg.get("provider")))
+        raise RuntimeError("envio falhou no passo 113")
+
+    monkeypatch.setattr(isolated_app.module, "wa_send", failing_wa_send)
+
+    with pytest.raises(RuntimeError, match="envio falhou no passo 113"):
+        isolated_app.client.post(
+            "/api/whatsapp/test-message",
+            headers=_headers(token),
+            json={"message": "Mensagem teste", "phone": "95999998888"},
+        )
+
+    assert calls == [("5595999998888", "Mensagem teste", "ultramsg")]
+    assert state["open"] == 0
+    assert state["config_closes"] == 1
 
 
 def test_daily_motivation_send_now_separates_db_from_provider_and_logs_results(isolated_app, monkeypatch):
