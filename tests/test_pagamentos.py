@@ -175,9 +175,308 @@ def _payment_row_by_id(isolated_app, payment_id):
     return dict(row) if row else None
 
 
+def _insert_payment_direct(isolated_app, **overrides):
+    payload = _payment_payload(**overrides)
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    try:
+        cur = conn.execute(
+            "INSERT INTO monteiro_payments (client, payment_date, amount, month, year, payment_type, notes) VALUES (?,?,?,?,?,?,?)",
+            [
+                payload["client"],
+                payload["payment_date"],
+                float(payload["amount"]),
+                overrides.get("month", payload["payment_date"][5:7]),
+                overrides.get("year", payload["payment_date"][:4]),
+                payload.get("payment_type", "repasse"),
+                payload.get("notes", ""),
+            ],
+        )
+        conn.commit()
+        return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def _insert_payment_probe(isolated_app, label):
+    return _insert_payment_direct(
+        isolated_app,
+        client=f"Cliente Probe {label}",
+        payment_date="2026-06-28",
+        amount=1,
+        notes=label,
+    )
+
+
+class _TrackedPaymentConnection:
+    def __init__(self, path, state, fail_operation=None, fail_commit=False):
+        self._conn = sqlite3.connect(path)
+        self._conn.row_factory = sqlite3.Row
+        self._state = state
+        self._fail_operation = fail_operation
+        self._fail_commit = fail_commit
+        state["open"] += 1
+
+    def execute(self, sql, params=()):
+        operation = None
+        if sql.startswith("INSERT INTO monteiro_payments"):
+            operation = "create"
+        elif sql.startswith("UPDATE monteiro_payments SET"):
+            operation = "update"
+        elif sql.startswith("DELETE FROM monteiro_payments"):
+            operation = "delete"
+        if operation:
+            self._state[f"{operation}_executes"] += 1
+            if self._fail_operation == operation:
+                raise sqlite3.OperationalError(f"falha controlada no {operation} pagamento")
+        return self._conn.execute(sql, params)
+
+    def commit(self):
+        self._state["commits"] += 1
+        if self._fail_commit:
+            raise sqlite3.OperationalError("falha controlada no commit pagamento")
+        return self._conn.commit()
+
+    def rollback(self):
+        self._state["rollbacks"] += 1
+        return self._conn.rollback()
+
+    def close(self):
+        self._state["closes"] += 1
+        self._state["open"] -= 1
+        return self._conn.close()
+
+
+def _install_payment_write_spy(monkeypatch, isolated_app, fail_operation=None, fail_commit=False):
+    state = {
+        "open": 0,
+        "create_executes": 0,
+        "update_executes": 0,
+        "delete_executes": 0,
+        "commits": 0,
+        "rollbacks": 0,
+        "closes": 0,
+    }
+
+    def tracked_get_db(company=None):
+        assert company in (None, "raios")
+        return _TrackedPaymentConnection(
+            isolated_app.db_paths["raios"],
+            state,
+            fail_operation=fail_operation,
+            fail_commit=fail_commit,
+        )
+
+    monkeypatch.setattr(isolated_app.module, "get_db", tracked_get_db)
+    monkeypatch.setattr(isolated_app.module, "_check_payment_perm", lambda token: {"username": "admin", "role": "admin"})
+    return state
+
+
 def _assert_http_exception(exc_info, status_code, detail):
     assert exc_info.value.status_code == status_code
     assert exc_info.value.detail == detail
+
+
+def test_monteiro_payment_writes_commit_close_and_preserve_financial_contract(isolated_app, monkeypatch):
+    state = _install_payment_write_spy(monkeypatch, isolated_app)
+
+    create_result = isolated_app.module.create_monteiro_payment(
+        _payment_payload(
+            client="Cliente Spy Create",
+            payment_date="2026-06-18",
+            amount=123.45,
+            payment_type="credito",
+            notes="criado com spy",
+        ),
+        x_token="token",
+    )
+
+    assert create_result == {"ok": True}
+    assert state == {
+        "open": 0,
+        "create_executes": 1,
+        "update_executes": 0,
+        "delete_executes": 0,
+        "commits": 1,
+        "rollbacks": 0,
+        "closes": 1,
+    }
+    created_id = _payment_rows_count(isolated_app)
+    created_row = _payment_row_by_id(isolated_app, created_id)
+    assert created_row["client"] == "Cliente Spy Create"
+    assert created_row["payment_date"] == "2026-06-18"
+    assert created_row["amount"] == 123.45
+    assert created_row["month"] == "06"
+    assert created_row["year"] == "2026"
+    assert created_row["payment_type"] == "credito"
+    assert created_row["notes"] == "criado com spy"
+
+    state = _install_payment_write_spy(monkeypatch, isolated_app)
+    update_result = isolated_app.module.update_monteiro_payment(
+        created_id,
+        _payment_payload(
+            client="Cliente Spy Update",
+            payment_date="2026-07-19",
+            amount=222.5,
+            payment_type="ajuste",
+            notes="editado com spy",
+        ),
+        x_token="token",
+    )
+
+    assert update_result == {"ok": True}
+    assert state == {
+        "open": 0,
+        "create_executes": 0,
+        "update_executes": 1,
+        "delete_executes": 0,
+        "commits": 1,
+        "rollbacks": 0,
+        "closes": 1,
+    }
+    updated_row = _payment_row_by_id(isolated_app, created_id)
+    assert updated_row["client"] == "Cliente Spy Update"
+    assert updated_row["payment_date"] == "2026-07-19"
+    assert updated_row["amount"] == 222.5
+    assert updated_row["month"] == "07"
+    assert updated_row["year"] == "2026"
+    assert updated_row["payment_type"] == "ajuste"
+    assert updated_row["notes"] == "editado com spy"
+
+    state = _install_payment_write_spy(monkeypatch, isolated_app)
+    delete_result = isolated_app.module.delete_monteiro_payment(created_id, x_token="token")
+
+    assert delete_result == {"ok": True}
+    assert state == {
+        "open": 0,
+        "create_executes": 0,
+        "update_executes": 0,
+        "delete_executes": 1,
+        "commits": 1,
+        "rollbacks": 0,
+        "closes": 1,
+    }
+    assert _payment_row_by_id(isolated_app, created_id) is None
+
+
+@pytest.mark.parametrize(
+    ("operation", "call_factory"),
+    [
+        (
+            "create",
+            lambda module, payment_id: module.create_monteiro_payment(
+                _payment_payload(client="Cliente Falha Create", amount=456),
+                x_token="token",
+            ),
+        ),
+        (
+            "update",
+            lambda module, payment_id: module.update_monteiro_payment(
+                payment_id,
+                _payment_payload(client="Cliente Falha Update", amount=456),
+                x_token="token",
+            ),
+        ),
+        (
+            "delete",
+            lambda module, payment_id: module.delete_monteiro_payment(payment_id, x_token="token"),
+        ),
+    ],
+)
+def test_monteiro_payment_writes_roll_back_close_and_preserve_data_when_execute_fails(
+    isolated_app,
+    monkeypatch,
+    operation,
+    call_factory,
+):
+    payment_id = _insert_payment_direct(isolated_app, client=f"Cliente Original {operation}", amount=111)
+    original = _payment_row_by_id(isolated_app, payment_id)
+    original_count = _payment_rows_count(isolated_app)
+    state = _install_payment_write_spy(monkeypatch, isolated_app, fail_operation=operation)
+
+    with pytest.raises(sqlite3.OperationalError, match=f"falha controlada no {operation} pagamento"):
+        call_factory(isolated_app.module, payment_id)
+
+    assert state["open"] == 0
+    assert state[f"{operation}_executes"] == 1
+    assert state["commits"] == 0
+    assert state["rollbacks"] == 1
+    assert state["closes"] == 1
+    assert _payment_row_by_id(isolated_app, payment_id) == original
+    assert _payment_rows_count(isolated_app) == original_count
+    probe_id = _insert_payment_probe(isolated_app, f"execute {operation}")
+    assert _payment_row_by_id(isolated_app, probe_id)["notes"] == f"execute {operation}"
+
+
+@pytest.mark.parametrize(
+    ("operation", "call_factory"),
+    [
+        (
+            "create",
+            lambda module, payment_id: module.create_monteiro_payment(
+                _payment_payload(client="Cliente Commit Create", amount=456),
+                x_token="token",
+            ),
+        ),
+        (
+            "update",
+            lambda module, payment_id: module.update_monteiro_payment(
+                payment_id,
+                _payment_payload(client="Cliente Commit Update", amount=456),
+                x_token="token",
+            ),
+        ),
+        (
+            "delete",
+            lambda module, payment_id: module.delete_monteiro_payment(payment_id, x_token="token"),
+        ),
+    ],
+)
+def test_monteiro_payment_writes_roll_back_close_and_preserve_data_when_commit_fails(
+    isolated_app,
+    monkeypatch,
+    operation,
+    call_factory,
+):
+    payment_id = _insert_payment_direct(isolated_app, client=f"Cliente Original Commit {operation}", amount=111)
+    original = _payment_row_by_id(isolated_app, payment_id)
+    original_count = _payment_rows_count(isolated_app)
+    state = _install_payment_write_spy(monkeypatch, isolated_app, fail_commit=True)
+
+    with pytest.raises(sqlite3.OperationalError, match="falha controlada no commit pagamento"):
+        call_factory(isolated_app.module, payment_id)
+
+    assert state["open"] == 0
+    assert state[f"{operation}_executes"] == 1
+    assert state["commits"] == 1
+    assert state["rollbacks"] == 1
+    assert state["closes"] == 1
+    assert _payment_row_by_id(isolated_app, payment_id) == original
+    assert _payment_rows_count(isolated_app) == original_count
+    probe_id = _insert_payment_probe(isolated_app, f"commit {operation}")
+    assert _payment_row_by_id(isolated_app, probe_id)["notes"] == f"commit {operation}"
+
+
+def test_monteiro_payment_write_missing_ids_preserve_success_contract_with_close(isolated_app, monkeypatch):
+    state = _install_payment_write_spy(monkeypatch, isolated_app)
+
+    update_result = isolated_app.module.update_monteiro_payment(
+        999999,
+        _payment_payload(client="Cliente Inexistente", amount=321),
+        x_token="token",
+    )
+    delete_result = isolated_app.module.delete_monteiro_payment(999999, x_token="token")
+
+    assert update_result == {"ok": True}
+    assert delete_result == {"ok": True}
+    assert state == {
+        "open": 0,
+        "create_executes": 0,
+        "update_executes": 1,
+        "delete_executes": 1,
+        "commits": 2,
+        "rollbacks": 0,
+        "closes": 2,
+    }
 
 
 def test_payment_role_allowed_module_current_python_membership_contract():

@@ -4815,16 +4815,34 @@ def create_monteiro_payment(body: dict, x_token: str = Header(...)):
     m=body.get("month","") or pdate[5:7]
     y=body.get("year","") or pdate[:4]
     conn=get_db()
-    conn.execute("INSERT INTO monteiro_payments (client, payment_date, amount, month, year, payment_type, notes) VALUES (?,?,?,?,?,?,?)",
-                 [client,pdate,amount,m.zfill(2),str(y),body.get("payment_type","repasse"),body.get("notes","")])
-    conn.commit(); conn.close()
-    return {"ok":True}
+    try:
+        conn.execute("INSERT INTO monteiro_payments (client, payment_date, amount, month, year, payment_type, notes) VALUES (?,?,?,?,?,?,?)",
+                     [client,pdate,amount,m.zfill(2),str(y),body.get("payment_type","repasse"),body.get("notes","")])
+        conn.commit()
+        return {"ok":True}
+    except Exception:
+        try:
+            conn.rollback()
+        finally:
+            raise
+    finally:
+        conn.close()
 
 @app.delete("/api/monteiro/payments/{pid}")
 def delete_monteiro_payment(pid: int, x_token: str = Header(...)):
     _check_payment_perm(x_token)
-    conn=get_db(); conn.execute("DELETE FROM monteiro_payments WHERE id=?",[pid]); conn.commit(); conn.close()
-    return {"ok":True}
+    conn=get_db()
+    try:
+        conn.execute("DELETE FROM monteiro_payments WHERE id=?",[pid])
+        conn.commit()
+        return {"ok":True}
+    except Exception:
+        try:
+            conn.rollback()
+        finally:
+            raise
+    finally:
+        conn.close()
 
 @app.put("/api/monteiro/payments/{pid}")
 def update_monteiro_payment(pid:int,body:dict,x_token:str=Header(...)):
@@ -4837,11 +4855,19 @@ def update_monteiro_payment(pid:int,body:dict,x_token:str=Header(...)):
     m=body.get("month","") or pdate[5:7]
     y=body.get("year","") or pdate[:4]
     conn=get_db()
-    conn.execute("""UPDATE monteiro_payments SET client=?, payment_date=?, amount=?,
-        month=?, year=?, payment_type=?, notes=? WHERE id=?""",
-        [client,pdate,amount,m.zfill(2),str(y),body.get("payment_type","repasse"),body.get("notes",""),pid])
-    conn.commit(); conn.close()
-    return {"ok":True}
+    try:
+        conn.execute("""UPDATE monteiro_payments SET client=?, payment_date=?, amount=?,
+            month=?, year=?, payment_type=?, notes=? WHERE id=?""",
+            [client,pdate,amount,m.zfill(2),str(y),body.get("payment_type","repasse"),body.get("notes",""),pid])
+        conn.commit()
+        return {"ok":True}
+    except Exception:
+        try:
+            conn.rollback()
+        finally:
+            raise
+    finally:
+        conn.close()
 
 @app.get("/api/monteiro/payments/summary")
 def monteiro_payments_summary(client:str="",period:Optional[str]=None,month:str="",year:str="",x_token:str=Header("")):
