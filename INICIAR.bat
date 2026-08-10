@@ -12,7 +12,7 @@ if not exist "%PYTHON%" set "PYTHON=python"
 
 :: Instalar dependencias silenciosamente
 echo Verificando dependencias...
-"%PYTHON%" -m pip install fastapi uvicorn pandas openpyxl python-multipart ^
+"%PYTHON%" -m pip install fastapi uvicorn openpyxl python-multipart ^
     --quiet --disable-pip-version-check 2>nul
 
 :: Descobrir IP local

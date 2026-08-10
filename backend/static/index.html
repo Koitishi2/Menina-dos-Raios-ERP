@@ -4819,7 +4819,7 @@ const IDLE_TIMEOUT_MS = 20 * 60 * 1000;
 let _idleTimer = null;
 let idleWarnTimer = null;
 let _idleBound = false;
-let allSales=[],allPrices=[],allPricesCompany='',allDrivers=[],chartInstances={},pdashChart=null,currentFile=null,donutActiveFilter=null;
+let allSales=[],allPrices=[],allPricesCompany='',allDrivers=[],chartInstances={},pdashChart=null,donutActiveFilter=null;
 let PAGE_SIZE=100; let currentPage=1;
 let _typePageSize=100; let _typePage={};
 const MONTHS=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -6580,23 +6580,6 @@ function openOrcPrint(data){
 }
 
 // ── IMPORT / EXPORT ────────────────────────────────────────────────────────────
-function handleDrop(e){e.preventDefault();document.getElementById('drop-zone').classList.remove('drag');const f=e.dataTransfer.files[0];if(f)fileSelected(f);}
-function fileSelected(f){if(!f)return;currentFile=f;document.getElementById('drop-label').textContent='📄 '+f.name;document.getElementById('btn-import').disabled=false;}
-async function doImport(){
-  if(!currentFile)return;
-  const btn=document.getElementById('btn-import');btn.disabled=true;btn.textContent=' Importando...';
-  const fd=new FormData();fd.append('file',currentFile);
-  try{
-    const r=await api('/api/import-excel',{method:'POST',body:fd});
-    const res=document.getElementById('import-result');res.style.display='block';
-    res.innerHTML=`<div style="background:var(--g100);border:1px solid var(--g400);border-radius:8px;padding:10px;font-size:12px">✅ <strong>${r.imported} registros importados</strong> de ${r.total_in_file} encontrados.</div>`;
-    toast('✅ '+r.imported+' registros!');
-    // Corrigir nomes de macaxeira automaticamente após importar
-    await api('/api/admin/migrate-products',{method:'POST'});
-    loadAll();loadImportLog();
-  }catch(e){toast(e.message,'error');}
-  finally{btn.disabled=false;btn.textContent='📥 Importar';}
-}
 async function clearImports(){
   // Count imported records first
   const imported = allSales.filter(s=>s.source==='excel').length;

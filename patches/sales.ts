@@ -81,12 +81,6 @@ export async function getSummary(year?: number): Promise<SummaryRow[]> {
   return api<SummaryRow[]>(`/api/summary${qs}`);
 }
 
-export async function importExcel(file: File): Promise<{ imported: number; total_in_file: number }> {
-  const fd = new FormData();
-  fd.append("file", file);
-  return api("/api/import-excel", { method: "POST", body: fd });
-}
-
 export async function clearImports(): Promise<void> {
   await api("/api/sales/clear-imports", { method: "DELETE" });
 }

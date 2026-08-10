@@ -6,9 +6,6 @@ import {
   listSales,
   SALE_TYPE_LABEL,
   type SaleType,
-  importExcel,
-  clearImports,
-  getImportLog,
   getSummary,
   formatBRL,
   SALE_TYPE_HEX,
@@ -38,23 +35,9 @@ import {
   DrawerClose,
 } from "@/components/ui/drawer";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  Upload,
-  Trash2,
   RefreshCw,
   BarChart3,
-  FileSpreadsheet,
   Plus,
-  History,
   Wifi,
   WifiOff,
   Search,
@@ -175,201 +158,6 @@ function ConsolidadoChart({ year }: { year: number }) {
           {formatBRL(totalYear)}
         </span>
       </div>
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────
-// Importar tab
-// ────────────────────────────────────────────────────────────────
-function ImportTab({ onImported }: { onImported: () => void }) {
-  const [file, setFile] = useState<File | null>(null);
-  const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState<{
-    imported: number;
-    total_in_file: number;
-  } | null>(null);
-  const [confirmClear, setConfirmClear] = useState(false);
-  const [clearing, setClearing] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const qc = useQueryClient();
-
-  const { data: logs = [] } = useQuery({
-    queryKey: ["import-log"],
-    queryFn: getImportLog,
-  });
-
-  async function handleImport() {
-    if (!file) return;
-    setImporting(true);
-    setResult(null);
-    try {
-      const r = await importExcel(file);
-      setResult(r);
-      toast.success(
-        `✅ ${r.imported} registros importados de ${r.total_in_file} encontrados`,
-      );
-      qc.invalidateQueries({ queryKey: ["sales"] });
-      qc.invalidateQueries({ queryKey: ["summary"] });
-      qc.invalidateQueries({ queryKey: ["import-log"] });
-      onImported();
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setImporting(false);
-    }
-  }
-
-  async function handleClear() {
-    setClearing(true);
-    try {
-      await clearImports();
-      toast.success("Registros importados removidos");
-      qc.invalidateQueries({ queryKey: ["sales"] });
-      qc.invalidateQueries({ queryKey: ["summary"] });
-      setConfirmClear(false);
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setClearing(false);
-    }
-  }
-
-  return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileSpreadsheet className="h-5 w-5 text-primary" />
-            Importar Planilha de Vendas (.xlsx)
-          </CardTitle>
-          <CardDescription>
-            Selecione a planilha do SharePoint. O sistema extrai
-            automaticamente dados de NF, PR, Avulsos e Avarias.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div
-            className="border-2 border-dashed border-primary/40 rounded-lg p-6 sm:p-8 text-center cursor-pointer hover:bg-primary/5 transition-colors"
-            onClick={() => inputRef.current?.click()}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              const f = e.dataTransfer.files[0];
-              if (f) setFile(f);
-            }}
-          >
-            <Upload className="h-10 w-10 text-primary mx-auto mb-3" />
-            <p className="font-medium text-primary">
-              {file ? file.name : "Clique ou arraste o arquivo aqui"}
-            </p>
-            <p className="text-sm text-muted-foreground mt-1">Formato: .xlsx</p>
-            <input
-              ref={inputRef}
-              type="file"
-              accept=".xlsx,.xls"
-              className="hidden"
-              onChange={(e) =>
-                e.target.files?.[0] && setFile(e.target.files[0])
-              }
-            />
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Button
-              className="flex-1 h-11"
-              onClick={handleImport}
-              disabled={!file || importing}
-            >
-              {importing ? (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Importando...
-                </>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Importar
-                </>
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              className="text-red-600 border-red-300 h-11"
-              onClick={() => setConfirmClear(true)}
-            >
-              <Trash2 className="h-4 w-4 mr-1" /> Limpar importados
-            </Button>
-          </div>
-
-          {result && (
-            <div className="bg-primary/5 border border-primary/20 rounded-md p-4 text-sm">
-              <p className="font-semibold text-primary">
-                ✅ Importação concluída
-              </p>
-              <p className="text-muted-foreground">
-                {result.imported} registros adicionados ao banco.
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {logs.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <History className="h-4 w-4" /> Histórico de Importações
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {logs.slice(0, 10).map((l: any) => (
-                <div
-                  key={l.id}
-                  className="flex items-center justify-between gap-2 text-sm py-2 border-b last:border-0"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium truncate">{l.filename}</div>
-                    <div className="text-muted-foreground text-xs">
-                      {new Date(l.imported_at).toLocaleString("pt-BR")}
-                    </div>
-                  </div>
-                  <Badge variant="secondary" className="flex-shrink-0">
-                    {l.rows_added} registros
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Limpar todos os registros importados?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Os registros importados de planilhas serão removidos. Os registros
-              criados manualmente <strong>não</strong> serão afetados. Esta ação
-              não pode ser desfeita.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={clearing}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault();
-                handleClear();
-              }}
-              disabled={clearing}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {clearing ? "Removendo..." : "Sim, limpar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
@@ -599,7 +387,7 @@ function SebraeVerifyTab() {
 // ────────────────────────────────────────────────────────────────
 // Página principal
 // ────────────────────────────────────────────────────────────────
-type TabKey = "CONSOLIDADO" | SaleType | "GRAFICO" | "IMPORTAR" | "CONFIGURACOES";
+type TabKey = "CONSOLIDADO" | SaleType | "GRAFICO" | "CONFIGURACOES";
 
 function Index() {
   const qc = useQueryClient();
@@ -714,9 +502,6 @@ function Index() {
                 ))}
                 <TabsTrigger value="GRAFICO" className="gap-1 whitespace-nowrap">
                   <BarChart3 className="h-3.5 w-3.5" /> Gráfico Anual
-                </TabsTrigger>
-                <TabsTrigger value="IMPORTAR" className="gap-1 whitespace-nowrap">
-                  <Upload className="h-3.5 w-3.5" /> Importar Excel
                 </TabsTrigger>
                 <TabsTrigger value="CONFIGURACOES" className="gap-1 whitespace-nowrap">
                   <Settings className="h-3.5 w-3.5" /> Configurações
@@ -861,9 +646,6 @@ function Index() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="IMPORTAR" className="mt-4">
-            <ImportTab onImported={refresh} />
-          </TabsContent>
 
           <TabsContent value="CONFIGURACOES" className="mt-4">
             <SebraeVerifyTab />

@@ -26,7 +26,7 @@ echo        OK
 
 echo.
 echo  [2/2] Instalando dependencias Python...
-"%PYTHON%" -m pip install fastapi uvicorn pandas openpyxl python-multipart ^
+"%PYTHON%" -m pip install fastapi uvicorn openpyxl python-multipart ^
     --quiet --disable-pip-version-check
 if %errorlevel% neq 0 (
     echo  ERRO ao instalar dependencias. Verifique sua conexao.

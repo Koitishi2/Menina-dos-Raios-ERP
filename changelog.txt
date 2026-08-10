@@ -2838,12 +2838,6 @@ Bugfix crítico: Cleanup de sessões expiradas
   Agora: DELETE FROM sessions WHERE expires_at < datetime('now')
          no startup do serviço + diariamente às 03h após backup.
 
-Bugfix médio: except mudo no extract_nf (import Excel)
-  Antes: 2x "except: pass" mascaravam erros de linha E do sheet.
-         Linhas problemáticas sumiam sem aviso.
-  Agora: except (ValueError, TypeError, AttributeError) na linha,
-         except Exception as e: print(...) no sheet (loga no journalctl).
-
 Bugfix menor: except mudo no backup inicial do startup.
   Agora loga "Backup inicial falhou: <erro>" em vez de silenciar.
 

@@ -109,11 +109,9 @@ backend/
 ├── routers/
 │   ├── sales.py        # /api/sales
 │   ├── auth.py         # /api/auth
-│   ├── import.py       # /api/import-excel
 │   └── sebrae.py       # /api/sebrae/verify-nf
 ├── services/
 │   ├── sales_service.py
-│   ├── import_service.py
 │   └── sebrae_service.py
 ├── models/
 │   ├── schemas.py      # Pydantic models
