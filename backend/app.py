@@ -5742,8 +5742,10 @@ def wa_baileys_status(x_token: str = Header(...)):
     """Proxy para o status/QR do serviÃ§o Baileys local (http://127.0.0.1:3001)."""
     require_admin(x_token)
     conn = get_db()
-    cfg  = {r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM whatsapp_config").fetchall()}
-    conn.close()
+    try:
+        cfg  = {r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM whatsapp_config").fetchall()}
+    finally:
+        conn.close()
     api_url = (cfg.get("api_url") or "").strip().rstrip("/")
     token   = cfg.get("api_token", "")
     if not api_url:
@@ -5771,8 +5773,10 @@ def wa_baileys_connection(action: str, x_token: str = Header(...)):
     if action not in ("reconnect","disconnect"):
         raise HTTPException(400,"Acao de conexao invalida.")
     conn=get_db()
-    cfg={r["key"]:r["value"] for r in conn.execute("SELECT key,value FROM whatsapp_config").fetchall()}
-    conn.close()
+    try:
+        cfg={r["key"]:r["value"] for r in conn.execute("SELECT key,value FROM whatsapp_config").fetchall()}
+    finally:
+        conn.close()
     if cfg.get("provider","ultramsg")!="baileys":
         raise HTTPException(400,"Os controles de QR Code estao disponiveis somente para o provedor Baileys.")
     api_url=(cfg.get("api_url") or "http://127.0.0.1:3001").strip().rstrip("/")

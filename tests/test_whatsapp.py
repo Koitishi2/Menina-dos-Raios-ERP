@@ -115,10 +115,15 @@ class _TrackedConnection:
         state["open"] += 1
 
     def execute(self, sql, args=()):
-        if self._fail_config_select and "SELECT key, value FROM whatsapp_config" in sql:
+        normalized_sql = " ".join(str(sql).split())
+        is_config_select = normalized_sql in (
+            "SELECT key, value FROM whatsapp_config",
+            "SELECT key,value FROM whatsapp_config",
+        )
+        if self._fail_config_select and is_config_select:
             self._used_config_select = True
             raise sqlite3.OperationalError("falha controlada na config")
-        if "SELECT key, value FROM whatsapp_config" in sql:
+        if is_config_select:
             self._used_config_select = True
         if self._fail_log_insert and "INSERT INTO whatsapp_log" in sql:
             self._used_log_insert = True
@@ -533,6 +538,131 @@ def test_whatsapp_test_message_preserves_send_exception_after_config_connection_
     assert calls == [("5595999998888", "Mensagem teste", "ultramsg")]
     assert state["open"] == 0
     assert state["config_closes"] == 1
+
+
+def test_whatsapp_baileys_status_closes_config_connection_before_external_call(isolated_app, monkeypatch):
+    token = _login(isolated_app.client)
+    _set_config(isolated_app.db_paths["raios"], "api_url", "http://baileys.local")
+    _set_config(isolated_app.db_paths["raios"], "api_token", "token-teste")
+    state = _install_tracked_db(monkeypatch, isolated_app)
+    calls = []
+
+    class FakeResponse:
+        status_code = 200
+        text = '{"connected": true, "qr": null}'
+
+        def json(self):
+            return {"connected": True, "qr": None}
+
+    import httpx
+
+    def fake_get(url, headers=None, timeout=None):
+        assert state["open"] == 0
+        calls.append((url, headers, timeout))
+        return FakeResponse()
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+
+    response = isolated_app.client.get("/api/whatsapp/baileys-status", headers=_headers(token))
+
+    assert response.status_code == 200
+    assert response.json() == {"connected": True, "qr": None}
+    assert calls == [("http://baileys.local/qr", {"x-api-key": "token-teste"}, 5)]
+    assert state["open"] == 0
+    assert state["config_closes"] == 1
+
+
+def test_whatsapp_baileys_status_closes_connection_when_config_read_fails(isolated_app, monkeypatch):
+    token = _login(isolated_app.client)
+    state = _install_tracked_db(monkeypatch, isolated_app, fail_config_select=True)
+    calls = []
+
+    import httpx
+
+    def forbidden_get(url, headers=None, timeout=None):
+        calls.append((url, headers, timeout))
+        raise AssertionError("httpx.get nao deveria ser chamado")
+
+    monkeypatch.setattr(httpx, "get", forbidden_get)
+
+    with pytest.raises(sqlite3.OperationalError, match="falha controlada na config"):
+        isolated_app.client.get("/api/whatsapp/baileys-status", headers=_headers(token))
+
+    assert calls == []
+    assert state["open"] == 0
+    assert state["config_closes"] == 1
+
+
+def test_whatsapp_baileys_connection_closes_config_connection_before_external_call(isolated_app, monkeypatch):
+    token = _login(isolated_app.client)
+    _set_config(isolated_app.db_paths["raios"], "provider", "baileys")
+    _set_config(isolated_app.db_paths["raios"], "api_url", "http://baileys.local")
+    _set_config(isolated_app.db_paths["raios"], "api_token", "token-teste")
+    state = _install_tracked_db(monkeypatch, isolated_app)
+    calls = []
+
+    class FakeResponse:
+        status_code = 200
+        text = '{"ok": true}'
+
+        def json(self):
+            return {"ok": True}
+
+    import httpx
+
+    def fake_post(url, headers=None, timeout=None):
+        assert state["open"] == 0
+        calls.append((url, headers, timeout))
+        return FakeResponse()
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+
+    response = isolated_app.client.post("/api/whatsapp/baileys-connection/reconnect", headers=_headers(token))
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
+    assert calls == [("http://baileys.local/reconnect", {"x-api-key": "token-teste"}, 12)]
+    assert state["open"] == 0
+    assert state["config_closes"] == 1
+
+
+def test_whatsapp_baileys_connection_closes_connection_when_config_read_fails(isolated_app, monkeypatch):
+    token = _login(isolated_app.client)
+    state = _install_tracked_db(monkeypatch, isolated_app, fail_config_select=True)
+    calls = []
+
+    import httpx
+
+    def forbidden_post(url, headers=None, timeout=None):
+        calls.append((url, headers, timeout))
+        raise AssertionError("httpx.post nao deveria ser chamado")
+
+    monkeypatch.setattr(httpx, "post", forbidden_post)
+
+    with pytest.raises(sqlite3.OperationalError, match="falha controlada na config"):
+        isolated_app.client.post("/api/whatsapp/baileys-connection/reconnect", headers=_headers(token))
+
+    assert calls == []
+    assert state["open"] == 0
+    assert state["config_closes"] == 1
+
+
+def test_whatsapp_baileys_connection_invalid_action_still_validates_before_config_connection(isolated_app, monkeypatch):
+    opened = []
+
+    def forbidden_get_db(company=None):
+        opened.append(company)
+        raise AssertionError("get_db nao deveria ser chamado")
+
+    monkeypatch.setattr(isolated_app.module, "get_db", forbidden_get_db)
+    monkeypatch.setattr(isolated_app.module, "require_admin", lambda token: {"username": "admin", "role": "admin"})
+
+    with pytest.raises(isolated_app.module.HTTPException) as excinfo:
+        isolated_app.module.wa_baileys_connection("restart", x_token="token")
+
+    assert excinfo.value.status_code == 400
+    assert excinfo.value.detail == "Acao de conexao invalida."
+    assert opened == []
 
 
 def test_daily_motivation_send_now_separates_db_from_provider_and_logs_results(isolated_app, monkeypatch):
