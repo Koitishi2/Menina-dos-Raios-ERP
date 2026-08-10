@@ -3386,17 +3386,25 @@ def set_boleto_clients(body:dict,x_token:str=Header("")):
 def update_boleto(bid:str,body:dict,x_token:str=Header("")):
     # Era require_auth â€” viewer conseguia marcar/reverter pagamento. Corrigido.
     require_editor(x_token); conn=get_db()
-    fields=[]
-    vals=[]
-    for f in ['due_date','status','paid_date','notes','total_val']:
-        if f in body:
-            fields.append(f+"=?")
-            vals.append(body[f])
-    if fields:
-        vals.append(bid)
-        conn.execute(f"UPDATE boletos SET {','.join(fields)} WHERE id=?",vals)
-        conn.commit()
-    conn.close(); return {"ok":True}
+    try:
+        fields=[]
+        vals=[]
+        for f in ['due_date','status','paid_date','notes','total_val']:
+            if f in body:
+                fields.append(f+"=?")
+                vals.append(body[f])
+        if fields:
+            vals.append(bid)
+            conn.execute(f"UPDATE boletos SET {','.join(fields)} WHERE id=?",vals)
+            conn.commit()
+        return {"ok":True}
+    except Exception:
+        try:
+            conn.rollback()
+        finally:
+            raise
+    finally:
+        conn.close()
 
 @app.get("/api/boletos/{bid}/items")
 def boleto_items(bid:str,x_token:str=Header("")):

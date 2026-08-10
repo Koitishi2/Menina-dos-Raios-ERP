@@ -3,6 +3,8 @@ import sqlite3
 import uuid
 from datetime import datetime, timedelta
 
+import pytest
+
 
 def _login(test_client, username="admin", password="admin123", company="raios"):
     response = test_client.post(
@@ -67,6 +69,74 @@ def _update_boleto(test_client, token, boleto_id, company="raios", **body):
     return response.json()
 
 
+def _read_boleto(db_path, boleto_id):
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        row = conn.execute("SELECT * FROM boletos WHERE id=?", (boleto_id,)).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def _write_boleto_probe(db_path, boleto_id, value):
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("UPDATE boletos SET notes=? WHERE id=?", (value, boleto_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+class _TrackedBoletoConnection:
+    def __init__(self, path, state, fail_execute=False, fail_commit=False):
+        self._conn = sqlite3.connect(path)
+        self._conn.row_factory = sqlite3.Row
+        self._state = state
+        self._fail_execute = fail_execute
+        self._fail_commit = fail_commit
+        state["open"] += 1
+
+    def execute(self, sql, params=()):
+        if sql.startswith("UPDATE boletos SET"):
+            self._state["update_executes"] += 1
+            if self._fail_execute:
+                raise sqlite3.OperationalError("falha controlada no update boleto")
+        return self._conn.execute(sql, params)
+
+    def commit(self):
+        self._state["commits"] += 1
+        if self._fail_commit:
+            raise sqlite3.OperationalError("falha controlada no commit boleto")
+        return self._conn.commit()
+
+    def rollback(self):
+        self._state["rollbacks"] += 1
+        return self._conn.rollback()
+
+    def close(self):
+        self._state["closes"] += 1
+        self._state["open"] -= 1
+        return self._conn.close()
+
+
+def _install_boleto_update_spy(monkeypatch, isolated_app, fail_execute=False, fail_commit=False):
+    state = {"open": 0, "update_executes": 0, "commits": 0, "rollbacks": 0, "closes": 0}
+
+    def tracked_get_db(company=None):
+        assert company in (None, "raios")
+        return _TrackedBoletoConnection(
+            isolated_app.db_paths["raios"],
+            state,
+            fail_execute=fail_execute,
+            fail_commit=fail_commit,
+        )
+
+    monkeypatch.setattr(isolated_app.module, "get_db", tracked_get_db)
+    monkeypatch.setattr(isolated_app.module, "require_editor", lambda token: {"username": "editor", "role": "editor"})
+    return state
+
+
 def _seed_boleto_sales(test_client, token, company="raios"):
     fixtures = [
         {
@@ -102,6 +172,130 @@ def _seed_boleto_sales(test_client, token, company="raios"):
         _create_sale(test_client, token, company=company, **item)
     rows = _list_boletos(test_client, token, company, "?year=2026&month=8")
     return {row["client"]: row for row in rows}
+
+
+def test_update_boleto_transaction_success_persists_commit_close_and_route_contract(isolated_app, monkeypatch):
+    token = _login(isolated_app.client)
+    boleto = _seed_boleto_sales(isolated_app.client, token)["Cliente Boleto Pendente"]
+
+    response = isolated_app.client.put(
+        f"/api/boletos/{boleto['id']}",
+        headers=_headers(token),
+        json={
+            "due_date": "2026-08-30",
+            "status": "pago",
+            "paid_date": "2026-08-31",
+            "notes": "pago pela rota",
+            "total_val": 123.45,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
+    persisted = _read_boleto(isolated_app.db_paths["raios"], boleto["id"])
+    assert persisted["due_date"] == "2026-08-30"
+    assert persisted["status"] == "pago"
+    assert persisted["paid_date"] == "2026-08-31"
+    assert persisted["notes"] == "pago pela rota"
+    assert persisted["total_val"] == 123.45
+
+    state = _install_boleto_update_spy(monkeypatch, isolated_app)
+    result = isolated_app.module.update_boleto(
+        boleto["id"],
+        {
+            "due_date": "2026-09-01",
+            "status": "pendente",
+            "paid_date": "",
+            "notes": "volta pelo spy",
+            "total_val": 222.22,
+        },
+        x_token="token",
+    )
+
+    assert result == {"ok": True}
+    assert state == {"open": 0, "update_executes": 1, "commits": 1, "rollbacks": 0, "closes": 1}
+    persisted = _read_boleto(isolated_app.db_paths["raios"], boleto["id"])
+    assert persisted["due_date"] == "2026-09-01"
+    assert persisted["status"] == "pendente"
+    assert persisted["paid_date"] == ""
+    assert persisted["notes"] == "volta pelo spy"
+    assert persisted["total_val"] == 222.22
+
+
+def test_update_boleto_rolls_back_closes_and_preserves_data_when_execute_fails(isolated_app, monkeypatch):
+    token = _login(isolated_app.client)
+    boleto = _seed_boleto_sales(isolated_app.client, token)["Cliente Boleto Pendente"]
+    original = _read_boleto(isolated_app.db_paths["raios"], boleto["id"])
+    state = _install_boleto_update_spy(monkeypatch, isolated_app, fail_execute=True)
+
+    with pytest.raises(sqlite3.OperationalError, match="falha controlada no update boleto"):
+        isolated_app.module.update_boleto(
+            boleto["id"],
+            {"status": "pago", "paid_date": "2026-08-31", "total_val": 999.99},
+            x_token="token",
+        )
+
+    assert state == {"open": 0, "update_executes": 1, "commits": 0, "rollbacks": 1, "closes": 1}
+    assert _read_boleto(isolated_app.db_paths["raios"], boleto["id"]) == original
+    _write_boleto_probe(isolated_app.db_paths["raios"], boleto["id"], "probe apos execute")
+    assert _read_boleto(isolated_app.db_paths["raios"], boleto["id"])["notes"] == "probe apos execute"
+
+
+def test_update_boleto_rolls_back_closes_and_preserves_data_when_commit_fails(isolated_app, monkeypatch):
+    token = _login(isolated_app.client)
+    boleto = _seed_boleto_sales(isolated_app.client, token)["Cliente Boleto Pendente"]
+    original = _read_boleto(isolated_app.db_paths["raios"], boleto["id"])
+    state = _install_boleto_update_spy(monkeypatch, isolated_app, fail_commit=True)
+
+    with pytest.raises(sqlite3.OperationalError, match="falha controlada no commit boleto"):
+        isolated_app.module.update_boleto(
+            boleto["id"],
+            {"status": "pago", "paid_date": "2026-08-31", "total_val": 999.99},
+            x_token="token",
+        )
+
+    assert state == {"open": 0, "update_executes": 1, "commits": 1, "rollbacks": 1, "closes": 1}
+    assert _read_boleto(isolated_app.db_paths["raios"], boleto["id"]) == original
+    _write_boleto_probe(isolated_app.db_paths["raios"], boleto["id"], "probe apos commit")
+    assert _read_boleto(isolated_app.db_paths["raios"], boleto["id"])["notes"] == "probe apos commit"
+
+
+def test_update_boleto_preserves_missing_id_success_contract(isolated_app):
+    token = _login(isolated_app.client)
+
+    response = isolated_app.client.put(
+        "/api/boletos/boleto-inexistente-passo-120",
+        headers=_headers(token),
+        json={"status": "pago", "paid_date": "2026-08-31"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
+
+
+def test_update_boleto_auth_failure_happens_before_opening_connection(isolated_app, monkeypatch):
+    opened = []
+
+    def forbidden_require_editor(token):
+        raise isolated_app.module.HTTPException(403, "bloqueado antes do banco")
+
+    def forbidden_get_db(company=None):
+        opened.append(company)
+        raise AssertionError("get_db nao deveria ser chamado")
+
+    monkeypatch.setattr(isolated_app.module, "require_editor", forbidden_require_editor)
+    monkeypatch.setattr(isolated_app.module, "get_db", forbidden_get_db)
+
+    with pytest.raises(isolated_app.module.HTTPException) as excinfo:
+        isolated_app.module.update_boleto(
+            "boleto-qualquer",
+            {"status": "pago"},
+            x_token="token-invalido",
+        )
+
+    assert excinfo.value.status_code == 403
+    assert excinfo.value.detail == "bloqueado antes do banco"
+    assert opened == []
 
 
 def test_boletos_list_filters_summary_paid_and_items(isolated_app):
