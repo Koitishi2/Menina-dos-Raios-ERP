@@ -2,6 +2,8 @@ import json
 import sqlite3
 import uuid
 
+import pytest
+
 
 def _login(test_client, username="admin", password="admin123", company="raios"):
     response = test_client.post(
@@ -93,6 +95,166 @@ def _create_app_note_mobile(test_client, isolated_app, **overrides):
     )
     assert response.status_code == 200
     return response.json()["note"]
+
+
+def _assert_app_note_http_error(exc_info, status_code, detail):
+    assert exc_info.value.status_code == status_code
+    assert exc_info.value.detail == detail
+
+
+def test_clean_app_note_current_basic_header_and_return_contract(isolated_app):
+    clean = isolated_app.module._clean_app_note
+
+    client, note_date, items, total = clean(
+        {
+            "client": "  Cliente Nota Limpa  ",
+            "date": " 20/08/2026 ",
+            "note_date": "21/08/2026",
+            "items": [
+                {
+                    "product": " Produto Limpo ",
+                    "quantity": "2",
+                    "weight": "3.5",
+                    "unit": " KG ",
+                    "unit_price": "4.25",
+                    "extra": "ignorado",
+                }
+            ],
+        }
+    )
+
+    assert (client, note_date, total) == ("Cliente Nota Limpa", "20/08/2026", 14.88)
+    assert isinstance(items, list)
+    assert len(items) == 1
+    assert items[0] == {
+        "product": "Produto Limpo",
+        "quantity": 2.0,
+        "quantity_provided": True,
+        "weight": 3.5,
+        "unit": "KG",
+        "unit_price": 4.25,
+        "price_provided": True,
+        "position": 0,
+    }
+
+    assert clean({"items": []}) == ("", "", [], 0.0)
+    assert clean({"client": None, "note_date": " 22/08/2026 ", "items": None}) == (
+        "",
+        "22/08/2026",
+        [],
+        0.0,
+    )
+    long_client = " C" * 200
+    assert clean(
+        {
+            "client": long_client,
+            "date": "",
+            "note_date": "1234567890123456789012345",
+            "items": [],
+        }
+    ) == (long_client.strip()[:120], "12345678901234567890", [], 0.0)
+
+
+def test_clean_app_note_current_items_normalization_and_total_contract(isolated_app):
+    clean = isolated_app.module._clean_app_note
+
+    client, note_date, items, total = clean(
+        {
+            "client": "Cliente Itens",
+            "note_date": "23/08/2026",
+            "items": [
+                "ignorado",
+                {
+                    "product": None,
+                    "quantity": "",
+                    "unit": None,
+                    "unit_price": "",
+                },
+                {
+                    "product": "P" * 200,
+                    "quantity": 5,
+                    "unit": "U" * 30,
+                    "price": 2,
+                },
+                {
+                    "product": "Produto Sem Preco",
+                    "quantity": 4,
+                    "weight": None,
+                },
+                {
+                    "product": "Produto Peso Decimal",
+                    "quantity": 2,
+                    "weight": 1.5,
+                    "unit_price": 3,
+                },
+                {
+                    "product": "Produto Zero",
+                    "quantity": 7,
+                    "unit_price": 0,
+                },
+            ],
+        }
+    )
+
+    assert (client, note_date, total) == ("Cliente Itens", "23/08/2026", 14.5)
+    assert [item["position"] for item in items] == [1, 2, 3, 4, 5]
+    assert items[0] == {
+        "product": "",
+        "quantity": 0.0,
+        "quantity_provided": False,
+        "weight": 0.0,
+        "unit": "",
+        "unit_price": 0.0,
+        "price_provided": False,
+        "position": 1,
+    }
+    assert items[1]["product"] == "P" * 160
+    assert items[1]["unit"] == "U" * 20
+    assert items[1]["quantity"] == 5.0
+    assert items[1]["weight"] == 5.0
+    assert items[1]["unit_price"] == 2.0
+    assert items[1]["price_provided"] is True
+    assert items[2]["weight"] == 4.0
+    assert items[2]["price_provided"] is False
+    assert items[3]["weight"] == 1.5
+    assert items[3]["unit_price"] == 3.0
+    assert items[4]["price_provided"] is True
+    assert items[4]["unit_price"] == 0.0
+
+
+def test_clean_app_note_current_invalid_input_errors(isolated_app):
+    clean = isolated_app.module._clean_app_note
+
+    for body in (
+        {"items": "nao-lista"},
+        {"items": [{}] * 101},
+    ):
+        with pytest.raises(isolated_app.module.HTTPException) as exc:
+            clean(body)
+        _assert_app_note_http_error(
+            exc,
+            400,
+            "Lista de itens invÃ¡lida (mÃ¡ximo 100).",
+        )
+
+    for item in (
+        {"quantity": "abc", "unit_price": 1},
+        {"quantity": 1, "weight": "abc", "unit_price": 1},
+        {"quantity": 1, "unit_price": "abc"},
+        {"quantity": object(), "unit_price": 1},
+    ):
+        with pytest.raises(isolated_app.module.HTTPException) as exc:
+            clean({"items": [item]})
+        _assert_app_note_http_error(exc, 400, "Quantidade ou preÃ§o invÃ¡lido.")
+
+    for item in (
+        {"quantity": 100000001, "unit_price": 1},
+        {"quantity": 1, "weight": -100000001, "unit_price": 1},
+        {"quantity": 1, "unit_price": 100000001},
+    ):
+        with pytest.raises(isolated_app.module.HTTPException) as exc:
+            clean({"items": [item]})
+        _assert_app_note_http_error(exc, 400, "Valor fora do limite permitido.")
 
 
 def test_app_notes_db_initializes_schema_and_returns_open_connection(isolated_app):
