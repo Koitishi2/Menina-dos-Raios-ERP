@@ -3,6 +3,7 @@ import sys
 import types
 import uuid
 from datetime import datetime, timedelta
+from json import JSONDecodeError
 
 import pytest
 
@@ -139,6 +140,251 @@ def _create_temp_user(isolated_app, username, password, role):
     conn.commit()
     conn.close()
     return user_id
+
+
+def _set_payment_perm_value(isolated_app, value, company="raios"):
+    conn = sqlite3.connect(isolated_app.db_paths[company])
+    conn.execute(
+        "INSERT OR REPLACE INTO settings(key,value) VALUES('monteiro_payment_perm',?)",
+        (value,),
+    )
+    conn.commit()
+    conn.close()
+
+
+def _delete_payment_perm_value(isolated_app, company="raios"):
+    conn = sqlite3.connect(isolated_app.db_paths[company])
+    conn.execute("DELETE FROM settings WHERE key='monteiro_payment_perm'")
+    conn.commit()
+    conn.close()
+
+
+def _payment_rows_count(isolated_app):
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    total = conn.execute("SELECT COUNT(*) FROM monteiro_payments").fetchone()[0]
+    conn.close()
+    return total
+
+
+def _payment_row_by_id(isolated_app, payment_id):
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    conn.row_factory = sqlite3.Row
+    row = conn.execute("SELECT * FROM monteiro_payments WHERE id=?", (payment_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def _assert_http_exception(exc_info, status_code, detail):
+    assert exc_info.value.status_code == status_code
+    assert exc_info.value.detail == detail
+
+
+def test_check_payment_perm_current_auth_precedence_and_default_roles(isolated_app):
+    check_payment_perm = isolated_app.module._check_payment_perm
+    admin_token = _login(isolated_app.client)
+    _create_temp_user(isolated_app, "editor_perm_default", "editor123", "editor")
+    _create_temp_user(isolated_app, "viewer_perm_default", "viewer123", "viewer")
+    editor_token = _login(isolated_app.client, "editor_perm_default", "editor123")
+    viewer_token = _login(isolated_app.client, "viewer_perm_default", "viewer123")
+
+    _delete_payment_perm_value(isolated_app)
+
+    assert check_payment_perm(admin_token)["role"] == "admin"
+    with pytest.raises(isolated_app.module.HTTPException) as editor_exc:
+        check_payment_perm(editor_token)
+    _assert_http_exception(
+        editor_exc,
+        403,
+        "Seu perfil nÃ£o tem permissÃ£o para lanÃ§ar pagamentos.",
+    )
+    with pytest.raises(isolated_app.module.HTTPException) as viewer_exc:
+        check_payment_perm(viewer_token)
+    _assert_http_exception(
+        viewer_exc,
+        403,
+        "Seu perfil nÃ£o tem permissÃ£o para lanÃ§ar pagamentos.",
+    )
+
+    _set_payment_perm_value(isolated_app, "{json-invalido")
+    with pytest.raises(isolated_app.module.HTTPException) as invalid_token_exc:
+        check_payment_perm("token-invalido")
+    _assert_http_exception(
+        invalid_token_exc,
+        401,
+        "SessÃ£o invÃ¡lida. FaÃ§a login novamente.",
+    )
+    with pytest.raises(isolated_app.module.HTTPException) as empty_token_exc:
+        check_payment_perm("")
+    _assert_http_exception(
+        empty_token_exc,
+        401,
+        "SessÃ£o invÃ¡lida. FaÃ§a login novamente.",
+    )
+
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    conn.execute("UPDATE sessions SET expires_at=datetime('now','-1 minute') WHERE token=?", (editor_token,))
+    conn.commit()
+    conn.close()
+    with pytest.raises(isolated_app.module.HTTPException) as expired_exc:
+        check_payment_perm(editor_token)
+    _assert_http_exception(
+        expired_exc,
+        401,
+        "SessÃ£o invÃ¡lida. FaÃ§a login novamente.",
+    )
+
+
+def test_check_payment_perm_current_config_value_contract(isolated_app):
+    check_payment_perm = isolated_app.module._check_payment_perm
+    admin_token = _login(isolated_app.client)
+    _create_temp_user(isolated_app, "editor_perm_values", "editor123", "editor")
+    _create_temp_user(isolated_app, "viewer_perm_values", "viewer123", "viewer")
+    _create_temp_user(isolated_app, "custom_perm_values", "custom123", "custom")
+    editor_token = _login(isolated_app.client, "editor_perm_values", "editor123")
+    viewer_token = _login(isolated_app.client, "viewer_perm_values", "viewer123")
+    custom_token = _login(isolated_app.client, "custom_perm_values", "custom123")
+
+    _set_payment_perm_value(isolated_app, '["admin"]')
+    assert check_payment_perm(admin_token)["role"] == "admin"
+    with pytest.raises(isolated_app.module.HTTPException):
+        check_payment_perm(editor_token)
+
+    _set_payment_perm_value(isolated_app, '["admin", "editor"]')
+    assert check_payment_perm(editor_token)["role"] == "editor"
+    with pytest.raises(isolated_app.module.HTTPException):
+        check_payment_perm(viewer_token)
+
+    _set_payment_perm_value(isolated_app, '["viewer"]')
+    assert check_payment_perm(viewer_token)["role"] == "viewer"
+    with pytest.raises(isolated_app.module.HTTPException):
+        check_payment_perm(admin_token)
+
+    _set_payment_perm_value(isolated_app, '["custom"]')
+    assert check_payment_perm(custom_token)["role"] == "custom"
+
+    _set_payment_perm_value(isolated_app, '{"admin": true}')
+    assert check_payment_perm(admin_token)["role"] == "admin"
+
+    _set_payment_perm_value(isolated_app, '"admin"')
+    assert check_payment_perm(admin_token)["role"] == "admin"
+
+    _set_payment_perm_value(isolated_app, '["editor", 123]')
+    assert check_payment_perm(editor_token)["role"] == "editor"
+    with pytest.raises(isolated_app.module.HTTPException):
+        check_payment_perm(custom_token)
+
+    for raw in ("", "{json-invalido"):
+        _set_payment_perm_value(isolated_app, raw)
+        with pytest.raises(JSONDecodeError):
+            check_payment_perm(admin_token)
+
+    _set_payment_perm_value(isolated_app, "123")
+    with pytest.raises(TypeError):
+        check_payment_perm(admin_token)
+
+
+def test_monteiro_payment_permission_consumers_block_before_writes(isolated_app):
+    admin_token = _login(isolated_app.client)
+    _create_temp_user(isolated_app, "editor_perm_routes", "editor123", "editor")
+    _create_temp_user(isolated_app, "viewer_perm_routes", "viewer123", "viewer")
+    editor_token = _login(isolated_app.client, "editor_perm_routes", "editor123")
+    viewer_token = _login(isolated_app.client, "viewer_perm_routes", "viewer123")
+
+    before_post = _payment_rows_count(isolated_app)
+    viewer_post = isolated_app.client.post(
+        "/api/monteiro/payments",
+        headers=_headers(viewer_token),
+        json=_payment_payload(client="Cliente Viewer Bloqueio Escrita"),
+    )
+    assert viewer_post.status_code == 403
+    assert _payment_rows_count(isolated_app) == before_post
+
+    editor_post = isolated_app.client.post(
+        "/api/monteiro/payments",
+        headers=_headers(editor_token),
+        json=_payment_payload(client="Cliente Editor Bloqueio Escrita"),
+    )
+    assert editor_post.status_code == 403
+    assert _payment_rows_count(isolated_app) == before_post
+
+    _set_payment_perm_value(isolated_app, '["admin", "editor"]')
+    editor_post_allowed = isolated_app.client.post(
+        "/api/monteiro/payments",
+        headers=_headers(editor_token),
+        json=_payment_payload(client="Cliente Editor Escrita Permitida"),
+    )
+    assert editor_post_allowed.status_code == 200
+
+    payment = _create_payment(
+        isolated_app.client,
+        admin_token,
+        client="Cliente Permissao Original",
+        amount=333,
+    )
+    _set_payment_perm_value(isolated_app, '["admin"]')
+
+    blocked_update = isolated_app.client.put(
+        f"/api/monteiro/payments/{payment['id']}",
+        headers=_headers(editor_token),
+        json=_payment_payload(client="Cliente Permissao Alterado", amount=444),
+    )
+    assert blocked_update.status_code == 403
+    assert _payment_row_by_id(isolated_app, payment["id"])["client"] == "Cliente Permissao Original"
+
+    viewer_update = isolated_app.client.put(
+        f"/api/monteiro/payments/{payment['id']}",
+        headers=_headers(viewer_token),
+        json=_payment_payload(client="Cliente Viewer Alterado", amount=555),
+    )
+    assert viewer_update.status_code == 403
+    assert _payment_row_by_id(isolated_app, payment["id"])["amount"] == 333
+
+    admin_update = isolated_app.client.put(
+        f"/api/monteiro/payments/{payment['id']}",
+        headers=_headers(admin_token),
+        json=_payment_payload(client="Cliente Admin Alterado", amount=444),
+    )
+    assert admin_update.status_code == 200
+    assert _payment_row_by_id(isolated_app, payment["id"])["client"] == "Cliente Admin Alterado"
+
+    blocked_delete = isolated_app.client.delete(
+        f"/api/monteiro/payments/{payment['id']}",
+        headers=_headers(editor_token),
+    )
+    assert blocked_delete.status_code == 403
+    assert _payment_row_by_id(isolated_app, payment["id"]) is not None
+
+    _set_payment_perm_value(isolated_app, '["admin", "editor"]')
+    editor_delete = isolated_app.client.delete(
+        f"/api/monteiro/payments/{payment['id']}",
+        headers=_headers(editor_token),
+    )
+    assert editor_delete.status_code == 200
+    assert _payment_row_by_id(isolated_app, payment["id"]) is None
+
+
+def test_monteiro_payment_permission_current_scope_forces_raios(isolated_app):
+    _create_temp_user(isolated_app, "viewer_perm_scope", "viewer123", "viewer")
+    viewer_token = _login(isolated_app.client, "viewer_perm_scope", "viewer123", company="estrada")
+
+    _delete_payment_perm_value(isolated_app, "raios")
+    _set_payment_perm_value(isolated_app, '["admin", "viewer"]', company="estrada")
+
+    blocked_by_raios_scope = isolated_app.client.post(
+        "/api/monteiro/payments",
+        headers=_headers(viewer_token, "estrada"),
+        json=_payment_payload(client="Cliente Viewer Estrada Ignorada"),
+    )
+    assert blocked_by_raios_scope.status_code == 403
+
+    _set_payment_perm_value(isolated_app, '["admin", "viewer"]', company="raios")
+    allowed_by_raios_scope = isolated_app.client.post(
+        "/api/monteiro/payments",
+        headers=_headers(viewer_token, "estrada"),
+        json=_payment_payload(client="Cliente Viewer Raios Forcado"),
+    )
+    assert allowed_by_raios_scope.status_code == 200
+    assert _payment_rows_count(isolated_app) == 1
 
 
 def _freeze_datetime_module(monkeypatch, frozen_now):
