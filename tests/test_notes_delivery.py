@@ -258,6 +258,90 @@ def test_clean_app_note_current_invalid_input_errors(isolated_app):
         _assert_app_note_http_error(exc, 400, "Valor fora do limite permitido.")
 
 
+def _replace_paladar_products(db_path, rows):
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("DELETE FROM paladar_products")
+        conn.executemany(
+            "INSERT INTO paladar_products(name,suggested_price,active) VALUES(?,?,?)",
+            rows,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_app_note_catalog_prices_current_selection_normalization_and_aliases(isolated_app):
+    catalog_prices = isolated_app.module._app_note_catalog_prices
+    normalize_name = isolated_app.module._normalize_name
+
+    _replace_paladar_products(isolated_app.db_paths["raios"], [])
+    assert catalog_prices() == {}
+
+    _replace_paladar_products(
+        isolated_app.db_paths["raios"],
+        [
+            (" Produto App KG ", 10, 1),
+            ("Produto App Inativo KG", 99, 0),
+            ("Produto Sem Preco UN", None, 1),
+            ("Produto Zero CX", 0, 1),
+            ("Produto Decimal", 7.25, 1),
+            ("   ", 13, 1),
+            ("AÇÚCAR Cristal KG", 4.5, 1),
+            ("Produto Embalado (UN)", 6, 1),
+            ("Produto Litro LT", 8, 1),
+            ("Produto Duplicado KG", 5, 1),
+            ("produto duplicado kg", 8, 1),
+        ],
+    )
+
+    prices = catalog_prices()
+    assert isinstance(prices, dict)
+    assert prices[normalize_name("Produto App KG")] == 10.0
+    assert prices[normalize_name("Produto App")] == 10.0
+    assert normalize_name("Produto App Inativo KG") not in prices
+    assert prices[normalize_name("Produto Sem Preco UN")] == 0.0
+    assert prices[normalize_name("Produto Sem Preco")] == 0.0
+    assert prices[normalize_name("Produto Zero CX")] == 0.0
+    assert prices[normalize_name("Produto Zero")] == 0.0
+    assert prices[normalize_name("Produto Decimal")] == 7.25
+    assert prices[normalize_name("AÇÚCAR Cristal KG")] == 4.5
+    assert prices[normalize_name("AÇÚCAR Cristal")] == 4.5
+    assert prices[normalize_name("Produto Embalado (UN)")] == 6.0
+    assert prices[normalize_name("Produto Embalado")] == 6.0
+    assert prices[normalize_name("Produto Litro LT")] == 8.0
+    assert normalize_name("Produto Litro") not in prices
+    assert prices[normalize_name("Produto Duplicado KG")] == 8.0
+    assert prices[normalize_name("Produto Duplicado")] == 8.0
+    assert "" not in prices
+
+
+def test_app_note_catalog_prices_current_company_scope(isolated_app):
+    catalog_prices = isolated_app.module._app_note_catalog_prices
+    normalize_name = isolated_app.module._normalize_name
+
+    _replace_paladar_products(
+        isolated_app.db_paths["raios"],
+        [("Produto Escopo Raios KG", 11, 1)],
+    )
+    _replace_paladar_products(
+        isolated_app.db_paths["estrada"],
+        [("Produto Escopo Estrada KG", 22, 1)],
+    )
+
+    assert catalog_prices()[normalize_name("Produto Escopo Raios KG")] == 11.0
+
+    token = isolated_app.module.CURRENT_COMPANY.set("estrada")
+    try:
+        estrada_prices = catalog_prices()
+    finally:
+        isolated_app.module.CURRENT_COMPANY.reset(token)
+
+    assert normalize_name("Produto Escopo Raios KG") not in estrada_prices
+    assert estrada_prices[normalize_name("Produto Escopo Estrada KG")] == 22.0
+    assert estrada_prices[normalize_name("Produto Escopo Estrada")] == 22.0
+
+
 def test_app_notes_db_initializes_schema_and_returns_open_connection(isolated_app):
     conn = isolated_app.module.get_app_notes_db()
     try:
