@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 try:
     from .app_notes_domain import _clean_app_note
+    from .app_notes_service import app_note_dict_from_row
     from .backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip, backup_path_for_filename, restore_zip_backup_with, safety_backup_before_restore_with
     from .company_config import company_db_path_for, company_key_from
     from .monteiro_permissions import payment_role_allowed
@@ -29,6 +30,7 @@ try:
     from .utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
 except ImportError:
     from app_notes_domain import _clean_app_note
+    from app_notes_service import app_note_dict_from_row
     from backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip, backup_path_for_filename, restore_zip_backup_with, safety_backup_before_restore_with
     from company_config import company_db_path_for, company_key_from
     from monteiro_permissions import payment_role_allowed
@@ -6042,23 +6044,7 @@ def _app_note_catalog_prices():
     return prices
 
 def _app_note_dict(conn,row,catalog_prices=None):
-    note=dict(row)
-    catalog_prices=catalog_prices or {}
-    note["items"]=[dict(r) for r in conn.execute(
-        "SELECT id,product,quantity,quantity_provided,weight,unit,unit_price,price_provided,position FROM app_note_items WHERE note_id=? ORDER BY position,id",
-        (row["id"],)).fetchall()]
-    effective_total=0.0
-    for item in note["items"]:
-        provided=bool(item.get("price_provided"))
-        catalog_price=catalog_prices.get(_normalize_name(item.get("product") or ""))
-        has_catalog=catalog_price is not None
-        effective=float(item.get("unit_price") or 0) if provided else (float(catalog_price) if has_catalog else 0.0)
-        item["effective_unit_price"]=effective
-        item["effective_price_provided"]=bool(provided or has_catalog)
-        item["price_from_catalog"]=bool(not provided and has_catalog)
-        if item["effective_price_provided"]: effective_total+=float(item.get("weight") or 0)*effective
-    note["total"]=round(effective_total,2)
-    return note
+    return app_note_dict_from_row(conn,row,catalog_prices,_normalize_name)
 
 @app.post("/api/app-notes/mobile")
 def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-token")):
