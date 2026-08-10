@@ -42,15 +42,31 @@ def _calendar_rows(isolated_app):
 
 
 class _CalendarTrackedConnection:
-    def __init__(self, inner, fail_select=False):
+    def __init__(self, inner, fail_select=False, fail_execute_contains=None, fail_commit=False):
         self.inner = inner
         self.fail_select = fail_select
+        self.fail_execute_contains = fail_execute_contains
+        self.fail_commit = fail_commit
         self.close_calls = 0
+        self.commit_calls = 0
+        self.rollback_calls = 0
 
     def execute(self, sql, *args, **kwargs):
         if self.fail_select and "SELECT * FROM app_calendar_events" in str(sql):
             raise RuntimeError("select calendario falhou passo 106")
+        if self.fail_execute_contains and self.fail_execute_contains in str(sql):
+            raise RuntimeError("execute calendario falhou passo 108")
         return self.inner.execute(sql, *args, **kwargs)
+
+    def commit(self):
+        self.commit_calls += 1
+        if self.fail_commit:
+            raise RuntimeError("commit calendario falhou passo 108")
+        return self.inner.commit()
+
+    def rollback(self):
+        self.rollback_calls += 1
+        return self.inner.rollback()
 
     def close(self):
         self.close_calls += 1
@@ -66,7 +82,12 @@ class _CalendarTrackedConnection:
         return getattr(self.inner, name)
 
 
-def _install_calendar_connection_spy(isolated_app, fail_select=False):
+def _install_calendar_connection_spy(
+    isolated_app,
+    fail_select=False,
+    fail_execute_contains=None,
+    fail_commit=False,
+):
     original_get_app_notes_db = isolated_app.module.get_app_notes_db
     tracked = []
 
@@ -74,6 +95,8 @@ def _install_calendar_connection_spy(isolated_app, fail_select=False):
         conn = _CalendarTrackedConnection(
             original_get_app_notes_db(),
             fail_select=fail_select,
+            fail_execute_contains=fail_execute_contains,
+            fail_commit=fail_commit,
         )
         tracked.append(conn)
         return conn
@@ -97,6 +120,64 @@ def _assert_calendar_write_after_restoring(isolated_app, title):
         json={"title": title, "due_date": "2099-05-10"},
     )
     assert response.status_code == 200, response.text
+
+
+def _create_calendar_event_for_write_route(isolated_app, event_id="evento-passo-108"):
+    conn = isolated_app.module.get_app_notes_db()
+    try:
+        conn.execute(
+            """
+            INSERT INTO app_calendar_events(
+                id,title,details,due_date,notify_days_before,reminders_per_day,
+                status,created_at,updated_at,completed_at
+            ) VALUES(?,?,?,?,?,?,?,?,?,?)
+            """,
+            (
+                event_id,
+                "Evento Original",
+                "Detalhe Original",
+                "2099-06-10",
+                2,
+                4,
+                "pending",
+                "2026-08-10T07:00:00",
+                "2026-08-10T07:00:00",
+                None,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return event_id
+
+
+def _calendar_update_body(**overrides):
+    body = {
+        "title": "Evento Editado",
+        "details": "Detalhe Editado",
+        "due_date": "2099-07-10",
+        "notify_days_before": 3,
+        "reminders_per_day": 5,
+        "status": "pending",
+    }
+    body.update(overrides)
+    return body
+
+
+def _install_calendar_permission_bypass(isolated_app):
+    original_require = isolated_app.module.require_monteiro_calendar
+    isolated_app.module.require_monteiro_calendar = lambda x_token="": {"role": "admin"}
+    return original_require
+
+
+def _restore_calendar_permission_bypass(isolated_app, original_require):
+    isolated_app.module.require_monteiro_calendar = original_require
+
+
+def _assert_single_close_and_rollback(tracked):
+    assert len(tracked) == 1
+    assert tracked[0].close_calls == 1
+    assert tracked[0].rollback_calls == 1
 
 
 def test_calendar_event_dict_calcula_janela_com_data_controlada(isolated_app, monkeypatch):
@@ -461,3 +542,181 @@ def test_list_app_calendar_mobile_closes_connection_when_select_fails(isolated_a
 
     assert len(tracked) == 1
     assert tracked[0].close_calls == 1
+
+
+def test_update_app_calendar_event_rolls_back_and_closes_when_execute_fails(isolated_app):
+    event_id = _create_calendar_event_for_write_route(isolated_app)
+    original_get_app_notes_db, tracked = _install_calendar_connection_spy(
+        isolated_app,
+        fail_execute_contains="UPDATE app_calendar_events SET title",
+    )
+    original_require = _install_calendar_permission_bypass(isolated_app)
+    try:
+        with pytest.raises(RuntimeError, match="execute calendario falhou passo 108"):
+            isolated_app.module.update_app_calendar_event(
+                event_id,
+                _calendar_update_body(),
+                x_token="token",
+            )
+    finally:
+        _restore_calendar_permission_bypass(isolated_app, original_require)
+        _restore_calendar_connection_spy(
+            isolated_app,
+            original_get_app_notes_db,
+            tracked,
+        )
+
+    _assert_single_close_and_rollback(tracked)
+    _assert_calendar_write_after_restoring(isolated_app, "Escrita apos update execute")
+
+
+def test_update_app_calendar_event_rolls_back_and_closes_when_commit_fails(isolated_app):
+    event_id = _create_calendar_event_for_write_route(isolated_app)
+    original_get_app_notes_db, tracked = _install_calendar_connection_spy(
+        isolated_app,
+        fail_commit=True,
+    )
+    original_require = _install_calendar_permission_bypass(isolated_app)
+    try:
+        with pytest.raises(RuntimeError, match="commit calendario falhou passo 108"):
+            isolated_app.module.update_app_calendar_event(
+                event_id,
+                _calendar_update_body(),
+                x_token="token",
+            )
+    finally:
+        _restore_calendar_permission_bypass(isolated_app, original_require)
+        _restore_calendar_connection_spy(
+            isolated_app,
+            original_get_app_notes_db,
+            tracked,
+        )
+
+    _assert_single_close_and_rollback(tracked)
+    _assert_calendar_write_after_restoring(isolated_app, "Escrita apos update commit")
+
+
+def test_update_app_calendar_event_rolls_back_and_closes_when_serialization_fails(isolated_app):
+    event_id = _create_calendar_event_for_write_route(isolated_app)
+    original_get_app_notes_db, tracked = _install_calendar_connection_spy(isolated_app)
+    original_require = _install_calendar_permission_bypass(isolated_app)
+    original_event_dict = isolated_app.module._calendar_event_dict
+
+    def failing_event_dict(row):
+        raise RuntimeError("serializacao calendario falhou passo 108")
+
+    isolated_app.module._calendar_event_dict = failing_event_dict
+    try:
+        with pytest.raises(RuntimeError, match="serializacao calendario falhou passo 108"):
+            isolated_app.module.update_app_calendar_event(
+                event_id,
+                _calendar_update_body(),
+                x_token="token",
+            )
+    finally:
+        isolated_app.module._calendar_event_dict = original_event_dict
+        _restore_calendar_permission_bypass(isolated_app, original_require)
+        _restore_calendar_connection_spy(
+            isolated_app,
+            original_get_app_notes_db,
+            tracked,
+        )
+
+    _assert_single_close_and_rollback(tracked)
+    _assert_calendar_write_after_restoring(isolated_app, "Escrita apos update serializacao")
+
+
+def test_update_app_calendar_status_rolls_back_and_closes_when_execute_fails(isolated_app):
+    event_id = _create_calendar_event_for_write_route(isolated_app)
+    original_get_app_notes_db, tracked = _install_calendar_connection_spy(
+        isolated_app,
+        fail_execute_contains="UPDATE app_calendar_events SET status",
+    )
+    original_require = _install_calendar_permission_bypass(isolated_app)
+    try:
+        with pytest.raises(RuntimeError, match="execute calendario falhou passo 108"):
+            isolated_app.module.update_app_calendar_status(
+                event_id,
+                {"status": "completed"},
+                x_token="token",
+            )
+    finally:
+        _restore_calendar_permission_bypass(isolated_app, original_require)
+        _restore_calendar_connection_spy(
+            isolated_app,
+            original_get_app_notes_db,
+            tracked,
+        )
+
+    _assert_single_close_and_rollback(tracked)
+    _assert_calendar_write_after_restoring(isolated_app, "Escrita apos status execute")
+
+
+def test_update_app_calendar_status_rolls_back_and_closes_when_commit_fails(isolated_app):
+    event_id = _create_calendar_event_for_write_route(isolated_app)
+    original_get_app_notes_db, tracked = _install_calendar_connection_spy(
+        isolated_app,
+        fail_commit=True,
+    )
+    original_require = _install_calendar_permission_bypass(isolated_app)
+    try:
+        with pytest.raises(RuntimeError, match="commit calendario falhou passo 108"):
+            isolated_app.module.update_app_calendar_status(
+                event_id,
+                {"status": "completed"},
+                x_token="token",
+            )
+    finally:
+        _restore_calendar_permission_bypass(isolated_app, original_require)
+        _restore_calendar_connection_spy(
+            isolated_app,
+            original_get_app_notes_db,
+            tracked,
+        )
+
+    _assert_single_close_and_rollback(tracked)
+    _assert_calendar_write_after_restoring(isolated_app, "Escrita apos status commit")
+
+
+def test_delete_app_calendar_event_rolls_back_and_closes_when_execute_fails(isolated_app):
+    event_id = _create_calendar_event_for_write_route(isolated_app)
+    original_get_app_notes_db, tracked = _install_calendar_connection_spy(
+        isolated_app,
+        fail_execute_contains="DELETE FROM app_calendar_events",
+    )
+    original_require = _install_calendar_permission_bypass(isolated_app)
+    try:
+        with pytest.raises(RuntimeError, match="execute calendario falhou passo 108"):
+            isolated_app.module.delete_app_calendar_event(event_id, x_token="token")
+    finally:
+        _restore_calendar_permission_bypass(isolated_app, original_require)
+        _restore_calendar_connection_spy(
+            isolated_app,
+            original_get_app_notes_db,
+            tracked,
+        )
+
+    _assert_single_close_and_rollback(tracked)
+    _assert_calendar_write_after_restoring(isolated_app, "Escrita apos delete execute")
+
+
+def test_delete_app_calendar_event_rolls_back_and_closes_when_commit_fails(isolated_app):
+    event_id = _create_calendar_event_for_write_route(isolated_app)
+    original_get_app_notes_db, tracked = _install_calendar_connection_spy(
+        isolated_app,
+        fail_commit=True,
+    )
+    original_require = _install_calendar_permission_bypass(isolated_app)
+    try:
+        with pytest.raises(RuntimeError, match="commit calendario falhou passo 108"):
+            isolated_app.module.delete_app_calendar_event(event_id, x_token="token")
+    finally:
+        _restore_calendar_permission_bypass(isolated_app, original_require)
+        _restore_calendar_connection_spy(
+            isolated_app,
+            original_get_app_notes_db,
+            tracked,
+        )
+
+    _assert_single_close_and_rollback(tracked)
+    _assert_calendar_write_after_restoring(isolated_app, "Escrita apos delete commit")

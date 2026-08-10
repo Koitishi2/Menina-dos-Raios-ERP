@@ -6229,14 +6229,23 @@ def update_app_calendar_event(event_id:str,body:dict,x_token:str=Header("")):
     title,details,due_date,notify_days_before,reminders_per_day,status=_clean_calendar_event(body)
     now=datetime.now().isoformat(timespec="seconds"); completed_at=now if status=="completed" else None
     conn=get_app_notes_db()
-    cur=conn.execute("""UPDATE app_calendar_events SET title=?,details=?,due_date=?,notify_days_before=?,
-        reminders_per_day=?,status=?,completed_at=?,updated_at=? WHERE id=?""",
-        (title,details,due_date,notify_days_before,reminders_per_day,status,completed_at,now,event_id))
-    conn.commit()
-    if not cur.rowcount:
-        conn.close(); raise HTTPException(404,"Notificacao nao encontrada.")
-    row=conn.execute("SELECT * FROM app_calendar_events WHERE id=?",(event_id,)).fetchone(); result=_calendar_event_dict(row); conn.close()
-    return {"ok":True,"event":result}
+    try:
+        cur=conn.execute("""UPDATE app_calendar_events SET title=?,details=?,due_date=?,notify_days_before=?,
+            reminders_per_day=?,status=?,completed_at=?,updated_at=? WHERE id=?""",
+            (title,details,due_date,notify_days_before,reminders_per_day,status,completed_at,now,event_id))
+        conn.commit()
+        if not cur.rowcount:
+            raise HTTPException(404,"Notificacao nao encontrada.")
+        row=conn.execute("SELECT * FROM app_calendar_events WHERE id=?",(event_id,)).fetchone(); result=_calendar_event_dict(row)
+        return {"ok":True,"event":result}
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
 
 @app.put("/api/app-calendar/{event_id}/status")
 def update_app_calendar_status(event_id:str,body:dict,x_token:str=Header("")):
@@ -6244,18 +6253,37 @@ def update_app_calendar_status(event_id:str,body:dict,x_token:str=Header("")):
     status=str(body.get("status") or "").strip()
     if status not in ("pending","completed"): raise HTTPException(400,"Status invalido.")
     now=datetime.now().isoformat(timespec="seconds"); conn=get_app_notes_db()
-    cur=conn.execute("UPDATE app_calendar_events SET status=?,completed_at=?,updated_at=? WHERE id=?",
-        (status,now if status=="completed" else None,now,event_id))
-    conn.commit(); conn.close()
-    if not cur.rowcount: raise HTTPException(404,"Notificacao nao encontrada.")
-    return {"ok":True,"status":status}
+    try:
+        cur=conn.execute("UPDATE app_calendar_events SET status=?,completed_at=?,updated_at=? WHERE id=?",
+            (status,now if status=="completed" else None,now,event_id))
+        conn.commit()
+        if not cur.rowcount: raise HTTPException(404,"Notificacao nao encontrada.")
+        return {"ok":True,"status":status}
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
 
 @app.delete("/api/app-calendar/{event_id}")
 def delete_app_calendar_event(event_id:str,x_token:str=Header("")):
     require_monteiro_calendar(x_token)
-    conn=get_app_notes_db(); cur=conn.execute("DELETE FROM app_calendar_events WHERE id=?",(event_id,)); conn.commit(); conn.close()
-    if not cur.rowcount: raise HTTPException(404,"Notificacao nao encontrada.")
-    return {"ok":True}
+    conn=get_app_notes_db()
+    try:
+        cur=conn.execute("DELETE FROM app_calendar_events WHERE id=?",(event_id,)); conn.commit()
+        if not cur.rowcount: raise HTTPException(404,"Notificacao nao encontrada.")
+        return {"ok":True}
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
 
 @app.get("/api/app-calendar/mobile")
 def list_app_calendar_mobile(x_app_token:str=Header("",alias="x-app-token")):
