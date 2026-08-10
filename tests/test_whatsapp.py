@@ -104,14 +104,26 @@ def _fetch_logs(db_path):
 
 
 class _TrackedConnection:
-    def __init__(self, conn, state, fail_log_insert=False, fail_config_select=False):
+    def __init__(
+        self,
+        conn,
+        state,
+        fail_log_insert=False,
+        fail_config_select=False,
+        fail_config_write_on=None,
+        fail_commit=False,
+    ):
         self._conn = conn
         self._state = state
         self._fail_log_insert = fail_log_insert
         self._fail_config_select = fail_config_select
+        self._fail_config_write_on = fail_config_write_on
+        self._fail_commit = fail_commit
         self._closed = False
         self._used_log_insert = False
         self._used_config_select = False
+        self._used_config_write = False
+        self._config_write_count = 0
         state["open"] += 1
 
     def execute(self, sql, args=()):
@@ -120,11 +132,17 @@ class _TrackedConnection:
             "SELECT key, value FROM whatsapp_config",
             "SELECT key,value FROM whatsapp_config",
         )
+        is_config_write = "INSERT OR REPLACE INTO whatsapp_config" in normalized_sql
         if self._fail_config_select and is_config_select:
             self._used_config_select = True
             raise sqlite3.OperationalError("falha controlada na config")
         if is_config_select:
             self._used_config_select = True
+        if is_config_write:
+            self._used_config_write = True
+            self._config_write_count += 1
+            if self._fail_config_write_on == self._config_write_count:
+                raise sqlite3.OperationalError("falha controlada na escrita config")
         if self._fail_log_insert and "INSERT INTO whatsapp_log" in sql:
             self._used_log_insert = True
             raise sqlite3.OperationalError("falha controlada no log")
@@ -136,12 +154,18 @@ class _TrackedConnection:
         self._state["commits"] += 1
         if self._used_log_insert:
             self._state["log_commits"] += 1
+        if self._used_config_write:
+            self._state["config_commits"] += 1
+        if self._fail_commit:
+            raise sqlite3.OperationalError("falha controlada no commit")
         return self._conn.commit()
 
     def rollback(self):
         self._state["rollbacks"] += 1
         if self._used_log_insert:
             self._state["log_rollbacks"] += 1
+        if self._used_config_write:
+            self._state["config_rollbacks"] += 1
         return self._conn.rollback()
 
     def close(self):
@@ -152,6 +176,8 @@ class _TrackedConnection:
                 self._state["log_closes"] += 1
             if self._used_config_select:
                 self._state["config_closes"] += 1
+            if self._used_config_write:
+                self._state["config_write_closes"] += 1
             self._state["open"] -= 1
         return self._conn.close()
 
@@ -159,7 +185,14 @@ class _TrackedConnection:
         return getattr(self._conn, name)
 
 
-def _install_tracked_db(monkeypatch, isolated_app, fail_log_insert=False, fail_config_select=False):
+def _install_tracked_db(
+    monkeypatch,
+    isolated_app,
+    fail_log_insert=False,
+    fail_config_select=False,
+    fail_config_write_on=None,
+    fail_commit=False,
+):
     original_get_db = isolated_app.module.get_db
     state = {
         "open": 0,
@@ -170,6 +203,9 @@ def _install_tracked_db(monkeypatch, isolated_app, fail_log_insert=False, fail_c
         "log_commits": 0,
         "log_rollbacks": 0,
         "config_closes": 0,
+        "config_write_closes": 0,
+        "config_commits": 0,
+        "config_rollbacks": 0,
     }
 
     def tracked_get_db(company=None):
@@ -178,6 +214,8 @@ def _install_tracked_db(monkeypatch, isolated_app, fail_log_insert=False, fail_c
             state,
             fail_log_insert=fail_log_insert,
             fail_config_select=fail_config_select,
+            fail_config_write_on=fail_config_write_on,
+            fail_commit=fail_commit,
         )
 
     monkeypatch.setattr(isolated_app.module, "get_db", tracked_get_db)
@@ -279,6 +317,79 @@ def test_wa_log_response_current_truncation_limit(isolated_app):
         {"provider": "ultramsg", "response": "A" * (max_response_without_truncation + 1), "hint": ""},
         ensure_ascii=False,
     )[:2000]
+
+
+def test_whatsapp_config_save_success_preserves_response_and_values(isolated_app):
+    token = _login(isolated_app.client)
+
+    response = isolated_app.client.put(
+        "/api/whatsapp/config",
+        headers=_headers(token),
+        json={"provider": "baileys", "api_url": "http://baileys.local", "ignored": "fora"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
+    cfg = _get_config(isolated_app.db_paths["raios"])
+    assert cfg["provider"] == "baileys"
+    assert cfg["api_url"] == "http://baileys.local"
+    assert "ignored" not in cfg
+
+
+def test_whatsapp_config_save_commits_and_closes_on_success(isolated_app, monkeypatch):
+    monkeypatch.setattr(isolated_app.module, "require_admin", lambda token: {"username": "admin", "role": "admin"})
+    state = _install_tracked_db(monkeypatch, isolated_app)
+
+    result = isolated_app.module.save_wa_config(
+        {"provider": "baileys", "api_url": "http://baileys.local"},
+        x_token="token",
+    )
+
+    assert result == {"ok": True}
+    assert state["open"] == 0
+    assert state["config_commits"] == 1
+    assert state["config_write_closes"] == 1
+    cfg = _get_config(isolated_app.db_paths["raios"])
+    assert cfg["provider"] == "baileys"
+    assert cfg["api_url"] == "http://baileys.local"
+
+
+def test_whatsapp_config_save_rolls_back_and_closes_when_second_write_fails(isolated_app, monkeypatch):
+    monkeypatch.setattr(isolated_app.module, "require_admin", lambda token: {"username": "admin", "role": "admin"})
+    state = _install_tracked_db(monkeypatch, isolated_app, fail_config_write_on=2)
+
+    with pytest.raises(sqlite3.OperationalError, match="falha controlada na escrita config"):
+        isolated_app.module.save_wa_config(
+            {"provider": "baileys", "api_url": "http://baileys.local"},
+            x_token="token",
+        )
+
+    assert state["open"] == 0
+    assert state["config_rollbacks"] == 1
+    assert state["config_write_closes"] == 1
+    cfg = _get_config(isolated_app.db_paths["raios"])
+    assert cfg["provider"] == "ultramsg"
+    assert cfg["api_url"] == ""
+
+    _set_config(isolated_app.db_paths["raios"], "passo116_probe", "ok")
+    assert _get_config(isolated_app.db_paths["raios"])["passo116_probe"] == "ok"
+
+
+def test_whatsapp_config_save_rolls_back_and_closes_when_commit_fails(isolated_app, monkeypatch):
+    monkeypatch.setattr(isolated_app.module, "require_admin", lambda token: {"username": "admin", "role": "admin"})
+    state = _install_tracked_db(monkeypatch, isolated_app, fail_commit=True)
+
+    with pytest.raises(sqlite3.OperationalError, match="falha controlada no commit"):
+        isolated_app.module.save_wa_config({"provider": "baileys"}, x_token="token")
+
+    assert state["open"] == 0
+    assert state["config_commits"] == 1
+    assert state["config_rollbacks"] == 1
+    assert state["config_write_closes"] == 1
+    assert _get_config(isolated_app.db_paths["raios"])["provider"] == "ultramsg"
+
+    _set_config(isolated_app.db_paths["raios"], "passo116_probe", "ok")
+    assert _get_config(isolated_app.db_paths["raios"])["passo116_probe"] == "ok"
 
 
 def test_whatsapp_send_uses_active_contacts_without_open_sqlite_during_send(isolated_app, monkeypatch):

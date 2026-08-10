@@ -5491,11 +5491,19 @@ def save_wa_config(body: dict, x_token: str = Header(...)):
                "notify_boleto", "notify_avaria", "notify_inativo",
                "avaria_min", "inativo_dias", "auto_period"}
     conn = get_db()
-    for k, v in body.items():
-        if k in allowed:
-            conn.execute("INSERT OR REPLACE INTO whatsapp_config (key, value) VALUES (?,?)", [k, str(v)])
-    conn.commit()
-    conn.close()
+    try:
+        for k, v in body.items():
+            if k in allowed:
+                conn.execute("INSERT OR REPLACE INTO whatsapp_config (key, value) VALUES (?,?)", [k, str(v)])
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
     return {"ok": True}
 
 @app.post("/api/whatsapp/check-triggers")
