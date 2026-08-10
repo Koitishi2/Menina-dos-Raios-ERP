@@ -342,6 +342,206 @@ def test_app_note_catalog_prices_current_company_scope(isolated_app):
     assert estrada_prices[normalize_name("Produto Escopo Estrada")] == 22.0
 
 
+def test_app_note_dict_current_header_empty_items_and_total_recalculation(isolated_app):
+    app_note_dict = isolated_app.module._app_note_dict
+    conn = isolated_app.module.get_app_notes_db()
+    try:
+        conn.execute(
+            """
+            INSERT INTO app_notes(
+                id,external_id,client,note_date,total,created_at,updated_at,source,
+                status,completed_at
+            ) VALUES(?,?,?,?,?,?,?,?,?,?)
+            """,
+            (
+                "note-empty",
+                "external-empty",
+                "Cliente Sem Itens",
+                "22/08/2026",
+                123.45,
+                "2026-08-22T10:00:00",
+                "2026-08-22T10:01:00",
+                "android",
+                "completed",
+                None,
+            ),
+        )
+        conn.commit()
+
+        row = conn.execute("SELECT * FROM app_notes WHERE id=?", ("note-empty",)).fetchone()
+        serialized = app_note_dict(conn, row)
+    finally:
+        conn.close()
+
+    assert serialized == {
+        "id": "note-empty",
+        "external_id": "external-empty",
+        "client": "Cliente Sem Itens",
+        "note_date": "22/08/2026",
+        "total": 0.0,
+        "created_at": "2026-08-22T10:00:00",
+        "updated_at": "2026-08-22T10:01:00",
+        "source": "android",
+        "status": "completed",
+        "completed_at": None,
+        "items": [],
+    }
+    assert "date" not in serialized
+    assert isinstance(serialized["total"], float)
+
+
+def test_app_note_dict_current_items_prices_catalog_flags_and_order(isolated_app):
+    app_note_dict = isolated_app.module._app_note_dict
+    normalize_name = isolated_app.module._normalize_name
+    conn = isolated_app.module.get_app_notes_db()
+    try:
+        for note_id, external_id in (
+            ("note-serialized", "external-serialized"),
+            ("note-other", "external-other"),
+        ):
+            conn.execute(
+                """
+                INSERT INTO app_notes(
+                    id,external_id,client,note_date,total,created_at,updated_at
+                ) VALUES(?,?,?,?,?,?,?)
+                """,
+                (
+                    note_id,
+                    external_id,
+                    "Cliente Serializado",
+                    "23/08/2026",
+                    999,
+                    "2026-08-23T08:00:00",
+                    "2026-08-23T08:05:00",
+                ),
+            )
+
+        rows = [
+            (
+                "item-no-price",
+                "note-serialized",
+                "Produto Sem Preco",
+                5,
+                0,
+                5,
+                "",
+                13,
+                0,
+                2,
+            ),
+            (
+                "item-catalog",
+                "note-serialized",
+                "Produto Catalogo",
+                2,
+                1,
+                3,
+                "KG",
+                99,
+                0,
+                0,
+            ),
+            (
+                "item-provided",
+                "note-serialized",
+                "Produto Informado",
+                7,
+                1,
+                2.555,
+                "CX",
+                10.5,
+                1,
+                1,
+            ),
+            (
+                "item-zero-catalog",
+                "note-serialized",
+                "Produto Zero Catalogo",
+                1,
+                1,
+                9,
+                "UN",
+                3,
+                0,
+                3,
+            ),
+            (
+                "item-other-note",
+                "note-other",
+                "Produto Outra Nota",
+                1,
+                1,
+                100,
+                "KG",
+                100,
+                1,
+                0,
+            ),
+        ]
+        conn.executemany(
+            """
+            INSERT INTO app_note_items(
+                id,note_id,product,quantity,quantity_provided,weight,unit,
+                unit_price,price_provided,position
+            ) VALUES(?,?,?,?,?,?,?,?,?,?)
+            """,
+            rows,
+        )
+        conn.commit()
+
+        row = conn.execute(
+            "SELECT * FROM app_notes WHERE id=?", ("note-serialized",)
+        ).fetchone()
+        serialized = app_note_dict(
+            conn,
+            row,
+            {
+                normalize_name("Produto Catalogo"): 4.25,
+                normalize_name("Produto Informado"): 99,
+                normalize_name("Produto Zero Catalogo"): 0,
+            },
+        )
+    finally:
+        conn.close()
+
+    assert [item["id"] for item in serialized["items"]] == [
+        "item-catalog",
+        "item-provided",
+        "item-no-price",
+        "item-zero-catalog",
+    ]
+    assert "item-other-note" not in [item["id"] for item in serialized["items"]]
+
+    catalog_item, provided_item, no_price_item, zero_catalog_item = serialized["items"]
+    assert catalog_item == {
+        "id": "item-catalog",
+        "product": "Produto Catalogo",
+        "quantity": 2.0,
+        "quantity_provided": 1,
+        "weight": 3.0,
+        "unit": "KG",
+        "unit_price": 99.0,
+        "price_provided": 0,
+        "position": 0,
+        "effective_unit_price": 4.25,
+        "effective_price_provided": True,
+        "price_from_catalog": True,
+    }
+    assert provided_item["effective_unit_price"] == 10.5
+    assert provided_item["effective_price_provided"] is True
+    assert provided_item["price_from_catalog"] is False
+    assert no_price_item["effective_unit_price"] == 0.0
+    assert no_price_item["effective_price_provided"] is False
+    assert no_price_item["price_from_catalog"] is False
+    assert zero_catalog_item["effective_unit_price"] == 0.0
+    assert zero_catalog_item["effective_price_provided"] is True
+    assert zero_catalog_item["price_from_catalog"] is True
+
+    assert serialized["total"] == 39.58
+    assert isinstance(serialized["total"], float)
+    assert all(isinstance(item["effective_unit_price"], float) for item in serialized["items"])
+
+
 def test_app_notes_db_initializes_schema_and_returns_open_connection(isolated_app):
     conn = isolated_app.module.get_app_notes_db()
     try:
