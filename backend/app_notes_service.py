@@ -3,6 +3,23 @@ try:
 except ImportError:
     from utils import _normalize_name
 
+import re
+
+
+def app_note_catalog_from_rows(rows, normalize_name_func=None):
+    normalize_name = normalize_name_func or _normalize_name
+    prices = {}
+    aliases = {}
+    for r in rows:
+        name = str(r["name"] or "").strip(); price = float(r["suggested_price"] or 0)
+        if not name: continue
+        prices[normalize_name(name)] = price
+        base = re.sub(r"\s*\([^)]*\)\s*$", "", name, flags=re.I)
+        base = re.sub(r"\s+(kg|un|cx|mc|sc|unidade|caixa|ma[cç]o|saco)\s*$", "", base, flags=re.I)
+        if base.strip() != name: aliases[normalize_name(base)] = price
+    for key, value in aliases.items(): prices.setdefault(key, value)
+    return prices
+
 
 def app_note_dict_from_row(
     conn,

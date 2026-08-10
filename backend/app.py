@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 try:
     from .app_notes_domain import _clean_app_note
-    from .app_notes_service import app_note_dict_from_row
+    from .app_notes_service import app_note_catalog_from_rows, app_note_dict_from_row
     from .backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip, backup_path_for_filename, restore_zip_backup_with, safety_backup_before_restore_with
     from .company_config import company_db_path_for, company_key_from
     from .monteiro_permissions import payment_role_allowed
@@ -30,7 +30,7 @@ try:
     from .utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
 except ImportError:
     from app_notes_domain import _clean_app_note
-    from app_notes_service import app_note_dict_from_row
+    from app_notes_service import app_note_catalog_from_rows, app_note_dict_from_row
     from backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip, backup_path_for_filename, restore_zip_backup_with, safety_backup_before_restore_with
     from company_config import company_db_path_for, company_key_from
     from monteiro_permissions import payment_role_allowed
@@ -6032,16 +6032,8 @@ def _app_note_catalog_prices():
     """PreÃ§os atuais da aba Produtos do Monteiro, com aliases seguros de unidade."""
     main=get_db()
     rows=main.execute("SELECT name,suggested_price FROM paladar_products WHERE active=1").fetchall()
-    main.close(); prices={}; aliases={}
-    for r in rows:
-        name=str(r["name"] or "").strip(); price=float(r["suggested_price"] or 0)
-        if not name: continue
-        prices[_normalize_name(name)]=price
-        base=re.sub(r"\s*\([^)]*\)\s*$","",name,flags=re.I)
-        base=re.sub(r"\s+(kg|un|cx|mc|sc|unidade|caixa|ma[cÃ§]o|saco)\s*$","",base,flags=re.I)
-        if base.strip()!=name: aliases[_normalize_name(base)]=price
-    for key,value in aliases.items(): prices.setdefault(key,value)
-    return prices
+    main.close()
+    return app_note_catalog_from_rows(rows,_normalize_name)
 
 def _app_note_dict(conn,row,catalog_prices=None):
     return app_note_dict_from_row(conn,row,catalog_prices,_normalize_name)

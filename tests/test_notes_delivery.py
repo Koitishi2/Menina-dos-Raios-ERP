@@ -271,6 +271,57 @@ def _replace_paladar_products(db_path, rows):
         conn.close()
 
 
+def test_app_note_catalog_from_rows_current_mapping_contract(isolated_app):
+    catalog_from_rows = isolated_app.module.app_note_catalog_from_rows
+    normalize_name = isolated_app.module._normalize_name
+
+    assert catalog_from_rows([], normalize_name) == {}
+
+    rows = [
+        {"name": " Produto App KG ", "suggested_price": 10},
+        {"name": "Produto Sem Preco UN", "suggested_price": None},
+        {"name": "Produto Zero CX", "suggested_price": 0},
+        {"name": "Produto Decimal", "suggested_price": 7.25},
+        {"name": "   ", "suggested_price": 13},
+        {"name": "AÃ‡ÃšCAR Cristal KG", "suggested_price": 4.5},
+        {"name": "Produto Embalado (UN)", "suggested_price": 6},
+        {"name": "Produto Litro LT", "suggested_price": 8},
+        {"name": "Produto Duplicado KG", "suggested_price": 5},
+        {"name": "produto duplicado kg", "suggested_price": 8},
+    ]
+
+    prices = catalog_from_rows(rows, normalize_name)
+    assert isinstance(prices, dict)
+    assert prices[normalize_name("Produto App KG")] == 10.0
+    assert prices[normalize_name("Produto App")] == 10.0
+    assert prices[normalize_name("Produto Sem Preco UN")] == 0.0
+    assert prices[normalize_name("Produto Sem Preco")] == 0.0
+    assert prices[normalize_name("Produto Zero CX")] == 0.0
+    assert prices[normalize_name("Produto Zero")] == 0.0
+    assert prices[normalize_name("Produto Decimal")] == 7.25
+    assert prices[normalize_name("AÃ‡ÃšCAR Cristal KG")] == 4.5
+    assert prices[normalize_name("AÃ‡ÃšCAR Cristal")] == 4.5
+    assert prices[normalize_name("Produto Embalado (UN)")] == 6.0
+    assert prices[normalize_name("Produto Embalado")] == 6.0
+    assert prices[normalize_name("Produto Litro LT")] == 8.0
+    assert normalize_name("Produto Litro") not in prices
+    assert prices[normalize_name("Produto Duplicado KG")] == 8.0
+    assert prices[normalize_name("Produto Duplicado")] == 8.0
+    assert "" not in prices
+
+
+def test_app_note_catalog_from_rows_current_normalizer_fallback(isolated_app):
+    catalog_from_rows = isolated_app.module.app_note_catalog_from_rows
+    normalize_name = isolated_app.module._normalize_name
+
+    prices = catalog_from_rows(
+        [{"name": " Produto Fallback KG ", "suggested_price": "12.5"}]
+    )
+
+    assert prices[normalize_name("Produto Fallback KG")] == 12.5
+    assert prices[normalize_name("Produto Fallback")] == 12.5
+
+
 def test_app_note_catalog_prices_current_selection_normalization_and_aliases(isolated_app):
     catalog_prices = isolated_app.module._app_note_catalog_prices
     normalize_name = isolated_app.module._normalize_name
