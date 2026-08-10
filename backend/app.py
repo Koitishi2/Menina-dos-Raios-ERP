@@ -6176,13 +6176,17 @@ def _auto_complete_expired_calendar_events(conn):
 @app.get("/api/app-calendar")
 def list_app_calendar(status:Optional[str]=None,month:Optional[str]=None,year:Optional[str]=None,x_token:str=Header("")):
     require_monteiro_calendar(x_token)
-    conn=get_app_notes_db(); _auto_complete_expired_calendar_events(conn); where=[]; params=[]
-    if status in ("pending","completed"): where.append("status=?"); params.append(status)
-    if month: where.append("substr(due_date,6,2)=?"); params.append(month.zfill(2)[:2])
-    if year: where.append("substr(due_date,1,4)=?"); params.append(year[:4])
-    sql="SELECT * FROM app_calendar_events"+(" WHERE "+" AND ".join(where) if where else "")+" ORDER BY due_date ASC, created_at DESC LIMIT 1000"
-    rows=conn.execute(sql,params).fetchall(); events=[_calendar_event_dict(r) for r in rows]; conn.close()
-    return {"events":events,"count":len(events),"pending":sum(1 for e in events if e.get("status")=="pending")}
+    conn=get_app_notes_db()
+    try:
+        _auto_complete_expired_calendar_events(conn); where=[]; params=[]
+        if status in ("pending","completed"): where.append("status=?"); params.append(status)
+        if month: where.append("substr(due_date,6,2)=?"); params.append(month.zfill(2)[:2])
+        if year: where.append("substr(due_date,1,4)=?"); params.append(year[:4])
+        sql="SELECT * FROM app_calendar_events"+(" WHERE "+" AND ".join(where) if where else "")+" ORDER BY due_date ASC, created_at DESC LIMIT 1000"
+        rows=conn.execute(sql,params).fetchall(); events=[_calendar_event_dict(r) for r in rows]
+        return {"events":events,"count":len(events),"pending":sum(1 for e in events if e.get("status")=="pending")}
+    finally:
+        conn.close()
 
 @app.post("/api/app-calendar")
 def create_app_calendar_event(body:dict,x_token:str=Header("")):
@@ -6258,18 +6262,20 @@ def list_app_calendar_mobile(x_app_token:str=Header("",alias="x-app-token")):
     if not APP_CALENDAR_TOKEN or not hmac.compare_digest(x_app_token,APP_CALENDAR_TOKEN):
         raise HTTPException(401,"Aplicativo nao autorizado.")
     conn=get_app_notes_db()
-    _auto_complete_expired_calendar_events(conn)
-    today=date.today().isoformat()
-    rows=conn.execute("""SELECT * FROM app_calendar_events
-        WHERE status='pending' AND date(due_date)>=date(?)
-        ORDER BY due_date ASC, created_at DESC LIMIT 200""",(today,)).fetchall()
-    events=[]
-    for r in rows:
-        event=_calendar_event_dict(r)
-        if event.get("in_reminder_window"):
-            events.append(event)
-    conn.close()
-    return {"events":events,"count":len(events),"checked_at":datetime.now().isoformat(timespec="seconds")}
+    try:
+        _auto_complete_expired_calendar_events(conn)
+        today=date.today().isoformat()
+        rows=conn.execute("""SELECT * FROM app_calendar_events
+            WHERE status='pending' AND date(due_date)>=date(?)
+            ORDER BY due_date ASC, created_at DESC LIMIT 200""",(today,)).fetchall()
+        events=[]
+        for r in rows:
+            event=_calendar_event_dict(r)
+            if event.get("in_reminder_window"):
+                events.append(event)
+        return {"events":events,"count":len(events),"checked_at":datetime.now().isoformat(timespec="seconds")}
+    finally:
+        conn.close()
 
 @app.get("/{full_path:path}")
 def serve_spa(full_path:str):

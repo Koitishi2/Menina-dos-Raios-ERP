@@ -41,6 +41,64 @@ def _calendar_rows(isolated_app):
         conn.close()
 
 
+class _CalendarTrackedConnection:
+    def __init__(self, inner, fail_select=False):
+        self.inner = inner
+        self.fail_select = fail_select
+        self.close_calls = 0
+
+    def execute(self, sql, *args, **kwargs):
+        if self.fail_select and "SELECT * FROM app_calendar_events" in str(sql):
+            raise RuntimeError("select calendario falhou passo 106")
+        return self.inner.execute(sql, *args, **kwargs)
+
+    def close(self):
+        self.close_calls += 1
+        return self.inner.close()
+
+    def cleanup_inner(self):
+        try:
+            self.inner.close()
+        except Exception:
+            pass
+
+    def __getattr__(self, name):
+        return getattr(self.inner, name)
+
+
+def _install_calendar_connection_spy(isolated_app, fail_select=False):
+    original_get_app_notes_db = isolated_app.module.get_app_notes_db
+    tracked = []
+
+    def tracked_get_app_notes_db():
+        conn = _CalendarTrackedConnection(
+            original_get_app_notes_db(),
+            fail_select=fail_select,
+        )
+        tracked.append(conn)
+        return conn
+
+    isolated_app.module.get_app_notes_db = tracked_get_app_notes_db
+    return original_get_app_notes_db, tracked
+
+
+def _restore_calendar_connection_spy(isolated_app, original_get_app_notes_db, tracked):
+    isolated_app.module.get_app_notes_db = original_get_app_notes_db
+    for conn in tracked:
+        if conn.close_calls == 0:
+            conn.cleanup_inner()
+
+
+def _assert_calendar_write_after_restoring(isolated_app, title):
+    token = _login(isolated_app.client)
+    response = isolated_app.client.post(
+        "/api/app-calendar",
+        headers=_headers(token),
+        json={"title": title, "due_date": "2099-05-10"},
+    )
+    assert response.status_code == 200, response.text
+
+
 def test_calendar_event_dict_calcula_janela_com_data_controlada(isolated_app, monkeypatch):
     _fix_calendar_today(isolated_app, monkeypatch)
     event_dict = isolated_app.module._calendar_event_dict
@@ -303,3 +361,103 @@ def test_create_app_calendar_event_auth_e_validacao_atual(isolated_app):
     )
     assert escrita_posterior.status_code == 200, escrita_posterior.text
     assert len(_calendar_rows(isolated_app)) == 1
+
+
+def test_list_app_calendar_closes_connection_when_auto_complete_fails(isolated_app):
+    failure = RuntimeError("auto-complete calendario falhou passo 106")
+    original_get_app_notes_db, tracked = _install_calendar_connection_spy(isolated_app)
+    original_auto_complete = isolated_app.module._auto_complete_expired_calendar_events
+    original_require_monteiro_calendar = isolated_app.module.require_monteiro_calendar
+    isolated_app.module.require_monteiro_calendar = lambda x_token="": {"role": "admin"}
+
+    def failing_auto_complete(conn):
+        raise failure
+
+    isolated_app.module._auto_complete_expired_calendar_events = failing_auto_complete
+    try:
+        with pytest.raises(RuntimeError) as exc:
+            isolated_app.module.list_app_calendar(x_token="token")
+    finally:
+        isolated_app.module._auto_complete_expired_calendar_events = original_auto_complete
+        isolated_app.module.require_monteiro_calendar = original_require_monteiro_calendar
+        _restore_calendar_connection_spy(
+            isolated_app,
+            original_get_app_notes_db,
+            tracked,
+        )
+
+    assert exc.value is failure
+    assert len(tracked) == 1
+    assert tracked[0].close_calls == 1
+    _assert_calendar_write_after_restoring(isolated_app, "Escrita apos falha web")
+
+
+def test_list_app_calendar_closes_connection_when_select_fails(isolated_app):
+    original_get_app_notes_db, tracked = _install_calendar_connection_spy(
+        isolated_app,
+        fail_select=True,
+    )
+    original_require_monteiro_calendar = isolated_app.module.require_monteiro_calendar
+    isolated_app.module.require_monteiro_calendar = lambda x_token="": {"role": "admin"}
+    try:
+        with pytest.raises(RuntimeError, match="select calendario falhou passo 106"):
+            isolated_app.module.list_app_calendar(x_token="token")
+    finally:
+        isolated_app.module.require_monteiro_calendar = original_require_monteiro_calendar
+        _restore_calendar_connection_spy(
+            isolated_app,
+            original_get_app_notes_db,
+            tracked,
+        )
+
+    assert len(tracked) == 1
+    assert tracked[0].close_calls == 1
+
+
+def test_list_app_calendar_mobile_closes_connection_when_auto_complete_fails(isolated_app):
+    failure = RuntimeError("auto-complete mobile calendario falhou passo 106")
+    original_get_app_notes_db, tracked = _install_calendar_connection_spy(isolated_app)
+    original_auto_complete = isolated_app.module._auto_complete_expired_calendar_events
+
+    def failing_auto_complete(conn):
+        raise failure
+
+    isolated_app.module._auto_complete_expired_calendar_events = failing_auto_complete
+    try:
+        with pytest.raises(RuntimeError) as exc:
+            isolated_app.module.list_app_calendar_mobile(
+                x_app_token=isolated_app.module.APP_CALENDAR_TOKEN,
+            )
+    finally:
+        isolated_app.module._auto_complete_expired_calendar_events = original_auto_complete
+        _restore_calendar_connection_spy(
+            isolated_app,
+            original_get_app_notes_db,
+            tracked,
+        )
+
+    assert exc.value is failure
+    assert len(tracked) == 1
+    assert tracked[0].close_calls == 1
+    _assert_calendar_write_after_restoring(isolated_app, "Escrita apos falha mobile")
+
+
+def test_list_app_calendar_mobile_closes_connection_when_select_fails(isolated_app):
+    original_get_app_notes_db, tracked = _install_calendar_connection_spy(
+        isolated_app,
+        fail_select=True,
+    )
+    try:
+        with pytest.raises(RuntimeError, match="select calendario falhou passo 106"):
+            isolated_app.module.list_app_calendar_mobile(
+                x_app_token=isolated_app.module.APP_CALENDAR_TOKEN,
+            )
+    finally:
+        _restore_calendar_connection_spy(
+            isolated_app,
+            original_get_app_notes_db,
+            tracked,
+        )
+
+    assert len(tracked) == 1
+    assert tracked[0].close_calls == 1
