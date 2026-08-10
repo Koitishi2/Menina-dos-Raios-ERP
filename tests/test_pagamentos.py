@@ -1,3 +1,4 @@
+import importlib.util
 import sqlite3
 import sys
 import types
@@ -177,6 +178,29 @@ def _payment_row_by_id(isolated_app, payment_id):
 def _assert_http_exception(exc_info, status_code, detail):
     assert exc_info.value.status_code == status_code
     assert exc_info.value.detail == detail
+
+
+def test_payment_role_allowed_module_current_python_membership_contract():
+    spec = importlib.util.spec_from_file_location(
+        "monteiro_permissions_under_test",
+        "backend/monteiro_permissions.py",
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    payment_role_allowed = module.payment_role_allowed
+
+    assert payment_role_allowed({"role": "admin"}, ["admin"]) is True
+    assert payment_role_allowed({"role": "editor"}, ["admin", "editor"]) is True
+    assert payment_role_allowed({"role": "editor"}, ["admin"]) is False
+    assert payment_role_allowed({"role": "viewer"}, ["viewer"]) is True
+    assert payment_role_allowed({"role": "viewer"}, ["admin", "editor"]) is False
+    assert payment_role_allowed({"role": "custom"}, ["custom"]) is True
+    assert payment_role_allowed({"role": "custom"}, ["admin"]) is False
+    assert payment_role_allowed({}, ["admin"]) is False
+    assert payment_role_allowed({"role": "admin"}, "admin") is True
+    assert payment_role_allowed({"role": "admin"}, {"admin": True}) is True
+    with pytest.raises(TypeError):
+        payment_role_allowed({"role": "admin"}, 123)
 
 
 def test_check_payment_perm_current_auth_precedence_and_default_roles(isolated_app):

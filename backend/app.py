@@ -18,6 +18,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Streamin
 try:
     from .backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip, backup_path_for_filename, restore_zip_backup_with, safety_backup_before_restore_with
     from .company_config import company_db_path_for, company_key_from
+    from .monteiro_permissions import payment_role_allowed
     from .monteiro_periods import _pal_period_where, _pay_period_map
     from .orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from .permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
@@ -28,6 +29,7 @@ try:
 except ImportError:
     from backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip, backup_path_for_filename, restore_zip_backup_with, safety_backup_before_restore_with
     from company_config import company_db_path_for, company_key_from
+    from monteiro_permissions import payment_role_allowed
     from monteiro_periods import _pal_period_where, _pay_period_map
     from orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
@@ -4786,7 +4788,7 @@ def _check_payment_perm(x_token):
     row=conn.execute("SELECT value FROM settings WHERE key='monteiro_payment_perm'").fetchone()
     conn.close()
     allowed= _j.loads(row["value"]) if row else ["admin"]
-    if sess.get("role") not in allowed:
+    if not payment_role_allowed(sess, allowed):
         raise HTTPException(403,"Seu perfil nÃ£o tem permissÃ£o para lanÃ§ar pagamentos.")
     return sess
 
