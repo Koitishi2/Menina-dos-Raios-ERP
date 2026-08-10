@@ -6031,8 +6031,10 @@ def get_app_notes_db():
 def _app_note_catalog_prices():
     """PreÃ§os atuais da aba Produtos do Monteiro, com aliases seguros de unidade."""
     main=get_db()
-    rows=main.execute("SELECT name,suggested_price FROM paladar_products WHERE active=1").fetchall()
-    main.close()
+    try:
+        rows=main.execute("SELECT name,suggested_price FROM paladar_products WHERE active=1").fetchall()
+    finally:
+        main.close()
     return app_note_catalog_from_rows(rows,_normalize_name)
 
 def _app_note_dict(conn,row,catalog_prices=None):

@@ -411,6 +411,114 @@ def test_app_note_catalog_prices_current_company_scope(isolated_app):
     assert estrada_prices[normalize_name("Produto Escopo Estrada")] == 22.0
 
 
+def test_app_note_catalog_prices_closes_main_connection_when_execute_fails(isolated_app):
+    failure = RuntimeError("execute falhou passo 103")
+
+    class TrackedConnection:
+        def __init__(self, inner):
+            self.inner = inner
+            self.close_calls = 0
+
+        def execute(self, *args, **kwargs):
+            raise failure
+
+        def close(self):
+            self.close_calls += 1
+            return self.inner.close()
+
+        def cleanup_inner(self):
+            try:
+                self.inner.close()
+            except Exception:
+                pass
+
+        def __getattr__(self, name):
+            return getattr(self.inner, name)
+
+    original_get_db = isolated_app.module.get_db
+    tracked = []
+
+    def tracked_get_db(*args, **kwargs):
+        conn = TrackedConnection(original_get_db(*args, **kwargs))
+        tracked.append(conn)
+        return conn
+
+    isolated_app.module.get_db = tracked_get_db
+    try:
+        with pytest.raises(RuntimeError) as exc:
+            isolated_app.module._app_note_catalog_prices()
+    finally:
+        isolated_app.module.get_db = original_get_db
+        for conn in tracked:
+            if conn.close_calls == 0:
+                conn.cleanup_inner()
+
+    assert exc.value is failure
+    assert len(tracked) == 1
+    assert tracked[0].close_calls == 1
+
+
+def test_app_note_catalog_prices_closes_main_connection_when_fetchall_fails(isolated_app):
+    failure = RuntimeError("fetchall falhou passo 103")
+    _replace_paladar_products(
+        isolated_app.db_paths["raios"],
+        [("Produto Fetchall Falha KG", 10, 1)],
+    )
+
+    class FailingCursor:
+        def __init__(self, inner):
+            self.inner = inner
+
+        def fetchall(self):
+            raise failure
+
+        def __getattr__(self, name):
+            return getattr(self.inner, name)
+
+    class TrackedConnection:
+        def __init__(self, inner):
+            self.inner = inner
+            self.close_calls = 0
+
+        def execute(self, *args, **kwargs):
+            return FailingCursor(self.inner.execute(*args, **kwargs))
+
+        def close(self):
+            self.close_calls += 1
+            return self.inner.close()
+
+        def cleanup_inner(self):
+            try:
+                self.inner.close()
+            except Exception:
+                pass
+
+        def __getattr__(self, name):
+            return getattr(self.inner, name)
+
+    original_get_db = isolated_app.module.get_db
+    tracked = []
+
+    def tracked_get_db(*args, **kwargs):
+        conn = TrackedConnection(original_get_db(*args, **kwargs))
+        tracked.append(conn)
+        return conn
+
+    isolated_app.module.get_db = tracked_get_db
+    try:
+        with pytest.raises(RuntimeError) as exc:
+            isolated_app.module._app_note_catalog_prices()
+    finally:
+        isolated_app.module.get_db = original_get_db
+        for conn in tracked:
+            if conn.close_calls == 0:
+                conn.cleanup_inner()
+
+    assert exc.value is failure
+    assert len(tracked) == 1
+    assert tracked[0].close_calls == 1
+
+
 def test_app_note_dict_current_header_empty_items_and_total_recalculation(isolated_app):
     app_note_dict = isolated_app.module._app_note_dict
     conn = isolated_app.module.get_app_notes_db()
