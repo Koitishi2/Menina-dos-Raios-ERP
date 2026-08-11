@@ -1,0 +1,21 @@
+eb977c6d499fc3a4771c97791395548d6c4107e7a05b991ad36adbae859c82fa  bm_app_refatorado_c180c81.zip
+
+SHA-256: eb977c6d499fc3a4771c97791395548d6c4107e7a05b991ad36adbae859c82fa
+Arquivo: bm_app_refatorado_c180c81.zip
+Tamanho_bytes: 9275264
+Quantidade_entradas_zip: 27
+Commit_codigo_origem: c180c81
+Branch_publica: main
+Gerado_em: 2026-08-10T13:08:49
+
+Exclusoes_aplicadas:
+- .git e metadados Git
+- .github
+- .env
+- bancos SQLite e dumps (*.db, *.sqlite, *.sqlite3)
+- uploads, backups, logs, caches e temporarios
+- node_modules e ambientes virtuais
+- __pycache__ e bytecode Python
+- scripts antigos de deploy/migracao com detalhes privados
+- documentacao historica com dados de infraestrutura privada
+- manifestos/artefatos de atualizacao mobile com URL de producao

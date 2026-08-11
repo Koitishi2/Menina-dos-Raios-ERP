@@ -51,7 +51,16 @@ coverage.xml
 .pytest_cache/
 cover/
 backups/
+backups/server_snapshots/
+*.tar
+*.tar.gz
+*.dump
+*.sql
 *.db
+*.sqlite
+*.sqlite3
+*.bak
+**/.env
 mig-*/
 bm_app/
 Menina dos Raios/
@@ -134,6 +143,10 @@ celerybeat.pid
 
 # Environments
 .env
+atualizarrefatorado.local.bat
+logs_atualizacao_refatorada/
+baileys-api-validation/
+bm_app_refatorado_*.zip
 .venv
 env/
 venv/

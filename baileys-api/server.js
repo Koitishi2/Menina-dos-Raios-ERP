@@ -49,7 +49,7 @@ async function startBaileys() {
         logger: pino({ level: "silent" }),
         printQRInTerminal: true,   // também imprime no console para fallback
         auth: state,
-        browser: ["Menina dos Raios", "Chrome", "1.0.0"],
+        browser: ["Menina dos Raios", "Chrome", "2.0.0"],
         connectTimeoutMs: 30000,
         defaultQueryTimeoutMs: 30000,
         keepAliveIntervalMs: 15000,
