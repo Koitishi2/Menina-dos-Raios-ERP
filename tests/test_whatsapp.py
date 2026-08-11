@@ -958,7 +958,7 @@ def test_whatsapp_baileys_connection_invalid_action_still_validates_before_confi
 def test_daily_motivation_send_now_separates_db_from_provider_and_logs_results(isolated_app, monkeypatch):
     token = _login(isolated_app.client)
     db_path = isolated_app.db_paths["raios"]
-    _add_template(db_path, content="Atenda com energia.")
+    _add_template(db_path, content="Atenda com energia, {cliente}.")
     _add_contact(db_path, "Contato A", "559566666661", active=1)
     _add_contact(db_path, "Contato B", "559566666662", active=1)
     monkeypatch.setattr(
@@ -987,9 +987,12 @@ def test_daily_motivation_send_now_separates_db_from_provider_and_logs_results(i
     assert payload["sent"] == 1
     assert payload["failed"] == 1
     assert payload["templates"] == 1
-    assert payload["message"] == "Atenda com energia."
+    assert payload["message"] == "Atenda com energia, {cliente}."
     assert [phone for phone, _message in calls] == ["559566666661", "559566666662"]
-    assert all("Atenda com energia." in message for _phone, message in calls)
+    assert calls[0][1].count("Contato A") == 1
+    assert calls[1][1].count("Contato B") == 1
+    assert "{cliente}" not in calls[0][1]
+    assert "{cliente}" not in calls[1][1]
     assert state["open"] == 0
 
     cfg = _get_config(db_path)
@@ -1001,6 +1004,8 @@ def test_daily_motivation_send_now_separates_db_from_provider_and_logs_results(i
         ("559566666661", "sent"),
         ("559566666662", "error"),
     ]
+    assert motivation_logs[0]["message"].count("Contato A") == 1
+    assert motivation_logs[1]["message"].count("Contato B") == 1
 
 
 def test_daily_motivation_force_false_respects_recent_attempt_without_send(isolated_app, monkeypatch):

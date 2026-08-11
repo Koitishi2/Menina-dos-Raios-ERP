@@ -5006,7 +5006,6 @@ def send_daily_motivation(force:bool=False):
         if not contacts: return {"ok":False,"reason":"no_contacts","count":len(templates)}
         item=templates[(now.toordinal()-1)%len(templates)]
         content=(item.get("content") or "").strip()
-        message=f"*Mensagem do dia*\n\n{content}\n\n_Um excelente dia para todos nos._"
         conn.execute("INSERT OR REPLACE INTO whatsapp_config(key,value) VALUES('motivation_last_attempt',?)",[now.isoformat()])
         conn.commit()
     except Exception:
@@ -5016,13 +5015,16 @@ def send_daily_motivation(force:bool=False):
         conn.close()
     sent=0;failed=0;results=[]
     for contact in contacts:
+        contact_name=(contact.get("name") or "").strip()
+        personalized=content.replace("{cliente}",contact_name).replace("{CLIENTE}",contact_name)
+        message=f"*Mensagem do dia*\n\n{personalized}\n\n_Um excelente dia para todos nos._"
         result=wa_send(contact["phone"],message,cfg)
-        results.append((contact,result))
+        results.append((contact,result,message))
         if result["ok"]: sent+=1
         else: failed+=1
     conn=get_db()
     try:
-        for contact,result in results:
+        for contact,result,message in results:
             conn.execute("INSERT INTO whatsapp_log(id,phone,contact,event_type,message,status,response) VALUES(?,?,?,?,?,?,?)",
                          [str(uuid.uuid4()),contact["phone"],contact["name"],"motivacao",message,
                           "sent" if result["ok"] else "error",_wa_log_response(result,cfg)])
