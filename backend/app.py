@@ -4982,7 +4982,14 @@ def send_daily_motivation(force:bool=False):
         cfg={r["key"]:r["value"] for r in conn.execute("SELECT key,value FROM whatsapp_config").fetchall()}
         if not force and cfg.get("motivation_enabled","1")!="1": return {"ok":False,"reason":"disabled"}
         send_time=cfg.get("motivation_time","07:00") or "07:00"
-        if not force and now.strftime("%H:%M")<send_time: return {"ok":False,"reason":"before_time"}
+        if not force:
+            try:
+                hh,mm=[int(part) for part in send_time.split(":",1)]
+                scheduled=now.replace(hour=hh,minute=mm,second=0,microsecond=0)
+            except Exception:
+                scheduled=now.replace(hour=7,minute=0,second=0,microsecond=0)
+            if now<scheduled: return {"ok":False,"reason":"before_time"}
+            if now>=scheduled+timedelta(hours=2): return {"ok":False,"reason":"after_time"}
         if not force and cfg.get("motivation_last_success","")==today: return {"ok":True,"reason":"already_sent"}
         last_attempt=cfg.get("motivation_last_attempt","")
         if not force and last_attempt.startswith(today):

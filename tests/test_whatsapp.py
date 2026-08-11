@@ -1031,6 +1031,37 @@ def test_daily_motivation_force_false_respects_recent_attempt_without_send(isola
     assert _get_config(db_path)["motivation_last_attempt"] == "2026-08-08T07:30:00-04:00"
 
 
+def test_daily_motivation_force_false_does_not_send_after_scheduled_window(isolated_app, monkeypatch):
+    db_path = isolated_app.db_paths["raios"]
+    _add_template(db_path)
+    _add_contact(db_path, "Contato A", "559577777771", active=1)
+    _set_config(db_path, "motivation_time", "07:00")
+    _set_config(db_path, "motivation_last_attempt", "")
+    _set_config(db_path, "motivation_last_success", "")
+    monkeypatch.setattr(
+        isolated_app.module,
+        "_motivation_now",
+        lambda: datetime.fromisoformat("2026-08-10T22:17:00-04:00"),
+    )
+    state = _install_tracked_db(monkeypatch, isolated_app)
+    sent = []
+
+    def fake_wa_send(phone, message, cfg):
+        sent.append(phone)
+        return {"ok": True, "response": "ok"}
+
+    monkeypatch.setattr(isolated_app.module, "wa_send", fake_wa_send)
+
+    result = isolated_app.module.send_daily_motivation(force=False)
+
+    assert result == {"ok": False, "reason": "after_time"}
+    assert sent == []
+    assert state["open"] == 0
+    cfg = _get_config(db_path)
+    assert cfg["motivation_last_attempt"] == ""
+    assert cfg["motivation_last_success"] == ""
+
+
 def test_daily_motivation_without_contacts_preserves_current_no_contacts_result(isolated_app, monkeypatch):
     db_path = isolated_app.db_paths["raios"]
     _add_template(db_path)
