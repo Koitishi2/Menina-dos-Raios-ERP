@@ -52,6 +52,72 @@ Modulos extraidos durante a refatoracao incluem:
 
 Rotas, infraestrutura de banco, autenticacao, autorizacao, migracoes e regras de negocio que dependem do contexto da aplicacao permanecem no backend principal.
 
+## APK Android
+
+Este repositorio tambem contempla o aplicativo Android interno **Menina dos Raios Vendas**. O app complementa o sistema web e e usado em operacoes de campo e rotinas moveis.
+
+Em alto nivel, o aplicativo permite:
+
+- montar pedidos no celular;
+- enviar pedidos pelo fluxo integrado do sistema;
+- consultar e informar entregas;
+- usar o mesmo login e senha do sistema web;
+- desbloquear o app com PIN local de 4 digitos apos o login inicial.
+
+### Estrutura do app
+
+O codigo-fonte do aplicativo Android fica no projeto `VendasWhatsApp/`.
+
+O APK oficial compilado usa o nome padrao:
+
+```text
+Menina-dos-Raios-Vendas-OFICIAL.apk
+```
+
+O arquivo APK pode ou nao estar versionado no Git, conforme a politica operacional do ambiente. O item mais importante para manutencao e auditoria e o projeto Android fonte, pois o APK deve ser gerado a partir dele.
+
+### Build e publicacao do APK
+
+O APK deve ser compilado localmente com Android Studio ou Gradle, em uma maquina autorizada. A assinatura do aplicativo usa uma chave privada mantida apenas nas maquinas dos desenvolvedores autorizados.
+
+Depois da compilacao e assinatura, o APK e publicado em um servidor de atualizacoes usado pelo proprio app. O projeto possui um script de publicacao, por exemplo `PUBLICAR_APK.bat`, que executa o fluxo operacional de alto nivel:
+
+1. localiza o APK oficial gerado;
+2. extrai `versionName`, `versionCode` e identificador do pacote;
+3. calcula o hash SHA-256 do APK;
+4. atualiza o catalogo de versao usado pelo app;
+5. envia o APK e os metadados para o servidor de atualizacoes via SSH/SCP.
+
+Detalhes de infraestrutura, como servidor, usuario, portas, caminhos remotos, provedor, senhas e chaves, nao devem aparecer no README nem ser versionados.
+
+### Seguranca do APK
+
+Nunca commitar:
+
+- keystores ou certificados privados de assinatura;
+- senhas de servidor;
+- arquivos `.env`;
+- configuracoes locais com dados de infraestrutura;
+- scripts locais contendo segredos;
+- tokens, chaves de API ou credenciais.
+
+O `.gitignore` deve excluir arquivos sensiveis, como keystore, configuracoes locais privadas, bancos de dados, logs, backups, ambientes virtuais e artefatos temporarios. Caso um novo arquivo sensivel seja criado durante manutencao, ele deve ser incluido no `.gitignore` antes de qualquer commit.
+
+### Uso pelo usuario final
+
+O usuario final deve instalar o app apenas a partir de fonte confiavel, como o canal oficial interno da empresa ou link disponibilizado pela equipe responsavel.
+
+Fluxo basico de uso:
+
+1. baixar o APK oficial de fonte confiavel;
+2. instalar no Android;
+3. abrir o app;
+4. fazer login com usuario e senha do sistema;
+5. criar um PIN local de 4 digitos;
+6. usar as funcionalidades disponiveis, como pedidos e entregas.
+
+O PIN de 4 digitos e local do aparelho e nao substitui a senha do sistema web. Ele serve apenas para desbloquear o app apos o login inicial.
+
 ## Pacote Refatorado
 
 A distribuicao empacotada da versao estavel deve usar o nome:

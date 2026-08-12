@@ -9,6 +9,30 @@ Este arquivo registra as alterações funcionais do aplicativo Android e da inte
 - O `versionCode` interno do Android sempre aumenta a cada APK publicado.
 - Uma versão publicada nunca deve ser reutilizada para outro APK.
 
+## [2.0.1] - 12/08/2026
+
+### MÃ³dulo Entregas no app
+
+- Adicionado botÃ£o "Entregas" na tela principal do aplicativo.
+- Criada tela prÃ³pria para listar entregas pendentes e concluÃ­das.
+- O app busca as notas fiscais do sistema via `/api/sales` usando o token do login compartilhado.
+- As entregas sÃ£o agrupadas por data, cliente, NF e entregador para evitar poluiÃ§Ã£o visual quando uma nota tem vÃ¡rios produtos.
+- Cada entrega mostra cliente, data, NF, quantidade de produtos, total, entregador, placa e resumo dos itens.
+- Adicionada aÃ§Ã£o "Concluir" para marcar a entrega como realizada pelo celular.
+- A conclusÃ£o usa o endpoint existente `/api/sales/bulk-delivered`, preservando o fluxo do site.
+
+## [2.0.0] - 12/08/2026
+
+### Login compartilhado + PIN local
+
+- O app passou a exigir login com o mesmo usuÃ¡rio e senha do sistema web.
+- A autenticaÃ§Ã£o usa o backend oficial em `/api/auth/login` e guarda o token `x-token` no aparelho.
+- Ao abrir novamente, o app pede PIN local de 4 dÃ­gitos antes de liberar a tela principal.
+- O PIN fica somente no celular, com hash local, e nÃ£o Ã© enviado ao backend.
+- Depois do PIN, o app valida a sessÃ£o no servidor por `/api/auth/me`.
+- Adicionado botÃ£o "Sair da conta" para remover login e PIN do aparelho.
+- As funÃ§Ãµes atuais de pedido, colagem do WhatsApp, notas pendentes, recibos, calendÃ¡rio e atualizaÃ§Ã£o automÃ¡tica foram preservadas.
+
 ## [1.0.27] - 25/07/2026
 
 ### ImportaÃ§Ã£o de pedidos do WhatsApp no app
