@@ -1117,6 +1117,22 @@ body.tv-active #btn-top{display:none!important}
 .wa-contact-phone{font-size:11px;color:var(--muted)}
 .wa-badge-active{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:#dcfce7;color:#166534}
 .wa-badge-inactive{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:var(--card2);color:var(--muted)}
+.wa-trigger-pick{margin-top:10px;padding:12px;background:var(--card2);border:1px solid var(--border);border-radius:10px}
+.wa-trigger-pick-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.wa-trigger-pick-title{font-size:12px;font-weight:800;color:var(--g800)}
+.wa-trigger-pick-sub{font-size:10px;color:var(--muted);margin-top:2px}
+.wa-trigger-pick-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.wa-trigger-count{font-size:10px;font-weight:800;color:var(--g800);background:var(--g100);border:1px solid rgba(27,94,32,.12);border-radius:999px;padding:4px 8px;white-space:nowrap}
+.wa-trigger-contact-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;max-height:220px;overflow:auto;padding:1px 2px 1px 1px}
+.wa-trigger-contact-card{display:grid;grid-template-columns:18px 32px minmax(0,1fr);align-items:center;gap:9px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);cursor:pointer;min-width:0;transition:background .12s,border-color .12s,box-shadow .12s}
+.wa-trigger-contact-card:hover{border-color:rgba(27,94,32,.22);box-shadow:0 1px 3px rgba(15,23,42,.06)}
+.wa-trigger-contact-card input{width:16px;height:16px;accent-color:var(--g800);margin:0}
+.wa-trigger-contact-card:has(input:checked){border-color:rgba(27,94,32,.35);background:var(--g50)}
+.wa-trigger-mini-avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#dcfce7;color:#166534;font-size:11px;font-weight:800}
+.wa-trigger-contact-text{min-width:0}
+.wa-trigger-contact-name{font-size:12px;font-weight:800;color:var(--g800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wa-trigger-contact-phone{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+@media(max-width:760px){.wa-trigger-pick-head{align-items:flex-start;flex-direction:column}.wa-trigger-pick-actions{justify-content:flex-start}.wa-trigger-contact-list{grid-template-columns:1fr;max-height:260px}}
 .wa-log-row{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px}
 .wa-log-row:last-child{border-bottom:none}
 .wa-log-item{border-bottom:1px solid var(--border)}
@@ -13783,18 +13799,21 @@ async function waCheckTriggers() {
     var contacts=[];
     try{contacts=(await api('/api/whatsapp/contacts')).filter(function(c){return c.active;});}catch(_e){contacts=[];}
     if(contacts.length){
-      html+='<div style="margin-top:10px;padding:10px;background:var(--card2);border:1px solid var(--border);border-radius:8px">'
-        +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">'
-        +'<div><div style="font-size:12px;font-weight:800;color:var(--g800)">Selecionar contatos</div><div style="font-size:10px;color:var(--muted)">Marque quem deve receber as notificacoes destes gatilhos.</div></div>'
-        +'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">'
+      html+='<div class="wa-trigger-pick">'
+        +'<div class="wa-trigger-pick-head">'
+        +'<div><div class="wa-trigger-pick-title">Selecionar contatos</div><div class="wa-trigger-pick-sub">Escolha quem vai receber estes gatilhos agora.</div></div>'
+        +'<div class="wa-trigger-pick-actions">'
+        +'<span id="wa-trigger-selected-count" class="wa-trigger-count">'+contacts.length+' selecionado(s)</span>'
         +'<button type="button" class="btn btn-secondary btn-sm" data-wa-trigger-action="select-all">Todos</button>'
-        +'<button type="button" class="btn btn-secondary btn-sm" data-wa-trigger-action="select-none">Nenhum</button>'
+        +'<button type="button" class="btn btn-secondary btn-sm" data-wa-trigger-action="select-none">Limpar</button>'
         +'</div></div>'
-        +'<div id="wa-trigger-contact-list" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:6px;max-height:190px;overflow:auto;padding-right:2px">'
+        +'<div id="wa-trigger-contact-list" class="wa-trigger-contact-list">'
         +contacts.map(function(c){
-          return '<label style="display:flex;align-items:center;gap:7px;padding:7px 8px;border:1px solid var(--border);border-radius:7px;background:var(--card);font-size:12px;cursor:pointer;min-width:0">'
-            +'<input type="checkbox" class="wa-trigger-contact-check" value="'+waLogEsc(c.id)+'" checked>'
-            +'<span style="min-width:0"><span style="display:block;font-weight:700;color:var(--g800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+waLogEsc(c.name||'Sem nome')+'</span><span style="display:block;font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">+'+waLogEsc(c.phone||'')+'</span></span>'
+          var init=(c.name||'?').trim().split(/\s+/).slice(0,2).map(function(w){return w[0]||'';}).join('').toUpperCase()||'?';
+          return '<label class="wa-trigger-contact-card">'
+            +'<input type="checkbox" class="wa-trigger-contact-check" value="'+waLogEsc(c.id)+'" checked onchange="waUpdateTriggerSelectedCount()">'
+            +'<span class="wa-trigger-mini-avatar">'+waLogEsc(init)+'</span>'
+            +'<span class="wa-trigger-contact-text"><span class="wa-trigger-contact-name">'+waLogEsc(c.name||'Sem nome')+'</span><span class="wa-trigger-contact-phone">+'+waLogEsc(c.phone||'')+'</span></span>'
             +'</label>';
         }).join('')
         +'</div></div>';
@@ -13807,6 +13826,13 @@ async function waCheckTriggers() {
       +'</div>';
     el.innerHTML=html;
   } catch(e) { el.innerHTML='<div style="color:var(--red);font-size:12px"> '+e.message+'</div>'; }
+}
+
+function waUpdateTriggerSelectedCount() {
+  var el=document.getElementById('wa-trigger-selected-count');
+  if(!el)return;
+  var total=document.querySelectorAll('.wa-trigger-contact-check:checked').length;
+  el.textContent=total+' selecionado(s)';
 }
 
 async function waSendTriggers() {
@@ -13927,8 +13953,10 @@ document.addEventListener('click', function(ev){
     if (el) el.style.display = 'none';
   } else if (action === 'select-all') {
     document.querySelectorAll('.wa-trigger-contact-check').forEach(function(c){c.checked=true;});
+    waUpdateTriggerSelectedCount();
   } else if (action === 'select-none') {
     document.querySelectorAll('.wa-trigger-contact-check').forEach(function(c){c.checked=false;});
+    waUpdateTriggerSelectedCount();
   } else if (action === 'send') {
     waSendTriggers();
   }
