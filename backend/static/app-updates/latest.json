@@ -1,12 +1,12 @@
 ﻿{
-    "versionName":  "2.0.1",
-    "versionCode":  29,
+    "versionName":  "2.0.10",
+    "versionCode":  38,
     "packageName":  "br.com.meninadosraios.vendas",
-    "sha256":  "d50b1046fee16c15424d9dbdc597b103135cc6df74933c201cf1928b49847f3f",
-    "releaseNotes":  "Primeira versao do modulo Entregas no app, com pendentes, concluidas e confirmacao de entrega pelo celular.",
-    "notes":  "Primeira versao do modulo Entregas no app, com pendentes, concluidas e confirmacao de entrega pelo celular.",
+    "sha256":  "a689fa4709b26ab4b88725a13bb657db1e082ee22a75236916ed37652dbfa441",
+    "releaseNotes":  "Melhorias e correcoes.",
+    "notes":  "Melhorias e correcoes.",
     "apkFile":  "Menina-dos-Raios-Vendas-OFICIAL.apk",
     "apkUrl":  "https://sistema.meninadosraios.com.br/app-updates/Menina-dos-Raios-Vendas-OFICIAL.apk",
-    "sizeBytes":  495677,
-    "publishedAt":  "2026-08-12T11:49:48-04:00"
+    "sizeBytes":  516109,
+    "publishedAt":  "2026-08-12T13:39:50-04:00"
 }
