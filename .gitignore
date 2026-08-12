@@ -145,6 +145,7 @@ celerybeat.pid
 .env
 atualizarrefatorado.local.bat
 logs_atualizacao_refatorada/
+logs_apk_publicacao/
 baileys-api-validation/
 bm_app_refatorado_*.zip
 .venv
