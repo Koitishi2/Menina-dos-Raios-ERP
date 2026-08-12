@@ -13768,38 +13768,62 @@ async function waCheckTriggers() {
   try {
     var r=await api('/api/whatsapp/check-triggers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({send:false})});
     if(!r.triggers_fired){
-      el.innerHTML='<div style="display:flex;align-items:center;gap:8px;color:#22c55e;font-weight:600;font-size:13px">✅ Nenhum gatilho foi acionado. Tudo em ordem!</div>';
+      el.innerHTML='<div style="display:flex;align-items:center;gap:8px;color:#22c55e;font-weight:600;font-size:13px">OK Nenhum gatilho foi acionado. Tudo em ordem!</div>';
       return;
     }
-    var html='<div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:8px"> Resultado da verificação</div>';
-    var icons={boleto:'📄',avaria:'⚠',inativo:'😴'};
+    var html='<div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:8px"> Resultado da verificacao</div>';
+    var icons={boleto:'[boleto]',avaria:'[alerta]',inativo:'[inativo]'};
     var labels={boleto:'Boletos vencidos',avaria:'Avarias altas',inativo:'Clientes inativos'};
     r.messages.forEach(function(m){
       var preview = waFixMojibake(m.preview || '');
       html+='<div style="margin-bottom:10px;padding:10px;background:var(--card2);border-radius:8px;font-size:12px">'
-        +'<div style="font-weight:700;margin-bottom:4px">'+(icons[m.type]||'🔔')+' '+(labels[m.type]||m.type)+' ('+m.count+')</div>'
+        +'<div style="font-weight:700;margin-bottom:4px">'+(icons[m.type]||'[gatilho]')+' '+(labels[m.type]||m.type)+' ('+m.count+')</div>'
         +'<pre style="white-space:pre-wrap;font-family:inherit;font-size:11px;color:var(--g800);margin:0;line-height:1.5">'+waLogEsc(preview)+'</pre></div>';
     });
+    var contacts=[];
+    try{contacts=(await api('/api/whatsapp/contacts')).filter(function(c){return c.active;});}catch(_e){contacts=[];}
+    if(contacts.length){
+      html+='<div style="margin-top:10px;padding:10px;background:var(--card2);border:1px solid var(--border);border-radius:8px">'
+        +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">'
+        +'<div><div style="font-size:12px;font-weight:800;color:var(--g800)">Selecionar contatos</div><div style="font-size:10px;color:var(--muted)">Marque quem deve receber as notificacoes destes gatilhos.</div></div>'
+        +'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">'
+        +'<button type="button" class="btn btn-secondary btn-sm" data-wa-trigger-action="select-all">Todos</button>'
+        +'<button type="button" class="btn btn-secondary btn-sm" data-wa-trigger-action="select-none">Nenhum</button>'
+        +'</div></div>'
+        +'<div id="wa-trigger-contact-list" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:6px;max-height:190px;overflow:auto;padding-right:2px">'
+        +contacts.map(function(c){
+          return '<label style="display:flex;align-items:center;gap:7px;padding:7px 8px;border:1px solid var(--border);border-radius:7px;background:var(--card);font-size:12px;cursor:pointer;min-width:0">'
+            +'<input type="checkbox" class="wa-trigger-contact-check" value="'+waLogEsc(c.id)+'" checked>'
+            +'<span style="min-width:0"><span style="display:block;font-weight:700;color:var(--g800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+waLogEsc(c.name||'Sem nome')+'</span><span style="display:block;font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">+'+waLogEsc(c.phone||'')+'</span></span>'
+            +'</label>';
+        }).join('')
+        +'</div></div>';
+    } else {
+      html+='<div style="margin-top:10px;padding:10px;background:var(--red-l);border-radius:8px;color:var(--red);font-size:12px">Nenhum contato ativo encontrado para envio.</div>';
+    }
     html+='<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">'
       +'<button type="button" class="btn btn-secondary btn-sm" data-wa-trigger-action="close">Fechar</button>'
-      +'<button type="button" class="btn btn-primary btn-sm" data-wa-trigger-action="send">📤 Enviar notificações</button>'
+      +'<button type="button" class="btn btn-primary btn-sm" data-wa-trigger-action="send">Enviar notificacoes</button>'
       +'</div>';
     el.innerHTML=html;
   } catch(e) { el.innerHTML='<div style="color:var(--red);font-size:12px"> '+e.message+'</div>'; }
 }
 
 async function waSendTriggers() {
-  if(!confirm('Enviar notificações dos gatilhos para TODOS os contatos ativos?'))return;
+  var checks=[].slice.call(document.querySelectorAll('.wa-trigger-contact-check:checked'));
+  var contactIds=checks.map(function(c){return c.value;});
+  if(!contactIds.length){toast('Selecione pelo menos um contato para enviar os gatilhos.','error');return;}
+  if(!confirm('Enviar notificacoes dos gatilhos para '+contactIds.length+' contato(s) selecionado(s)?'))return;
   var el=document.getElementById('wa-trigger-result');
   if(!el)return;
-  el.innerHTML='<div style="text-align:center;padding:12px;color:var(--muted)">📤 Enviando...</div>';
+  el.innerHTML='<div style="text-align:center;padding:12px;color:var(--muted)">Enviando...</div>';
   try {
-    var r=await api('/api/whatsapp/check-triggers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({send:true})});
+    var r=await api('/api/whatsapp/check-triggers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({send:true,contact_ids:contactIds})});
     var ok=(r.sent||[]).filter(function(x){return x.ok;}).length;
     var bad=(r.sent||[]).filter(function(x){return !x.ok;}).length;
     var firstError=(r.sent||[]).find(function(x){return !x.ok;});
-    el.innerHTML='<div style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px">📤 Notificações enviadas: '+ok+' ✅'+(bad?'  '+bad+' ':'')+'</div>'
-      +'<div style="margin-top:6px;font-size:11px;color:var(--muted)">'+r.triggers_fired+' gatilho(s) acionado(s) · '+(r.sent||[]).length+' envio(s)</div>'
+    el.innerHTML='<div style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px">Notificacoes enviadas: '+ok+' OK'+(bad?'  '+bad+' falha(s)':'')+'</div>'
+      +'<div style="margin-top:6px;font-size:11px;color:var(--muted)">'+r.triggers_fired+' gatilho(s) acionado(s) - '+(r.sent||[]).length+' envio(s)</div>'
       +(firstError?'<div style="margin-top:8px;padding:9px;background:var(--red-l);border-radius:7px;color:var(--red);font-size:11px"><b>Motivo:</b> '+waLogEsc(waFixMojibake(firstError.response||'Falha sem detalhe'))+'<br><b>Como corrigir:</b> '+waLogEsc(waFixMojibake(firstError.hint||'Consulte o log de envios.'))+'</div>':'')
       +'<div style="margin-top:8px"><button type="button" class="btn btn-secondary btn-sm" data-wa-trigger-action="close">Fechar</button></div>';
     loadWaLog();
@@ -13901,6 +13925,10 @@ document.addEventListener('click', function(ev){
   if (action === 'close') {
     var el = document.getElementById('wa-trigger-result');
     if (el) el.style.display = 'none';
+  } else if (action === 'select-all') {
+    document.querySelectorAll('.wa-trigger-contact-check').forEach(function(c){c.checked=true;});
+  } else if (action === 'select-none') {
+    document.querySelectorAll('.wa-trigger-contact-check').forEach(function(c){c.checked=false;});
   } else if (action === 'send') {
     waSendTriggers();
   }

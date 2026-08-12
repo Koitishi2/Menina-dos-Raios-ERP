@@ -1195,6 +1195,43 @@ def test_whatsapp_triggers_send_true_sends_without_open_sqlite_and_persists_logs
     ]
 
 
+def test_whatsapp_triggers_send_true_respects_selected_contact_ids(isolated_app, monkeypatch):
+    token = _login(isolated_app.client)
+    db_path = isolated_app.db_paths["raios"]
+    _add_overdue_boleto(db_path, client="Cliente Selecionado", total=210.0)
+    first_id = _add_contact(db_path, "Contato Selecionado A", "559599000031", active=1)
+    _add_contact(db_path, "Contato Ignorado", "559599000032", active=1)
+    second_id = _add_contact(db_path, "Contato Selecionado B", "559599000033", active=1)
+    inactive_id = _add_contact(db_path, "Contato Inativo", "559599000034", active=0)
+    state = _install_tracked_db(monkeypatch, isolated_app)
+    calls = []
+
+    def fake_wa_send(phone, message, cfg):
+        assert state["open"] == 0
+        calls.append((phone, message))
+        return {"ok": True, "response": "ok"}
+
+    monkeypatch.setattr(isolated_app.module, "wa_send", fake_wa_send)
+
+    response = isolated_app.client.post(
+        "/api/whatsapp/check-triggers",
+        headers=_headers(token),
+        json={"send": True, "contact_ids": [first_id, second_id, inactive_id]},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["dry_run"] is False
+    assert [item["phone"] for item in payload["sent"]] == ["559599000031", "559599000033"]
+    assert [phone for phone, _message in calls] == ["559599000031", "559599000033"]
+    assert state["open"] == 0
+    logs = [row for row in _fetch_logs(db_path) if row["event_type"] == "boleto"]
+    assert [(row["phone"], row["status"]) for row in logs] == [
+        ("559599000031", "sent"),
+        ("559599000033", "sent"),
+    ]
+
+
 def test_whatsapp_triggers_rolls_back_and_closes_when_log_persistence_fails(isolated_app, monkeypatch):
     token = _login(isolated_app.client)
     db_path = isolated_app.db_paths["raios"]

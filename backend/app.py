@@ -5142,6 +5142,10 @@ def check_wa_triggers(body: dict, x_token: str = Header(...)):
         cfg_rows = conn.execute("SELECT key, value FROM whatsapp_config").fetchall()
         cfg = {r["key"]: r["value"] for r in cfg_rows}
         send = body.get("send", False)
+        contact_ids = body.get("contact_ids")
+        selected_contact_ids = None
+        if isinstance(contact_ids, list):
+            selected_contact_ids = [str(cid) for cid in contact_ids if str(cid or "").strip()]
         results = {}
         messages = []
 
@@ -5254,7 +5258,17 @@ def check_wa_triggers(body: dict, x_token: str = Header(...)):
 
         sent_results = []
         if send and messages:
-            active_contacts = [dict(r) for r in conn.execute("SELECT * FROM whatsapp_contacts WHERE active=1").fetchall()]
+            if selected_contact_ids is not None:
+                if selected_contact_ids:
+                    ph = ",".join("?" for _ in selected_contact_ids)
+                    active_contacts = [dict(r) for r in conn.execute(
+                        f"SELECT * FROM whatsapp_contacts WHERE active=1 AND id IN ({ph})",
+                        selected_contact_ids
+                    ).fetchall()]
+                else:
+                    active_contacts = []
+            else:
+                active_contacts = [dict(r) for r in conn.execute("SELECT * FROM whatsapp_contacts WHERE active=1").fetchall()]
             conn.close()
             conn = None
             log_entries = []
