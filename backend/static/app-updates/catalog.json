@@ -1,12 +1,12 @@
 ﻿{
-    "versionName":  "2.0.10",
-    "versionCode":  38,
+    "versionName":  "2.0.12",
+    "versionCode":  40,
     "packageName":  "br.com.meninadosraios.vendas",
-    "sha256":  "a689fa4709b26ab4b88725a13bb657db1e082ee22a75236916ed37652dbfa441",
+    "sha256":  "c303deb9b2cb1267bf2963bfa9a01d685d603c86e890cac6cd7902aea51d8171",
     "releaseNotes":  "Melhorias e correcoes.",
     "notes":  "Melhorias e correcoes.",
     "apkFile":  "Menina-dos-Raios-Vendas-OFICIAL.apk",
     "apkUrl":  "https://sistema.meninadosraios.com.br/app-updates/Menina-dos-Raios-Vendas-OFICIAL.apk",
-    "sizeBytes":  516109,
-    "publishedAt":  "2026-08-12T13:39:50-04:00"
+    "sizeBytes":  654865,
+    "publishedAt":  "2026-08-12T14:19:14-04:00"
 }

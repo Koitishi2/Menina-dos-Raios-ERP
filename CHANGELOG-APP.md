@@ -2,12 +2,41 @@
 
 Este arquivo registra as alteracoes funcionais do aplicativo Android e da integracao com o sistema.
 
+Versao estavel atual: `2.0.12`.
+
+As versoes 2.x representam a linha estavel atual do APK Android. Historicos antigos permanecem apenas como registro funcional, sem indicar estado de refatoracao ou versao experimental.
+
 ## Politica de versoes
 
 - Revisoes: `1.0.1`, `1.0.2` ate `1.0.999`.
 - Apos `1.0.999`, a proxima versao sera `1.1.0`.
 - O `versionCode` interno do Android sempre aumenta a cada APK publicado.
 - Uma versao publicada nunca deve ser reutilizada para outro APK.
+
+## [2.0.12] - 12/08/2026
+
+### Entregas unificada ao tema escuro
+
+- O modulo Entregas passou a usar o mesmo tema escuro/grafite do restante do APK.
+- A tela de lancar entrega/pedido agora abre com fundo escuro, titulo claro, campos escuros e bordas discretas.
+- Campos de texto e seletores de cliente/produto/unidade foram ajustados para melhor leitura em tela escura.
+- Cards de entregas pendentes e concluidas agora usam fundo escuro, borda por status, sombra e animacao de toque.
+- Botoes de acao de Entregas foram mantidos no padrao visual atual do app.
+- A logica de lancar, listar, concluir entregas, notas pendentes, login, PIN, graficos e atualizacao automatica foi preservada.
+
+## [2.0.11] - 12/08/2026
+
+### Graficos animados e indicadores visuais
+
+- Adicionada biblioteca MPAndroidChart ao APK para graficos nativos em tema escuro.
+- Projecao ganhou grafico animado de tendencia de saida, com linha suave e leitura mobile.
+- Projecao manteve indicador de Realizado x Meta, agora com estado visual verde, amarelo ou vermelho.
+- Produtividade ganhou grafico animado de barras por dia, inspirado em dashboard financeiro.
+- Avarias ganhou grafico animado de barras por dia para visualizar concentracao de ocorrencias.
+- Consolidado ganhou grafico animado de linha com tendencia diaria do periodo.
+- Barras horizontais de ranking passaram a animar ao aparecer na tela.
+- Eixos, textos, grades e legendas foram ajustados para o tema escuro/grafite.
+- Login, PIN, Entregas, Home, navegacao, atualizacao automatica e normalizacao de acentuacao foram preservados.
 
 ## [2.0.10] - 12/08/2026
 
