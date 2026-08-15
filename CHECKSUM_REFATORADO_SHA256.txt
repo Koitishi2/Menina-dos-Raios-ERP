@@ -1,12 +1,12 @@
-eb977c6d499fc3a4771c97791395548d6c4107e7a05b991ad36adbae859c82fa  bm_app_refatorado_c180c81.zip
+16a53851ac5ec62646641a5949199323eb3b4f031b99b5e82d8f4159e7c9c7f0  bm_app_refatorado_f4c02b4_r3.zip
 
-SHA-256: eb977c6d499fc3a4771c97791395548d6c4107e7a05b991ad36adbae859c82fa
-Arquivo: bm_app_refatorado_c180c81.zip
-Tamanho_bytes: 9275264
-Quantidade_entradas_zip: 27
-Commit_codigo_origem: c180c81
+SHA-256: 16a53851ac5ec62646641a5949199323eb3b4f031b99b5e82d8f4159e7c9c7f0
+Arquivo: bm_app_refatorado_f4c02b4_r3.zip
+Tamanho_bytes: 9295760
+Quantidade_entradas_zip: 24
+Commit_codigo_origem: f4c02b4
 Branch_publica: main
-Gerado_em: 2026-08-10T13:08:49
+Gerado_em: 2026-08-14T22:50:00-04:00
 
 Exclusoes_aplicadas:
 - .git e metadados Git

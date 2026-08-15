@@ -3,15 +3,15 @@ setlocal EnableExtensions
 title Menina dos Raios - Atualizacao refatorada segura
 color 0A
 
-rem Atualizador seguro da versao refatorada estavel.
-rem Commit do pacote: c180c81
+rem Atualizador seguro da versao estavel.
+rem Commit do pacote: f4c02b4
 rem Modo padrao: validacao local, sem ssh/scp.
 rem Use --remote-dry-run para validar staging remoto sem aplicar.
 rem Use --apply somente para atualizacao real controlada.
 rem Nao grave senha, token ou chave privada neste arquivo.
 
-set "VERSION_COMMIT=c180c81"
-set "ZIP_NAME=bm_app_refatorado_c180c81.zip"
+set "VERSION_COMMIT=f4c02b4"
+set "ZIP_NAME=bm_app_refatorado_f4c02b4_r3.zip"
 set "CHECKSUM_FILE=CHECKSUM_REFATORADO_SHA256.txt"
 set "REMOTE_STAGE_SCRIPT=%~dp0atualizarrefatorado_remote_stage.sh"
 set "REMOTE_CLEANUP_SCRIPT=%~dp0atualizarrefatorado_remote_cleanup.sh"
@@ -111,8 +111,9 @@ if not exist "%REMOTE_APPLY_SCRIPT%" (
 )
 
 set "EXPECTED_SHA="
-set /p "EXPECTED_SHA="<"%CHECKSUM_FILE%"
-for /f "tokens=1" %%H in ("%EXPECTED_SHA%") do set "EXPECTED_SHA=%%H"
+for /f "usebackq tokens=1" %%H in ("%CHECKSUM_FILE%") do (
+  if not defined EXPECTED_SHA set "EXPECTED_SHA=%%H"
+)
 if "%EXPECTED_SHA%"=="" (
   echo ERRO: SHA-256 esperado vazio.
   >>"%LOG_FILE%" echo ERRO: SHA-256 esperado vazio.

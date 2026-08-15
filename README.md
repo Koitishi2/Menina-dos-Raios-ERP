@@ -4,9 +4,9 @@ Aplicacao de gestao operacional para vendas, entregas, boletos, notas, orcamento
 
 Versao atual do servidor: `2.0.0`
 
-Este repositorio contem a versao refatorada estavel da aplicacao, encerrada no checkpoint `c180c81` (`remove: retire unused Excel import`) e implantada como versao de servidor `2.0.0`. O ciclo de refatoracao priorizou preservacao de contratos existentes, reducao de acoplamento e correcoes de ciclo de vida de conexoes e transacoes.
+Este repositorio contem a versao estavel da aplicacao, mantida no checkpoint `f4c02b4` e implantada como versao de servidor `2.0.0`. O foco desta versao e manter os modulos atuais operando com seguranca, preservando contratos existentes, dados persistentes e integracoes em producao.
 
-## Estado da Versao Refatorada
+## Estado da Versao Estavel
 
 Dominios finalizados no ciclo atual:
 
@@ -18,11 +18,11 @@ Dominios finalizados no ciclo atual:
 
 A funcionalidade de upload/importacao Excel foi removida por nao fazer mais parte do uso atual. Dados historicos, tabelas, compatibilidades e rotas auxiliares necessarias para registros antigos foram preservados quando aplicavel.
 
-Deploy controlado concluido com pacote `bm_app_refatorado_c180c81.zip`, preservando configuracoes locais, bancos, uploads, logs, backups e sessoes de integracao. O componente WhatsApp/Baileys permanece no ciclo de producao validado com Baileys 6.7.x; Baileys 7 RC segue bloqueado para producao ate novo ciclo especifico.
+Deploy controlado por pacote `.zip`, preservando configuracoes locais, bancos, uploads, logs, backups e sessoes de integracao. O componente WhatsApp/Baileys permanece no ciclo de producao validado com Baileys 6.7.x; Baileys 7 RC segue bloqueado para producao ate novo ciclo especifico.
 
 ## Qualidade e Validacao
 
-A validacao final da versao refatorada registrou:
+A validacao da versao estavel registra:
 
 - `234 passed` na suite completa de testes;
 - duas execucoes consecutivas bem-sucedidas;
@@ -35,7 +35,7 @@ Os testes usam ambiente temporario e bloqueiam chamadas externas reais quando ap
 
 O backend principal e baseado em FastAPI com persistencia SQLite. O frontend principal servido pela aplicacao fica em `backend/static/index.html`.
 
-Modulos extraidos durante a refatoracao incluem:
+Modulos internos da aplicacao incluem:
 
 - `backend/app_notes_domain.py`;
 - `backend/app_notes_service.py`;
@@ -118,12 +118,12 @@ Fluxo basico de uso:
 
 O PIN de 4 digitos e local do aparelho e nao substitui a senha do sistema web. Ele serve apenas para desbloquear o app apos o login inicial.
 
-## Pacote Refatorado
+## Pacote de Atualizacao
 
 A distribuicao empacotada da versao estavel deve usar o nome:
 
 ```text
-bm_app_refatorado_c180c81.zip
+bm_app_refatorado_f4c02b4_r3.zip
 ```
 
 O pacote publicado nao deve conter:

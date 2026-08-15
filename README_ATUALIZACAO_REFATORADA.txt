@@ -1,7 +1,7 @@
-# Atualizacao da Versao Refatorada Estavel
+# Atualizacao da Versao Estavel
 
-Pacote esperado: `bm_app_refatorado_c180c81.zip`
-Checkpoint de codigo: `c180c81` (`remove: retire unused Excel import`)
+Pacote esperado: `bm_app_refatorado_f4c02b4_r3.zip`
+Checkpoint de codigo: `f4c02b4`
 Branch publica: `main`
 
 ## Importante
