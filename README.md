@@ -4,7 +4,7 @@ Aplicacao de gestao operacional para vendas, entregas, boletos, notas, orcamento
 
 Versao atual do servidor: `2.0.0`
 
-Este repositorio contem a versao estavel da aplicacao, mantida no checkpoint `f4c02b4` e implantada como versao de servidor `2.0.0`. O foco desta versao e manter os modulos atuais operando com seguranca, preservando contratos existentes, dados persistentes e integracoes em producao.
+Este repositorio contem a versao estavel da aplicacao, mantida no checkpoint `88fef18` e implantada como versao de servidor `2.0.0`. O foco desta versao e manter os modulos atuais operando com seguranca, preservando contratos existentes, dados persistentes e integracoes em producao.
 
 ## Estado da Versao Estavel
 
@@ -123,7 +123,7 @@ O PIN de 4 digitos e local do aparelho e nao substitui a senha do sistema web. E
 A distribuicao empacotada da versao estavel deve usar o nome:
 
 ```text
-bm_app_refatorado_f4c02b4_r3.zip
+bm_app_refatorado_88fef18.zip
 ```
 
 O pacote publicado nao deve conter:

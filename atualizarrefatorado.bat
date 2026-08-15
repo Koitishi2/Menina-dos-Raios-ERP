@@ -4,14 +4,14 @@ title Menina dos Raios - Atualizacao refatorada segura
 color 0A
 
 rem Atualizador seguro da versao estavel.
-rem Commit do pacote: f4c02b4
+rem Commit do pacote: 88fef18
 rem Modo padrao: validacao local, sem ssh/scp.
 rem Use --remote-dry-run para validar staging remoto sem aplicar.
 rem Use --apply somente para atualizacao real controlada.
 rem Nao grave senha, token ou chave privada neste arquivo.
 
-set "VERSION_COMMIT=f4c02b4"
-set "ZIP_NAME=bm_app_refatorado_f4c02b4_r3.zip"
+set "VERSION_COMMIT=88fef18"
+set "ZIP_NAME=bm_app_refatorado_88fef18.zip"
 set "CHECKSUM_FILE=CHECKSUM_REFATORADO_SHA256.txt"
 set "REMOTE_STAGE_SCRIPT=%~dp0atualizarrefatorado_remote_stage.sh"
 set "REMOTE_CLEANUP_SCRIPT=%~dp0atualizarrefatorado_remote_cleanup.sh"
