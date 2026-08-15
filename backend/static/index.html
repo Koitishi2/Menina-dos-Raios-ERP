@@ -14374,7 +14374,7 @@ function switchPaladarTab(tab){
   if(app) app.classList.toggle('pal-orcamento-compact', tab==='orcamentos');
   var scroller=document.getElementById('pal-content-scroll') || (app ? app.querySelector(':scope > div:nth-child(3)') : null);
   if(scroller) scroller.scrollTop = 0;
-  ['painel','lancamentos','produtos','clientes','notasapp','calendario','pagamentos','orcamentos'].forEach(function(t){
+  ['painel','lancamentos','produtos','clientes','notasapp','calendario','dados','pagamentos','orcamentos'].forEach(function(t){
     var v = document.getElementById('pal-view-'+t);
     if(v) v.style.display = (t===tab ? 'block' : 'none');
     var b = document.getElementById('pal-tab-'+t);
@@ -14389,6 +14389,7 @@ function switchPaladarTab(tab){
   else if(tab==='clientes') loadPaladarClients();
   else if(tab==='notasapp') loadAppNotes();
   else if(tab==='calendario') loadAppCalendar();
+  else if(tab==='dados') loadAppVales();
   else if(tab==='pagamentos'){ loadMonteiroPaymentPermUI(); loadPaladarPayments(); }
   else if(tab==='orcamentos'){ mountOrcamentoInMonteiro(); loadOrcamento(); }
 }
@@ -14825,6 +14826,82 @@ async function deleteAppCalendarSeries(idsCsv){
 }
 
 /* ── Modal de Lançamento (multi-item) ── */
+/* Dados dos vales do aplicativo Android */
+var _appVales=[];
+function appValeDate(s){ if(!s)return '-'; var p=String(s).split('-'); return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:s; }
+function appValeMoney(v){ return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
+function appValeStatus(s){ return s==='sincronizado'?'Sincronizado':'Pendente'; }
+function appValeParams(){
+  var qs=[];
+  var name=document.getElementById('app-vales-name')?.value.trim();
+  var from=document.getElementById('app-vales-from')?.value;
+  var to=document.getElementById('app-vales-to')?.value;
+  var status=document.getElementById('app-vales-status')?.value;
+  if(name)qs.push('solicitante_nome='+encodeURIComponent(name));
+  if(from)qs.push('date_from='+encodeURIComponent(from));
+  if(to)qs.push('date_to='+encodeURIComponent(to));
+  if(status)qs.push('status='+encodeURIComponent(status));
+  return qs.length?'?'+qs.join('&'):'';
+}
+async function loadAppVales(){
+  var wrap=document.getElementById('app-vales-wrap');
+  if(!wrap)return;
+  wrap.innerHTML='<div class="wa-empty" style="padding:36px">Carregando vales...</div>';
+  try{
+    var res=await api('/api/mobile/vales'+appValeParams());
+    _appVales=res.items||[];
+    renderAppVales();
+  }catch(e){
+    wrap.innerHTML='<div class="wa-empty" style="padding:36px;color:#DC2626">Erro ao carregar vales: '+admEsc(e.message)+'</div>';
+  }
+}
+function renderAppVales(){
+  var wrap=document.getElementById('app-vales-wrap'),kpis=document.getElementById('app-vales-kpis');
+  if(!wrap)return;
+  var items=_appVales||[];
+  var total=items.reduce(function(s,x){return s+Number(x.amount||0);},0);
+  var solicitantes={}; items.forEach(function(x){solicitantes[String(x.solicitante_nome||'').trim().toLowerCase()]=1;});
+  var pend=items.filter(function(x){return x.status!=='sincronizado';}).length;
+  if(kpis)kpis.innerHTML=''
+    +'<div class="card" style="padding:12px"><div style="font-size:10px;color:var(--muted);text-transform:uppercase">Total de vales</div><div style="font-size:20px;font-weight:800;color:var(--g800)">'+items.length+'</div></div>'
+    +'<div class="card" style="padding:12px"><div style="font-size:10px;color:var(--muted);text-transform:uppercase">Valor solicitado</div><div style="font-size:20px;font-weight:800;color:var(--g800)">'+appValeMoney(total)+'</div></div>'
+    +'<div class="card" style="padding:12px"><div style="font-size:10px;color:var(--muted);text-transform:uppercase">Solicitantes</div><div style="font-size:20px;font-weight:800;color:var(--g800)">'+Object.keys(solicitantes).length+'</div></div>'
+    +'<div class="card" style="padding:12px"><div style="font-size:10px;color:var(--muted);text-transform:uppercase">Pendentes</div><div style="font-size:20px;font-weight:800;color:var(--g800)">'+pend+'</div></div>';
+  if(!items.length){wrap.innerHTML='<div class="wa-empty" style="padding:36px">Nenhum vale encontrado.</div>';return;}
+  var html='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#F3F4F6;color:var(--muted);text-transform:uppercase;letter-spacing:.04em"><th style="padding:10px;text-align:left">Solicitante</th><th style="padding:10px;text-align:right">Valor</th><th style="padding:10px;text-align:left">Data</th><th style="padding:10px;text-align:left">Registrado por</th><th style="padding:10px;text-align:left">Status</th><th style="padding:10px;text-align:right">Ações</th></tr></thead><tbody>';
+  items.forEach(function(v){
+    html+='<tr style="border-top:1px solid var(--border)">'
+      +'<td style="padding:10px;font-weight:800;color:var(--g800)">'+admEsc(v.solicitante_nome||'')+'</td>'
+      +'<td style="padding:10px;text-align:right;font-family:monospace;font-weight:800">'+appValeMoney(v.amount)+'</td>'
+      +'<td style="padding:10px">'+appValeDate(v.request_date)+'</td>'
+      +'<td style="padding:10px">'+admEsc(v.registered_by_name||v.registered_by_username||'-')+'</td>'
+      +'<td style="padding:10px"><span style="background:'+(v.status==='sincronizado'?'#DCFCE7;color:#166534':'#FEF3C7;color:#92400E')+';border-radius:999px;padding:3px 8px;font-weight:800;font-size:10px">'+appValeStatus(v.status)+'</span></td>'
+      +'<td style="padding:10px;text-align:right"><button class="btn btn-secondary btn-sm" onclick="showAppValeSignature(\''+admEsc(v.id)+'\')">Ver assinatura</button></td>'
+      +'</tr>';
+  });
+  html+='</tbody></table>'; wrap.innerHTML=html;
+}
+function clearAppValesFilters(){ ['app-vales-name','app-vales-from','app-vales-to','app-vales-status'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';}); loadAppVales(); }
+async function showAppValeSignature(id){
+  var vale=(_appVales||[]).find(function(x){return String(x.id)===String(id);});
+  try{
+    var r=await fetch(API+'/api/mobile/vales/'+encodeURIComponent(id)+'/signature',{headers:{'x-token':session.token,'x-company':activeCompany}});
+    if(!r.ok)throw new Error('Não foi possível abrir assinatura.');
+    var blob=await r.blob(); var url=URL.createObjectURL(blob);
+    var old=document.getElementById('app-vale-signature-modal'); if(old)old.remove();
+    var modal=document.createElement('div'); modal.id='app-vale-signature-modal'; modal.className='modal open'; modal.style.display='flex';
+    modal.innerHTML='<div class="modal-content" style="max-width:620px"><div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border)"><div style="font-size:16px;font-weight:800;color:var(--g800)">Assinatura do solicitante</div><button id="app-vale-signature-close" style="border:none;background:transparent;font-size:22px;cursor:pointer;color:var(--muted)">×</button></div><div style="padding:16px"><div style="font-size:13px;color:var(--muted);margin-bottom:10px">'+admEsc(vale?(vale.solicitante_nome+' • '+appValeMoney(vale.amount)+' • '+appValeDate(vale.request_date)):'')+'</div><img src="'+url+'" style="width:100%;max-height:360px;object-fit:contain;background:#fff;border:1px solid var(--border);border-radius:10px"></div></div>';
+    document.body.appendChild(modal);
+    document.getElementById('app-vale-signature-close').onclick=function(){ modal.remove(); URL.revokeObjectURL(url); };
+  }catch(e){toast(e.message,'error');}
+}
+function exportAppValesCsv(){
+  var rows=[['Solicitante','Valor','Data','Registrador','Status']].concat((_appVales||[]).map(function(v){return [v.solicitante_nome||'',Number(v.amount||0).toFixed(2),v.request_date||'',v.registered_by_name||v.registered_by_username||'',v.status||''];}));
+  var csv=rows.map(function(r){return r.map(function(c){return '"'+String(c).replace(/"/g,'""')+'"';}).join(';');}).join('\n');
+  var blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download='dados-vales.csv';a.click();setTimeout(function(){URL.revokeObjectURL(url);},1000);
+}
+
 function palFmt(v){ return 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function palSetVal(id,val){ var el=document.getElementById(id); if(el) el.value = val == null ? '' : val; }
 
@@ -17417,6 +17494,7 @@ setTimeout(installMobileReadOnlyGuards,0);
     <button id="pal-tab-pagamentos" onclick="switchPaladarTab('pagamentos')" style="padding:6px 16px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted)">💰 Pagamentos</button>
     <button id="pal-tab-notasapp" onclick="switchPaladarTab('notasapp')" style="padding:6px 16px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted)">📱 Notas APP <span id="pal-app-notes-badge" style="display:none;margin-left:4px;background:#DC2626;color:#fff;border-radius:999px;padding:1px 6px;font-size:9px">0</span></button>
     <button id="pal-tab-calendario" onclick="switchPaladarTab('calendario')" style="padding:6px 16px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted)">📅 Calendário <span id="pal-calendar-badge" style="display:none;margin-left:4px;background:#DC2626;color:#fff;border-radius:999px;padding:1px 6px;font-size:9px">0</span></button>
+    <button id="pal-tab-dados" onclick="switchPaladarTab('dados')" style="padding:6px 16px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted)">📂 Dados</button>
     <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
       <select id="pal-filter-period" class="filt" style="font-size:11px;padding:4px 8px" onchange="togglePalPeriodFields();(function(){var a=document.querySelector('#pal-view-painel,#pal-view-lancamentos,#pal-view-clientes,#pal-view-pagamentos');if(a){if(a.id==='pal-view-painel')loadPaladarSummary();else if(a.id==='pal-view-lancamentos')loadPaladarSales();else if(a.id==='pal-view-clientes')loadPaladarClients();else if(a.id==='pal-view-pagamentos')loadPaladarPayments();}})()">
         <option value="mensal">Mensal</option>
@@ -17437,7 +17515,7 @@ setTimeout(installMobileReadOnlyGuards,0);
         <option value="2024">2024</option><option value="2025">2025</option>
         <option value="2026">2026</option><option value="2027">2027</option>
       </select>
-      <button class="btn btn-secondary btn-sm" onclick="loadPaladarSummary();loadPaladarSales();loadPaladarClients();loadPaladarPayments();loadAppNotes();loadAppCalendar()" style="font-size:11px;padding:4px 10px"> Filtrar</button>
+      <button class="btn btn-secondary btn-sm" onclick="loadPaladarSummary();loadPaladarSales();loadPaladarClients();loadPaladarPayments();loadAppNotes();loadAppCalendar();loadAppVales()" style="font-size:11px;padding:4px 10px"> Filtrar</button>
     </div>
   </div>
 
@@ -17626,6 +17704,32 @@ setTimeout(installMobileReadOnlyGuards,0);
     <div id="app-calendar-kpis" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px"></div>
     <div class="card" style="padding:0;overflow:hidden">
       <div id="app-calendar-wrap" style="overflow-x:auto"><div class="wa-empty" style="padding:36px">Carregando calendário...</div></div>
+    </div>
+  </div>
+
+  <!-- VISTA: Dados dos vales -->
+  <div id="pal-view-dados" style="display:none;padding:14px">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+      <div>
+        <div style="font-size:17px;font-weight:800;color:var(--g800)">📂 Dados dos vales</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Solicitações registradas por funcionário.</div>
+      </div>
+      <div style="flex:1"></div>
+      <input id="app-vales-name" type="search" placeholder="Buscar solicitante..." style="width:220px;max-width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;font-size:12px">
+      <input id="app-vales-from" type="date" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;font-size:12px">
+      <input id="app-vales-to" type="date" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;font-size:12px">
+      <select id="app-vales-status" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;font-size:12px">
+        <option value="">Todos</option>
+        <option value="sincronizado">Sincronizado</option>
+        <option value="pendente_de_sincronizacao">Pendente</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="loadAppVales()">Filtrar</button>
+      <button class="btn btn-secondary btn-sm" onclick="clearAppValesFilters()">Limpar</button>
+      <button class="btn btn-secondary btn-sm" onclick="exportAppValesCsv()">CSV</button>
+    </div>
+    <div id="app-vales-kpis" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px"></div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div id="app-vales-wrap" style="overflow-x:auto"><div class="wa-empty" style="padding:36px">Carregando vales...</div></div>
     </div>
   </div>
 

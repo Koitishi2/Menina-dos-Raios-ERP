@@ -2,7 +2,7 @@
 Menina dos Raios Ltda â€” Backend v15
 Multi-usuÃ¡rio Â· SessÃµes Â· HistÃ³rico por conta Â· Placa Â· Hora Â· PreÃ§o por data
 """
-import os, sys, re, uuid, sqlite3, webbrowser, threading, io, json, hashlib, socket, hmac, logging, shutil
+import os, sys, re, uuid, sqlite3, webbrowser, threading, io, json, hashlib, socket, hmac, logging, shutil, base64
 from contextvars import ContextVar
 from contextlib import contextmanager
 from collections import defaultdict
@@ -1077,6 +1077,115 @@ def login(body:LoginIn, request:Request):
 def logout(x_token:str=Header("")):
     conn=get_control_db(); conn.execute("DELETE FROM sessions WHERE token=?",(x_token,)); conn.commit(); conn.close()
     return {"ok":True}
+
+# Vales solicitados pelo aplicativo Android (offline-first)
+def _vale_key(nome:str)->str:
+    return _normalize_name(str(nome or "").strip())
+
+def _clean_mobile_vale(body:dict):
+    client_id=str(body.get("client_id") or "").strip()[:100]
+    if not client_id:
+        raise HTTPException(400,"client_id obrigatorio.")
+    solicitante_nome=re.sub(r"\s+"," ",str(body.get("solicitante_nome") or "").strip())[:180]
+    if not solicitante_nome:
+        raise HTTPException(400,"Informe o nome do solicitante.")
+    try:
+        amount=round(float(body.get("amount") or 0),2)
+    except Exception:
+        raise HTTPException(400,"Valor invalido.")
+    if amount<=0:
+        raise HTTPException(400,"O valor deve ser maior que zero.")
+    request_date=str(body.get("request_date") or "").strip()[:10]
+    try:
+        datetime.strptime(request_date,"%Y-%m-%d")
+    except Exception:
+        raise HTTPException(400,"Data do vale invalida.")
+    signature=str(body.get("signature_png_base64") or "").strip()
+    if not signature:
+        raise HTTPException(400,"Assinatura obrigatoria.")
+    signature_format=str(body.get("signature_format") or "png").strip().lower()[:20] or "png"
+    if signature_format!="png":
+        raise HTTPException(400,"Formato de assinatura invalido.")
+    source=str(body.get("source") or "android_app").strip()[:40] or "android_app"
+    return client_id,solicitante_nome,amount,request_date,signature,signature_format,source
+
+def _signature_png_bytes(signature:str)->bytes:
+    raw=str(signature or "").strip()
+    if "," in raw:
+        raw=raw.split(",",1)[1]
+    try:
+        data=base64.b64decode(raw,validate=False)
+    except Exception:
+        data=b""
+    if not data:
+        raise HTTPException(404,"Assinatura nao encontrada.")
+    return data
+
+def _vale_dict(row):
+    item=dict(row)
+    item.pop("signature_png_base64",None)
+    item["signature_url"]="/api/mobile/vales/"+str(item.get("id"))+"/signature"
+    return item
+
+@app.post("/api/mobile/vales")
+def create_mobile_vale(body:dict,x_token:str=Header("")):
+    sess=require_auth(x_token)
+    client_id,solicitante_nome,amount,request_date,signature,signature_format,source=_clean_mobile_vale(body)
+    now=datetime.now().isoformat(timespec="seconds")
+    conn=get_app_notes_db()
+    try:
+        existing=conn.execute("SELECT * FROM app_vales WHERE client_id=?",(client_id,)).fetchone()
+        if existing:
+            return {"success":True,"duplicate":True,"vale":_vale_dict(existing)}
+        vale_id=str(uuid.uuid4())
+        conn.execute("""INSERT INTO app_vales
+            (id,client_id,solicitante_nome,solicitante_key,amount,request_date,signature_png_base64,signature_format,
+             registered_by_user_id,registered_by_username,registered_by_name,status,source,created_at,updated_at)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (vale_id,client_id,solicitante_nome,_vale_key(solicitante_nome),amount,request_date,signature,signature_format,
+             str(sess.get("user_id") or ""),str(sess.get("username") or ""),str(sess.get("full_name") or sess.get("username") or ""),
+             "sincronizado",source,now,now))
+        conn.commit()
+        row=conn.execute("SELECT * FROM app_vales WHERE id=?",(vale_id,)).fetchone()
+        return {"success":True,"duplicate":False,"vale":_vale_dict(row)}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+@app.get("/api/mobile/vales")
+def list_mobile_vales(solicitante_nome:Optional[str]=None,date_from:Optional[str]=None,date_to:Optional[str]=None,status:Optional[str]=None,x_token:str=Header("")):
+    require_auth(x_token)
+    conn=get_app_notes_db(); where=[]; params=[]
+    try:
+        if solicitante_nome:
+            where.append("solicitante_key LIKE ?"); params.append("%"+_vale_key(solicitante_nome)+"%")
+        if date_from:
+            where.append("date(request_date)>=date(?)"); params.append(str(date_from)[:10])
+        if date_to:
+            where.append("date(request_date)<=date(?)"); params.append(str(date_to)[:10])
+        if status:
+            where.append("status=?"); params.append(str(status)[:40])
+        sql="SELECT * FROM app_vales"+(" WHERE "+" AND ".join(where) if where else "")+" ORDER BY request_date DESC, created_at DESC LIMIT 1000"
+        rows=conn.execute(sql,params).fetchall()
+        items=[_vale_dict(r) for r in rows]
+        return {"success":True,"items":items,"count":len(items),"total":round(sum(float(i.get("amount") or 0) for i in items),2)}
+    finally:
+        conn.close()
+
+@app.get("/api/mobile/vales/{vale_id}/signature")
+def mobile_vale_signature(vale_id:str,x_token:str=Header("")):
+    require_auth(x_token)
+    conn=get_app_notes_db()
+    try:
+        row=conn.execute("SELECT signature_png_base64 FROM app_vales WHERE id=?",(vale_id,)).fetchone()
+        if not row:
+            raise HTTPException(404,"Vale nao encontrado.")
+        data=_signature_png_bytes(row["signature_png_base64"])
+        return StreamingResponse(io.BytesIO(data),media_type="image/png",headers={"Cache-Control":"private, no-store"})
+    finally:
+        conn.close()
 
 @app.get("/api/auth/me")
 def me(x_token:str=Header("")):
@@ -5667,11 +5776,31 @@ def get_app_notes_db():
             reminders_per_day INTEGER NOT NULL DEFAULT 4, status TEXT NOT NULL DEFAULT 'pending',
             created_at TEXT NOT NULL, updated_at TEXT NOT NULL, completed_at TEXT
           );
+          CREATE TABLE IF NOT EXISTS app_vales(
+            id TEXT PRIMARY KEY,
+            client_id TEXT NOT NULL UNIQUE,
+            solicitante_nome TEXT NOT NULL DEFAULT '',
+            solicitante_key TEXT NOT NULL DEFAULT '',
+            amount REAL NOT NULL DEFAULT 0,
+            request_date TEXT NOT NULL DEFAULT '',
+            signature_png_base64 TEXT NOT NULL DEFAULT '',
+            signature_format TEXT NOT NULL DEFAULT 'png',
+            registered_by_user_id TEXT NOT NULL DEFAULT '',
+            registered_by_username TEXT NOT NULL DEFAULT '',
+            registered_by_name TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'sincronizado',
+            source TEXT NOT NULL DEFAULT 'android_app',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
           CREATE INDEX IF NOT EXISTS idx_app_notes_client ON app_notes(client);
           CREATE INDEX IF NOT EXISTS idx_app_notes_date ON app_notes(note_date);
           CREATE INDEX IF NOT EXISTS idx_app_note_items_note ON app_note_items(note_id);
           CREATE INDEX IF NOT EXISTS idx_app_note_submissions_note ON app_note_submissions(note_id);
           CREATE INDEX IF NOT EXISTS idx_app_calendar_due_status ON app_calendar_events(due_date,status);
+          CREATE INDEX IF NOT EXISTS idx_app_vales_solicitante ON app_vales(solicitante_key);
+          CREATE INDEX IF NOT EXISTS idx_app_vales_request_date ON app_vales(request_date);
+          CREATE INDEX IF NOT EXISTS idx_app_vales_status ON app_vales(status);
         """)
         item_columns={r[1] for r in conn.execute("PRAGMA table_info(app_note_items)").fetchall()}
         note_columns={r[1] for r in conn.execute("PRAGMA table_info(app_notes)").fetchall()}

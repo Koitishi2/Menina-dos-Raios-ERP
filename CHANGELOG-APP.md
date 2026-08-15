@@ -2,7 +2,7 @@
 
 Este arquivo registra as alteracoes funcionais do aplicativo Android e da integracao com o sistema.
 
-Versao estavel atual: `2.0.12`.
+Versao estavel atual: `2.0.17`.
 
 As versoes 2.x representam a linha estavel atual do APK Android. Historicos antigos permanecem apenas como registro funcional, sem indicar estado de refatoracao ou versao experimental.
 
@@ -12,6 +12,73 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Apos `1.0.999`, a proxima versao sera `1.1.0`.
 - O `versionCode` interno do Android sempre aumenta a cada APK publicado.
 - Uma versao publicada nunca deve ser reutilizada para outro APK.
+
+## [2.0.17] - 14/08/2026
+
+### Correcao da sincronizacao de Vales
+
+- Corrigido o payload do modulo Vale para enviar `client_id` ao backend.
+- `client_id` passa a ser usado para evitar duplicidade quando o app tentar sincronizar novamente um vale salvo offline.
+- Mensagem para falha de sincronizacao foi ajustada para nao exibir erro tecnico como "Method Not Allowed" ao usuario final.
+- O vale continua sendo salvo primeiro no aparelho e depois sincronizado com o servidor.
+- Login compartilhado, biometria, remocao do PIN, Dados local, Entregas, dashboards e atualizacao automatica foram preservados.
+
+## [2.0.16] - 14/08/2026
+
+### Vale por solicitante e novo modulo Dados
+
+- O modulo Vale deixou de preencher o solicitante automaticamente com o usuario logado.
+- Adicionado campo obrigatorio "Nome do solicitante" para informar o funcionario que pediu o vale e assinara na tela.
+- A assinatura agora fica vinculada ao `solicitante_nome`; o usuario logado fica separado como registrador local.
+- Payload do Vale passou a enviar `solicitante_nome`, valor, data, assinatura PNG/base64, formato e origem Android.
+- Criado armazenamento local SQLite para vales, com `client_id`, solicitante, valor, data, assinatura, registrador, status e controle de sincronizacao.
+- Se o app estiver sem internet ou o endpoint falhar, o vale fica salvo no aparelho como `pendente_de_sincronizacao`.
+- Ao abrir o app logado, vales pendentes tentam sincronizar silenciosamente.
+- Criado modulo Dados na Home, ao lado de Vale, para consultar vales agrupados por solicitante.
+- Dados mostra busca por solicitante, quantidade de solicitacoes, total solicitado e ultima solicitacao.
+- Detalhe do solicitante mostra resumo, lista de vales, status de sincronizacao e botao para visualizar a assinatura.
+- Assinatura do Vale continua sem rolar a tela durante o desenho.
+- Login compartilhado, biometria, remocao do PIN, Entregas, modulos de dashboard e atualizacao automatica foram preservados.
+
+## [2.0.15] - 14/08/2026
+
+### Acesso do app sem PIN local
+
+- Removido o fluxo de PIN local da abertura do APK.
+- O app agora abre validando a sessao salva pelo token do login compartilhado com o sistema.
+- A senha do usuario nao e gravada no aparelho.
+- A sessao local passou a usar armazenamento protegido do Android quando disponivel, mantendo fallback seguro para compatibilidade.
+- Dados antigos de PIN (`pin_hash`, `pin_salt` e desbloqueio temporario) sao limpos automaticamente ao abrir o app, ao salvar sessao e ao sair da conta.
+- Adicionada biometria opcional: apos o login, o usuario pode ativar biometria para proteger a abertura do app naquele aparelho.
+- Se a biometria estiver ativada, o app pede confirmacao biometrica ao abrir; tambem permite entrar uma vez sem biometria ou sair da conta.
+- O modulo Vale continua vinculado ao usuario autenticado e preserva a assinatura sem rolar a tela.
+- Login compartilhado, Home, Entregas, Vale, graficos, atualizacao automatica e assinatura do APK foram preservados.
+
+## [2.0.14] - 14/08/2026
+
+### Ajustes no modulo Vale
+
+- Corrigida a area de assinatura para impedir que a tela role enquanto o usuario assina com o dedo.
+- SignatureView agora bloqueia a interceptacao dos pais durante ACTION_DOWN/ACTION_MOVE e libera no ACTION_UP/ACTION_CANCEL.
+- Area de assinatura recebeu linha-guia visual para facilitar a assinatura.
+- Salvamento do vale agora valida valor preenchido, valor maior que zero, data, assinatura, usuario identificado e token de sessao.
+- Payload do vale passou a incluir `requested_by_username` e `requested_by_name`, alem de valor, data e assinatura PNG em base64.
+- Confirmacao de sucesso agora informa solicitante, valor, data e ID do vale quando o backend retornar.
+- Em caso de erro, valor, data e assinatura permanecem na tela para nova tentativa.
+- Login, PIN, Home, Entregas, demais modulos, atualizacao automatica e configuracoes sensiveis foram preservados.
+
+## [2.0.13] - 14/08/2026
+
+### Novo modulo Vale
+
+- Adicionado card Vale na Home, seguindo o mesmo padrao visual escuro dos demais modulos.
+- Criada tela Vale com valor solicitado, data, solicitante logado e area de assinatura na tela.
+- Assinatura implementada com Canvas/SignatureView, suportando multiplos tracos e exportacao PNG em base64.
+- Adicionados botoes Limpar assinatura, Salvar vale e Cancelar, com validacoes de valor, data e assinatura.
+- O botao voltar do Android e o botao Home pedem confirmacao antes de descartar valor/assinatura preenchidos.
+- Preparada integracao via `POST /api/mobile/vales` com `x-token`, usando HTTPS e sem registrar assinatura em logs.
+- Como nao foi encontrado endpoint existente de vale no backend local, o backend ainda precisa implementar essa rota para salvar os dados.
+- Login, PIN, Entregas, graficos, atualizacao automatica, assinatura do APK e configuracoes sensiveis foram preservados.
 
 ## [2.0.12] - 12/08/2026
 
