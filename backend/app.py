@@ -1174,6 +1174,29 @@ def list_mobile_vales(solicitante_nome:Optional[str]=None,date_from:Optional[str
     finally:
         conn.close()
 
+@app.delete("/api/mobile/vales/{vale_id}")
+def delete_mobile_vale(vale_id:str,x_token:str=Header("")):
+    require_auth(x_token)
+    vale_id=str(vale_id or "").strip()
+    if not vale_id:
+        raise HTTPException(400,"ID do vale obrigatorio.")
+    conn=get_app_notes_db()
+    try:
+        row=conn.execute("SELECT id,solicitante_nome,amount,request_date FROM app_vales WHERE id=?",(vale_id,)).fetchone()
+        if not row:
+            raise HTTPException(404,"Vale nao encontrado.")
+        conn.execute("DELETE FROM app_vales WHERE id=?",(vale_id,))
+        conn.commit()
+        return {"success":True,"deleted":True,"vale":dict(row)}
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
 @app.get("/api/mobile/vales/{vale_id}/signature")
 def mobile_vale_signature(vale_id:str,x_token:str=Header("")):
     require_auth(x_token)
