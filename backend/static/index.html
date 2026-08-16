@@ -586,19 +586,19 @@ main{max-width:1400px;margin:0 auto;padding:16px;display:flex;flex-direction:col
 .proj-multi-btn:hover,.proj-multi-btn.open{border-color:var(--g600);box-shadow:0 0 0 3px rgba(27,94,32,.08)}
 .proj-multi-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .proj-multi-caret{color:var(--muted);font-size:12px;flex-shrink:0}
-.proj-multi-panel{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:80;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 18px 45px rgba(15,23,42,.18);padding:10px;display:none;min-width:280px}
-.proj-multi-panel.open{display:block;animation:fadeIn .12s ease}
+.proj-multi-panel{position:absolute;left:0;top:calc(100% + 8px);z-index:1200;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 18px 45px rgba(15,23,42,.20);padding:10px;display:none;width:max(100%,380px);max-width:min(560px,calc(100vw - 32px));max-height:min(560px,calc(100vh - 180px));overflow:hidden;flex-direction:column}
+.proj-multi-panel.open{display:flex;animation:fadeIn .12s ease}
 .proj-multi-search{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:8px;background:var(--card2);padding:9px 10px;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--ink);margin-bottom:8px}
 .proj-multi-actions{display:flex;align-items:center;gap:8px;justify-content:space-between;margin-bottom:8px}
 .proj-multi-link{border:0;background:transparent;color:var(--g800);font-size:11px;font-weight:800;cursor:pointer;padding:4px 0}
-.proj-multi-list{max-height:270px;overflow:auto;border:1px solid var(--border);border-radius:8px;background:var(--card2)}
-.proj-multi-item{display:flex;align-items:flex-start;gap:9px;padding:9px 10px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px;line-height:1.25;color:var(--ink)}
+.proj-multi-list{min-height:120px;max-height:340px;overflow-y:auto;overflow-x:hidden;border:1px solid var(--border);border-radius:8px;background:var(--card2);flex:1}
+.proj-multi-item{display:flex;align-items:center;gap:10px;min-height:44px;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px;line-height:1.25;color:var(--ink)}
 .proj-multi-item:last-child{border-bottom:none}
 .proj-multi-item:hover{background:var(--g50)}
-.proj-multi-item input{width:15px;height:15px;margin-top:1px;accent-color:var(--g800);flex-shrink:0}
-.proj-multi-name{white-space:normal;overflow-wrap:anywhere}
+.proj-multi-item input{width:18px;height:18px;margin:0;accent-color:var(--g800);flex:0 0 auto}
+.proj-multi-name{min-width:0;flex:1;white-space:normal;overflow-wrap:anywhere}
 .proj-multi-empty{padding:14px;text-align:center;color:var(--muted);font-size:12px}
-.proj-multi-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
+.proj-multi-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);background:var(--card);flex-shrink:0}
 .proj-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
 .proj-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:13px 15px;box-shadow:var(--shadow);min-width:0}
 .proj-card.hot{border-left:3px solid var(--g600);background:linear-gradient(180deg,var(--card),rgba(232,245,233,.55))}
@@ -648,6 +648,7 @@ main{max-width:1400px;margin:0 auto;padding:16px;display:flex;flex-direction:col
 }
 @media(max-width:560px){
   .proj-filters,.proj-kpis{grid-template-columns:1fr}
+  .proj-multi-panel{position:fixed;left:12px;right:12px;top:72px;width:auto;max-width:none;max-height:calc(100vh - 96px)}
   .proj-card{padding:11px 12px}
   .proj-table-wrap{max-height:none;overflow-x:auto}
   .proj-table{min-width:760px}
@@ -5740,7 +5741,14 @@ async function loadProjecaoProducao(){
   if(cycle)cycle.innerHTML='';
   if(table)table.innerHTML='<div class="proj-empty">Carregando projeção...</div>';
   try{
-    var data=await api('/api/projecao/producao?'+projPeriodParams().toString());
+    var params=projPeriodParams();
+    console.log('Projecao - filtros aplicados:', {
+      period: document.getElementById('proj-period')?.value||'30',
+      source: document.getElementById('proj-source')?.value||'',
+      view: document.getElementById('proj-view')?.value||'consolidada',
+      products: Array.from(_projSelectedProducts||[])
+    });
+    var data=await api('/api/projecao/producao?'+params.toString());
     _projecaoData=data;
     renderProjecaoKpis(data);
     renderProjecaoCycle(data);

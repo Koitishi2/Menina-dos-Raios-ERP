@@ -1606,11 +1606,15 @@ def projecao_producao(days:int=30,
     product_terms = [p.strip() for p in (products or "").split(",") if p.strip()]
     if not product_terms and product.strip():
         product_terms = [product.strip()]
-    if product_terms:
-        sql += " AND (" + " OR ".join(["product LIKE ?"] * len(product_terms)) + ")"
-        args.extend([f"%{p}%" for p in product_terms])
+    selected_product_names = {norm_p(p, "NF").casefold() for p in product_terms}
     sql += " GROUP BY sale_date,sale_type,product,client,delivery_person,source ORDER BY sale_date"
     rows = conn.execute(sql, args).fetchall()
+    if selected_product_names:
+        rows = [
+            r for r in rows
+            if (norm_p(r["product"] or "", r["sale_type"] or "NF") if r["product"] else "Sem produto").casefold()
+            in selected_product_names
+        ]
 
     psql = """SELECT product,SUM(COALESCE(quantity,0)) AS qty
               FROM sales
@@ -1620,11 +1624,14 @@ def projecao_producao(days:int=30,
     pextra, pextra_args = source_clause(source)
     psql += pextra
     pargs += pextra_args
-    if product_terms:
-        psql += " AND (" + " OR ".join(["product LIKE ?"] * len(product_terms)) + ")"
-        pargs.extend([f"%{p}%" for p in product_terms])
     psql += " GROUP BY product"
     prev_rows = conn.execute(psql, pargs).fetchall()
+    if selected_product_names:
+        prev_rows = [
+            r for r in prev_rows
+            if (norm_p(r["product"] or "", "NF") if r["product"] else "Sem produto").casefold()
+            in selected_product_names
+        ]
     conn.close()
 
     prev_by_product = {}
@@ -5401,6 +5408,8 @@ def check_wa_triggers(body: dict, x_token: str = Header(...)):
                         f"SELECT * FROM whatsapp_contacts WHERE active=1 AND id IN ({ph})",
                         selected_contact_ids
                     ).fetchall()]
+                    by_id = {str(c.get("id")): c for c in active_contacts}
+                    active_contacts = [by_id[cid] for cid in selected_contact_ids if cid in by_id]
                 else:
                     active_contacts = []
             else:

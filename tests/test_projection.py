@@ -53,6 +53,7 @@ def test_projection_accepts_multiple_products_and_filters_totals(isolated_app):
     token = _login_admin(isolated_app)
     db_path = isolated_app.db_paths["raios"]
     _insert_sale(db_path, MAC_VACUO, 10)
+    _insert_sale(db_path, "MACAXEIRA VACUO", 7)
     _insert_sale(db_path, "Alho 250g", 5)
     _insert_sale(db_path, UVA_VITORIA, 20)
 
@@ -68,7 +69,9 @@ def test_projection_accepts_multiple_products_and_filters_totals(isolated_app):
     assert len(names) == 2
     assert "Alho 250g" in names
     assert all("Uva" not in name for name in names)
-    assert body["resumo"]["total_vendido"] == 15
+    macaxeira = next(row for row in body["produtos"] if row["produto"] != "Alho 250g")
+    assert macaxeira["quantidade"] == 17
+    assert body["resumo"]["total_vendido"] == 22
     assert body["resumo"]["proj_7"] > 0
 
 
