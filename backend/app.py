@@ -1554,6 +1554,7 @@ def consolidado(year:int=datetime.now().year,x_token:str=Header("")):
 @app.get("/api/projecao/producao")
 def projecao_producao(days:int=30,
                       product:str="",
+                      products:str="",
                       source:str="",
                       view:str="consolidada",
                       start:Optional[str]=None,
@@ -1602,9 +1603,12 @@ def projecao_producao(days:int=30,
     extra, extra_args = source_clause(source)
     sql += extra
     args += extra_args
-    if product.strip():
-        sql += " AND product LIKE ?"
-        args.append(f"%{product.strip()}%")
+    product_terms = [p.strip() for p in (products or "").split(",") if p.strip()]
+    if not product_terms and product.strip():
+        product_terms = [product.strip()]
+    if product_terms:
+        sql += " AND (" + " OR ".join(["product LIKE ?"] * len(product_terms)) + ")"
+        args.extend([f"%{p}%" for p in product_terms])
     sql += " GROUP BY sale_date,sale_type,product,client,delivery_person,source ORDER BY sale_date"
     rows = conn.execute(sql, args).fetchall()
 
@@ -1616,9 +1620,9 @@ def projecao_producao(days:int=30,
     pextra, pextra_args = source_clause(source)
     psql += pextra
     pargs += pextra_args
-    if product.strip():
-        psql += " AND product LIKE ?"
-        pargs.append(f"%{product.strip()}%")
+    if product_terms:
+        psql += " AND (" + " OR ".join(["product LIKE ?"] * len(product_terms)) + ")"
+        pargs.extend([f"%{p}%" for p in product_terms])
     psql += " GROUP BY product"
     prev_rows = conn.execute(psql, pargs).fetchall()
     conn.close()

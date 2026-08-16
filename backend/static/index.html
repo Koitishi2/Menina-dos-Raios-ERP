@@ -581,6 +581,24 @@ main{max-width:1400px;margin:0 auto;padding:16px;display:flex;flex-direction:col
 .proj-filters{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr auto;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:12px;box-shadow:var(--shadow);align-items:end}
 .proj-filter label{display:block;font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
 .proj-custom{display:none;gap:6px;grid-column:1/-1}
+.proj-product-filter{position:relative}
+.proj-multi-btn{width:100%;min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:9px 11px;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--ink);cursor:pointer;transition:border-color .15s,box-shadow .15s,background .15s}
+.proj-multi-btn:hover,.proj-multi-btn.open{border-color:var(--g600);box-shadow:0 0 0 3px rgba(27,94,32,.08)}
+.proj-multi-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.proj-multi-caret{color:var(--muted);font-size:12px;flex-shrink:0}
+.proj-multi-panel{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:80;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 18px 45px rgba(15,23,42,.18);padding:10px;display:none;min-width:280px}
+.proj-multi-panel.open{display:block;animation:fadeIn .12s ease}
+.proj-multi-search{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:8px;background:var(--card2);padding:9px 10px;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--ink);margin-bottom:8px}
+.proj-multi-actions{display:flex;align-items:center;gap:8px;justify-content:space-between;margin-bottom:8px}
+.proj-multi-link{border:0;background:transparent;color:var(--g800);font-size:11px;font-weight:800;cursor:pointer;padding:4px 0}
+.proj-multi-list{max-height:270px;overflow:auto;border:1px solid var(--border);border-radius:8px;background:var(--card2)}
+.proj-multi-item{display:flex;align-items:flex-start;gap:9px;padding:9px 10px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px;line-height:1.25;color:var(--ink)}
+.proj-multi-item:last-child{border-bottom:none}
+.proj-multi-item:hover{background:var(--g50)}
+.proj-multi-item input{width:15px;height:15px;margin-top:1px;accent-color:var(--g800);flex-shrink:0}
+.proj-multi-name{white-space:normal;overflow-wrap:anywhere}
+.proj-multi-empty{padding:14px;text-align:center;color:var(--muted);font-size:12px}
+.proj-multi-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
 .proj-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
 .proj-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:13px 15px;box-shadow:var(--shadow);min-width:0}
 .proj-card.hot{border-left:3px solid var(--g600);background:linear-gradient(180deg,var(--card),rgba(232,245,233,.55))}
@@ -3400,7 +3418,7 @@ body.paladar-active #notif-restore{display:none!important}
     <div class="proj-head">
       <div>
         <h2> Projeção de Produção</h2>
-        <p>Estimativa de saída por produto usando o histórico real de vendas.</p>
+        <p>Estimativa de saída por produto usando o histórico real de vendas.<span id="proj-selection-label"></span></p>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-secondary btn-sm" onclick="loadProjecaoProducao()">↺ Atualizar</button>
@@ -3420,10 +3438,25 @@ body.paladar-active #notif-restore{display:none!important}
         </select>
       </div>
       <div class="proj-filter">
-        <label>Produto</label>
-        <select class="filt" id="proj-product" onchange="loadProjecaoProducao()">
-          <option value="">Todos os produtos</option>
-        </select>
+        <label>Produtos</label>
+        <div class="proj-product-filter" id="proj-product-filter">
+          <button type="button" class="proj-multi-btn" id="proj-product-btn" onclick="openProjProductPanel()">
+            <span class="proj-multi-text" id="proj-product-summary">Todos os produtos</span>
+            <span class="proj-multi-caret">▾</span>
+          </button>
+          <div class="proj-multi-panel" id="proj-product-panel">
+            <input type="search" class="proj-multi-search" id="proj-product-search" placeholder="Buscar produto" oninput="renderProjProductOptions(this.value)">
+            <div class="proj-multi-actions">
+              <button type="button" class="proj-multi-link" onclick="selectAllProjProductsDraft()">Selecionar todos</button>
+              <button type="button" class="proj-multi-link" onclick="clearProjProductsDraft()">Limpar seleção</button>
+            </div>
+            <div class="proj-multi-list" id="proj-product-list"></div>
+            <div class="proj-multi-footer">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="cancelProjProductPanel()">Cancelar</button>
+              <button type="button" class="btn btn-primary btn-sm" onclick="applyProjProductPanel()">Aplicar</button>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="proj-filter">
         <label>Fonte</label>
@@ -5576,6 +5609,9 @@ function onProductFilter(){
 function clearPF(){document.getElementById('filter-product').value='';document.getElementById('filter-product').classList.remove('af');document.getElementById('product-dash').style.display='none';if(pdashChart){pdashChart.destroy();pdashChart=null;}filterTable();}
 
 let _projecaoData=null;
+let _projProductNames=[];
+let _projSelectedProducts=new Set();
+let _projDraftProducts=new Set();
 function onProjPeriodChange(){
   var p=document.getElementById('proj-period')?.value||'30';
   var c=document.getElementById('proj-custom');
@@ -5583,18 +5619,94 @@ function onProjPeriodChange(){
   loadProjecaoProducao();
 }
 function populateProjProducts(){
-  var sel=document.getElementById('proj-product');
-  if(!sel)return;
-  var cur=sel.value;
   var names=Array.from(new Set((allSales||[])
     .filter(function(s){return s.sale_type!=='AVARIA'&&s.product;})
     .map(function(s){return prodCanonicalName(s.product,s.sale_type);})
     .filter(Boolean))).sort(function(a,b){return a.localeCompare(b,'pt-BR');});
-  sel.innerHTML='<option value="">Todos os produtos</option>'+names.map(function(p){
-    return '<option value="'+admEsc(p)+'">'+admEsc(p)+'</option>';
-  }).join('');
-  if(cur && names.indexOf(cur)>=0)sel.value=cur;
+  _projProductNames=names;
+  _projSelectedProducts=new Set(Array.from(_projSelectedProducts).filter(function(p){return names.indexOf(p)>=0;}));
+  updateProjProductSummary();
+  renderProjProductOptions(document.getElementById('proj-product-search')?.value||'');
 }
+function updateProjProductSummary(){
+  var el=document.getElementById('proj-product-summary');
+  var label=document.getElementById('proj-selection-label');
+  var count=_projSelectedProducts.size;
+  var text='Todos os produtos';
+  var detail='';
+  if(count&&(!(_projProductNames.length&&count===_projProductNames.length))){
+    if(count===1){
+      text=Array.from(_projSelectedProducts)[0];
+      detail=' · Produto selecionado: '+text;
+    }else{
+      var first=Array.from(_projSelectedProducts)[0];
+      text=count+' produtos selecionados';
+      detail=' · Produtos selecionados: '+first+' + '+(count-1);
+    }
+  }
+  if(el)el.textContent=text;
+  if(label)label.textContent=detail;
+}
+function openProjProductPanel(){
+  populateProjProducts();
+  _projDraftProducts=new Set(_projSelectedProducts);
+  var panel=document.getElementById('proj-product-panel');
+  var btn=document.getElementById('proj-product-btn');
+  var search=document.getElementById('proj-product-search');
+  if(search)search.value='';
+  renderProjProductOptions('');
+  if(panel)panel.classList.add('open');
+  if(btn)btn.classList.add('open');
+  setTimeout(function(){if(search)search.focus();},40);
+}
+function closeProjProductPanel(){
+  var panel=document.getElementById('proj-product-panel');
+  var btn=document.getElementById('proj-product-btn');
+  if(panel)panel.classList.remove('open');
+  if(btn)btn.classList.remove('open');
+}
+function cancelProjProductPanel(){
+  _projDraftProducts=new Set(_projSelectedProducts);
+  closeProjProductPanel();
+}
+function applyProjProductPanel(){
+  _projSelectedProducts=new Set(_projDraftProducts);
+  updateProjProductSummary();
+  closeProjProductPanel();
+  loadProjecaoProducao();
+}
+function selectAllProjProductsDraft(){
+  _projDraftProducts=new Set(_projProductNames);
+  renderProjProductOptions(document.getElementById('proj-product-search')?.value||'');
+}
+function clearProjProductsDraft(){
+  _projDraftProducts=new Set();
+  renderProjProductOptions(document.getElementById('proj-product-search')?.value||'');
+}
+function toggleProjProductDraft(name,checked){
+  if(checked)_projDraftProducts.add(name);
+  else _projDraftProducts.delete(name);
+}
+function renderProjProductOptions(query){
+  var el=document.getElementById('proj-product-list');
+  if(!el)return;
+  var q=(query||'').trim().toLocaleLowerCase('pt-BR');
+  var rows=_projProductNames.filter(function(p){return !q||p.toLocaleLowerCase('pt-BR').indexOf(q)>=0;});
+  if(!rows.length){el.innerHTML='<div class="proj-multi-empty">Nenhum produto encontrado.</div>';return;}
+  el.innerHTML=rows.map(function(p){
+    var checked=_projDraftProducts.has(p)?' checked':'';
+    return '<label class="proj-multi-item"><input type="checkbox" value="'+admEsc(p)+'"'+checked+' onchange="toggleProjProductDraft(this.value,this.checked)"><span class="proj-multi-name">'+admEsc(p)+'</span></label>';
+  }).join('');
+}
+document.addEventListener('click',function(ev){
+  var panel=document.getElementById('proj-product-panel');
+  if(!panel||!panel.classList.contains('open'))return;
+  if(ev.target&&ev.target.closest&&ev.target.closest('#proj-product-filter'))return;
+  cancelProjProductPanel();
+});
+document.addEventListener('keydown',function(ev){
+  if(ev.key==='Escape')cancelProjProductPanel();
+});
 function projStatusLabel(s){
   if(s==='ruptura')return 'Risco de ruptura';
   if(s==='queda')return 'Queda';
@@ -5609,10 +5721,10 @@ function projPeriodParams(){
     if(st&&en){params.set('start',st);params.set('end',en);}
     else params.set('days','30');
   }else params.set('days',period);
-  var product=document.getElementById('proj-product')?.value||'';
+  var selectedProducts=Array.from(_projSelectedProducts||[]);
   var source=document.getElementById('proj-source')?.value||'';
   var view=document.getElementById('proj-view')?.value||'consolidada';
-  if(product)params.set('product',product);
+  if(selectedProducts.length && selectedProducts.length!==_projProductNames.length)params.set('products',selectedProducts.join(','));
   if(source)params.set('source',source);
   if(view)params.set('view',view);
   return params;
