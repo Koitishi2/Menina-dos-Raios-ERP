@@ -1,5 +1,6 @@
 import sqlite3
 import uuid
+from datetime import date
 from urllib.parse import quote
 
 
@@ -21,7 +22,8 @@ def _login_admin(isolated_app):
     return response.json()["token"]
 
 
-def _insert_sale(db_path, product, quantity, sale_date="2026-08-16"):
+def _insert_sale(db_path, product, quantity, sale_date=None):
+    sale_date = sale_date or date.today().isoformat()
     conn = sqlite3.connect(db_path)
     try:
         conn.execute(

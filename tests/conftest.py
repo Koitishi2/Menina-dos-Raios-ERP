@@ -128,6 +128,7 @@ def isolated_app(tmp_path, monkeypatch):
     shutil.copy2(REAL_BACKEND / "monteiro_periods.py", temp_backend / "monteiro_periods.py")
     shutil.copy2(REAL_BACKEND / "orcamentos.py", temp_backend / "orcamentos.py")
     shutil.copy2(REAL_BACKEND / "permissions_tabs.py", temp_backend / "permissions_tabs.py")
+    shutil.copy2(REAL_BACKEND / "rbac.py", temp_backend / "rbac.py")
     shutil.copy2(REAL_BACKEND / "security_auth.py", temp_backend / "security_auth.py")
     shutil.copy2(REAL_BACKEND / "security_request.py", temp_backend / "security_request.py")
     shutil.copy2(REAL_BACKEND / "schemas.py", temp_backend / "schemas.py")

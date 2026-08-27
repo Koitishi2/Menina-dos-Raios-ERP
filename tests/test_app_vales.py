@@ -1,5 +1,8 @@
 import base64
+import sqlite3
 import uuid
+
+import pytest
 
 
 def _auth_headers():
@@ -80,3 +83,96 @@ def test_mobile_vale_delete_unknown_id_returns_404(isolated_app, monkeypatch):
     )
 
     assert response.status_code == 404
+
+
+class _ValeConnectionSpy:
+    def __init__(self, connection, *, fail_execute=False, fail_commit=False):
+        self.connection = connection
+        self.fail_execute = fail_execute
+        self.fail_commit = fail_commit
+        self.state = {"delete": 0, "commit": 0, "rollback": 0, "close": 0}
+
+    def execute(self, sql, params=()):
+        if sql.strip().upper().startswith("DELETE FROM APP_VALES"):
+            self.state["delete"] += 1
+            if self.fail_execute:
+                raise sqlite3.OperationalError("falha controlada ao excluir vale")
+        return self.connection.execute(sql, params)
+
+    def commit(self):
+        self.state["commit"] += 1
+        if self.fail_commit:
+            raise sqlite3.OperationalError("falha controlada no commit do vale")
+        return self.connection.commit()
+
+    def rollback(self):
+        self.state["rollback"] += 1
+        return self.connection.rollback()
+
+    def close(self):
+        self.state["close"] += 1
+        return self.connection.close()
+
+
+@pytest.mark.parametrize(
+    ("failure", "message", "expected_commit"),
+    [
+        ("execute", "falha controlada ao excluir vale", 0),
+        ("commit", "falha controlada no commit do vale", 1),
+    ],
+)
+def test_mobile_vale_delete_rolls_back_and_closes_on_database_failure(
+    isolated_app, monkeypatch, failure, message, expected_commit
+):
+    module = isolated_app.module
+    _patch_auth(module, monkeypatch)
+    created = isolated_app.client.post(
+        "/api/mobile/vales",
+        headers=_auth_headers(),
+        json=_vale_payload(),
+    )
+    vale_id = created.json()["vale"]["id"]
+    original_get_app_notes_db = module.get_app_notes_db
+    spy = _ValeConnectionSpy(
+        original_get_app_notes_db(),
+        fail_execute=failure == "execute",
+        fail_commit=failure == "commit",
+    )
+    monkeypatch.setattr(module, "get_app_notes_db", lambda: spy)
+
+    with pytest.raises(sqlite3.OperationalError, match=message):
+        module.delete_mobile_vale(vale_id, "token-teste")
+
+    assert spy.state == {
+        "delete": 1,
+        "commit": expected_commit,
+        "rollback": 1,
+        "close": 1,
+    }
+
+    monkeypatch.setattr(module, "get_app_notes_db", original_get_app_notes_db)
+    connection = original_get_app_notes_db()
+    try:
+        assert connection.execute(
+            "SELECT id FROM app_vales WHERE id=?", (vale_id,)
+        ).fetchone()["id"] == vale_id
+        connection.execute(
+            "INSERT INTO app_notes_meta(key,value) VALUES(?,?)",
+            (f"write-after-{failure}", "ok"),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def test_app_vale_actions_use_safe_delegated_handlers(isolated_app):
+    html = (isolated_app.temp_backend / "static" / "index.html").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'data-app-vale-action="signature"' in html
+    assert 'data-app-vale-action="delete"' in html
+    assert "closest('[data-app-vale-action][data-app-vale-id]')" in html
+    assert 'onclick="showAppValeSignature(' not in html
+    assert 'onclick="deleteAppVale(' not in html
+    assert html.count("async function showAppValeSignature(id)") == 1

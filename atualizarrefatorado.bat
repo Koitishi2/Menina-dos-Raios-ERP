@@ -61,7 +61,7 @@ set "REMOTE_BACKUP_FILE=%REMOTE_BACKUP_DIR%/app_files_%VERSION_COMMIT%_%UPDATE_I
 set "REMOTE_BAILEYS_BACKUP_FILE=%REMOTE_BACKUP_DIR%/baileys_api_%VERSION_COMMIT%_%UPDATE_ID%.tgz"
 
 set "PROTECTED_REMOTE=.env *.env *.db *.sqlite *.sqlite3 database databases data instance uploads upload backups backup logs log storage media certificates certs keys backend/static/app-updates"
-set "APP_FILES=backend/app.py backend/app_notes_domain.py backend/app_notes_service.py backend/backup_admin.py backend/company_config.py backend/monteiro_periods.py backend/monteiro_permissions.py backend/orcamentos.py backend/permissions_tabs.py backend/schemas.py backend/security_auth.py backend/security_request.py backend/utils.py backend/requirements.txt backend/static/index.html backend/static/assets backend/static/login-inspirador.png backend/static/logo.png README.md README_ATUALIZACAO_REFATORADA.txt"
+set "APP_FILES=backend/rbac.py backend/app.py backend/app_notes_domain.py backend/app_notes_service.py backend/backup_admin.py backend/company_config.py backend/monteiro_periods.py backend/monteiro_permissions.py backend/orcamentos.py backend/permissions_tabs.py backend/schemas.py backend/security_auth.py backend/security_request.py backend/utils.py backend/requirements.txt backend/static/index.html backend/static/assets backend/static/login-inspirador.png backend/static/logo.png README.md README_ATUALIZACAO_REFATORADA.txt"
 
 echo.
 echo  ============================================================

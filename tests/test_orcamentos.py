@@ -295,6 +295,21 @@ def test_quote_totals_core_current_empty_single_decimal_and_defaults():
     assert decimal_total == 19.875000000000004
     assert decimal_items[0]["subtotal"] == 15.075000000000001
 
+    manual_items, manual_subtotal, manual_total = quote_totals_from_items(
+        [
+            {
+                "quantity": 1,
+                "unit_price": 4,
+                "discount": 2.5,
+                "subtotal_override": "7.5",
+            }
+        ],
+        discount=1,
+    )
+    assert manual_items[0]["subtotal"] == 7.5
+    assert manual_subtotal == 7.5
+    assert manual_total == 6.5
+
     default_items, default_subtotal, default_total = quote_totals_from_items([{}])
     assert default_subtotal == 0.0
     assert default_total == 0.0
@@ -545,10 +560,51 @@ def test_orcamentos_company_metadata_and_pdf_backend_route_status(isolated_app):
     assert not any("pdf" in path.lower() for path in route_paths), PDF_BLOCKED_REASON
 
 
+def test_orcamento_products_seed_raios_catalog_and_keep_estrada_separate(isolated_app):
+    token = _login(isolated_app.client)
+
+    raios = isolated_app.client.get(
+        "/api/orcamentos/products?company_key=raios",
+        headers=_headers(token, "raios"),
+    )
+    estrada = isolated_app.client.get(
+        "/api/orcamentos/products?company_key=estrada",
+        headers=_headers(token, "raios"),
+    )
+
+    assert raios.status_code == 200
+    assert estrada.status_code == 200
+
+    raios_names = {row["name"] for row in raios.json()}
+    assert {
+        "Ab\u00f3bora Jacar\u00e9",
+        "Alho 250g",
+        "Alho KG",
+        "Macaxeira a V\u00e1cuo",
+        "Macaxeira Chips",
+        "Macaxeira com Casca (KG)",
+        "Macaxeira Processada",
+        "Macaxeira Sem V\u00e1cuo",
+        "Massa de Macaxeira",
+        "Pasta de Alho",
+        "Pr\u00e9-Cozida",
+        "Uva Vit\u00f3ria",
+    }.issubset(raios_names)
+    assert {row["name"] for row in estrada.json()}.isdisjoint(raios_names)
+
+    macaxeira = next(row for row in raios.json() if row["name"] == "Macaxeira a V\u00e1cuo")
+    assert macaxeira["code"] == "RAI-MAC-VAC"
+    assert macaxeira["unit"] == "KG"
+    assert macaxeira["default_price"] == 7.5
+    assert macaxeira["active"] == 1
+
+
 def test_orcamento_products_crud_search_soft_delete_and_company_isolation(isolated_app):
     raios_token = _login(isolated_app.client)
     _create_temp_user(isolated_app, "admin_orc_estrada", "admin123", "admin", company="estrada")
     estrada_token = _login(isolated_app.client, "admin_orc_estrada", "admin123", company="estrada")
+    raios_count_before = _table_count(isolated_app.db_paths["raios"], "quote_products")
+    estrada_count_before = _table_count(isolated_app.db_paths["estrada"], "quote_products")
 
     raios_product = _post_product(
         isolated_app.client,
@@ -569,8 +625,8 @@ def test_orcamento_products_crud_search_soft_delete_and_company_isolation(isolat
 
     assert raios_product["unit"] == "UND"
     assert estrada_product["unit"] == "UND"
-    assert _table_count(isolated_app.db_paths["raios"], "quote_products") == 1
-    assert _table_count(isolated_app.db_paths["estrada"], "quote_products") == 1
+    assert _table_count(isolated_app.db_paths["raios"], "quote_products") == raios_count_before + 1
+    assert _table_count(isolated_app.db_paths["estrada"], "quote_products") == estrada_count_before + 1
 
     raios_list = isolated_app.client.get(
         "/api/orcamentos/products?search=Produto Orcamento",
@@ -680,6 +736,29 @@ def test_orcamentos_create_read_list_update_delete_and_calculations(isolated_app
     assert items[0]["unit"] == "UND"
     assert items[1]["subtotal"] == 50
     assert items[1]["unit"] == "SERV"
+
+    manual_created = _post_quote(
+        isolated_app.client,
+        token,
+        client_name="Cliente Subtotal Manual",
+        items=[
+            {
+                "product_id": None,
+                "item_order": 1,
+                "code": "MANUAL-001",
+                "description": "Item com subtotal manual",
+                "quantity": 1,
+                "unit": "kg",
+                "unit_price": 4,
+                "discount": 2.5,
+                "subtotal_override": 7.5,
+            }
+        ],
+        discount=0,
+    )
+    assert manual_created["quote"]["subtotal"] == 7.5
+    assert manual_created["quote"]["total"] == 7.5
+    assert manual_created["items"][0]["subtotal"] == 7.5
 
     quote_id = quote["id"]
     fetched = isolated_app.client.get(f"/api/orcamentos/{quote_id}", headers=_headers(token))

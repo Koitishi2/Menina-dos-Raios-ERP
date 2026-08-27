@@ -7,7 +7,7 @@ echo  ============================================================
 echo   Menina dos Raios Ltda - Atualizacao do Sistema
 echo  ============================================================
 echo.
-echo  Voce precisara digitar a senha do servidor 3 vezes.
+echo  Voce precisara digitar a senha do servidor 4 vezes.
 echo  Senha: (a senha root que voce criou na Hostinger)
 echo.
 pause
@@ -15,17 +15,22 @@ pause
 cd /d "%~dp0"
 
 echo.
-echo  [1/3] Enviando app.py...
+echo  [1/4] Enviando rbac.py...
+scp backend\rbac.py root@2.24.124.76:/opt/menina/backend/rbac.py
+if errorlevel 1 goto :erro
+
+echo.
+echo  [2/4] Enviando app.py...
 scp backend\app.py root@2.24.124.76:/opt/menina/backend/
 if errorlevel 1 goto :erro
 
 echo.
-echo  [2/3] Enviando interface (index.html)...
+echo  [3/4] Enviando interface (index.html)...
 scp backend\static\index.html root@2.24.124.76:/opt/menina/backend/static/
 if errorlevel 1 goto :erro
 
 echo.
-echo  [3/3] Reiniciando sistema...
+echo  [4/4] Reiniciando sistema...
 ssh root@2.24.124.76 "systemctl restart menina && sleep 2 && systemctl is-active menina && echo SISTEMA_OK"
 if errorlevel 1 goto :erro
 

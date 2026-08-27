@@ -56,6 +56,8 @@ backups/server_snapshots/
 *.tar.gz
 *.dump
 *.sql
+!backend/migrations/20260826_rbac_roles.sql
+!backend/migrations/20260826_rbac_roles_rollback.sql
 *.db
 *.sqlite
 *.sqlite3

@@ -24,6 +24,7 @@ try:
     from .monteiro_periods import _pal_period_where, _pay_period_map
     from .orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from .permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
+    from .rbac import ACTIONS, AREA_MODULES, allowed_product_keys, ensure_permission_product, filter_records_by_product, init_rbac_schema, normalize_product_key, role_context_from_db, role_has_permission, seed_rbac_defaults
     from .security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from .security_request import _client_ip, _is_trusted_proxy_host
     from .schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
@@ -37,6 +38,7 @@ except ImportError:
     from monteiro_periods import _pal_period_where, _pay_period_map
     from orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
+    from rbac import ACTIONS, AREA_MODULES, allowed_product_keys, ensure_permission_product, filter_records_by_product, init_rbac_schema, normalize_product_key, role_context_from_db, role_has_permission, seed_rbac_defaults
     from security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from security_request import _client_ip, _is_trusted_proxy_host
     from schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
@@ -180,6 +182,24 @@ DEFAULT_PRICES = {
                     "price_min":1.00,"price_max":4.00,   "is_variable":True},
     "ABOBORA_JAC": {"label":"AbÃ³bora JacarÃ© (variÃ¡vel)", "price":3.00,
                     "price_min":3.00,"price_max":4.00,   "is_variable":True},
+}
+
+DEFAULT_QUOTE_PRODUCTS = {
+    "raios": [
+        {"name": "Ab\u00f3bora Jacar\u00e9", "code": "RAI-ABO-JAC", "unit": "KG", "default_price": 3.00, "description": "Ab\u00f3bora Jacar\u00e9"},
+        {"name": "Alho 250g", "code": "RAI-ALH-250", "unit": "UND", "default_price": 12.00, "description": "Alho 250g"},
+        {"name": "Alho KG", "code": "RAI-ALH-KG", "unit": "KG", "default_price": 45.00, "description": "Alho KG"},
+        {"name": "Macaxeira a V\u00e1cuo", "code": "RAI-MAC-VAC", "unit": "KG", "default_price": 7.50, "description": "Macaxeira a V\u00e1cuo"},
+        {"name": "Macaxeira Chips", "code": "RAI-MAC-CHP", "unit": "UND", "default_price": 10.00, "description": "Macaxeira Chips"},
+        {"name": "Macaxeira com Casca (KG)", "code": "RAI-MAC-CAS", "unit": "KG", "default_price": 7.50, "description": "Macaxeira com Casca (KG)"},
+        {"name": "Macaxeira Processada", "code": "RAI-MAC-PRO", "unit": "KG", "default_price": 0, "description": "Macaxeira Processada"},
+        {"name": "Macaxeira Sem V\u00e1cuo", "code": "RAI-MAC-SEV", "unit": "KG", "default_price": 0, "description": "Macaxeira Sem V\u00e1cuo"},
+        {"name": "Massa de Macaxeira", "code": "RAI-MAS-MAC", "unit": "KG", "default_price": 6.36, "description": "Massa de Macaxeira"},
+        {"name": "Pasta de Alho", "code": "RAI-PAS-ALH", "unit": "UND", "default_price": 20.00, "description": "Pasta de Alho"},
+        {"name": "Pr\u00e9-Cozida", "code": "RAI-PRE-COZ", "unit": "UND", "default_price": 10.00, "description": "Pr\u00e9-Cozida"},
+        {"name": "Uva Vit\u00f3ria", "code": "RAI-UVA-VIT", "unit": "KG", "default_price": 0, "description": "Uva Vit\u00f3ria"},
+    ],
+    "estrada": [],
 }
 
 PRODUCT_CANONICAL = {
@@ -555,6 +575,7 @@ def init_db(company: str = None):
         conn.execute("INSERT OR IGNORE INTO users(id,username,password_hash,full_name,role) VALUES(?,?,?,?,?)",
                      (str(uuid.uuid4()),"admin",admin_hash,"Administrador","admin"))
         conn.execute("INSERT OR IGNORE INTO settings(key,value) VALUES('admin_password',?)",(admin_hash,))
+        seed_rbac_defaults(conn)
     # Seed product prices, respeitando produtos removidos pelo administrador.
     deleted_price_keys=set()
     try:
@@ -569,6 +590,17 @@ def init_db(company: str = None):
         conn.execute("""INSERT OR IGNORE INTO product_prices(key,label,price,price_min,price_max,is_variable)
                         VALUES(?,?,?,?,?,?)""",
                      (key,info["label"],info["price"],info.get("price_min"),info.get("price_max"),int(info.get("is_variable",False))))
+    company_key = _company_key(company or "raios")
+    for product in DEFAULT_QUOTE_PRODUCTS.get(company_key, []):
+        conn.execute("""INSERT OR IGNORE INTO quote_products(name,code,unit,default_price,description,active)
+                        VALUES(?,?,?,?,?,1)""",
+                     (
+                         product["name"],
+                         product.get("code", ""),
+                         product.get("unit", "UND"),
+                         float(product.get("default_price") or 0),
+                         product.get("description", ""),
+                     ))
     existing_ph=conn.execute("SELECT COUNT(*) FROM price_history").fetchone()[0]
     if existing_ph==0:
         for key,info in DEFAULT_PRICES.items():
@@ -753,7 +785,9 @@ def clear_sales_cache():
 def get_session(x_token:str="")->dict:
     if not x_token: return {}
     conn=get_control_db()
-    row=conn.execute("SELECT * FROM sessions WHERE token=? AND expires_at>datetime('now')",(x_token,)).fetchone()
+    row=conn.execute("""SELECT s.*,u.role AS current_role,u.full_name AS current_full_name
+                        FROM sessions s JOIN users u ON u.id=s.user_id AND u.active=1
+                        WHERE s.token=? AND s.expires_at>datetime('now')""",(x_token,)).fetchone()
     if row:
         has_last_seen="last_seen" in row.keys()
         last=row["last_seen"] if has_last_seen else None
@@ -767,15 +801,55 @@ def get_session(x_token:str="")->dict:
             except Exception:
                 pass
         if has_last_seen:
-            conn.execute("UPDATE sessions SET last_seen=datetime('now') WHERE token=?",(x_token,))
+            conn.execute("UPDATE sessions SET role=?,full_name=?,last_seen=datetime('now') WHERE token=?",
+                         (row["current_role"],row["current_full_name"],x_token))
             conn.commit()
     conn.close()
-    return dict(row) if row else {}
+    if not row:
+        return {}
+    result=dict(row)
+    result["role"]=result.pop("current_role")
+    result["full_name"]=result.pop("current_full_name")
+    return result
 
 def require_auth(x_token:str="")->dict:
     sess=get_session(x_token)
     if not sess: raise HTTPException(401,"SessÃ£o invÃ¡lida. FaÃ§a login novamente.")
     return sess
+
+def _rbac_context_for_session(sess:dict)->dict:
+    conn=get_control_db()
+    try:
+        return role_context_from_db(conn,sess.get("role",""))
+    finally:
+        conn.close()
+
+def get_effective_product_scope(user:dict, requested_product_ids=None):
+    """Retorna o escopo permitido e nunca amplia IDs solicitados pelo cliente."""
+    context=_rbac_context_for_session(user)
+    scope=context.get("product_scope",{})
+    allowed_ids=set(scope.get("allowed_product_ids",[]))
+    if scope.get("mode")=="all":
+        return None
+    if requested_product_ids is None:
+        return allowed_ids
+    return allowed_ids.intersection({str(value) for value in requested_product_ids})
+
+def _require_product_action(sess:dict,product_name:str,action:str="view"):
+    context=_rbac_context_for_session(sess)
+    allowed=allowed_product_keys(context,action=action)
+    if allowed is not None and normalize_product_key(product_name) not in allowed:
+        raise HTTPException(404,"Produto nao encontrado.")
+
+def _current_area_key()->str:
+    return "menina_da_estrada" if _company_key(CURRENT_COMPANY.get())=="estrada" else "menina_dos_raios"
+
+def require_module_action(x_token:str,area_key:str,module_key:str,action:str="view")->dict:
+    sess=require_auth(x_token)
+    context=_rbac_context_for_session(sess)
+    if not context.get("managed") or role_has_permission(context,area_key,module_key,action):
+        return sess
+    raise HTTPException(403,"Voce nao tem permissao para acessar esta area.")
 
 def require_admin(x_token:str="")->dict:
     sess=require_auth(x_token)
@@ -824,18 +898,37 @@ def _session_has_any_tab(sess:dict, keys:list)->bool:
 
 def require_any_tab_access(x_token:str, keys:list)->dict:
     sess=require_auth(x_token)
+    context=_rbac_context_for_session(sess)
+    if context.get("managed") and sess.get("role")!="admin":
+        area=_current_area_key()
+        if any(role_has_permission(context,area,key,"view") for key in _expand_tab_keys(keys)):
+            return sess
+        raise HTTPException(403,"Voce nao tem permissao para acessar esta area.")
     if not _permissions_configured() or _session_has_any_tab(sess, keys):
         return sess
     raise HTTPException(403,"Sem permissao para acessar esta area.")
 
 def require_editor_tab_access(x_token:str, keys:list)->dict:
-    sess=require_editor(x_token)
+    sess=require_auth(x_token)
+    context=_rbac_context_for_session(sess)
+    if context.get("managed") and sess.get("role")!="admin":
+        area=_current_area_key()
+        if any(role_has_permission(context,area,key,"view") for key in _expand_tab_keys(keys)):
+            return sess
+        raise HTTPException(403,"Voce nao tem permissao para editar esta area.")
+    if sess.get("role") not in ("admin","editor"):
+        raise HTTPException(403,"PermissÃ£o insuficiente.")
     if not _permissions_configured() or _session_has_any_tab(sess, keys):
         return sess
     raise HTTPException(403,"Sem permissao para editar esta area.")
 
 def require_prices_access(x_token:str="")->dict:
     sess=require_auth(x_token)
+    context=_rbac_context_for_session(sess)
+    if context.get("managed") and sess.get("role")!="admin":
+        if role_has_permission(context,_current_area_key(),"produtos","view"):
+            return sess
+        raise HTTPException(403,"Sem permissao para editar precos.")
     if sess.get("role")=="admin" or role_has_tab_permission(sess.get("role",""),"cfg_precos"):
         return sess
     raise HTTPException(403,"Sem permissao para editar precos.")
@@ -1025,6 +1118,36 @@ app.add_middleware(CORSMiddleware,
                    allow_methods=["GET","POST","PUT","DELETE","OPTIONS"],
                    allow_headers=["Content-Type","x-token","x-company","x-app-token","x-real-ip","Authorization","Accept"])
 
+def _managed_route_permission(path:str,method:str):
+    method=method.upper()
+    if path in ("/api/auth/me","/api/auth/permissions","/api/auth/company-switch","/api/auth/change-password","/api/auth/logout"):
+        return ("auth","session","view")
+    if path=="/api/sales" and method=="GET":
+        return (None,"consolidado","view")
+    if path=="/api/sales" and method=="POST":
+        return (None,"consolidado","create")
+    if re.fullmatch(r"/api/sales/[^/]+",path) and method=="PUT":
+        return (None,"consolidado","edit")
+    if re.fullmatch(r"/api/sales/[^/]+",path) and method=="DELETE":
+        return (None,"consolidado","delete")
+    if path in ("/api/summary","/api/consolidado") and method=="GET":
+        return (None,"consolidado","view")
+    if path=="/api/prices" and method=="GET":
+        return (None,"produtos","view")
+    if path=="/api/prices" and method=="POST":
+        return (None,"produtos","create")
+    if path in ("/api/prices","/api/prices/label") and method=="PUT":
+        return (None,"produtos","edit")
+    if re.fullmatch(r"/api/prices/[^/]+",path) and method=="DELETE":
+        return (None,"produtos","delete")
+    if path=="/api/prices/history" and method=="GET":
+        return (None,"produtos","view")
+    if path=="/api/product-stats" and method=="GET":
+        return (None,"produtos","view")
+    if path.startswith("/api/admin/roles") or path=="/api/admin/permission-products":
+        return ("any","cargos","configure")
+    return None
+
 @app.middleware("http")
 async def company_context_middleware(request: Request, call_next):
     company=request.headers.get("x-company") or request.query_params.get("company") or "raios"
@@ -1032,6 +1155,25 @@ async def company_context_middleware(request: Request, call_next):
         company="raios"
     token = CURRENT_COMPANY.set(_company_key(company))
     try:
+        if request.method.upper()!="OPTIONS" and request.url.path.startswith("/api/") and request.url.path!="/api/auth/login":
+            raw_token=request.headers.get("x-token","")
+            sess=get_session(raw_token) if raw_token else {}
+            if sess:
+                context=_rbac_context_for_session(sess)
+                if context.get("managed") and sess.get("role")!="admin":
+                    required=_managed_route_permission(request.url.path,request.method)
+                    if required is None:
+                        return JSONResponse(status_code=403,content={"detail":"Voce nao tem permissao para acessar esta area."})
+                    area_key,module_key,action=required
+                    if area_key=="auth":
+                        pass
+                    elif area_key=="any":
+                        if not any(role_has_permission(context,key,module_key,action) for key in AREA_MODULES):
+                            return JSONResponse(status_code=403,content={"detail":"Voce nao tem permissao para acessar esta area."})
+                    else:
+                        area_key=area_key or _current_area_key()
+                        if not role_has_permission(context,area_key,module_key,action):
+                            return JSONResponse(status_code=403,content={"detail":"Voce nao tem permissao para acessar esta area."})
         return await call_next(request)
     finally:
         CURRENT_COMPANY.reset(token)
@@ -1070,7 +1212,12 @@ def login(body:LoginIn, request:Request):
             raise
         conn.execute("INSERT INTO sessions(token,user_id,username,full_name,role,expires_at) VALUES(?,?,?,?,?,?)",
                      (token,user["id"],user["username"],user["full_name"],user["role"],expires))
-    conn.commit(); conn.close()
+    conn.commit()
+    auth_context=role_context_from_db(conn,user["role"])
+    conn.close()
+    default_area=auth_context.get("default_route",{}).get("area")
+    if auth_context.get("managed") and user["role"]!="admin" and default_area:
+        login_company="estrada" if default_area=="menina_da_estrada" else "raios"
     return {"token":token,"username":user["username"],"full_name":user["full_name"],"role":user["role"],"company":login_company}
 
 @app.post("/api/auth/logout")
@@ -1215,11 +1362,20 @@ def me(x_token:str=Header("")):
     sess=require_auth(x_token)
     return {"username":sess["username"],"full_name":sess.get("full_name"),"role":sess["role"]}
 
+@app.get("/api/auth/permissions")
+def auth_permissions(x_token:str=Header("")):
+    sess=require_auth(x_token)
+    return _rbac_context_for_session(sess)
+
 @app.post("/api/auth/company-switch")
 def switch_company_session(body:dict,x_token:str=Header("")):
     """Troca apenas a empresa ativa no frontend; usuario/sessao sao do grupo."""
     sess=require_auth(x_token)
     target=_company_key(body.get("company","raios"))
+    context=_rbac_context_for_session(sess)
+    area_key="menina_da_estrada" if target=="estrada" else "menina_dos_raios"
+    if context.get("managed") and not context.get("areas",{}).get(area_key):
+        raise HTTPException(403,"Voce nao tem permissao para acessar esta area.")
     return {"token":x_token,"username":sess["username"],"full_name":sess.get("full_name"),"role":sess["role"],"company":target}
 
 @app.put("/api/auth/change-password")
@@ -1250,12 +1406,17 @@ def list_users(x_token:str=Header("")):
 @app.post("/api/users")
 def create_user(body:UserIn,x_token:str=Header("")):
     sess=require_admin(x_token)
+    role_key=str(body.role or "").strip().lower()
+    conn=get_control_db()
+    valid_role=role_key in ("admin","editor","viewer") or conn.execute("SELECT 1 FROM roles WHERE key=? AND active=1",(role_key,)).fetchone()
+    conn.close()
+    if not valid_role: raise HTTPException(400,"Cargo invalido ou inativo.")
     validate_password(body.password, body.username)
     pw_hash=hash_password(body.password)
     new_id=str(uuid.uuid4()); conn=get_control_db()
     try:
         conn.execute("INSERT INTO users(id,username,password_hash,full_name,role,created_by) VALUES(?,?,?,?,?,?)",
-                     (new_id,body.username,pw_hash,body.full_name,body.role,sess["username"]))
+                     (new_id,body.username,pw_hash,body.full_name,role_key,sess["username"]))
         conn.commit()
     except Exception as e:
         conn.close(); raise HTTPException(400,f"UsuÃ¡rio jÃ¡ existe ou dados invÃ¡lidos: {e}")
@@ -1269,6 +1430,11 @@ def update_user(user_id:str,body:dict,x_token:str=Header("")):
     if "role" in body and body["role"]!="admin" and target["role"]=="admin":
         admin_cnt=conn.execute("SELECT COUNT(*) FROM users WHERE role='admin' AND active=1").fetchone()[0]
         if admin_cnt<=1: conn.close(); raise HTTPException(400,"NÃ£o Ã© possÃ­vel remover o Ãºnico administrador.")
+    if "role" in body:
+        role_key=str(body["role"] or "").strip().lower()
+        valid_role=role_key in ("admin","editor","viewer") or conn.execute("SELECT 1 FROM roles WHERE key=? AND active=1",(role_key,)).fetchone()
+        if not valid_role: conn.close(); raise HTTPException(400,"Cargo invalido ou inativo.")
+        body["role"]=role_key
     if "password" in body and body["password"]:
         validate_password(body["password"], target["username"])
         conn.execute("UPDATE users SET password_hash=? WHERE id=?",(hash_password(body["password"]),user_id))
@@ -1283,6 +1449,198 @@ def delete_user(user_id:str,x_token:str=Header("")):
     if user_id==sess["user_id"]: raise HTTPException(400,"NÃ£o pode excluir sua prÃ³pria conta.")
     conn=get_control_db(); conn.execute("DELETE FROM users WHERE id=?",(user_id,)); conn.commit(); conn.close()
     return {"ok":True}
+
+def require_roles_configure(x_token:str="")->dict:
+    sess=require_auth(x_token)
+    if sess.get("role")=="admin":
+        return sess
+    context=_rbac_context_for_session(sess)
+    for area_key in AREA_MODULES:
+        if role_has_permission(context,area_key,"cargos","configure"):
+            return sess
+    raise HTTPException(403,"Sem permissao para administrar cargos.")
+
+def _validate_role_key(value:str)->str:
+    key=str(value or "").strip().lower()
+    if not re.fullmatch(r"[a-z][a-z0-9_]{2,39}",key):
+        raise HTTPException(400,"Chave do cargo invalida. Use letras minusculas, numeros e sublinhado.")
+    return key
+
+def _save_role_configuration(conn,role_id:str,body:dict):
+    areas=body.get("areas") or {}
+    modules=body.get("modules") or {}
+    products=body.get("products") or []
+    conn.execute("DELETE FROM role_area_permissions WHERE role_id=?",(role_id,))
+    conn.execute("DELETE FROM role_module_permissions WHERE role_id=?",(role_id,))
+    conn.execute("DELETE FROM role_product_permissions WHERE role_id=?",(role_id,))
+    for area_key,can_view in areas.items():
+        if area_key not in AREA_MODULES:
+            continue
+        conn.execute("INSERT INTO role_area_permissions(role_id,area_key,can_view) VALUES(?,?,?)",
+                     (role_id,area_key,int(bool(can_view))))
+    for area_key,area_modules in modules.items():
+        if area_key not in AREA_MODULES or not isinstance(area_modules,dict):
+            continue
+        for sort_order,(module_key,permissions) in enumerate(area_modules.items()):
+            if module_key not in AREA_MODULES[area_key] or not isinstance(permissions,dict):
+                continue
+            values=[int(bool(permissions.get(action))) for action in ACTIONS]
+            if any(values[1:]):
+                values[0]=1
+            if any(values):
+                conn.execute(
+                    """INSERT INTO role_module_permissions(
+                           role_id,area_key,module_key,can_view,can_create,can_edit,can_delete,
+                           can_export,can_import,can_approve,can_configure,sort_order)
+                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (role_id,area_key,module_key,*values,sort_order),
+                )
+                conn.execute("""INSERT INTO role_area_permissions(role_id,area_key,can_view)
+                                VALUES(?,?,1) ON CONFLICT(role_id,area_key) DO UPDATE SET can_view=1""",
+                             (role_id,area_key))
+    for item in products:
+        product_id=str(item.get("product_id") or "")
+        exists=conn.execute("SELECT 1 FROM permission_products WHERE id=? AND active=1",(product_id,)).fetchone()
+        if not exists:
+            continue
+        can_create=int(bool(item.get("create")))
+        can_edit=int(bool(item.get("edit")))
+        can_delete=int(bool(item.get("delete")))
+        can_view=int(bool(item.get("view"))) or int(any((can_create,can_edit,can_delete)))
+        conn.execute("""INSERT INTO role_product_permissions(
+                           role_id,product_id,can_view,can_create,can_edit,can_delete)
+                       VALUES(?,?,?,?,?,?)""",
+                     (role_id,product_id,can_view,can_create,can_edit,can_delete))
+
+@app.get("/api/admin/roles")
+def list_roles(x_token:str=Header("")):
+    require_roles_configure(x_token)
+    conn=get_control_db()
+    rows=conn.execute("""SELECT r.*,
+                     (SELECT COUNT(*) FROM users u WHERE u.role=r.key) AS user_count,
+                     (SELECT COUNT(*) FROM role_area_permissions ap WHERE ap.role_id=r.id AND ap.can_view=1) AS area_count
+                     FROM roles r ORDER BY r.is_system DESC,r.name""").fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+@app.get("/api/admin/roles/{role_key}")
+def get_role(role_key:str,x_token:str=Header("")):
+    require_roles_configure(x_token)
+    conn=get_control_db()
+    role=conn.execute("SELECT * FROM roles WHERE key=?",(role_key,)).fetchone()
+    if not role:
+        conn.close(); raise HTTPException(404,"Cargo nao encontrado.")
+    context=role_context_from_db(conn,role_key)
+    context["role_record"]=dict(role)
+    conn.close()
+    return context
+
+@app.post("/api/admin/roles")
+def create_role(body:dict,x_token:str=Header("")):
+    require_roles_configure(x_token)
+    key=_validate_role_key(body.get("key"))
+    name=str(body.get("name") or "").strip()
+    if not name: raise HTTPException(400,"Nome do cargo obrigatorio.")
+    role_id=f"role_{uuid.uuid4().hex}"
+    conn=get_control_db()
+    try:
+        conn.execute("""INSERT INTO roles(id,key,name,description,active,is_system,product_scope_mode)
+                        VALUES(?,?,?,?,?,0,?)""",
+                     (role_id,key,name,str(body.get("description") or "").strip(),int(bool(body.get("active",True))),
+                      "specific" if body.get("product_scope_mode")=="specific" else "all"))
+        _save_role_configuration(conn,role_id,body)
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.rollback(); conn.close(); raise HTTPException(400,"Ja existe um cargo com essa chave.")
+    except Exception:
+        conn.rollback(); conn.close(); raise
+    conn.close()
+    return {"ok":True,"key":key}
+
+@app.put("/api/admin/roles/{role_key}")
+def update_role(role_key:str,body:dict,x_token:str=Header("")):
+    require_roles_configure(x_token)
+    conn=get_control_db()
+    role=conn.execute("SELECT * FROM roles WHERE key=?",(role_key,)).fetchone()
+    if not role:
+        conn.close(); raise HTTPException(404,"Cargo nao encontrado.")
+    if role_key=="admin":
+        conn.close(); raise HTTPException(400,"O cargo Administrador e protegido.")
+    name=str(body.get("name") or role["name"]).strip()
+    try:
+        conn.execute("""UPDATE roles SET name=?,description=?,active=?,product_scope_mode=?,updated_at=datetime('now')
+                        WHERE id=?""",
+                     (name,str(body.get("description",role["description"] or "")).strip(),
+                      int(bool(body.get("active",role["active"]))),
+                      "specific" if body.get("product_scope_mode",role["product_scope_mode"])=="specific" else "all",
+                      role["id"]))
+        _save_role_configuration(conn,role["id"],body)
+        conn.commit()
+    except Exception:
+        conn.rollback(); conn.close(); raise
+    conn.close()
+    return {"ok":True,"key":role_key}
+
+@app.post("/api/admin/roles/{role_key}/duplicate")
+def duplicate_role(role_key:str,body:dict,x_token:str=Header("")):
+    require_roles_configure(x_token)
+    new_key=_validate_role_key(body.get("key"))
+    conn=get_control_db()
+    source=conn.execute("SELECT * FROM roles WHERE key=?",(role_key,)).fetchone()
+    if not source:
+        conn.close(); raise HTTPException(404,"Cargo nao encontrado.")
+    new_id=f"role_{uuid.uuid4().hex}"
+    try:
+        conn.execute("""INSERT INTO roles(id,key,name,description,active,is_system,product_scope_mode)
+                        VALUES(?,?,?,?,1,0,?)""",
+                     (new_id,new_key,str(body.get("name") or f"Copia de {source['name']}").strip(),
+                      source["description"],source["product_scope_mode"]))
+        for table,columns in (
+            ("role_area_permissions","area_key,can_view"),
+            ("role_module_permissions","area_key,module_key,can_view,can_create,can_edit,can_delete,can_export,can_import,can_approve,can_configure,sort_order"),
+            ("role_product_permissions","product_id,can_view,can_create,can_edit,can_delete"),
+        ):
+            conn.execute(f"INSERT INTO {table}(role_id,{columns}) SELECT ?,{columns} FROM {table} WHERE role_id=?",(new_id,source["id"]))
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.rollback(); conn.close(); raise HTTPException(400,"Ja existe um cargo com essa chave.")
+    conn.close()
+    return {"ok":True,"key":new_key}
+
+@app.delete("/api/admin/roles/{role_key}")
+def delete_role(role_key:str,x_token:str=Header("")):
+    require_roles_configure(x_token)
+    conn=get_control_db()
+    role=conn.execute("SELECT * FROM roles WHERE key=?",(role_key,)).fetchone()
+    if not role:
+        conn.close(); raise HTTPException(404,"Cargo nao encontrado.")
+    if role["is_system"]:
+        conn.close(); raise HTTPException(400,"Cargos do sistema nao podem ser excluidos.")
+    users=conn.execute("SELECT COUNT(*) FROM users WHERE role=?",(role_key,)).fetchone()[0]
+    if users:
+        conn.close(); raise HTTPException(400,"Remova os usuarios vinculados antes de excluir o cargo.")
+    conn.execute("DELETE FROM roles WHERE id=?",(role["id"],)); conn.commit(); conn.close()
+    return {"ok":True}
+
+@app.get("/api/admin/permission-products")
+def list_permission_products(x_token:str=Header("")):
+    require_roles_configure(x_token)
+    conn=get_control_db()
+    try:
+        for company_key in COMPANY_DBS:
+            source=get_db(company_key)
+            try:
+                names=source.execute("SELECT DISTINCT product FROM sales WHERE product IS NOT NULL AND trim(product)!=''").fetchall()
+                for row in names:
+                    canonical=norm_p(row["product"],"NF")
+                    ensure_permission_product(conn,canonical)
+            finally:
+                source.close()
+        conn.commit()
+        rows=conn.execute("SELECT id,product_key,name,active FROM permission_products WHERE active=1 ORDER BY name").fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
 
 @app.get("/api/admin/messages")
 def list_admin_messages(x_token:str=Header("")):
@@ -1384,7 +1742,7 @@ def mark_admin_message_seen(message_id:str,x_token:str=Header("")):
 def list_sales(sale_type:Optional[str]=None,month:Optional[int]=None,
                year:Optional[int]=None,search:Optional[str]=None,
                driver:Optional[str]=None,limit:Optional[int]=None,x_token:str=Header("")):
-    require_any_tab_access(x_token,["consolidado","nf","pr","avulso","avaria","grafico","produtividade","clientes","pendentes"])
+    sess=require_any_tab_access(x_token,["consolidado","nf","pr","avulso","avaria","grafico","produtividade","clientes","pendentes"])
     conn=get_db(); sql="SELECT * FROM sales WHERE 1=1"; args=[]
     if sale_type: sql+=" AND sale_type=?"; args.append(sale_type)
     if year: sql+=" AND strftime('%Y',sale_date)=?"; args.append(str(year))
@@ -1397,8 +1755,8 @@ def list_sales(sale_type:Optional[str]=None,month:Optional[int]=None,
     # Limite sÃ³ aplicado quando explicitamente solicitado (default era 2000 hardcoded)
     if limit is not None and limit > 0:
         sql+=" LIMIT ?"; args.append(int(limit))
-    rows=conn.execute(sql,args).fetchall(); conn.close()
-    return [dict(r) for r in rows]
+    rows=[dict(r) for r in conn.execute(sql,args).fetchall()]; conn.close()
+    return filter_records_by_product(_rbac_context_for_session(sess),rows)
 
 @app.post("/api/sales")
 def create_sale(sale:SaleIn,x_token:str=Header("")):
@@ -1408,6 +1766,7 @@ def create_sale(sale:SaleIn,x_token:str=Header("")):
     # Normaliza nome do produto (unifica "Alho 250g"/"ALHO 250G", Macaxeira, etc).
     # ImportaÃ§Ãµes de Excel jÃ¡ aplicavam; criaÃ§Ã£o manual via form nÃ£o â€” corrigido aqui.
     product_norm = norm_p(sale.product, sale.sale_type) if sale.product else sale.product
+    _require_product_action(sess,product_norm,"create")
     conn=get_db()
     conn.execute("""INSERT INTO sales(id,sale_type,sale_date,sale_time,client,product,nf_number,
         quantity,unit_price,total,notes,delivery_person,plate,source,created_by,created_at)
@@ -1462,6 +1821,7 @@ def update_sale(sale_id:str,body:dict,x_token:str=Header("")):
     try:
         old=conn.execute("SELECT * FROM sales WHERE id=?",(sale_id,)).fetchone()
         if not old: raise HTTPException(404,"Venda nÃ£o encontrada.")
+        _require_product_action(sess,old["product"],"edit")
         fields=["sale_date","sale_time","client","product","nf_number","quantity",
                 "unit_price","total","notes","delivery_person","plate","sale_type",
                 "delivered","delivered_at"]
@@ -1469,6 +1829,7 @@ def update_sale(sale_id:str,body:dict,x_token:str=Header("")):
         if "product" in body and body["product"]:
             st = body.get("sale_type", old["sale_type"]) or "NF"
             body["product"] = norm_p(body["product"], st)
+            _require_product_action(sess,body["product"],"edit")
         for f in fields:
             if f in body:
                 conn.execute(f"UPDATE sales SET {f}=? WHERE id=?",(body[f],sale_id))
@@ -1498,6 +1859,11 @@ def delete_sale(sale_id:str,x_token:str=Header("")):
     sess=require_editor_tab_access(x_token,["consolidado","nf","pr","avulso","avaria","pendentes"]); conn=get_db()
     old=conn.execute("SELECT * FROM sales WHERE id=?",(sale_id,)).fetchone()
     if old:
+        try:
+            _require_product_action(sess,old["product"],"delete")
+        except Exception:
+            conn.close()
+            raise
         import json as _json
         detalhe=_json.dumps({
             "tipo":old["sale_type"],"data":old["sale_date"],"hora":old["sale_time"] or "",
@@ -1522,7 +1888,22 @@ def _summary_cached(company:str,year:int,bucket:int):
     conn.close(); return tuple(tuple(dict(r).items()) for r in rows)
 
 def summary(year:int=datetime.now().year,x_token:str=Header("")):
-    require_any_tab_access(x_token,["consolidado","grafico","produtividade"])
+    sess=require_any_tab_access(x_token,["consolidado","grafico","produtividade"])
+    context=_rbac_context_for_session(sess)
+    if allowed_product_keys(context) is not None:
+        conn=get_db()
+        rows=[dict(r) for r in conn.execute("""SELECT strftime('%m',sale_date) AS month,sale_type,product,
+                   SUM(total) AS total_val,SUM(quantity) AS total_qty
+                   FROM sales WHERE strftime('%Y',sale_date)=? GROUP BY month,sale_type,product""",
+                   (str(year),)).fetchall()]
+        conn.close()
+        grouped={}
+        for row in filter_records_by_product(context,rows):
+            key=(row["month"],row["sale_type"])
+            item=grouped.setdefault(key,{"month":row["month"],"sale_type":row["sale_type"],"total_val":0.0,"total_qty":0.0})
+            item["total_val"]+=float(row["total_val"] or 0)
+            item["total_qty"]+=float(row["total_qty"] or 0)
+        return list(grouped.values())
     data=_summary_cached(_company_key(CURRENT_COMPANY.get()),int(year),_cache_bucket(60))
     return [dict(items) for items in data]
 
@@ -1547,9 +1928,9 @@ def _consolidado_cached(company:str,year:int,bucket:int):
 
 @app.get("/api/consolidado")
 def consolidado(year:int=datetime.now().year,x_token:str=Header("")):
-    require_any_tab_access(x_token,["consolidado","grafico","produtividade"])
+    sess=require_any_tab_access(x_token,["consolidado","grafico","produtividade"])
     data=_consolidado_cached(_company_key(CURRENT_COMPANY.get()),int(year),_cache_bucket(60))
-    return [dict(items) for items in data]
+    return filter_records_by_product(_rbac_context_for_session(sess),[dict(items) for items in data])
 
 @app.get("/api/projecao/producao")
 def projecao_producao(days:int=30,
@@ -1998,7 +2379,12 @@ def avarias_client_risk(year:int=datetime.now().year,
 
 @app.get("/api/product-stats")
 def product_stats(product:str,year:Optional[int]=None,x_token:str=Header("")):
-    require_auth(x_token); conn=get_db()
+    sess=require_auth(x_token)
+    context=_rbac_context_for_session(sess)
+    allowed=allowed_product_keys(context)
+    if allowed is not None and normalize_product_key(product) not in allowed:
+        raise HTTPException(404,"Produto nao encontrado.")
+    conn=get_db()
     target=norm_p(product or "", "NF")
     sql="""SELECT strftime('%m',sale_date) AS month,sale_type,product,total,quantity,client,unit_price
            FROM sales WHERE product IS NOT NULL AND product!=''"""
@@ -2030,9 +2416,9 @@ def product_stats(product:str,year:Optional[int]=None,x_token:str=Header("")):
 # â”€â”€ PreÃ§os â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @app.get("/api/prices")
 def get_prices(x_token:str=Header("")):
-    require_auth(x_token); conn=get_db()
+    sess=require_auth(x_token); conn=get_db()
     rows=conn.execute("SELECT key,label,price,price_min,price_max,is_variable,updated_at FROM product_prices WHERE COALESCE(active,1)=1 ORDER BY label").fetchall()
-    conn.close(); return [dict(r) for r in rows]
+    conn.close(); return filter_records_by_product(_rbac_context_for_session(sess),[dict(r) for r in rows],field="label")
 
 @app.post("/api/prices")
 def add_product(body:dict,x_token:str=Header("")):
@@ -2040,6 +2426,7 @@ def add_product(body:dict,x_token:str=Header("")):
     key=body.get("key","").upper(); label=body.get("label",""); price=float(body.get("price",0))
     is_var=int(body.get("is_variable",False)); pmin=body.get("price_min"); pmax=body.get("price_max")
     if not key or not label: raise HTTPException(400,"Chave e nome obrigatÃ³rios.")
+    _require_product_action(sess,label,"create")
     conn=get_db()
     conn.execute("INSERT OR REPLACE INTO product_prices(key,label,price,price_min,price_max,is_variable) VALUES(?,?,?,?,?,?)",
                  (key,label,price,pmin,pmax,is_var))
@@ -2060,6 +2447,7 @@ def update_price(update:PriceUpdate,x_token:str=Header("")):
     try:
         old=conn.execute("SELECT price,label FROM product_prices WHERE key=?",(update.key,)).fetchone()
         old_price=old["price"] if old else 0; label=old["label"] if old else update.key
+        _require_product_action(sess,label,"edit")
         today=datetime.now().strftime("%Y-%m-%d")
         conn.execute("UPDATE product_prices SET price=?,price_min=?,price_max=?,updated_at=datetime('now') WHERE key=?",
                      (update.price,update.price_min,update.price_max,update.key))
@@ -2085,6 +2473,11 @@ def update_label(body:dict,x_token:str=Header("")):
     if not key or not label: raise HTTPException(400,"Dados invÃ¡lidos.")
     conn=get_db()
     old=conn.execute("SELECT label FROM product_prices WHERE key=?",(key,)).fetchone()
+    try:
+        _require_product_action(sess,old["label"] if old else key,"edit")
+    except Exception:
+        conn.close()
+        raise
     conn.execute("UPDATE product_prices SET label=? WHERE key=?",(label,key))
     log_action(conn,sess,"RENAME_PRODUCT",key,label,"label",old["label"] if old else "","label",datetime.now().strftime("%Y-%m-%d"),"")
     conn.commit(); conn.close(); return {"ok":True}
@@ -2094,6 +2487,12 @@ def delete_product(key:str,x_token:str=Header("")):
     """Remove produto da lista de preÃ§os de verdade e impede resemeadura automÃ¡tica."""
     sess=require_prices_access(x_token)
     conn=get_db()
+    product=conn.execute("SELECT label FROM product_prices WHERE key=?",(key,)).fetchone()
+    try:
+        _require_product_action(sess,product["label"] if product else key,"delete")
+    except Exception:
+        conn.close()
+        raise
     try:
         row=conn.execute("SELECT value FROM settings WHERE key='deleted_product_keys'").fetchone()
         deleted=set(json.loads(row["value"])) if row and row["value"] else set()
@@ -2118,12 +2517,26 @@ def parse_avaria_preview(body:dict,x_token:str=Header("")):
 # â”€â”€ HistÃ³rico de preÃ§os / Auditoria â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @app.get("/api/prices/history")
 def get_price_history(key:Optional[str]=None,x_token:str=Header("")):
-    require_auth(x_token); conn=get_db()
+    sess=require_auth(x_token); context=_rbac_context_for_session(sess); allowed=allowed_product_keys(context)
+    if key and allowed is not None:
+        product_conn=get_db()
+        product_row=product_conn.execute("SELECT label FROM product_prices WHERE key=?",(key,)).fetchone()
+        product_conn.close()
+        if not product_row or normalize_product_key(product_row["label"]) not in allowed:
+            raise HTTPException(404,"Produto nao encontrado.")
+    conn=get_db()
     if key:
         rows=conn.execute("SELECT * FROM price_history WHERE key=? ORDER BY effective_date DESC",(key,)).fetchall()
     else:
         rows=conn.execute("SELECT * FROM price_history ORDER BY effective_date DESC,key LIMIT 300").fetchall()
-    conn.close(); return [dict(r) for r in rows]
+    conn.close()
+    result=[dict(r) for r in rows]
+    if allowed is None:
+        return result
+    labels_conn=get_db()
+    labels={row["key"]:row["label"] for row in labels_conn.execute("SELECT key,label FROM product_prices").fetchall()}
+    labels_conn.close()
+    return [row for row in result if normalize_product_key(labels.get(row.get("key"),"")) in allowed]
 
 @app.post("/api/prices/history")
 def add_price_history(body:dict,x_token:str=Header("")):
@@ -2781,8 +3194,26 @@ def _summary_array_cached(company:str,year:int,bucket:int):
 @app.get("/api/summary")
 def get_summary_array(year:Optional[int]=None,x_token:str=Header("")):
     """Monthly breakdown for chart - returns [{month, sale_type, total_val, cnt}]"""
-    require_any_tab_access(x_token,["consolidado","grafico","produtividade"])
+    sess=require_any_tab_access(x_token,["consolidado","grafico","produtividade"])
     y=year or datetime.now().year
+    context=_rbac_context_for_session(sess)
+    if allowed_product_keys(context) is not None:
+        conn=get_db()
+        rows=[dict(row) for row in conn.execute(
+            """SELECT strftime('%m',sale_date) AS month,sale_type,product,
+                      SUM(total) AS total_val,COUNT(*) AS cnt
+               FROM sales WHERE strftime('%Y',sale_date)=?
+               GROUP BY month,sale_type,product ORDER BY month,sale_type""",
+            (str(y),),
+        ).fetchall()]
+        conn.close()
+        grouped={}
+        for row in filter_records_by_product(context,rows):
+            key=(row["month"],row["sale_type"])
+            item=grouped.setdefault(key,{"month":row["month"],"sale_type":row["sale_type"],"total_val":0.0,"cnt":0})
+            item["total_val"]+=float(row["total_val"] or 0)
+            item["cnt"]+=int(row["cnt"] or 0)
+        return list(grouped.values())
     data=_summary_array_cached(_company_key(CURRENT_COMPANY.get()),int(y),_cache_bucket(60))
     return [dict(items) for items in data]
 
@@ -4862,9 +5293,9 @@ def quote_company(x_token:str=Header("")):
     return {"default":"estrada","companies":list(_quote_companies().values())}
 
 @app.get("/api/orcamentos/products")
-def list_quote_products(active:Optional[int]=1, search:Optional[str]=None, x_token:str=Header("")):
+def list_quote_products(active:Optional[int]=1, search:Optional[str]=None, company_key:Optional[str]=None, x_token:str=Header("")):
     require_auth(x_token)
-    conn=get_db(); sql="SELECT * FROM quote_products WHERE 1=1"; args=[]
+    conn=get_db(company_key if company_key is not None else CURRENT_COMPANY.get()); sql="SELECT * FROM quote_products WHERE 1=1"; args=[]
     if active is not None:
         sql+=" AND active=?"; args.append(int(active))
     if search:

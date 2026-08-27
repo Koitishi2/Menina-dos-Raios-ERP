@@ -46,7 +46,11 @@ def quote_totals_from_items(items, discount=0):
         qty=float(it.get("quantity") or 0)
         unit_price=float(it.get("unit_price") or 0)
         item_discount=float(it.get("discount") or 0)
-        line=max(qty*unit_price-item_discount,0)
+        manual_subtotal=it.get("subtotal_override")
+        if manual_subtotal is None or manual_subtotal == "":
+            line=max(qty*unit_price-item_discount,0)
+        else:
+            line=max(float(manual_subtotal),0)
         row=dict(it)
         row["item_order"]=int(row.get("item_order") or i)
         row["quantity"]=qty

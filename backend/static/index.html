@@ -791,6 +791,7 @@ main{max-width:1400px;margin:0 auto;padding:16px;display:flex;flex-direction:col
   font-size:11px!important;
   font-weight:700!important;
 }
+@media(max-width:900px){.rbac-admin-grid{grid-template-columns:1fr!important}}
 #cfg-registro .perm-cb,
 #cfg-registro #users-list input[type="checkbox"]{
   appearance:none;
@@ -3193,11 +3194,13 @@ body.paladar-active #notif-restore{display:none!important}
       <input type="hidden" id="eu-userid">
       <div class="fg"><label>Nome Completo</label><input type="text" id="eu-fullname"></div>
       <div class="fg"><label>Perfil</label>
-        <select id="eu-role">
+        <select id="eu-role" onchange="updateUserRoleSummary('eu')">
           <option value="viewer"> Viewer</option>
           <option value="editor"> Editor</option>
+          <option value="cliente">Cliente</option>
           <option value="admin"> Admin</option>
         </select>
+        <div id="eu-role-summary" style="font-size:10px;color:var(--muted);margin-top:5px"></div>
       </div>
       <div class="fg"><label>Nova Senha (deixe em branco para não alterar)</label><input type="password" id="eu-password" placeholder="••••••••" oninput="document.getElementById('eu-pw2-wrap').style.display=this.value?'block':'none'"></div>
       <div class="fg" id="eu-pw2-wrap" style="display:none"><label>Confirmar Nova Senha</label><input type="password" id="eu-password2" placeholder="••••••••" onkeydown="if(event.key==='Enter')saveEditUser()"></div>
@@ -3339,7 +3342,7 @@ body.paladar-active #notif-restore{display:none!important}
         <div class="card" style="padding:14px">
           <div class="fg" style="margin-bottom:12px">
             <label>Qual empresa vai emitir este orçamento?</label>
-            <select id="orc-company" onchange="updateOrcCompanyHeader()">
+            <select id="orc-company" onchange="onOrcCompanyChange()">
               <option value="estrada">Menina da Estrada</option>
               <option value="raios">Menina dos Raios</option>
             </select>
@@ -3984,6 +3987,10 @@ body.paladar-active #notif-restore{display:none!important}
           style="padding:6px 16px;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);display:flex;align-items:center;gap:5px">
           📋 Registro
         </button>
+        <button id="cfg-btn-cargos" onclick="switchConfigView('cargos')"
+          style="padding:6px 16px;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);display:flex;align-items:center;gap:5px">
+          Cargos e permissões
+        </button>
         <button id="cfg-btn-importar" onclick="switchConfigView('importar')"
           style="padding:6px 16px;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);display:flex;align-items:center;gap:5px">
           📂 Backup
@@ -3996,6 +4003,20 @@ body.paladar-active #notif-restore{display:none!important}
           style="padding:6px 16px;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);display:flex;align-items:center;gap:5px">
           📋 Verificar NF
         </button>
+      </div>
+    </div>
+
+    <div id="cfg-cargos" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+        <div>
+          <h2 style="font-size:17px;font-weight:800;color:var(--g800)">Cargos e permissões</h2>
+          <p style="font-size:12px;color:var(--muted);margin-top:3px">Controle áreas, módulos, ações e produtos visíveis para cada cargo.</p>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="newRbacRole()">+ Criar cargo</button>
+      </div>
+      <div class="rbac-admin-grid" style="display:grid;grid-template-columns:minmax(240px,.75fr) minmax(0,2fr);gap:14px;align-items:start">
+        <div id="rbac-role-list" style="display:flex;flex-direction:column;gap:7px"><div class="loader"><div class="spin"></div></div></div>
+        <div id="rbac-role-editor" style="min-height:240px"><div class="empty">Selecione um cargo para configurar.</div></div>
       </div>
     </div>
 
@@ -4205,11 +4226,13 @@ body.paladar-active #notif-restore{display:none!important}
               <div class="fg"><label>Nome</label><input type="text" id="nu-name" placeholder="Nome" autocomplete="off"></div>
               <div class="fg"><label>Senha</label><input type="password" id="nu-pass" placeholder="••••••" autocomplete="new-password"></div>
               <div class="fg"><label>Perfil</label>
-                <select id="nu-role">
+                <select id="nu-role" onchange="updateUserRoleSummary('nu')">
                   <option value="editor"> Editor</option>
                   <option value="viewer"> Visualizador</option>
+                  <option value="cliente">Cliente</option>
                   <option value="admin">⚙ Admin</option>
                 </select>
+                <div id="nu-role-summary" style="font-size:10px;color:var(--muted);margin-top:5px"></div>
               </div>
             </div>
             <button class="btn btn-primary btn-sm" style="margin-top:10px;width:100%" onclick="createUser()">➕ Criar Usuário</button>
@@ -5124,6 +5147,7 @@ async function doLogin(){
     session={token:data.token,username:data.username,role:data.role,full_name:data.full_name||data.username};
     sessionStorage.setItem('session',JSON.stringify(session));
     sessionStorage.setItem('activeCompany',activeCompany);
+    await loadPermissionsOnLogin();
     showApp();
   }catch(e){errEl.textContent=e.message;errEl.style.display='block';}
 }
@@ -5165,12 +5189,16 @@ function showApp(){
   applyRoleUI(session.role);
   bindIdleTimer();
   resetIdleTimer();
-  loadMetaMensal().then(function(){
-    loadAll().then(function(){
-      if(session.role==='viewer') setTimeout(enterTVMode, 250);
+  if(isManagedRestrictedRole()){
+    loadRestrictedApp();
+  }else{
+    loadMetaMensal().then(function(){
+      loadAll().then(function(){
+        if(session.role==='viewer') setTimeout(enterTVMode, 250);
+      });
     });
-  });
-  setTimeout(checkPendingAdminMessage, 500);
+    setTimeout(checkPendingAdminMessage, 500);
+  }
 }
 async function api(path,opts={}){
   if(!opts.headers)opts.headers={};
@@ -5185,6 +5213,13 @@ async function api(path,opts={}){
 async function switchCompanyUI(target){
   if(!session || !session.token){return;}
   target=target || (activeCompany==='raios'?'estrada':'raios');
+  if(window._authz&&window._authz.managed){
+    var targetArea=target==='estrada'?'menina_da_estrada':'menina_dos_raios';
+    if(!window._authz.areas||!window._authz.areas[targetArea]){
+      toast('Você não tem permissão para acessar esta empresa.','error');
+      return;
+    }
+  }
   if(target===activeCompany)return;
   try{
     var oldCompany=activeCompany;
@@ -5211,8 +5246,8 @@ async function switchCompanyUI(target){
     updateCompanyChrome();
     await loadPermissionsOnLogin();
     applyRoleUI(session.role);
-    await loadMetaMensal();
-    await loadAll();
+    if(isManagedRestrictedRole()) await loadRestrictedApp();
+    else { await loadMetaMensal(); await loadAll(); }
     var active=document.querySelector('.tab.active');
     var name='consolidado';
     if(active){
@@ -5274,6 +5309,12 @@ function applyRoleUI(role){
   }
   const allowed=window._tabPermissions||defaults;
   let ok=(allowed[role]||allowed.viewer||[]).slice();
+  if(window._authz&&window._authz.managed){
+    const area=activeCompany==='estrada'?'menina_da_estrada':'menina_dos_raios';
+    ok=Object.keys((window._authz.modules&&window._authz.modules[area])||{}).filter(function(module){
+      return !!window._authz.modules[area][module].view;
+    });
+  }
   if(role === 'viewer') ok = [];
   // Trava de segurança: admin nunca pode perder acesso a 'config' (ficaria sem
   // como reabrir o painel de permissões pela UI). Para viewer/editor o que está
@@ -5294,16 +5335,47 @@ function applyRoleUI(role){
     btn.style.display=ok.includes(btn.dataset.tab)?'':'none';
   });
   const bl=document.querySelector('.btn-launch');
-  if(bl)bl.style.display=role==='viewer'?'none':'';
+  if(bl)bl.style.display=(role==='viewer'||isManagedRestrictedRole())?'none':'';
   const mbl=document.querySelector('.mobile-bar .btn-launch');
-  if(mbl)mbl.style.display=role==='viewer'?'none':'';
+  if(mbl)mbl.style.display=(role==='viewer'||isManagedRestrictedRole())?'none':'';
   var mb=document.querySelector('.mobile-bar');
   if(mb) mb.style.display=role==='viewer'?'none':'';
   var tabs=document.querySelector('.tabs-wrap');
   if(tabs && role==='viewer') tabs.style.display='none';
   else if(tabs) tabs.style.display='';
+  const companySwitch=document.getElementById('company-switch-btn');
+  if(companySwitch&&window._authz&&window._authz.managed){
+    companySwitch.style.display=Object.values(window._authz.areas||{}).filter(Boolean).length>1?'':'none';
+  }
+  applyManagedActionUI();
   applyTabOrder();
   if(typeof applyConfigSubPerms==='function') applyConfigSubPerms(role);
+}
+
+function managedModulePermission(module,action){
+  if(!window._authz||!window._authz.managed)return true;
+  const area=activeCompany==='estrada'?'menina_da_estrada':'menina_dos_raios';
+  return !!(window._authz.modules&&window._authz.modules[area]&&window._authz.modules[area][module]&&window._authz.modules[area][module][action]);
+}
+
+function hasAnyManagedPermission(module,action){
+  if(session&&session.role==='admin')return true;
+  if(!window._authz||!window._authz.managed)return false;
+  return Object.keys(window._authz.modules||{}).some(function(area){return !!(window._authz.modules[area][module]&&window._authz.modules[area][module][action]);});
+}
+
+function applyManagedActionUI(){
+  const restricted=isManagedRestrictedRole();
+  document.querySelectorAll('.btn-paladar-header,.btn-orcamento-header,.btn-nfe').forEach(function(el){el.style.display=restricted?'none':'';});
+  document.querySelectorAll('[onclick*="openPaladarApp"],[onclick*="openOrcamentoShortcut"]').forEach(function(el){el.style.display=restricted?'none':'';});
+  if(!restricted)return;
+  Object.keys((window._authz.modules&&window._authz.modules[activeCompany==='estrada'?'menina_da_estrada':'menina_dos_raios'])||{}).forEach(function(module){
+    const panel=document.getElementById('panel-'+module);if(!panel)return;
+    if(!managedModulePermission(module,'export'))panel.querySelectorAll('[onclick*="export"],[onclick*="Export"],[onclick*="doExport"]').forEach(function(el){el.style.display='none';});
+    if(!managedModulePermission(module,'create'))panel.querySelectorAll('[onclick*="openModal"],[onclick*="create"],[onclick*="Create"],[onclick*="Adicionar"],[onclick*="Novo"]').forEach(function(el){el.style.display='none';});
+    if(!managedModulePermission(module,'edit'))panel.querySelectorAll('[onclick*="edit"],[onclick*="Edit"],[onclick*="update"],[onclick*="Update"]').forEach(function(el){el.style.display='none';});
+    if(!managedModulePermission(module,'delete'))panel.querySelectorAll('[onclick*="delete"],[onclick*="Delete"],[onclick*="remove"],[onclick*="Remove"]').forEach(function(el){el.style.display='none';});
+  });
 }
 
 function applyTabOrder(){
@@ -5324,6 +5396,11 @@ function applyTabOrder(){
 
 // ── TABS ───────────────────────────────────────────────────────────────────────
 function switchTab(btn,name){
+  if(window._authz&&window._authz.managed){
+    const area=activeCompany==='estrada'?'menina_da_estrada':'menina_dos_raios';
+    const permission=window._authz.modules&&window._authz.modules[area]&&window._authz.modules[area][name];
+    if(!permission||!permission.view){toast('Você não tem permissão para acessar esta aba.','error');return;}
+  }
   if(activeCompany==='estrada' && name==='pr'){
     var first=Array.from(document.querySelectorAll('.tab')).find(function(t){return String(t.getAttribute('onclick')||'').indexOf("'consolidado'")>=0;});
     if(first) return switchTab(first,'consolidado');
@@ -5363,6 +5440,27 @@ async function loadAll(){
     await loadPricesForForm();
     await refreshAppNotesNotifications();
   }catch(e){document.getElementById('table-area').innerHTML=`<div class="empty"> ${e.message}</div>`;}
+}
+
+function isManagedRestrictedRole(){
+  return !!(window._authz&&window._authz.managed&&session.role!=='admin');
+}
+
+async function loadRestrictedApp(){
+  const area=activeCompany==='estrada'?'menina_da_estrada':'menina_dos_raios';
+  const modules=(window._authz&&window._authz.modules&&window._authz.modules[area])||{};
+  const requested=(window._authz&&window._authz.default_route&&window._authz.default_route.module)||'';
+  const first=[requested,'produtos','consolidado'].find(function(name){return modules[name]&&modules[name].view;});
+  try{
+    showSkeleton();
+    allSales=await api('/api/sales');
+    window.dispatchEvent(new CustomEvent('salesLoaded'));
+    updateSummary();populateFilters();applyActiveConsolidadoPeriod();filterTable();
+    const btn=Array.from(document.querySelectorAll('.tab')).find(function(tab){
+      return String(tab.getAttribute('onclick')||'').indexOf("'"+first+"'")>=0;
+    });
+    if(btn&&first)switchTab(btn,first);
+  }catch(e){document.getElementById('table-area').innerHTML='<div class="empty">'+e.message+'</div>';}
 }
 
 function calcVariation(sales, type){
@@ -5975,6 +6073,22 @@ document.addEventListener('click', function(ev){
     orcRemoveItem(Number(orcRemove.getAttribute('data-orc-remove-item')));
     return;
   }
+  var orcResetSubtotal = ev.target && ev.target.closest ? ev.target.closest('[data-orc-reset-subtotal]') : null;
+  if (orcResetSubtotal) {
+    ev.preventDefault();
+    orcResetItemSubtotal(Number(orcResetSubtotal.getAttribute('data-orc-reset-subtotal')));
+    return;
+  }
+  var appValeBtn = ev.target && ev.target.closest ? ev.target.closest('[data-app-vale-action][data-app-vale-id]') : null;
+  if (appValeBtn) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    var appValeId = appValeBtn.getAttribute('data-app-vale-id');
+    var appValeAction = appValeBtn.getAttribute('data-app-vale-action');
+    if (appValeAction === 'signature') showAppValeSignature(appValeId);
+    else if (appValeAction === 'delete') deleteAppVale(appValeId);
+    return;
+  }
   var backupBtn = ev.target && ev.target.closest ? ev.target.closest('[data-backup-action][data-backup-file]') : null;
   if (backupBtn) {
     ev.preventDefault();
@@ -6449,6 +6563,10 @@ function updateOrcCompanyHeader(){
   const info=document.getElementById('orc-company-info');
   if(info)info.innerHTML=esc(c.razao_social)+' · CNPJ: '+esc(c.cnpj)+'<br>'+esc(c.endereco)+' - CEP '+esc(c.cep)+'<br>Email: '+esc(c.email)+' · WhatsApp: '+esc(c.whatsapp);
 }
+async function onOrcCompanyChange(){
+  updateOrcCompanyHeader();
+  await loadOrcProducts();
+}
 function loadOrcamento(){
   if(!document.getElementById('orc-date'))return;
   if(!document.getElementById('orc-date').value)document.getElementById('orc-date').value=orcToday();
@@ -6464,7 +6582,8 @@ function switchOrcView(view){
   if(view==='quotes')loadOrcQuotes();
 }
 async function loadOrcProducts(){
-  orcProducts=await api('/api/orcamentos/products');
+  const company=document.getElementById('orc-company')?.value||'estrada';
+  orcProducts=await api('/api/orcamentos/products?company_key='+encodeURIComponent(company));
   renderOrcProducts();
   renderOrcItems();
 }
@@ -6510,26 +6629,36 @@ async function deleteOrcProduct(id){
 }
 function orcAddItem(data){
   if(orcItems.length>=20){toast('O orçamento permite no máximo 20 itens.','error');return;}
-  orcItems.push(Object.assign({product_id:'',code:'',description:'',quantity:1,unit:'UND',unit_price:0,discount:0,subtotal:0},data||{}));
+  orcItems.push(Object.assign({product_id:'',code:'',description:'',quantity:1,unit:'UND',unit_price:0,discount:0,subtotal:0,subtotal_override:null},data||{}));
   renderOrcItems();
 }
 function orcRemoveItem(i){orcItems.splice(i,1);renderOrcItems();}
+function orcResetItemSubtotal(i){
+  if(!orcItems[i])return;
+  orcItems[i].subtotal_override=null;
+  renderOrcItems();
+}
 function orcPickProduct(i,val){
   const p=orcProducts.find(x=>String(x.id)===String(val));
   if(!p)return;
-  Object.assign(orcItems[i],{product_id:p.id,code:p.code||'',description:p.description||p.name,unit:p.unit||'UND',unit_price:Number(p.default_price||0)});
+  Object.assign(orcItems[i],{product_id:p.id,code:p.code||'',description:p.description||p.name,unit:p.unit||'UND',unit_price:Number(p.default_price||0),subtotal_override:null});
   renderOrcItems();
 }
 function orcUpdateItem(i,k,v){
   if(k==='unit')v=String(v||'').toUpperCase();
-  if(['quantity','unit_price','discount'].includes(k))v=Number(String(v).replace(',','.')||0);
+  if(k==='subtotal_override')v=v===''?null:Math.max(Number(String(v).replace(',','.')||0),0);
+  else if(['quantity','unit_price','discount'].includes(k))v=Number(String(v).replace(',','.')||0);
   orcItems[i][k]=v;orcCalcTotals();
 }
 function renderOrcItems(){
   const el=document.getElementById('orc-items'); if(!el)return;
   if(!orcItems.length){el.innerHTML='<div class="empty">Nenhum produto lançado.</div>';orcCalcTotals();return;}
   const options='<option value="">Produto cadastrado...</option>'+orcProducts.map(p=>'<option value="'+p.id+'">'+esc(p.name)+' · '+esc(p.unit||'UND')+' · '+orcMoney(p.default_price)+'</option>').join('');
-  el.innerHTML=orcItems.map(function(it,i){return '<div class="card" style="padding:10px;margin-bottom:8px;background:var(--g50)">'
+  el.innerHTML=orcItems.map(function(it,i){
+    const autoSubtotal=Math.max(Number(it.quantity||0)*Number(it.unit_price||0)-Number(it.discount||0),0);
+    const hasManualSubtotal=it.subtotal_override!==null&&it.subtotal_override!==undefined&&it.subtotal_override!=='';
+    const shownSubtotal=hasManualSubtotal?Math.max(Number(it.subtotal_override||0),0):autoSubtotal;
+    return '<div class="card" style="padding:10px;margin-bottom:8px;background:var(--g50)">'
     +'<div style="display:grid;grid-template-columns:1.2fr .42fr .42fr .45fr .6fr .55fr .65fr auto;gap:7px;align-items:end">'
     +'<div class="fg"><label>Produto</label><select data-orc-item-pick="'+i+'">'+options.replace('value="'+it.product_id+'"','value="'+it.product_id+'" selected')+'</select></div>'
     +'<div class="fg"><label>Código</label><input value="'+esc(it.code||'')+'" data-orc-item-index="'+i+'" data-orc-item-field="code"></div>'
@@ -6537,7 +6666,7 @@ function renderOrcItems(){
     +'<div class="fg"><label>Und</label><input value="'+esc(it.unit||'UND')+'" data-orc-item-index="'+i+'" data-orc-item-field="unit"></div>'
     +'<div class="fg"><label>Preço unit.</label><input type="number" step="0.01" value="'+(it.unit_price||0)+'" data-orc-item-index="'+i+'" data-orc-item-field="unit_price"></div>'
     +'<div class="fg"><label>Desc.</label><input type="number" step="0.01" value="'+(it.discount||0)+'" data-orc-item-index="'+i+'" data-orc-item-field="discount"></div>'
-    +'<div class="fg"><label>Subtotal</label><input readonly value="'+orcMoney((Number(it.quantity||0)*Number(it.unit_price||0))-Number(it.discount||0))+'"></div>'
+    +'<div class="fg"><label>Subtotal'+(hasManualSubtotal?' · manual':'')+'</label><div style="display:grid;grid-template-columns:minmax(0,1fr) 34px;gap:5px"><input type="number" min="0" step="0.01" value="'+shownSubtotal+'" data-orc-item-index="'+i+'" data-orc-item-field="subtotal_override" title="Digite um subtotal manual"><button type="button" class="btn btn-secondary btn-sm" data-orc-reset-subtotal="'+i+'" title="Voltar ao cálculo automático" aria-label="Voltar ao cálculo automático">↺</button></div></div>'
     +'<button class="btn btn-danger btn-sm" data-orc-remove-item="'+i+'">Remover</button>'
     +'</div><div class="fg"><label>Descrição</label><input value="'+esc(it.description||'')+'" data-orc-item-index="'+i+'" data-orc-item-field="description"></div>'
     +'</div>';}).join('');
@@ -6545,7 +6674,12 @@ function renderOrcItems(){
 }
 function orcCalcTotals(){
   let subtotal=0;
-  orcItems.forEach(function(it){it.subtotal=Math.max(Number(it.quantity||0)*Number(it.unit_price||0)-Number(it.discount||0),0);subtotal+=it.subtotal;});
+  orcItems.forEach(function(it){
+    const autoSubtotal=Math.max(Number(it.quantity||0)*Number(it.unit_price||0)-Number(it.discount||0),0);
+    const hasManualSubtotal=it.subtotal_override!==null&&it.subtotal_override!==undefined&&it.subtotal_override!=='';
+    it.subtotal=hasManualSubtotal?Math.max(Number(it.subtotal_override||0),0):autoSubtotal;
+    subtotal+=it.subtotal;
+  });
   const disc=Number(document.getElementById('orc-discount')?.value||0);
   const total=Math.max(subtotal-disc,0);
   const s=document.getElementById('orc-subtotal'),t=document.getElementById('orc-total');
@@ -6625,8 +6759,13 @@ async function editOrcQuote(id){
   const d=await api('/api/orcamentos/'+id),q=d.quote;
   orcCurrentId=q.id;
   const ce=document.getElementById('orc-company'); if(ce)ce.value=q.company_key||'estrada'; updateOrcCompanyHeader();
+  await loadOrcProducts();
   [['orc-client','client_name'],['orc-att','attention'],['orc-cnpj','client_cnpj'],['orc-ie','client_ie'],['orc-phone','client_phone'],['orc-email','client_email'],['orc-address','client_address'],['orc-district','client_district'],['orc-city','client_city'],['orc-state','client_state'],['orc-zip','client_zip'],['orc-date','issue_date'],['orc-validity','validity_days'],['orc-delivery','delivery_deadline'],['orc-payment','payment_terms'],['orc-obs','observations'],['orc-discount','discount']].forEach(function(p){const e=document.getElementById(p[0]);if(e)e.value=q[p[1]]||'';});
-  orcItems=d.items.map(function(it){return {product_id:it.product_id||'',code:it.code||'',description:it.description||'',quantity:it.quantity||0,unit:it.unit||'UND',unit_price:it.unit_price||0,discount:it.discount||0,subtotal:it.subtotal||0};});
+  orcItems=d.items.map(function(it){
+    const autoSubtotal=Math.max(Number(it.quantity||0)*Number(it.unit_price||0)-Number(it.discount||0),0);
+    const savedSubtotal=Number(it.subtotal||0);
+    return {product_id:it.product_id||'',code:it.code||'',description:it.description||'',quantity:it.quantity||0,unit:it.unit||'UND',unit_price:it.unit_price||0,discount:it.discount||0,subtotal:savedSubtotal,subtotal_override:Math.abs(savedSubtotal-autoSubtotal)>0.000001?savedSubtotal:null};
+  });
   switchOrcView('form');renderOrcItems();toast('Proposta carregada para edição.');
 }
 function orcNewQuote(){
@@ -7008,6 +7147,118 @@ async function testAvaria(){
 }
 
 // ── REGISTRO / ADMIN ───────────────────────────────────────────────────────────
+const RBAC_AREA_DEFS={
+  menina_dos_raios:{label:'Menina dos Raios',modules:['consolidado','nf','pr','avulso','avaria','projecao','grafico','produtividade','clientes','boletos','pendentes','produtos','config','cargos']},
+  monteiro:{label:'Monteiro',modules:['painel','lancamentos','produtos','clientes','pagamentos','notas_app','calendario','dados']},
+  menina_da_estrada:{label:'Menina da Estrada',modules:['consolidado','nf','avulso','avaria','projecao','grafico','produtividade','clientes','boletos','pendentes','produtos','config','cargos']}
+};
+const RBAC_ACTIONS=['view','create','edit','delete','export','import','approve','configure'];
+const RBAC_ACTION_LABELS={view:'Visualizar',create:'Criar',edit:'Editar',delete:'Excluir',export:'Exportar',import:'Importar',approve:'Aprovar',configure:'Configurar'};
+let _rbacRoles=[],_rbacProducts=[],_rbacCurrent=null;
+
+async function loadRbacRoles(){
+  try{
+    const result=await Promise.all([api('/api/admin/roles'),api('/api/admin/permission-products')]);
+    _rbacRoles=result[0]||[];_rbacProducts=result[1]||[];
+    renderRbacRoleList();refreshRoleSelects();
+    if(_rbacCurrent&&_rbacCurrent.role&&_rbacCurrent.role.key)await editRbacRole(_rbacCurrent.role.key);
+  }catch(e){toast(e.message,'error');}
+}
+function renderRbacRoleList(){
+  const el=document.getElementById('rbac-role-list');if(!el)return;
+  el.innerHTML=_rbacRoles.map(function(r){
+    return '<button type="button" onclick="editRbacRole(\''+admEsc(r.key)+'\')" style="text-align:left;border:1px solid var(--border);background:var(--card);padding:11px;border-radius:8px;cursor:pointer">'
+      +'<div style="display:flex;justify-content:space-between;gap:8px"><strong>'+admEsc(r.name)+'</strong><span style="font-size:10px;color:'+(r.active?'var(--g700)':'var(--red)')+'">'+(r.active?'Ativo':'Inativo')+'</span></div>'
+      +'<div style="font-size:10px;color:var(--muted);margin-top:3px">'+r.user_count+' usuário(s) · '+r.area_count+' área(s)</div></button>';
+  }).join('')||'<div class="empty">Nenhum cargo cadastrado.</div>';
+}
+function refreshRoleSelects(){
+  const roles=[{key:'viewer',name:'Visualizador'},{key:'editor',name:'Editor'}].concat(_rbacRoles.filter(r=>r.active).map(r=>({key:r.key,name:r.name})));
+  ['nu-role','eu-role'].forEach(function(id){
+    const el=document.getElementById(id);if(!el)return;const cur=el.value;
+    const unique=[];roles.forEach(function(r){if(!unique.some(x=>x.key===r.key))unique.push(r);});
+    el.innerHTML=unique.map(r=>'<option value="'+admEsc(r.key)+'">'+admEsc(r.name)+'</option>').join('');
+    if(unique.some(r=>r.key===cur))el.value=cur;
+  });
+  updateUserRoleSummary('nu');updateUserRoleSummary('eu');
+}
+function updateUserRoleSummary(prefix){const select=document.getElementById(prefix+'-role'),el=document.getElementById(prefix+'-role-summary');if(!select||!el)return;const role=_rbacRoles.find(r=>r.key===select.value);el.textContent=role?(role.description||role.area_count+' área(s) permitida(s)'):(select.value==='admin'?'Acesso total ao sistema.':'Permissões legadas do perfil.');}
+function newRbacRole(){
+  _rbacCurrent={managed:true,role:{key:'',name:''},role_record:{key:'',name:'',description:'',active:1,is_system:0,product_scope_mode:'specific'},areas:{},modules:{},product_scope:{mode:'specific',products:[]}};
+  renderRbacRoleEditor();
+}
+async function editRbacRole(key){
+  try{_rbacCurrent=await api('/api/admin/roles/'+encodeURIComponent(key));renderRbacRoleEditor();}
+  catch(e){toast(e.message,'error');}
+}
+function rbacPermissionChecked(area,module,action){
+  return !!(_rbacCurrent.modules&&_rbacCurrent.modules[area]&&_rbacCurrent.modules[area][module]&&_rbacCurrent.modules[area][module][action]);
+}
+function renderRbacRoleEditor(){
+  const el=document.getElementById('rbac-role-editor');if(!el||!_rbacCurrent)return;
+  const rec=_rbacCurrent.role_record||{};const system=!!rec.is_system;const admin=rec.key==='admin';
+  let html='<div style="display:flex;flex-direction:column;gap:12px">';
+  html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">'
+    +'<div class="fg"><label>Nome do cargo</label><input id="rbac-name" value="'+admEsc(rec.name||'')+'" '+(admin?'readonly':'')+'></div>'
+    +'<div class="fg"><label>Chave técnica</label><input id="rbac-key" value="'+admEsc(rec.key||'')+'" '+(rec.key?'readonly':'')+' placeholder="ex: cliente_estrada"></div>'
+    +'<div class="fg" style="grid-column:1/-1"><label>Descrição</label><input id="rbac-description" value="'+admEsc(rec.description||'')+'" '+(admin?'readonly':'')+'></div>'
+    +'<label style="display:flex;align-items:center;gap:7px;font-size:12px"><input type="checkbox" id="rbac-active" '+(rec.active?'checked':'')+' '+(admin?'disabled':'')+'> Cargo ativo</label></div>';
+  Object.keys(RBAC_AREA_DEFS).forEach(function(area){
+    const def=RBAC_AREA_DEFS[area];const areaOn=!!(_rbacCurrent.areas&&_rbacCurrent.areas[area]);
+    html+='<section style="border:1px solid var(--border);border-radius:8px;padding:11px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'
+      +'<label style="font-weight:800"><input class="rbac-area-cb" data-area="'+area+'" type="checkbox" '+(areaOn?'checked':'')+' '+(admin?'disabled':'')+'> '+def.label+'</label>'
+      +(admin?'':'<div style="display:flex;gap:5px"><button type="button" class="btn btn-secondary btn-sm" onclick="rbacAreaPreset(\''+area+'\',\'view\')">Só visualizar</button><button type="button" class="btn btn-secondary btn-sm" onclick="rbacAreaPreset(\''+area+'\',\'all\')">Acesso total</button><button type="button" class="btn btn-secondary btn-sm" onclick="rbacAreaPreset(\''+area+'\',\'clear\')">Limpar</button></div>')+'</div>';
+    html+='<div style="overflow-x:auto;margin-top:9px"><table style="width:100%;font-size:10px;border-collapse:collapse"><thead><tr><th style="text-align:left">Módulo</th>'+RBAC_ACTIONS.map(a=>'<th>'+RBAC_ACTION_LABELS[a]+'</th>').join('')+'</tr></thead><tbody>';
+    def.modules.forEach(function(module){html+='<tr style="border-top:1px solid var(--border)"><td style="padding:6px;font-weight:600">'+module.replace(/_/g,' ')+'</td>'+RBAC_ACTIONS.map(function(action){return '<td style="text-align:center"><input class="rbac-module-cb" data-area="'+area+'" data-module="'+module+'" data-action="'+action+'" type="checkbox" '+(rbacPermissionChecked(area,module,action)?'checked':'')+' '+(admin?'disabled':'')+'></td>';}).join('')+'</tr>';});
+    html+='</tbody></table></div></section>';
+  });
+  const selected={};((_rbacCurrent.product_scope&&_rbacCurrent.product_scope.products)||[]).forEach(p=>selected[p.id]=p);
+  html+='<section style="border:1px solid var(--border);border-radius:8px;padding:11px"><div style="font-weight:800;margin-bottom:8px">Produtos visíveis para este cargo</div>'
+    +'<select id="rbac-product-mode" '+(admin?'disabled':'')+'><option value="all">Todos os produtos</option><option value="specific">Apenas produtos selecionados</option></select>'
+    +'<div id="rbac-product-tools" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><input id="rbac-product-search" placeholder="Buscar produto..." oninput="filterRbacProducts()" style="flex:1;min-width:180px"><button type="button" class="btn btn-secondary btn-sm" onclick="selectAllRbacProducts()">Selecionar todos</button><button type="button" class="btn btn-secondary btn-sm" onclick="clearRbacProducts()">Limpar</button></div>'
+    +'<div id="rbac-products-list" style="max-height:290px;overflow:auto;margin-top:9px;border-top:1px solid var(--border)">';
+  html+=_rbacProducts.map(function(p){const s=selected[p.id]||{};return '<div class="rbac-product-row" data-name="'+admEsc(String(p.name).toLowerCase())+'" style="display:grid;grid-template-columns:minmax(160px,1fr) repeat(4,70px);gap:6px;align-items:center;padding:7px;border-bottom:1px solid var(--border);font-size:10px"><strong>'+admEsc(p.name)+'</strong>'+['view','create','edit','delete'].map(function(a){return '<label style="text-align:center"><input class="rbac-product-cb" data-product="'+p.id+'" data-action="'+a+'" type="checkbox" '+(s['can_'+a]||s[a]?'checked':'')+' '+(admin?'disabled':'')+'> '+RBAC_ACTION_LABELS[a]+'</label>';}).join('')+'</div>';}).join('');
+  html+='</div><div id="rbac-summary" style="margin-top:9px;padding:9px;background:var(--g50);border-radius:7px;font-size:11px"></div></section>';
+  if(!admin)html+='<div style="display:flex;gap:7px;flex-wrap:wrap"><button class="btn btn-primary" onclick="saveRbacRole()">Salvar cargo</button>'+(rec.key?'<button class="btn btn-secondary" onclick="duplicateRbacRole(\''+admEsc(rec.key)+'\')">Duplicar</button>':'')+((rec.key&&!system)?'<button class="btn btn-danger" onclick="deleteRbacRole(\''+admEsc(rec.key)+'\')">Excluir</button>':'')+'</div>';
+  else html+='<div style="padding:10px;background:var(--g50);border-radius:8px;font-size:11px">O cargo Administrador é protegido e mantém acesso total.</div>';
+  html+='</div>';el.innerHTML=html;
+  const mode=document.getElementById('rbac-product-mode');if(mode)mode.value=(_rbacCurrent.product_scope&&_rbacCurrent.product_scope.mode)||rec.product_scope_mode||'all';
+  el.querySelectorAll('input,select').forEach(node=>node.addEventListener('change',function(){
+    if(node.classList.contains('rbac-module-cb')&&node.checked){const area=el.querySelector('.rbac-area-cb[data-area="'+node.dataset.area+'"]');if(area)area.checked=true;const view=el.querySelector('.rbac-module-cb[data-area="'+node.dataset.area+'"][data-module="'+node.dataset.module+'"][data-action="view"]');if(view)view.checked=true;}
+    if(node.classList.contains('rbac-area-cb')&&!node.checked)el.querySelectorAll('.rbac-module-cb[data-area="'+node.dataset.area+'"]').forEach(cb=>cb.checked=false);
+    if(node.classList.contains('rbac-product-cb')&&node.checked&&node.dataset.action!=='view'){const view=el.querySelector('.rbac-product-cb[data-product="'+node.dataset.product+'"][data-action="view"]');if(view)view.checked=true;}
+    updateRbacSummary();
+  }));updateRbacSummary();
+}
+function rbacAreaPreset(area,preset){
+  const editor=document.getElementById('rbac-role-editor');if(!editor)return;
+  const areaCb=editor.querySelector('.rbac-area-cb[data-area="'+area+'"]');if(areaCb)areaCb.checked=preset!=='clear';
+  editor.querySelectorAll('.rbac-module-cb[data-area="'+area+'"]').forEach(function(cb){cb.checked=preset==='all'||(preset==='view'&&cb.dataset.action==='view');});updateRbacSummary();
+}
+function updateRbacSummary(){
+  const el=document.getElementById('rbac-summary');if(!el)return;
+  const modules=Array.from(document.querySelectorAll('.rbac-module-cb[data-action="view"]:checked')).map(cb=>RBAC_AREA_DEFS[cb.dataset.area].label+' → '+cb.dataset.module.replace(/_/g,' '));
+  const productIds=new Set(Array.from(document.querySelectorAll('.rbac-product-cb[data-action="view"]:checked')).map(cb=>cb.dataset.product));
+  const productNames=_rbacProducts.filter(p=>productIds.has(String(p.id))).map(p=>p.name);
+  const mode=document.getElementById('rbac-product-mode')?.value||'all';
+  const list=document.getElementById('rbac-products-list'),tools=document.getElementById('rbac-product-tools');
+  if(list)list.style.display=mode==='specific'?'':'none';if(tools)tools.style.display=mode==='specific'?'flex':'none';
+  el.textContent=(modules.length?modules.join(' · '):'Nenhum módulo liberado')+' | '+(mode==='all'?'Todos os produtos':(productNames.length+' produto(s): '+(productNames.join(', ')||'nenhum')));
+}
+function filterRbacProducts(){const q=String(document.getElementById('rbac-product-search')?.value||'').trim().toLowerCase();document.querySelectorAll('.rbac-product-row').forEach(row=>row.style.display=!q||String(row.dataset.name||'').includes(q)?'grid':'none');}
+function selectAllRbacProducts(){document.querySelectorAll('.rbac-product-row').forEach(function(row){if(row.style.display!=='none'){const cb=row.querySelector('.rbac-product-cb[data-action="view"]');if(cb)cb.checked=true;}});updateRbacSummary();}
+function clearRbacProducts(){document.querySelectorAll('.rbac-product-cb').forEach(cb=>cb.checked=false);updateRbacSummary();}
+async function saveRbacRole(){
+  const key=document.getElementById('rbac-key').value.trim();const existing=!!(_rbacCurrent.role_record&&_rbacCurrent.role_record.key);
+  const body={key:key,name:document.getElementById('rbac-name').value.trim(),description:document.getElementById('rbac-description').value.trim(),active:document.getElementById('rbac-active').checked,product_scope_mode:document.getElementById('rbac-product-mode').value,areas:{},modules:{},products:[]};
+  document.querySelectorAll('.rbac-area-cb').forEach(cb=>body.areas[cb.dataset.area]=cb.checked);
+  document.querySelectorAll('.rbac-module-cb:checked').forEach(function(cb){body.modules[cb.dataset.area]??={};body.modules[cb.dataset.area][cb.dataset.module]??={};body.modules[cb.dataset.area][cb.dataset.module][cb.dataset.action]=true;});
+  const productMap={};document.querySelectorAll('.rbac-product-cb:checked').forEach(function(cb){productMap[cb.dataset.product]??={product_id:cb.dataset.product};productMap[cb.dataset.product][cb.dataset.action]=true;});body.products=Object.values(productMap);
+  try{await api(existing?'/api/admin/roles/'+encodeURIComponent(key):'/api/admin/roles',{method:existing?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});toast('Cargo salvo.');_rbacCurrent=null;await loadRbacRoles();await editRbacRole(key);}catch(e){toast(e.message,'error');}
+}
+async function duplicateRbacRole(key){const newKey=prompt('Chave técnica do novo cargo:');if(!newKey)return;try{await api('/api/admin/roles/'+encodeURIComponent(key)+'/duplicate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:newKey})});toast('Cargo duplicado.');_rbacCurrent=null;loadRbacRoles();}catch(e){toast(e.message,'error');}}
+async function deleteRbacRole(key){if(!confirm('Excluir definitivamente este cargo? Esta ação só será aceita se não houver usuários vinculados.'))return;try{await api('/api/admin/roles/'+encodeURIComponent(key),{method:'DELETE'});toast('Cargo excluído.');_rbacCurrent=null;document.getElementById('rbac-role-editor').innerHTML='<div class="empty">Selecione um cargo para configurar.</div>';loadRbacRoles();}catch(e){toast(e.message,'error');}}
+
 let _allUsers=[];
 async function loadUsers(){
   try{
@@ -8429,6 +8680,9 @@ function getCompanyConfigSubDefs(){
 function getAllowedConfigSubs(role){
   var all=getCompanyConfigSubIds();
   if(role==='admin') return all;
+  if(window._authz&&window._authz.managed){
+    return all.filter(function(id){return id==='cargos'&&hasAnyManagedPermission('cargos','configure');});
+  }
   var perms=(window._tabPermissions&&window._tabPermissions[role])||[];
   return all.filter(function(id){return perms.indexOf('cfg_'+id)>=0;});
 }
@@ -8474,7 +8728,7 @@ function switchConfigView(view){
     if(allowed.indexOf(view)<0) view=allowed[0];
   }
   window._cfgActive=view;
-  ['cfg-precos','cfg-registro','cfg-importar','cfg-whatsapp','cfg-sebrae'].forEach(function(id){
+  ['cfg-precos','cfg-registro','cfg-cargos','cfg-importar','cfg-whatsapp','cfg-sebrae'].forEach(function(id){
     const e=document.getElementById(id); if(e) e.style.display='none';
   });
   if(view!=='whatsapp' && typeof hideWhatsAppConfig === 'function') hideWhatsAppConfig();
@@ -8496,9 +8750,17 @@ function switchConfigView(view){
       if(rl) rl.style.display='none';
       if(rc) rc.style.display='block';
       if(typeof loadUsers==='function') loadUsers();
+      if(typeof loadRbacRoles==='function') loadRbacRoles();
       if(typeof loadAuditLog==='function') loadAuditLog();
       if(typeof loadAdminMessages==='function') loadAdminMessages();
     }
+  }
+  if(view==='cargos'){
+    if(!session || !hasAnyManagedPermission('cargos','configure')){
+      toast('Você não tem permissão para gerenciar cargos.','error');
+      return;
+    }
+    loadRbacRoles();
   }
   if(view==='importar'){
     const bcard=document.getElementById('backup-card-wrap');
@@ -8800,6 +9062,7 @@ const ALL_TABS_DEF=[
 // Sub-abas dentro de Configurações — permissionáveis por perfil (chave cfg_<id>).
 const CONFIG_SUBTABS_DEF=[
   ['precos','⚙ Preços'],['registro','📋 Registro / Admin'],
+  ['cargos','Cargos e permissões'],
   ['importar','📂 Backup'],['whatsapp','📱 WhatsApp'],
   ['sebrae','📋 Verificar NF']
 ];
@@ -8845,6 +9108,15 @@ function migratePerms(p){
 
 async function loadPermissionsOnLogin(){
   try{
+    window._authz=await api('/api/auth/permissions');
+    if(window._authz&&window._authz.managed){
+      window._tabPermissions=null;
+      window._tabOrder=null;
+      window._monteiroCalendarRoles=['admin'];
+      const area=window._authz.default_route&&window._authz.default_route.area;
+      if(area){activeCompany=area==='menina_da_estrada'?'estrada':'raios';sessionStorage.setItem('activeCompany',activeCompany);updateCompanyChrome();}
+      return;
+    }
     let p=await api('/api/settings/tab-permissions');
     p=migratePerms(p);
     window._tabPermissions=p;
@@ -8854,7 +9126,7 @@ async function loadPermissionsOnLogin(){
       let cal=await api('/api/settings/monteiro-calendar-permission');
       window._monteiroCalendarRoles=cal.roles||['admin'];
     }catch(e){window._monteiroCalendarRoles=['admin'];}
-  }catch(e){}
+  }catch(e){window._authz=null;}
 }
 
 async function loadTabPermissions(){
@@ -14997,27 +15269,14 @@ function renderAppVales(){
       +'<td style="padding:10px">'+admEsc(v.registered_by_name||v.registered_by_username||'-')+'</td>'
       +'<td style="padding:10px"><span style="background:'+(v.status==='sincronizado'?'#DCFCE7;color:#166534':'#FEF3C7;color:#92400E')+';border-radius:999px;padding:3px 8px;font-weight:800;font-size:10px">'+appValeStatus(v.status)+'</span></td>'
       +'<td style="padding:10px;text-align:right"><div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">'
-      +'<button type="button" class="btn btn-secondary btn-sm" onclick="showAppValeSignature('+JSON.stringify(String(v.id||''))+')">Ver assinatura</button>'
-      +'<button type="button" class="btn btn-sm" onclick="deleteAppVale('+JSON.stringify(String(v.id||''))+')" style="background:#FEE2E2;color:#B91C1C;border:1px solid #FECACA">Remover</button>'
+      +'<button type="button" class="btn btn-secondary btn-sm" data-app-vale-action="signature" data-app-vale-id="'+admEsc(String(v.id||''))+'">Ver assinatura</button>'
+      +'<button type="button" class="btn btn-sm" data-app-vale-action="delete" data-app-vale-id="'+admEsc(String(v.id||''))+'" style="background:#FEE2E2;color:#B91C1C;border:1px solid #FECACA">Remover</button>'
       +'</div></td>'
       +'</tr>';
   });
   html+='</tbody></table>'; wrap.innerHTML=html;
 }
 function clearAppValesFilters(){ ['app-vales-name','app-vales-from','app-vales-to','app-vales-status'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';}); loadAppVales(); }
-async function showAppValeSignature(id){
-  var vale=(_appVales||[]).find(function(x){return String(x.id)===String(id);});
-  try{
-    var r=await fetch(API+'/api/mobile/vales/'+encodeURIComponent(id)+'/signature',{headers:{'x-token':session.token,'x-company':activeCompany}});
-    if(!r.ok)throw new Error('Não foi possível abrir assinatura.');
-    var blob=await r.blob(); var url=URL.createObjectURL(blob);
-    var old=document.getElementById('app-vale-signature-modal'); if(old)old.remove();
-    var modal=document.createElement('div'); modal.id='app-vale-signature-modal'; modal.className='modal open'; modal.style.display='flex';
-    modal.innerHTML='<div class="modal-content" style="max-width:620px"><div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border)"><div style="font-size:16px;font-weight:800;color:var(--g800)">Assinatura do solicitante</div><button id="app-vale-signature-close" style="border:none;background:transparent;font-size:22px;cursor:pointer;color:var(--muted)">×</button></div><div style="padding:16px"><div style="font-size:13px;color:var(--muted);margin-bottom:10px">'+admEsc(vale?(vale.solicitante_nome+' • '+appValeMoney(vale.amount)+' • '+appValeDate(vale.request_date)):'')+'</div><img src="'+url+'" style="width:100%;max-height:360px;object-fit:contain;background:#fff;border:1px solid var(--border);border-radius:10px"></div></div>';
-    document.body.appendChild(modal);
-    document.getElementById('app-vale-signature-close').onclick=function(){ modal.remove(); URL.revokeObjectURL(url); };
-  }catch(e){toast(e.message,'error');}
-}
 async function showAppValeSignature(id){
   var vale=(_appVales||[]).find(function(x){return String(x.id)===String(id);});
   var old=document.getElementById('app-vale-signature-modal'); if(old)old.remove();
