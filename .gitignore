@@ -145,6 +145,7 @@ celerybeat.pid
 
 # Environments
 .env
+node_modules/
 atualizarrefatorado.local.bat
 logs_atualizacao_refatorada/
 logs_apk_publicacao/

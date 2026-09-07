@@ -68,6 +68,30 @@ def _add_overdue_boleto(db_path, client="Cliente Boleto", total=120.0, due_date=
     return boleto_id
 
 
+def _add_old_sale(db_path, client):
+    sale_id = str(uuid.uuid4())
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            """INSERT INTO sales(id,sale_type,sale_date,client,product,quantity,unit_price,total)
+               VALUES(?,?,?,?,?,?,?,?)""",
+            (
+                sale_id,
+                "NF",
+                (date.today() - timedelta(days=90)).isoformat(),
+                client,
+                "Produto Teste",
+                1,
+                10,
+                10,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return sale_id
+
+
 def _set_config(db_path, key, value):
     conn = sqlite3.connect(db_path)
     try:
@@ -101,6 +125,21 @@ def _fetch_logs(db_path):
         ]
     finally:
         conn.close()
+
+
+def _add_log(db_path, contact, company_marker):
+    log_id = str(uuid.uuid4())
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            """INSERT INTO whatsapp_log(id,phone,contact,event_type,message,status,response)
+               VALUES(?,?,?,?,?,?,?)""",
+            (log_id, "559599999999", contact, company_marker, "teste", "sent", "ok"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return log_id
 
 
 class _TrackedConnection:
@@ -916,6 +955,53 @@ def test_whatsapp_baileys_connection_closes_config_connection_before_external_ca
     assert state["config_closes"] == 1
 
 
+def test_whatsapp_baileys_disconnect_requests_a_new_session_without_real_connection(isolated_app, monkeypatch):
+    token = _login(isolated_app.client)
+    _set_config(isolated_app.db_paths["raios"], "provider", "baileys")
+    _set_config(isolated_app.db_paths["raios"], "api_url", "http://baileys.local")
+    _set_config(isolated_app.db_paths["raios"], "api_token", "token-teste")
+    state = _install_tracked_db(monkeypatch, isolated_app)
+    calls = []
+
+    class FakeResponse:
+        status_code = 200
+        text = '{"ok": true, "message": "nova sessao solicitada"}'
+
+        def json(self):
+            return {"ok": True, "message": "nova sessao solicitada"}
+
+    import httpx
+
+    def fake_post(url, headers=None, timeout=None):
+        assert state["open"] == 0
+        calls.append((url, headers, timeout))
+        return FakeResponse()
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+
+    response = isolated_app.client.post(
+        "/api/whatsapp/baileys-connection/disconnect",
+        headers=_headers(token),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True, "message": "nova sessao solicitada"}
+    assert calls == [("http://baileys.local/disconnect", {"x-api-key": "token-teste"}, 12)]
+    assert state["open"] == 0
+    assert state["config_closes"] == 1
+
+
+def test_whatsapp_frontend_keeps_new_qr_action_available_when_disconnected(isolated_app):
+    html = (isolated_app.temp_backend / "static" / "index.html").read_text(encoding="utf-8")
+
+    assert 'id="wa-baileys-reconnect"' in html
+    assert "waSetBaileysDisconnectLabel('Gerar novo QR')" in html
+    assert "waSetBaileysDisconnectLabel('Gerar outro QR')" in html
+    assert "waSetBaileysActionsBusy(true);" in html
+    assert "waSetBaileysActionsBusy(false);" in html
+    assert "if(disconnectBtn)disconnectBtn.disabled=true;" not in html
+
+
 def test_whatsapp_baileys_connection_closes_connection_when_config_read_fails(isolated_app, monkeypatch):
     token = _login(isolated_app.client)
     state = _install_tracked_db(monkeypatch, isolated_app, fail_config_select=True)
@@ -1230,6 +1316,101 @@ def test_whatsapp_triggers_send_true_respects_selected_contact_ids(isolated_app,
         ("559599000031", "sent"),
         ("559599000033", "sent"),
     ]
+
+
+def test_whatsapp_inactive_trigger_ignores_configured_clients(isolated_app):
+    token = _login(isolated_app.client)
+    db_path = isolated_app.db_paths["raios"]
+    client_name = "Cliente Inativo Ignorado"
+    _add_old_sale(db_path, client_name)
+    _set_config(db_path, "notify_boleto", "0")
+    _set_config(db_path, "notify_avaria", "0")
+    _set_config(db_path, "notify_inativo", "1")
+    _set_config(db_path, "inativo_dias", "30")
+
+    before = isolated_app.client.post(
+        "/api/whatsapp/check-triggers",
+        headers=_headers(token),
+        json={"send": False},
+    )
+    assert before.status_code == 200
+    assert client_name in before.json()["messages"][0]["preview"]
+
+    ignored = isolated_app.client.put(
+        "/api/clients/inactivity-exclusions",
+        headers=_headers(token),
+        json={"client": client_name, "excluded": True},
+    )
+    assert ignored.status_code == 200
+
+    after = isolated_app.client.post(
+        "/api/whatsapp/check-triggers",
+        headers=_headers(token),
+        json={"send": False},
+    )
+    assert after.status_code == 200
+    assert after.json()["triggers_fired"] == 0
+    assert after.json()["messages"] == []
+
+
+def test_frontend_manages_inactive_client_alert_exclusions(isolated_app):
+    html = (isolated_app.temp_backend / "static" / "index.html").read_text(encoding="utf-8")
+
+    assert 'id="opp-inactive-excluded"' in html
+    assert "setClientInactiveExclusion(this,true)" in html
+    assert "setClientInactiveExclusion(this,false)" in html
+    assert "/api/clients/inactivity-exclusions" in html
+
+
+def test_whatsapp_admin_can_delete_all_logs_for_current_company(isolated_app):
+    token = _login(isolated_app.client)
+    raios_db = isolated_app.db_paths["raios"]
+    estrada_db = isolated_app.db_paths["estrada"]
+    _add_log(raios_db, "Contato Raios A", "raios")
+    _add_log(raios_db, "Contato Raios B", "raios")
+    _add_log(estrada_db, "Contato Estrada", "estrada")
+
+    response = isolated_app.client.delete(
+        "/api/whatsapp/log",
+        headers=_headers(token, "raios"),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True, "deleted": 2}
+    assert _fetch_logs(raios_db) == []
+    assert [row["contact"] for row in _fetch_logs(estrada_db)] == ["Contato Estrada"]
+
+
+def test_whatsapp_delete_all_logs_rolls_back_and_closes_on_failure(isolated_app, monkeypatch):
+    token = _login(isolated_app.client)
+    db_path = isolated_app.db_paths["raios"]
+    _add_log(db_path, "Contato Preservado", "raios")
+    state = _install_tracked_db(
+        monkeypatch,
+        isolated_app,
+        fail_sql_contains="DELETE FROM whatsapp_log",
+        fail_sql_on=1,
+    )
+
+    with TestClient(isolated_app.module.app, raise_server_exceptions=False) as client:
+        response = client.delete(
+            "/api/whatsapp/log",
+            headers=_headers(token),
+        )
+
+    assert response.status_code == 500
+    assert state["rollbacks"] == 1
+    assert state["open"] == 0
+    assert [row["contact"] for row in _fetch_logs(db_path)] == ["Contato Preservado"]
+
+
+def test_frontend_offers_delete_all_whatsapp_logs(isolated_app):
+    html = (isolated_app.temp_backend / "static" / "index.html").read_text(encoding="utf-8")
+
+    assert 'id="wa-log-clear-all"' in html
+    assert "deleteAllWaLogs()" in html
+    assert "Esta acao nao pode ser desfeita" in html
+    assert "'deleteWaLog','deleteAllWaLogs','loadWaLog'" in html
 
 
 def test_whatsapp_triggers_rolls_back_and_closes_when_log_persistence_fails(isolated_app, monkeypatch):

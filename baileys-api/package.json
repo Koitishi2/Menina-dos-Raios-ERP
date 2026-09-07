@@ -7,7 +7,7 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.7.9",
+    "@whiskeysockets/baileys": "6.7.24",
     "express": "^4.19.0",
     "pino": "^9.0.0",
     "dotenv": "^16.4.0"

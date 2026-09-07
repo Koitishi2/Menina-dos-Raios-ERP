@@ -319,3 +319,34 @@ def test_frontend_loads_backend_permissions_before_restricted_data(isolated_app)
     assert "function loadRestrictedApp()" in html
     assert "applyManagedActionUI" in html
     assert "rbac-product-search" in html
+
+
+def test_frontend_preserves_an_authorized_company_during_permission_reload(isolated_app):
+    html = (isolated_app.temp_backend / "static" / "index.html").read_text(encoding="utf-8")
+
+    assert "const currentArea=activeCompany==='estrada'?'menina_da_estrada':'menina_dos_raios';" in html
+    assert "if(!window._authz.areas||!window._authz.areas[currentArea])" in html
+    assert "window._authz.areas[fallbackArea]" in html
+    assert "activeCompany=area==='menina_da_estrada'?'estrada':'raios'" not in html
+
+
+def test_admin_can_switch_to_estrada_without_losing_area_access(isolated_app):
+    client = isolated_app.client
+    admin = _login(client)
+    headers = _headers(admin["token"], "raios")
+
+    switched = client.post(
+        "/api/auth/company-switch",
+        headers=headers,
+        json={"company": "estrada"},
+    )
+    permissions = client.get(
+        "/api/auth/permissions",
+        headers=_headers(admin["token"], "estrada"),
+    )
+
+    assert switched.status_code == 200
+    assert switched.json()["company"] == "estrada"
+    assert permissions.status_code == 200
+    assert permissions.json()["areas"]["menina_dos_raios"] is True
+    assert permissions.json()["areas"]["menina_da_estrada"] is True

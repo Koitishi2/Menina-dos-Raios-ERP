@@ -3717,6 +3717,7 @@ body.paladar-active #notif-restore{display:none!important}
           <div id="opp-inactive-list" style="background:var(--card);border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;max-height:520px;overflow-y:auto">
             <div class="loader"><div class="spin"></div></div>
           </div>
+          <div id="opp-inactive-excluded" style="margin-top:8px"></div>
         </div>
         <!-- Queda -->
         <div style="display:flex;flex-direction:column;gap:0">
@@ -4399,7 +4400,7 @@ body.paladar-active #notif-restore{display:none!important}
         <div id="wa-baileys-qr" style="text-align:center;display:none;margin:10px 0"></div>
         <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px">
           <button class="btn btn-secondary btn-sm" onclick="waLoadBaileysStatus()">↻ Verificar</button>
-          <button class="btn btn-primary btn-sm" onclick="waBaileysConnection('reconnect')">Reconectar</button>
+          <button id="wa-baileys-reconnect" class="btn btn-primary btn-sm" onclick="waBaileysConnection('reconnect')">Reconectar</button>
           <button id="wa-baileys-disconnect" class="btn btn-danger btn-sm" onclick="waBaileysConnection('disconnect')">Desconectar e gerar novo QR</button>
         </div>
         <div style="font-size:10px;color:var(--muted);margin-top:8px">Use Reconectar para preservar a sessao. Use Desconectar somente quando precisar vincular a conta novamente pelo QR Code.</div>
@@ -4465,6 +4466,7 @@ body.paladar-active #notif-restore{display:none!important}
         <div style="display:flex;gap:6px;align-items:center">
           <span id="wa-log-counter" style="font-size:10px;color:var(--muted)"></span>
           <button class="btn btn-secondary btn-sm" onclick="loadWaLog()">🔄 Atualizar</button>
+          <button id="wa-log-clear-all" class="btn btn-danger btn-sm" onclick="deleteAllWaLogs()" disabled title="Remover todo o histórico de envios">🗑 Limpar todos</button>
         </div>
       </div>
       <div id="wa-log-list"><div class="wa-empty">Carregando...</div></div>
@@ -4804,7 +4806,8 @@ const APP_VERSION = '2.0.0';
     'openClientModal','deleteClient','openClientOpportunity','filterBoletosPagos',
     'toggleMonthGroup','revertBoletoPayment','setBolClientEnabled','doMerge','ignoreDup',
     'sortProdBy','waTest','waToggleContact','waDeleteContact','toggleWaLogDetail',
-    'deleteWaLog','loadWaLog','waToggleAutoRule','waOpenAutoRuleModal','waDeleteAutoRule',
+    'deleteWaLog','deleteAllWaLogs','loadWaLog','setClientInactiveExclusion',
+    'waToggleAutoRule','waOpenAutoRuleModal','waDeleteAutoRule',
     'waOpenTemplateModal','waDuplicateTemplate','waDeleteTemplate','openAppNoteDetail',
     'window.print','autoFillPrice','removePaladarItem','togglePalGroup','editPaladarGroupClient',
     'deletePaladarGroup','editPaladarSaleItem','deletePaladarSale','editPaladarProduct',
@@ -9113,8 +9116,15 @@ async function loadPermissionsOnLogin(){
       window._tabPermissions=null;
       window._tabOrder=null;
       window._monteiroCalendarRoles=['admin'];
-      const area=window._authz.default_route&&window._authz.default_route.area;
-      if(area){activeCompany=area==='menina_da_estrada'?'estrada':'raios';sessionStorage.setItem('activeCompany',activeCompany);updateCompanyChrome();}
+      const currentArea=activeCompany==='estrada'?'menina_da_estrada':'menina_dos_raios';
+      const fallbackArea=window._authz.default_route&&window._authz.default_route.area;
+      if(!window._authz.areas||!window._authz.areas[currentArea]){
+        if(fallbackArea&&window._authz.areas&&window._authz.areas[fallbackArea]){
+          activeCompany=fallbackArea==='menina_da_estrada'?'estrada':'raios';
+          sessionStorage.setItem('activeCompany',activeCompany);
+          updateCompanyChrome();
+        }
+      }
       return;
     }
     let p=await api('/api/settings/tab-permissions');
@@ -9354,6 +9364,22 @@ function switchClientView(view){
 
 
 //  OPORTUNIDADES 
+async function setClientInactiveExclusion(button,excluded){
+  const client=button&&button.dataset&&button.dataset.client||'';
+  if(!client)return;
+  const action=excluded?'ignorar nos alertas de inatividade':'reativar nos alertas de inatividade';
+  if(!confirm('Deseja '+action+' o cliente "'+client+'"? O historico de vendas sera preservado.'))return;
+  button.disabled=true;
+  try{
+    await api('/api/clients/inactivity-exclusions',{
+      method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({client:client,excluded:excluded})
+    });
+    toast(excluded?'Cliente removido dos alertas de inatividade.':'Cliente reativado nos alertas de inatividade.');
+    await Promise.all([loadOportunidades(),loadClientAnalytics()]);
+  }catch(e){toast(e.message,'error');button.disabled=false;}
+}
+
 async function loadOportunidades(){
   const days = document.getElementById('opp-inactive-days')&&document.getElementById('opp-inactive-days').value||'30';
   const type  = document.getElementById('opp-type')&&document.getElementById('opp-type').value||'';
@@ -9365,7 +9391,12 @@ async function loadOportunidades(){
   });
 
   try{
-    const data=await api('/api/analytics/clients?days_inactive='+days+'&sale_type='+type);
+    const responses=await Promise.all([
+      api('/api/analytics/clients?days_inactive='+days+'&sale_type='+type),
+      api('/api/clients/inactivity-exclusions')
+    ]);
+    const data=responses[0];
+    const excluded=responses[1]||[];
 
     // ── Inativos ────────────────────────────────────────────────────────────
     const inEl=document.getElementById('opp-inactive-list');
@@ -9390,9 +9421,20 @@ async function loadOportunidades(){
             +fmt(r.total_val)+'</div>'
             +'</div>'
             +(phone?'<a href="https://wa.me/55'+phone.replace(/\D/g,'')+'" target="_blank" style="flex-shrink:0;background:#25D366;color:#fff;border-radius:8px;padding:5px 8px;font-size:11px;text-decoration:none">💬</a>':'')
+            +'<button type="button" class="btn btn-secondary btn-sm" data-client="'+waLogEsc(r.client)+'" onclick="setClientInactiveExclusion(this,true)" title="Mantem o historico e retira apenas dos alertas de inatividade">Ignorar alerta</button>'
             +'</div></div>';
         }).join('');
       }
+    }
+    const excludedEl=document.getElementById('opp-inactive-excluded');
+    if(excludedEl){
+      excludedEl.innerHTML=excluded.length
+        ?'<div style="padding:10px 12px;background:var(--card2);border:1px solid var(--border);border-radius:8px">'
+          +'<div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:7px">IGNORADOS NOS ALERTAS</div>'
+          +'<div style="display:flex;flex-wrap:wrap;gap:6px">'+excluded.map(function(item){
+            return '<button type="button" class="btn btn-secondary btn-sm" data-client="'+waLogEsc(item.name)+'" onclick="setClientInactiveExclusion(this,false)" title="Voltar a considerar este cliente inativo">'+waLogEsc(item.name)+' &times;</button>';
+          }).join('')+'</div></div>'
+        :'';
     }
 
     // ── Queda nas Compras ────────────────────────────────────────────────────
@@ -14060,6 +14102,16 @@ function waProviderHint() {
 
 let _waLastQr = null;      // último QR renderizado (evita re-render/piscar)
 let _waStatusBusy = false; // evita chamadas concorrentes
+function waSetBaileysActionsBusy(busy){
+  const reconnectBtn=document.getElementById('wa-baileys-reconnect');
+  const disconnectBtn=document.getElementById('wa-baileys-disconnect');
+  if(reconnectBtn)reconnectBtn.disabled=!!busy;
+  if(disconnectBtn)disconnectBtn.disabled=!!busy;
+}
+function waSetBaileysDisconnectLabel(label){
+  const disconnectBtn=document.getElementById('wa-baileys-disconnect');
+  if(disconnectBtn)disconnectBtn.textContent=label;
+}
 // silent=true: chamada de fundo (polling) — não reseta o texto para "Verificando"
 // nem re-renderiza o QR sem necessidade, evitando o "piscar" da tela.
 async function waLoadBaileysStatus(silent) {
@@ -14076,16 +14128,17 @@ async function waLoadBaileysStatus(silent) {
   try {
     const r = await api('/api/whatsapp/baileys-status');
     const checked=' Verificado às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})+'.';
-    const disconnectBtn=document.getElementById('wa-baileys-disconnect');
     if (r.connected) {
       statusEl.innerHTML = '<span style="color:#22c55e;font-weight:700">✅ WhatsApp conectado</span><div style="font-size:10px;color:var(--muted);margin-top:3px">Pronto para enviar mensagens.'+checked+'</div>';
-      if(disconnectBtn)disconnectBtn.disabled=false;
+      waSetBaileysActionsBusy(false);
+      waSetBaileysDisconnectLabel('Desconectar e gerar novo QR');
       if (qrEl){ qrEl.style.display='none'; qrEl.innerHTML=''; }
       _waLastQr = null;
       clearInterval(waBaileysPoll);   // conectou: para o polling (não fica atualizando)
     } else if (r.qr) {
       statusEl.innerHTML = '<span style="color:#b45309;font-weight:700">📷 Aguardando leitura do QR Code</span><div style="font-size:10px;color:var(--muted);margin-top:3px">No celular: WhatsApp → Dispositivos conectados → Conectar dispositivo.'+checked+'</div>';
-      if(disconnectBtn)disconnectBtn.disabled=true;
+      waSetBaileysActionsBusy(false);
+      waSetBaileysDisconnectLabel('Gerar outro QR');
       if (qrEl) {
         if (_waLastQr !== r.qr) {   // só re-renderiza a imagem se o QR mudou (evita piscar)
           _waLastQr = r.qr;
@@ -14096,13 +14149,15 @@ async function waLoadBaileysStatus(silent) {
       }
     } else {
       statusEl.innerHTML = '<span style="color:#b45309;font-weight:700">⚠ WhatsApp desconectado</span><div style="font-size:10px;color:var(--muted);margin-top:3px">'+waLogEsc(r.message||'Sessao sem conexao. Tente reconectar ou gere um novo QR Code.')+checked+'</div>';
-      if(disconnectBtn)disconnectBtn.disabled=true;
+      waSetBaileysActionsBusy(false);
+      waSetBaileysDisconnectLabel('Gerar novo QR');
       if (qrEl){ qrEl.style.display='none'; qrEl.innerHTML=''; }
       _waLastQr = null;
     }
   } catch(e) {
     // Em polling silencioso não fica piscando o erro; só mostra na verificação manual.
     if (!silent) statusEl.innerHTML = '<span style="color:var(--red)"> Baileys inacessível: ' + waLogEsc(e.message) + '</span>';
+    waSetBaileysActionsBusy(false);
   } finally {
     _waStatusBusy = false;
   }
@@ -14111,6 +14166,7 @@ async function waLoadBaileysStatus(silent) {
 async function waBaileysConnection(action){
   if(action==='disconnect'&&!confirm('Desconectar esta conta e apagar a sessao atual? Sera necessario escanear um novo QR Code.'))return;
   const statusEl=document.getElementById('wa-baileys-status');
+  waSetBaileysActionsBusy(true);
   if(statusEl)statusEl.innerHTML='<span style="color:var(--muted)">Processando '+(action==='disconnect'?'nova sessao':'reconexao')+'...</span>';
   try{
     const r=await api('/api/whatsapp/baileys-connection/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
@@ -14123,7 +14179,7 @@ async function waBaileysConnection(action){
       waLoadBaileysStatus(true);           // silencioso: não pisca a tela
       if(attempts>=24) clearInterval(waBaileysPoll);   // ~60s para escanear o QR
     },2500);
-  }catch(e){if(statusEl)statusEl.innerHTML='<span style="color:var(--red)">Falha: '+waLogEsc(e.message)+'</span>';toast(e.message,'error');}
+  }catch(e){if(statusEl)statusEl.innerHTML='<span style="color:var(--red)">Falha: '+waLogEsc(e.message)+'</span>';toast(e.message,'error');waSetBaileysActionsBusy(false);}
 }
 
 // Para o polling do Baileys quando sai da aba/troca de provedor (evita ficar rodando em fundo).
@@ -14354,7 +14410,7 @@ document.addEventListener('click', function(ev){
   }
 });
 
-var _waLogPage = 1;
+var _waLogPage = 1, _waLogTotal = 0;
 function waFixMojibake(v){
   var s = String(v == null ? '' : v);
   var map = [
@@ -14395,6 +14451,9 @@ async function loadWaLog(page) {
   try {
     var r=await api('/api/whatsapp/log?page='+_waLogPage+'&limit=10');
     var logs=r.logs||[], total=r.total||0, pages=r.pages||1;
+    _waLogTotal=total;
+    var clearAll=document.getElementById('wa-log-clear-all');
+    if(clearAll)clearAll.disabled=total===0;
     if(_waLogPage>pages){ _waLogPage=pages; loadWaLog(); return; }
     var counter=document.getElementById('wa-log-counter');
     if(counter) counter.textContent=total>0?'Mostrando '+((_waLogPage-1)*10+1)+'–'+Math.min(_waLogPage*10,total)+' de '+total:'';
@@ -14431,6 +14490,19 @@ async function deleteWaLog(id){
     await api('/api/whatsapp/log/'+id,{method:'DELETE'});
     loadWaLog();
   }catch(e){ toast(e.message,'error'); }
+}
+async function deleteAllWaLogs(){
+  if(!_waLogTotal)return;
+  if(!confirm('Remover permanentemente todos os '+_waLogTotal+' logs de envio do WhatsApp? Esta acao nao pode ser desfeita.'))return;
+  const btn=document.getElementById('wa-log-clear-all');
+  if(btn)btn.disabled=true;
+  try{
+    const r=await api('/api/whatsapp/log',{method:'DELETE'});
+    _waLogPage=1;
+    _waLogTotal=0;
+    toast((r.deleted||0)+' log(s) removido(s).');
+    await loadWaLog(1);
+  }catch(e){toast(e.message,'error');if(btn)btn.disabled=false;}
 }
 // ── Sub-tab switching ──
 function switchWaSubView(view){

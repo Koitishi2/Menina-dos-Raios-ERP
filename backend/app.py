@@ -2721,6 +2721,72 @@ def server_info():
             "hostname":hostname}
 
 # â”€â”€ Clientes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+_INACTIVE_CLIENT_EXCLUSIONS_KEY = "inactive_client_exclusions"
+
+
+def _inactive_client_exclusions(conn):
+    row = conn.execute(
+        "SELECT value FROM settings WHERE key=?",
+        (_INACTIVE_CLIENT_EXCLUSIONS_KEY,),
+    ).fetchone()
+    if not row or not row["value"]:
+        return {}
+    try:
+        raw = json.loads(row["value"])
+    except (TypeError, ValueError):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        str(key): str(name).strip()
+        for key, name in raw.items()
+        if str(key).strip() and str(name).strip()
+    }
+
+
+@app.get("/api/clients/inactivity-exclusions")
+def list_client_inactivity_exclusions(x_token: str = Header("")):
+    require_auth(x_token)
+    conn = get_db()
+    try:
+        excluded = _inactive_client_exclusions(conn)
+        return [{"key": key, "name": excluded[key]} for key in sorted(excluded)]
+    finally:
+        conn.close()
+
+
+@app.put("/api/clients/inactivity-exclusions")
+def set_client_inactivity_exclusion(body: dict, x_token: str = Header("")):
+    require_editor(x_token)
+    name = str(body.get("client") or "").strip()
+    if not name:
+        raise HTTPException(400, "Informe o cliente.")
+    if len(name) > 200:
+        raise HTTPException(400, "Nome do cliente muito longo.")
+    key = _normalize_name(name)
+    if not key:
+        raise HTTPException(400, "Cliente invalido.")
+    excluded_flag = bool(body.get("excluded", True))
+    conn = get_db()
+    try:
+        excluded = _inactive_client_exclusions(conn)
+        if excluded_flag:
+            excluded[key] = name
+        else:
+            excluded.pop(key, None)
+        conn.execute(
+            "INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)",
+            (_INACTIVE_CLIENT_EXCLUSIONS_KEY, json.dumps(excluded, ensure_ascii=False)),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    return {"ok": True, "excluded": excluded_flag, "client": name}
+
+
 @app.get("/api/clients")
 def list_clients(search:Optional[str]=None,x_token:str=Header("")):
     require_auth(x_token); conn=get_db()
@@ -5204,9 +5270,12 @@ def client_analytics(days_inactive:int=30,period:str="all",sale_type:str="",
 
     # Inativos: usa o MAX da data entre TODAS as variantes e tipos
     cutoff=(today-timedelta(days=days_inactive)).isoformat()
+    inactive_exclusions = set(_inactive_client_exclusions(conn))
     inactive=[{"client":r["client"],"last_purchase":r["last_purchase"],
                "total_val":r["total_val"],"order_cnt":r["order_cnt"]}
-              for r in ranking if r["last_purchase"] and r["last_purchase"]<cutoff]
+              for r in ranking
+              if r["last_purchase"] and r["last_purchase"]<cutoff
+              and _normalize_name(r["client"]) not in inactive_exclusions]
     inactive.sort(key=lambda x:x["last_purchase"])
 
     # Queda nas compras: Ãºltimos 30d vs 30d anteriores (tambÃ©m por chave normalizada)
@@ -5821,6 +5890,11 @@ def check_wa_triggers(body: dict, x_token: str = Header(...)):
                    ORDER BY last_sale""",
                 [inativo_dias]
             ).fetchall()
+            inactive_exclusions = set(_inactive_client_exclusions(conn))
+            inativos = [
+                c for c in inativos
+                if _normalize_name(c["client"]) not in inactive_exclusions
+            ]
             if inativos:
                 lines = [f"\u2022 {c['client']} (\u00faltima venda: {c['last_sale']})" for c in inativos[:20]]
                 remaining = len(inativos) - 20
@@ -6033,6 +6107,21 @@ def get_wa_log(page: int = 1, limit: int = 10, x_token: str = Header(...)):
     rows = conn.execute("SELECT * FROM whatsapp_log ORDER BY sent_at DESC LIMIT ? OFFSET ?", [limit, offset]).fetchall()
     conn.close()
     return {"logs": [dict(r) for r in rows], "total": total, "page": page, "pages": max(1, (total + limit - 1) // limit)}
+
+@app.delete("/api/whatsapp/log")
+def delete_all_wa_logs(x_token: str = Header(...)):
+    require_admin(x_token)
+    conn = get_db()
+    try:
+        total = conn.execute("SELECT COUNT(*) AS c FROM whatsapp_log").fetchone()["c"]
+        conn.execute("DELETE FROM whatsapp_log")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    return {"ok": True, "deleted": total}
 
 @app.delete("/api/whatsapp/log/{log_id}")
 def delete_wa_log(log_id: str, x_token: str = Header(...)):

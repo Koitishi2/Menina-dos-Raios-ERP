@@ -1,6 +1,7 @@
 import json
 import sqlite3
 import uuid
+from datetime import date, timedelta
 
 
 def _login(test_client, username="admin", password="admin123", company="raios"):
@@ -424,3 +425,57 @@ def test_clients_are_isolated_by_x_company(isolated_app):
     )
     assert estrada_rows.status_code == 200
     assert [row["id"] for row in estrada_rows.json()] == [estrada_client["id"]]
+
+
+def test_client_can_be_ignored_and_restored_in_inactivity_alerts(isolated_app):
+    token = _login(isolated_app.client)
+    client_name = "Cliente Antigo para Ignorar"
+    _create_sale(
+        isolated_app.client,
+        token,
+        client=client_name,
+        sale_date=(date.today() - timedelta(days=90)).isoformat(),
+    )
+
+    before = isolated_app.client.get(
+        "/api/analytics/clients?days_inactive=30",
+        headers=_headers(token),
+    )
+    assert before.status_code == 200
+    assert client_name in [row["client"] for row in before.json()["inactive"]]
+
+    ignored = isolated_app.client.put(
+        "/api/clients/inactivity-exclusions",
+        headers=_headers(token),
+        json={"client": "  CLIENTE antigo para ignorar  ", "excluded": True},
+    )
+    assert ignored.status_code == 200
+    assert ignored.json()["excluded"] is True
+
+    exclusions = isolated_app.client.get(
+        "/api/clients/inactivity-exclusions",
+        headers=_headers(token),
+    )
+    assert exclusions.status_code == 200
+    assert [row["name"] for row in exclusions.json()] == ["CLIENTE antigo para ignorar"]
+
+    while_ignored = isolated_app.client.get(
+        "/api/analytics/clients?days_inactive=30",
+        headers=_headers(token),
+    )
+    assert client_name not in [row["client"] for row in while_ignored.json()["inactive"]]
+    assert client_name in [row["client"] for row in while_ignored.json()["ranking"]]
+
+    restored = isolated_app.client.put(
+        "/api/clients/inactivity-exclusions",
+        headers=_headers(token),
+        json={"client": client_name, "excluded": False},
+    )
+    assert restored.status_code == 200
+    assert restored.json()["excluded"] is False
+
+    after = isolated_app.client.get(
+        "/api/analytics/clients?days_inactive=30",
+        headers=_headers(token),
+    )
+    assert client_name in [row["client"] for row in after.json()["inactive"]]
