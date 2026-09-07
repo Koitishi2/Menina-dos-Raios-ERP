@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Streamin
 try:
     from .app_notes_domain import _clean_app_note
     from .app_notes_service import app_note_catalog_from_rows, app_note_dict_from_row
-    from .backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip, backup_path_for_filename, restore_zip_backup_with, safety_backup_before_restore_with
+    from .backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip, backup_path_for_filename, migrate_legacy_backups_once, prune_backup_files, restore_zip_backup_with, safety_backup_before_restore_with
     from .company_config import company_db_path_for, company_key_from
     from .monteiro_permissions import payment_role_allowed
     from .monteiro_periods import _pal_period_where, _pay_period_map
@@ -32,7 +32,7 @@ try:
 except ImportError:
     from app_notes_domain import _clean_app_note
     from app_notes_service import app_note_catalog_from_rows, app_note_dict_from_row
-    from backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip, backup_path_for_filename, restore_zip_backup_with, safety_backup_before_restore_with
+    from backup_admin import _copy_sqlite_consistent, _is_sqlite_file, _valid_backup_name, backup_db_sources_from_paths, backup_expected_databases_from_paths, backup_files_from_dir, backup_manifest_databases_from_zip, backup_path_for_filename, migrate_legacy_backups_once, prune_backup_files, restore_zip_backup_with, safety_backup_before_restore_with
     from company_config import company_db_path_for, company_key_from
     from monteiro_permissions import payment_role_allowed
     from monteiro_periods import _pal_period_where, _pay_period_map
@@ -119,15 +119,12 @@ BASE_DIR   = Path(__file__).parent
 BACKUP_DIR = Path(os.environ.get("BACKUP_DIR", str(BASE_DIR.parent / "backups"))).resolve()
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 LEGACY_BACKUP_DIR = BASE_DIR / "backups"
-if LEGACY_BACKUP_DIR.exists() and LEGACY_BACKUP_DIR.resolve() != BACKUP_DIR:
-    for old_backup in LEGACY_BACKUP_DIR.glob("bm_backup_*"):
-        target = BACKUP_DIR / old_backup.name
-        if old_backup.is_file() and not target.exists():
-            try:
-                shutil.copy2(old_backup, target)
-            except Exception as e:
-                print(f"migracao de backup falhou para {old_backup.name}: {e}")
-MAX_BACKUPS = 30  # manter Ãºltimos 30 dias
+MAX_BACKUPS = 30  # manter os 30 arquivos mais recentes
+try:
+    migrate_legacy_backups_once(LEGACY_BACKUP_DIR, BACKUP_DIR)
+    prune_backup_files(BACKUP_DIR, MAX_BACKUPS)
+except Exception as e:
+    logger.warning("Falha ao migrar ou aplicar retencao inicial de backups: %s", e)
 STATIC_DIR = BASE_DIR / "static"
 DB_PATH    = BASE_DIR / "bm_monteiro.db"
 COMPANY_DBS = {
@@ -1032,8 +1029,7 @@ def create_backup(label:str="auto")->str:
                 })
             zf.writestr("manifest.json",_j.dumps(manifest,ensure_ascii=False,indent=2))
     # Remove backups antigos (manter MAX_BACKUPS)
-    all_bk=sorted(_backup_files(),key=lambda p:p.stat().st_mtime)
-    for old in all_bk[:-MAX_BACKUPS]: old.unlink(missing_ok=True)
+    prune_backup_files(BACKUP_DIR,MAX_BACKUPS)
     return fname
 
 def _backup_db_sources():
@@ -3090,8 +3086,7 @@ async def upload_restore_backup(file:UploadFile=File(...),x_token:str=Header("")
         if isinstance(e,HTTPException): raise e
         raise HTTPException(500,f"Falha ao restaurar: {e}")
     # MantÃ©m o teto de backups
-    all_bk=sorted(_backup_files(),key=lambda p:p.stat().st_mtime)
-    for old in all_bk[:-MAX_BACKUPS]: old.unlink(missing_ok=True)
+    prune_backup_files(BACKUP_DIR,MAX_BACKUPS)
     clear_sales_cache(); clear_price_cache()
     return {"ok":True,"restored_from":file.filename,"archived_as":archive_name,
             "restored_databases":restored,

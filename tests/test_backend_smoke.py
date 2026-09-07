@@ -390,7 +390,6 @@ def test_backup_files_current_directory_glob_contract(isolated_app, tmp_path, mo
     monkeypatch.setattr(isolated_app.module, "BACKUP_DIR", backup_dir)
 
     assert backup_files() == []
-
     created = [
         backup_dir / "bm_backup_20260101_manual.zip",
         backup_dir / "bm_backup_20260101_manual.db",
@@ -410,6 +409,34 @@ def test_backup_files_current_directory_glob_contract(isolated_app, tmp_path, mo
     missing_dir = tmp_path / "missing_backups"
     monkeypatch.setattr(isolated_app.module, "BACKUP_DIR", missing_dir)
     assert backup_files() == []
+
+
+def test_legacy_backup_migration_runs_once_and_startup_retention_stays_at_limit(
+    isolated_app,
+    tmp_path,
+):
+    legacy_dir = tmp_path / "legacy"
+    backup_dir = tmp_path / "current"
+    legacy_dir.mkdir()
+    backup_dir.mkdir()
+    for index in range(38):
+        path = legacy_dir / f"bm_backup_202601{index + 1:02d}_auto.zip"
+        path.write_text(str(index), encoding="utf-8")
+        os.utime(path, (1000 + index, 1000 + index))
+
+    copied = isolated_app.module.migrate_legacy_backups_once(legacy_dir, backup_dir)
+    removed = isolated_app.module.prune_backup_files(backup_dir, 30)
+
+    assert len(copied) == 38
+    assert len(removed) == 8
+    assert len(isolated_app.module.backup_files_from_dir(backup_dir)) == 30
+    assert (backup_dir / ".legacy_backups_migrated").is_file()
+
+    removed_target = backup_dir / copied[0]
+    assert not removed_target.exists()
+    assert isolated_app.module.migrate_legacy_backups_once(legacy_dir, backup_dir) == []
+    assert not removed_target.exists()
+    assert len(isolated_app.module.backup_files_from_dir(backup_dir)) == 30
 
 
 def test_backup_expected_databases_current_paths_order_and_exists_contract(

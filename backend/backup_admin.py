@@ -41,6 +41,35 @@ def backup_files_from_dir(backup_dir):
     return list(backup_dir.glob("bm_backup_*.db")) + list(backup_dir.glob("bm_backup_*.zip"))
 
 
+def prune_backup_files(backup_dir, max_backups):
+    files=sorted(backup_files_from_dir(backup_dir),key=lambda p:p.stat().st_mtime)
+    remove_count=max(0,len(files)-max(0,int(max_backups)))
+    removed=[]
+    for path in files[:remove_count]:
+        path.unlink(missing_ok=True)
+        removed.append(path.name)
+    return removed
+
+
+def migrate_legacy_backups_once(legacy_dir, backup_dir, marker_name=".legacy_backups_migrated"):
+    legacy_dir=Path(legacy_dir)
+    backup_dir=Path(backup_dir)
+    if not legacy_dir.exists() or legacy_dir.resolve()==backup_dir.resolve():
+        return []
+    backup_dir.mkdir(parents=True,exist_ok=True)
+    marker=backup_dir/marker_name
+    if marker.exists():
+        return []
+    copied=[]
+    for source in backup_files_from_dir(legacy_dir):
+        target=backup_dir/source.name
+        if source.is_file() and not target.exists():
+            shutil.copy2(source,target)
+            copied.append(source.name)
+    marker.write_text("migration completed\n",encoding="utf-8")
+    return copied
+
+
 def _valid_backup_name(filename:str)->bool:
     return filename.startswith("bm_backup_") and filename.lower().endswith((".db",".zip"))
 
