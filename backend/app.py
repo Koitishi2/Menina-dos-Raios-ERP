@@ -1442,8 +1442,39 @@ def update_user(user_id:str,body:dict,x_token:str=Header("")):
 @app.delete("/api/users/{user_id}")
 def delete_user(user_id:str,x_token:str=Header("")):
     sess=require_admin(x_token)
-    if user_id==sess["user_id"]: raise HTTPException(400,"NÃ£o pode excluir sua prÃ³pria conta.")
-    conn=get_control_db(); conn.execute("DELETE FROM users WHERE id=?",(user_id,)); conn.commit(); conn.close()
+    if user_id==sess["user_id"]:
+        raise HTTPException(400,"NÃ£o pode excluir sua prÃ³pria conta.")
+    conn=get_control_db()
+    try:
+        target=conn.execute(
+            "SELECT id,username,full_name,role,active FROM users WHERE id=?",
+            (user_id,),
+        ).fetchone()
+        if not target:
+            raise HTTPException(404,"UsuÃ¡rio nÃ£o encontrado.")
+        if target["role"]=="admin" and target["active"]:
+            admin_count=conn.execute(
+                "SELECT COUNT(*) FROM users WHERE role='admin' AND active=1"
+            ).fetchone()[0]
+            if admin_count<=1:
+                raise HTTPException(400,"NÃ£o Ã© possÃ­vel remover o Ãºnico administrador.")
+
+        # Bancos antigos podem ter FK de sessions sem ON DELETE CASCADE.
+        conn.execute("DELETE FROM sessions WHERE user_id=?",(user_id,))
+        conn.execute("DELETE FROM admin_messages WHERE user_id=?",(user_id,))
+        deleted=conn.execute("DELETE FROM users WHERE id=?",(user_id,)).rowcount
+        if deleted!=1:
+            raise HTTPException(404,"UsuÃ¡rio nÃ£o encontrado.")
+        log_action(
+            conn,sess,"DELETE_USER",str(target["id"]),str(target["username"]),
+            "user","active","deleted","",f"Conta removida: {target['username']}"
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
     return {"ok":True}
 
 def require_roles_configure(x_token:str="")->dict:

@@ -866,6 +866,123 @@ def test_config_users_are_admin_only_and_use_control_database(isolated_app):
     assert deleted.json() == {"ok": True}
 
 
+def test_delete_user_cleans_sessions_messages_and_preserves_audit(isolated_app):
+    admin_token = _login(isolated_app.client)
+    username = f"delete_linked_{uuid.uuid4().hex[:8]}"
+    user_id = _create_temp_user(isolated_app, username, "editor123", "editor")
+    user_token = _login(isolated_app.client, username, "editor123")
+    db_path = isolated_app.db_paths["raios"]
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            """INSERT INTO admin_messages(id,user_id,title,body,created_by)
+               VALUES(?,?,?,?,?)""",
+            (str(uuid.uuid4()), user_id, "Aviso", "Mensagem vinculada", "admin"),
+        )
+        conn.execute(
+            """CREATE TRIGGER require_session_cleanup_before_user_delete
+               BEFORE DELETE ON users
+               WHEN EXISTS(SELECT 1 FROM sessions WHERE user_id=OLD.id)
+               BEGIN
+                   SELECT RAISE(ABORT, 'sessao vinculada');
+               END"""
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    response = isolated_app.client.delete(
+        f"/api/users/{user_id}",
+        headers=_headers(admin_token),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
+    assert _fetch_one(db_path, "SELECT id FROM users WHERE id=?", (user_id,)) is None
+    assert _fetch_one(db_path, "SELECT token FROM sessions WHERE user_id=?", (user_id,)) is None
+    assert _fetch_one(db_path, "SELECT id FROM admin_messages WHERE user_id=?", (user_id,)) is None
+    audit = _fetch_one(
+        db_path,
+        "SELECT action,product_key,product_label FROM audit_log WHERE action='DELETE_USER' ORDER BY timestamp DESC LIMIT 1",
+    )
+    assert audit == {
+        "action": "DELETE_USER",
+        "product_key": user_id,
+        "product_label": username,
+    }
+    old_session = isolated_app.client.get(
+        "/api/auth/me",
+        headers=_headers(user_token),
+    )
+    assert old_session.status_code == 401
+
+
+def test_delete_user_validates_target_and_rolls_back_link_cleanup(isolated_app):
+    admin_token = _login(isolated_app.client)
+    admin_id = _fetch_one(
+        isolated_app.db_paths["raios"],
+        "SELECT id FROM users WHERE username='admin'",
+    )["id"]
+
+    self_delete = isolated_app.client.delete(
+        f"/api/users/{admin_id}",
+        headers=_headers(admin_token),
+    )
+    assert self_delete.status_code == 400
+
+    missing = isolated_app.client.delete(
+        f"/api/users/{uuid.uuid4()}",
+        headers=_headers(admin_token),
+    )
+    assert missing.status_code == 404
+
+    username = f"delete_rollback_{uuid.uuid4().hex[:8]}"
+    user_id = _create_temp_user(isolated_app, username, "editor123", "editor")
+    user_token = _login(isolated_app.client, username, "editor123")
+    db_path = isolated_app.db_paths["raios"]
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            """CREATE TRIGGER fail_linked_message_delete
+               BEFORE DELETE ON admin_messages
+               BEGIN
+                   SELECT RAISE(ABORT, 'falha controlada ao remover mensagem');
+               END"""
+        )
+        conn.execute(
+            "INSERT INTO admin_messages(id,user_id,title,body,created_by) VALUES(?,?,?,?,?)",
+            (str(uuid.uuid4()), user_id, "Aviso", "Preservar no rollback", "admin"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    with pytest.raises(sqlite3.IntegrityError, match="falha controlada"):
+        isolated_app.module.delete_user(user_id, x_token=admin_token)
+
+    assert _fetch_one(db_path, "SELECT id FROM users WHERE id=?", (user_id,)) is not None
+    assert _fetch_one(db_path, "SELECT token FROM sessions WHERE user_id=?", (user_id,))["token"] == user_token
+    assert _fetch_one(db_path, "SELECT id FROM admin_messages WHERE user_id=?", (user_id,)) is not None
+
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("DROP TRIGGER fail_linked_message_delete")
+        conn.execute("INSERT OR REPLACE INTO settings(key,value) VALUES('delete_user_probe','ok')")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_users_frontend_uses_safe_delete_action_and_reports_errors(isolated_app):
+    html = (isolated_app.temp_backend / "static" / "index.html").read_text(encoding="utf-8")
+
+    assert 'data-delete-user-id="${admEsc(u.id)}"' in html
+    assert "closest('[data-delete-user-id]')" in html
+    assert "encodeURIComponent(id)" in html
+    assert "As sessões abertas dessa conta serão encerradas" in html
+    assert "Não foi possível remover: " in html
+
+
 def test_config_tab_permissions_tab_order_and_monteiro_settings(isolated_app):
     admin_token = _login(isolated_app.client)
     _create_temp_user(isolated_app, "viewer_config_settings", "viewer123", "viewer")

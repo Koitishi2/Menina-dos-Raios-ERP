@@ -7274,10 +7274,10 @@ async function loadUsers(){
         <th style="padding:5px 7px;font-size:9px;text-transform:uppercase;color:var(--muted)">Ativo</th><th style="width:66px"></th>
       </tr></thead>
       <tbody>${_allUsers.map(u=>`<tr style="border-bottom:1px solid var(--border)">
-        <td style="padding:6px 7px"><div style="font-weight:600">${u.username}</div><div style="font-size:10px;color:var(--muted)">${u.full_name||''}</div></td>
-        <td style="padding:6px 7px"><span class="role-badge role-${u.role}">${u.role}</span></td>
+        <td style="padding:6px 7px"><div style="font-weight:600">${admEsc(u.username)}</div><div style="font-size:10px;color:var(--muted)">${admEsc(u.full_name||'')}</div></td>
+        <td style="padding:6px 7px"><span class="role-badge role-${admEsc(u.role)}">${admEsc(u.role)}</span></td>
         <td style="padding:6px 7px;text-align:center"><input type="checkbox" ${u.active?'checked':''} onchange="toggleUser('${u.id}',this.checked)" ${u.username==='admin'?'disabled':''}></td>
-        <td style="padding:4px 5px;white-space:nowrap">${u.username!=='admin'?`<button class="del-btn" onclick="openEditUser('${u.id}')" title="Editar"></button><button class="del-btn" onclick="deleteUser('${u.id}','${u.username}')">✕</button>`:''}</td>
+        <td style="padding:4px 5px;white-space:nowrap">${u.username!=='admin'?`<button class="del-btn" onclick="openEditUser('${admEsc(u.id)}')" title="Editar usuário">✎</button><button class="del-btn" data-delete-user-id="${admEsc(u.id)}" data-delete-user-name="${admEsc(u.username)}" title="Excluir usuário">✕</button>`:''}</td>
       </tr>`).join('')}</tbody></table>`;
   }catch(e){toast(e.message,'error');}
 }
@@ -7350,7 +7350,21 @@ async function createUser(){
   catch(e){toast(e.message,'error');}
 }
 async function toggleUser(id,active){try{await api('/api/users/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({active})});}catch(e){toast(e.message,'error');loadUsers();}}
-async function deleteUser(id,name){if(!confirm(`Excluir "${name}"?`))return;try{await api('/api/users/'+id,{method:'DELETE'});toast('Removido.');loadUsers();}catch(e){toast(e.message,'error');}}
+async function deleteUser(id,name){
+  if(!confirm(`Excluir definitivamente o usuário "${name}"? As sessões abertas dessa conta serão encerradas.`))return;
+  try{
+    await api('/api/users/'+encodeURIComponent(id),{method:'DELETE'});
+    toast('Usuário '+name+' removido.');
+    await loadUsers();
+    await loadAdminMessages();
+  }catch(e){toast('Não foi possível remover: '+e.message,'error');}
+}
+document.addEventListener('click',function(event){
+  const button=event.target&&event.target.closest?event.target.closest('[data-delete-user-id]'):null;
+  if(!button)return;
+  event.preventDefault();
+  deleteUser(button.dataset.deleteUserId,button.dataset.deleteUserName||'usuário');
+});
 function openEditUser(userId){
   var u=_allUsers.find(function(x){return x.id===userId});
   if(!u)return;
