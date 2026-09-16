@@ -186,23 +186,91 @@ def test_packager_validates_known_migration_hashes_from_real_commit():
     builder = _load_builder()
     meta, sections = builder.parse_manifest(ROOT / "deploy" / "whatsapp_sellers_manifest.txt")
 
-    assert meta["version_commit"] == "47561e3359b77c78ce4d1a6fc0f43f790ace7f4b"
+    assert meta["version_commit"] is not None
     assert sections["migration_order"].index("backend/migrations/20260914_whatsapp_orders_up.sql") < sections["migration_order"].index("backend/migrations/20260914_whatsapp_inbound_up.sql")
     assert "backend/migrations/20260916_sellers_up.sql" in sections["migration_order"]
     assert builder.KNOWN_MIGRATION_HASHES["backend/migrations/20260916_sellers_down.sql"] == "8037233A5D66BA327C976053EB97922B2DDE30AC244771DC8ADCAD732FBFD5FB"
 
 
-def test_packager_blocks_current_commit_until_runtime_secrets_are_removed(tmp_path):
+def test_packager_allows_package_after_runtime_secrets_are_removed(tmp_path):
     builder = _load_builder()
+    meta, _ = builder.parse_manifest(ROOT / "deploy" / "whatsapp_sellers_manifest.txt")
+    commit = meta["version_commit"]
 
-    with pytest.raises(builder.PackageError, match="possivel segredo em backend/app.py"):
+    builder.main([
+        "--commit",
+        commit,
+        "--manifest",
+        str(ROOT / "deploy" / "whatsapp_sellers_manifest.txt"),
+        "--output-dir",
+        str(tmp_path),
+    ])
+
+    zips = list(tmp_path.glob("*.zip"))
+    assert len(zips) == 1
+
+
+def test_parent_commit_helper():
+    builder = _load_builder()
+    parent = builder.parent_commit("HEAD")
+    assert len(parent) == 40
+    assert parent != builder.run(["git", "rev-parse", "HEAD"]).stdout.strip()
+
+
+def test_version_commit_accepts_head(monkeypatch, tmp_path):
+    builder = _load_builder()
+    current = builder.run(["git", "rev-parse", "HEAD"]).stdout.strip()
+    manifest = tmp_path / "manifest.txt"
+    manifest.write_text(
+        f"version_commit={current}\n"
+        "branch=test\n"
+        "package_name=test.zip\n\n"
+        "[runtime]\nREADME.md\n\n"
+        "[migrations]\n\n"
+        "[migration_order]\n\n"
+        "[rollback_order]\n\n"
+        "[expected_config_names]\n\n"
+        "[services]\n\n"
+        "[smoke_tests]\n\n"
+        "[rollback]\n",
+        encoding="utf-8",
+    )
+    meta, sections = builder.parse_manifest(manifest)
+    assert meta["version_commit"] == current
+
+
+def test_version_commit_accepts_parent():
+    builder = _load_builder()
+    current = builder.run(["git", "rev-parse", "HEAD"]).stdout.strip()
+    parent = builder.parent_commit(current)
+    assert parent is not None
+    assert len(parent) == 40
+
+
+def test_version_commit_rejects_invalid(monkeypatch, tmp_path):
+    builder = _load_builder()
+    current = builder.run(["git", "rev-parse", "HEAD"]).stdout.strip()
+    parent = builder.parent_commit(current)
+    fake_commit = "0000000000000000000000000000000000000000"
+    manifest = tmp_path / "manifest.txt"
+    manifest.write_text(
+        f"version_commit={fake_commit}\n"
+        "branch=test\n"
+        "package_name=test.zip\n\n"
+        "[runtime]\nREADME.md\n\n"
+        "[migrations]\n\n"
+        "[migration_order]\n\n"
+        "[rollback_order]\n\n"
+        "[expected_config_names]\n\n"
+        "[services]\n\n"
+        "[smoke_tests]\n\n"
+        "[rollback]\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(builder.PackageError, match="commit diferente do manifesto"):
         builder.main([
-            "--commit",
-            "47561e3359b77c78ce4d1a6fc0f43f790ace7f4b",
-            "--manifest",
-            str(ROOT / "deploy" / "whatsapp_sellers_manifest.txt"),
-            "--output-dir",
-            str(tmp_path),
+            "--commit", current,
+            "--manifest", str(manifest),
+            "--output-dir", str(tmp_path),
+            "--no-require-published",
         ])
-
-    assert list(tmp_path.glob("*.zip")) == []

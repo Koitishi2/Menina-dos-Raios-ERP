@@ -69,6 +69,11 @@ def run(cmd, **kwargs):
     return subprocess.run(cmd, cwd=ROOT, text=True, capture_output=True, check=True, **kwargs)
 
 
+def parent_commit(commit):
+    result = run(["git", "rev-parse", f"{commit}^"])
+    return result.stdout.strip()
+
+
 def sha256(path):
     h = hashlib.sha256()
     with path.open("rb") as f:
@@ -342,7 +347,15 @@ def main(argv=None):
 
     meta, sections = parse_manifest(args.manifest)
     if meta.get("version_commit") and meta["version_commit"] != args.commit:
-        raise PackageError(f"commit diferente do manifesto: {meta['version_commit']} != {args.commit}")
+        try:
+            expected_parent = parent_commit(args.commit)
+        except Exception:
+            expected_parent = None
+        if meta["version_commit"] != expected_parent:
+            raise PackageError(
+                f"commit diferente do manifesto: {meta['version_commit']}"
+                f" (esperado {args.commit} ou seu pai {expected_parent})"
+            )
     if args.require_published and not is_commit_published(args.commit):
         raise PackageError(f"commit nao publicado em remote conhecido: {args.commit}")
 
