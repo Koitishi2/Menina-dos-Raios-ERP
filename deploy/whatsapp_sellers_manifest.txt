@@ -1,0 +1,102 @@
+version_commit=a1bfa3ffcd1ea0acdc26f79a963b526bb57d44b6
+branch=feat/clientes-whatsapp-pedidos
+package_name=bm_app_whatsapp_sellers_a1bfa3f.zip
+
+[runtime]
+README.md
+backend/app.py
+backend/app_notes_domain.py
+backend/app_notes_service.py
+backend/backup_admin.py
+backend/company_config.py
+backend/monteiro_periods.py
+backend/monteiro_permissions.py
+backend/orcamentos.py
+backend/permissions_tabs.py
+backend/rbac.py
+backend/schemas.py
+backend/security_auth.py
+backend/security_request.py
+backend/utils.py
+backend/requirements.txt
+backend/domains/__init__.py
+backend/domains/sellers.py
+backend/domains/whatsapp_policies.py
+backend/domains/whatsapp_states.py
+backend/repositories/__init__.py
+backend/repositories/sellers_repository.py
+backend/repositories/whatsapp_repository.py
+backend/routers/__init__.py
+backend/routers/sellers.py
+backend/routers/whatsapp_campaigns.py
+backend/routers/whatsapp_clients.py
+backend/routers/whatsapp_inbound.py
+backend/services/__init__.py
+backend/services/sellers_service.py
+backend/services/whatsapp_calculation_service.py
+backend/services/whatsapp_campaign_service.py
+backend/services/whatsapp_inbound_service.py
+backend/services/whatsapp_order_service.py
+backend/static/index.html
+backend/static/assets/menina-dos-raios-logo-print.jpg
+backend/static/assets/menina-dos-raios-logo.png
+backend/static/assets/menina-estrada-logo-print.jpg
+backend/static/assets/menina-estrada-logo.png
+backend/static/css/client_orders.css
+backend/static/css/client_whatsapp.css
+backend/static/js/client_orders.js
+backend/static/js/client_whatsapp.js
+backend/static/login-inspirador.png
+backend/static/logo.png
+baileys-api/package.json
+baileys-api/package-lock.json
+baileys-api/server.js
+baileys-api/inbound.js
+baileys-api/security.js
+
+[migrations]
+backend/migrations/20260826_rbac_roles.sql
+backend/migrations/20260826_rbac_roles_rollback.sql
+backend/migrations/20260914_whatsapp_orders_up.sql
+backend/migrations/20260914_whatsapp_orders_down.sql
+backend/migrations/20260914_whatsapp_inbound_up.sql
+backend/migrations/20260914_whatsapp_inbound_down.sql
+backend/migrations/20260916_sellers_up.sql
+backend/migrations/20260916_sellers_down.sql
+
+[migration_order]
+backend/migrations/20260826_rbac_roles.sql
+backend/migrations/20260914_whatsapp_orders_up.sql
+backend/migrations/20260914_whatsapp_inbound_up.sql
+backend/migrations/20260916_sellers_up.sql
+
+[rollback_order]
+backend/migrations/20260916_sellers_down.sql
+backend/migrations/20260914_whatsapp_inbound_down.sql
+backend/migrations/20260914_whatsapp_orders_down.sql
+backend/migrations/20260826_rbac_roles_rollback.sql
+
+[expected_config_names]
+WHATSAPP_INBOUND_TOKEN
+WHATSAPP_INBOUND_INSTANCE
+WHATSAPP_INBOUND_COMPANY
+WHATSAPP_OUTBOUND_ENABLED=false
+WHATSAPP_OUTBOUND_MODE=disabled
+API_KEY
+
+[services]
+menina
+menina-baileys
+
+[smoke_tests]
+python -m py_compile backend/*.py backend/domains/*.py backend/repositories/*.py backend/routers/*.py backend/services/*.py
+node --check baileys-api/server.js
+node --check baileys-api/inbound.js
+node --check baileys-api/security.js
+GET /health
+
+[rollback]
+remote backup before replacing runtime files
+do not delete .env, databases, uploads, logs, app-updates, auth_info_baileys or sessions
+restore application files from backup if validation, restart or health check fails
+sellers column physical rollback requires validated backup or controlled rebuild
