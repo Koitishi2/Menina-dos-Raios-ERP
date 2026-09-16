@@ -36,6 +36,7 @@ class SaleIn(BaseModel):
     delivery_person: Optional[str] = None
     plate: Optional[str] = None
     source: str = "manual"
+    seller_id: Optional[str] = None
 
 
 class PriceUpdate(BaseModel):

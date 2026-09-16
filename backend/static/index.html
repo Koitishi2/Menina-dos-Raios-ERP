@@ -3123,6 +3123,12 @@ body.paladar-active #notif-restore{display:none!important}
           </div>
           <datalist id="clients-list"></datalist>
         </div>
+        <div class="fg full"><label>Quem vendeu *</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="sf-seller" style="flex:1"></select>
+            <button type="button" onclick="quickRegisterSeller('sf-seller')" class="btn btn-secondary btn-sm" title="Cadastrar vendedor agora" style="flex-shrink:0;font-size:12px">+ Cadastrar</button>
+          </div>
+        </div>
         <div class="fg"><label>Entregador</label>
           <select id="driver-select-modal" onchange="onDriverSelect()">
             <option value="">Selecione...</option>
@@ -3874,10 +3880,14 @@ body.paladar-active #notif-restore{display:none!important}
       </div>
       <button onclick="selectAllProdTypes()" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:12px;background:var(--card);cursor:pointer;color:var(--muted)">Todos</button>
       <button onclick="clearProdTypes()" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:12px;background:var(--card);cursor:pointer;color:var(--muted)">Limpar</button>
+      <select id="prod-seller-filter" class="filt" onchange="loadProdutividade()" style="font-size:11px;min-width:180px">
+        <option value="">Todos os vendedores</option>
+      </select>
       <div id="prod-selected-total" style="margin-left:auto;font-size:13px;font-weight:700;font-family:monospace;color:var(--g800)"></div>
     </div>
     <!-- KPIs do mês -->
     <div id="prod-kpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px"></div>
+    <div id="prod-seller-breakdown" class="card" style="margin-bottom:14px"></div>
     <div id="prod-projection-box"></div>
     <!-- Gráfico de barras diário -->
     <div class="card" style="margin-bottom:14px">
@@ -4969,7 +4979,7 @@ const IDLE_TIMEOUT_MS = 20 * 60 * 1000;
 let _idleTimer = null;
 let idleWarnTimer = null;
 let _idleBound = false;
-let allSales=[],allPrices=[],allPricesCompany='',allDrivers=[],chartInstances={},pdashChart=null,donutActiveFilter=null;
+let allSales=[],allPrices=[],allPricesCompany='',allDrivers=[],allSellers=[],allSellersCompany='',chartInstances={},pdashChart=null,donutActiveFilter=null;
 let PAGE_SIZE=100; let currentPage=1;
 let _typePageSize=100; let _typePage={};
 const MONTHS=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -5287,6 +5297,62 @@ async function api(path,opts={}){
   return r.json();
 }
 
+async function loadSellers(force=false, includeInactive=false, companyOverride=null, moduleContext=''){
+  const targetCompany=companyOverride||activeCompany;
+  const cacheKey=targetCompany+'|'+(moduleContext||'');
+  if(!force && allSellersCompany===cacheKey && allSellers.length)return allSellers;
+  const params=[];
+  if(includeInactive)params.push('include_inactive=1');
+  if(moduleContext)params.push('module_context='+encodeURIComponent(moduleContext));
+  const suffix=params.length?'?'+params.join('&'):'';
+  try{
+    if(companyOverride){
+      const r=await fetch(API+'/api/sellers'+suffix,{headers:{'x-token':session.token,'x-company':targetCompany}});
+      if(!r.ok){const e=await r.json().catch(()=>({detail:r.statusText}));throw new Error(e.detail||'Erro '+r.status);}
+      allSellers=await r.json();
+    }else{
+      allSellers=await api('/api/sellers'+suffix);
+    }
+    allSellersCompany=cacheKey;
+  }catch(e){
+    allSellers=[];
+  }
+  return allSellers;
+}
+
+function fillSellerSelect(selectId, selectedId, allowBlank=true){
+  const el=document.getElementById(selectId);
+  if(!el)return;
+  const current=selectedId || el.value || '';
+  const options=(allSellers||[]).filter(function(s){return Number(s.active)!==0;}).map(function(s){
+    return '<option value="'+String(s.id).replace(/"/g,'&quot;')+'"'+(String(s.id)===String(current)?' selected':'')+'>'+String(s.name||'').replace(/</g,'&lt;')+'</option>';
+  }).join('');
+  el.innerHTML=(allowBlank?'<option value="">Selecione o vendedor...</option>':'')+options;
+}
+
+async function quickRegisterSeller(targetSelectId){
+  const name=prompt('Nome de quem vendeu:');
+  if(!name || !name.trim())return;
+  const isMonteiroSeller=String(targetSelectId||'').indexOf('pal-')===0;
+  const targetCompany=isMonteiroSeller?'raios':activeCompany;
+  const moduleContext=isMonteiroSeller?'monteiro':'';
+  const suffix=moduleContext?'?module_context='+encodeURIComponent(moduleContext):'';
+  try{
+    const r=await fetch(API+'/api/sellers'+suffix,{method:'POST',headers:{'Content-Type':'application/json','x-token':session.token,'x-company':targetCompany},body:JSON.stringify({name:name.trim()})});
+    if(!r.ok){const e=await r.json().catch(()=>({detail:r.statusText}));throw new Error(e.detail||'Erro '+r.status);}
+    const res=await r.json();
+    await loadSellers(true,false,targetCompany,moduleContext);
+    fillSellerSelect(targetSelectId,res.seller&&res.seller.id,true);
+    toast(res.existed?'Vendedor ja existia e foi selecionado.':'Vendedor cadastrado.');
+  }catch(e){toast(e.message,'error');}
+}
+
+function saleSellerName(sale){
+  if(sale && sale.seller_name_snapshot)return sale.seller_name_snapshot;
+  const found=(allSellers||[]).find(function(s){return sale && String(s.id)===String(sale.seller_id);});
+  return found ? found.name : 'Nao informado';
+}
+
 async function switchCompanyUI(target){
   if(!session || !session.token){return;}
   target=target || (activeCompany==='raios'?'estrada':'raios');
@@ -5310,6 +5376,8 @@ async function switchCompanyUI(target){
     activeCompany=target;
     allPrices=[];
     allPricesCompany='';
+    allSellers=[];
+    allSellersCompany='';
     if(typeof _clients!=='undefined')_clients=[];
     if(typeof _selectedClient!=='undefined')_selectedClient=null;
     var saleLines=document.getElementById('sale-lines');
@@ -7857,7 +7925,7 @@ async function editSale(saleId){
   }
   if(!sale){ toast('Venda não encontrada. Atualize a página e tente novamente.','error'); return; }
   _editingSaleId = saleId;
-  await loadPricesForForm(true);
+  await Promise.all([loadPricesForForm(true),loadSellers(true)]);
 
   // Open modal and pre-fill all fields
   document.getElementById('modal-overlay').classList.add('open');
@@ -7870,6 +7938,7 @@ async function editSale(saleId){
     setVal('sf-time', sale.sale_time);
     setVal('sf-nf',   sale.nf_number);
     setVal('sf-client', sale.client);
+    fillSellerSelect('sf-seller', sale.seller_id, true);
     setVal('driver-select-modal', sale.delivery_person);
     setVal('plate-input', sale.plate);
     setVal('sf-notes', sale.notes);
@@ -7924,11 +7993,13 @@ async function submitSaleMulti(){
   const time=(document.getElementById('sf-time')&&document.getElementById('sf-time').value)||new Date().toTimeString().slice(0,5);
   const nf=(document.getElementById('sf-nf')&&document.getElementById('sf-nf').value)||'';
   const client=(document.getElementById('sf-client')&&document.getElementById('sf-client').value)||'';
+  const sellerId=(document.getElementById('sf-seller')&&document.getElementById('sf-seller').value)||'';
   const driver=(document.getElementById('driver-select-modal')&&document.getElementById('driver-select-modal').value)||'';
   const plate=(document.getElementById('plate-input')&&document.getElementById('plate-input').value)||'';
   const notes=(document.getElementById('sf-notes')&&document.getElementById('sf-notes').value)||'';
   if(!type||!date){toast('Tipo e data são obrigatórios.','error');return;}
   const lines=document.querySelectorAll('#sale-lines > div[id^="sl-"]');
+  if(!sellerId && !_editingSaleId){toast('Informe quem vendeu.','error');return;}
   if(!lines.length){toast('Adicione pelo menos 1 produto.','error');return;}
   const records=[];
   let valid=true;
@@ -7942,7 +8013,7 @@ async function submitSaleMulti(){
     const pu=parseFloat(document.getElementById(id+'-price')&&document.getElementById(id+'-price').value||0);
     records.push({sale_type:type,sale_date:date,sale_time:time,client:client||null,product:prod,
       nf_number:nf||null,quantity:qty,unit_price:pu,total:qty*pu,notes:notes||null,
-      delivery_person:driver||null,plate:plate||null,source:'manual'});
+      delivery_person:driver||null,plate:plate||null,source:'manual',seller_id:sellerId||undefined});
   });
   if(!valid)return;
   try{
@@ -7968,6 +8039,7 @@ async function submitSaleMulti(){
     ['sf-nf','sf-client','sf-notes'].forEach(function(id){const e=document.getElementById(id);if(e)e.value='';});
     const pi=document.getElementById('plate-input');if(pi){pi.value='';pi.readOnly=false;pi.style.background='';}
     const vs=document.getElementById('vehicle-select');if(vs)vs.value='';
+    const seller=document.getElementById('sf-seller');if(seller)seller.value='';
     loadAll();
   }catch(e){toast(e.message,'error');}
 }
@@ -7977,7 +8049,8 @@ async function openModal(){
   document.getElementById('modal-overlay').classList.add('open');
   const d=document.getElementById('sf-date');if(d&&!d.value)d.value=new Date().toISOString().slice(0,10);
   const t=document.getElementById('sf-time');if(t&&!t.value)t.value=new Date().toTimeString().slice(0,5);
-  await Promise.all([loadPricesForForm(true),loadDriversForForm(true)]);
+  await Promise.all([loadPricesForForm(true),loadDriversForForm(true),loadSellers(true)]);
+  fillSellerSelect('sf-seller','',true);
   const saleLines=document.getElementById('sale-lines');
   if(saleLines)saleLines.innerHTML='';
   _saleLineCount=0;
@@ -8562,18 +8635,40 @@ async function renderProdutividadeProjection(info){
 }
 
 async function loadProdutividade(){
+  await loadSellers(false);
   const now = new Date();
   const m = (document.getElementById('prod-month')&&document.getElementById('prod-month').value) || String(now.getMonth()+1).padStart(2,'0');
   const y = (document.getElementById('prod-year')&&document.getElementById('prod-year').value) || String(now.getFullYear());
+  const sellerFilter = (document.getElementById('prod-seller-filter')&&document.getElementById('prod-seller-filter').value) || '';
 
   // Filter allSales by month/year + selected types
-  const sales = allSales.filter(function(s){
+  const baseSales = allSales.filter(function(s){
     if(!s.sale_date)return false;
     const parts = s.sale_date.split('-');
     if(y && parts[0]!==y)return false;
     if(m && parts[1]!==m)return false;
     if(_prodTypes.size > 0 && !_prodTypes.has(s.sale_type))return false;
     return true;
+  });
+  const sellerSelect=document.getElementById('prod-seller-filter');
+  if(sellerSelect){
+    const current=sellerSelect.value;
+    const sellersById={};
+    (allSellers||[]).forEach(function(s){sellersById[String(s.id)]={id:s.id,name:s.name};});
+    baseSales.forEach(function(s){
+      if(s.seller_id)sellersById[String(s.seller_id)]={id:s.seller_id,name:saleSellerName(s)};
+    });
+    const names=Object.values(sellersById).sort(function(a,b){return String(a.name).localeCompare(String(b.name),'pt-BR');});
+    const hasNone=baseSales.some(function(s){return !s.seller_id;});
+    sellerSelect.innerHTML='<option value="">Todos os vendedores</option>'
+      +(hasNone?'<option value="__none__">Nao informado</option>':'')
+      +names.map(function(s){return '<option value="'+String(s.id).replace(/"/g,'&quot;')+'">'+String(s.name).replace(/</g,'&lt;')+'</option>';}).join('');
+    sellerSelect.value=current;
+  }
+  const sales = baseSales.filter(function(s){
+    if(!sellerFilter)return true;
+    if(sellerFilter==='__none__')return !s.seller_id;
+    return String(s.seller_id||'')===String(sellerFilter);
   });
   const TL2={NF:'NF-e',PR:'Prod. Rural',AVULSO:'Avulso',AVARIA:'Avaria'};
   const allProdTypeCount=activeCompany==='estrada'?3:4;
@@ -8621,6 +8716,29 @@ async function loadProdutividade(){
     +'<div style="background:#FFEBEE;border:1px solid #FFCDD2;border-radius:var(--radius);padding:12px">'
     +'<div style="font-size:9px;color:var(--red);text-transform:uppercase;margin-bottom:3px">⚠ Avarias</div>'
     +'<div style="font-size:16px;font-weight:700;color:var(--red);font-family:monospace">'+fmt(totalAv)+'</div></div>';
+
+  const sellerBreak=document.getElementById('prod-seller-breakdown');
+  if(sellerBreak){
+    const map={};
+    baseSales.forEach(function(s){
+      const key=s.seller_id||'__none__';
+      if(!map[key])map[key]={name:saleSellerName(s),receita:0,avaria:0,count:0,days:{}};
+      const v=Number(s.total||0);
+      if(s.sale_type==='AVARIA')map[key].avaria+=v; else map[key].receita+=v;
+      map[key].count++;
+      if(s.sale_date)map[key].days[s.sale_date]=true;
+    });
+    const rows=Object.values(map).sort(function(a,b){return (b.receita-b.avaria)-(a.receita-a.avaria);});
+    sellerBreak.innerHTML='<div class="card-title">👤 Produtividade por vendedor</div>'
+      +(rows.length?rows.map(function(r){
+        return '<div style="display:grid;grid-template-columns:1.4fr .8fr .8fr .7fr;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--border)">'
+          +'<div style="font-weight:800;color:var(--g800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+String(r.name).replace(/</g,'&lt;')+'</div>'
+          +'<div style="font-family:monospace;font-weight:800">'+fmt(r.receita)+'</div>'
+          +'<div style="font-family:monospace;color:var(--red)">'+fmt(r.avaria)+'</div>'
+          +'<div style="font-size:11px;color:var(--muted);text-align:right">'+r.count+' registro(s) · '+Object.keys(r.days).length+' dia(s)</div>'
+          +'</div>';
+      }).join(''):'<div style="color:var(--muted);padding-top:8px">Nenhuma venda no período.</div>');
+  }
 
   await renderProdutividadeProjection({
     year:y, month:m, monthName:mName, totalRec:totalRec, totalAv:totalAv,
@@ -15694,6 +15812,8 @@ async function openPaladarSaleModal(){
   var _pt = document.getElementById('pal-plate-manual-toggle'); if(_pt) _pt.style.display = '';
   document.getElementById('pal-sale-notes').value = '';
   var inv=document.getElementById('pal-sale-invoice'); if(inv) inv.value='';
+  await loadSellers(true,false,'raios','monteiro');
+  fillSellerSelect('pal-sale-seller','',true);
   var c = document.getElementById('pal-items-body');
   c.innerHTML = '';
   addPaladarItem();
@@ -15822,11 +15942,13 @@ async function savePaladarSale(){
   var dateVal = document.getElementById('pal-sale-date')?.value;
   var client = document.getElementById('pal-sale-client')?.value?.trim() || '';
   var nf = document.getElementById('pal-sale-nf')?.value?.trim() || '';
+  var sellerId = document.getElementById('pal-sale-seller')?.value || '';
   var driver = document.getElementById('pal-sale-driver')?.value?.trim() || '';
   var vehicle = document.getElementById('pal-sale-vehicle')?.value?.trim() || '';
   var plate = document.getElementById('pal-sale-plate')?.value?.trim().toUpperCase() || '';
   var notes = document.getElementById('pal-sale-notes')?.value || '';
   if(!dateVal){ toast('Informe a data da venda.', 'error'); return; }
+  if(!sellerId){ toast('Informe quem vendeu.', 'error'); return; }
   var rows = document.querySelectorAll('#pal-items-body .pal-item-row');
   var itens = [];
   rows.forEach(function(row){
@@ -15844,7 +15966,7 @@ async function savePaladarSale(){
     var r = await fetch('/api/monteiro/sales', {
       method:'POST',
       headers:{'Content-Type':'application/json','x-token':(typeof session !== 'undefined' ? session.token : '') || ''},
-      body:JSON.stringify({saledate:dateVal, items:itens, client:client, nf_number:nf, driver:driver, vehicle:vehicle, plate:plate})
+      body:JSON.stringify({saledate:dateVal, items:itens, client:client, nf_number:nf, driver:driver, vehicle:vehicle, plate:plate, notes:notes, seller_id:sellerId})
     });
     if(!r.ok){ var err = await r.json().catch(function(){ return {detail:r.statusText}; }); throw new Error(err.detail || 'Erro ao salvar'); }
     var result = await r.json();
@@ -15890,6 +16012,11 @@ async function loadPaladarSummary(){
   var period = getPalPeriod();
   var month = getPalFilterMonth();
   var year  = getPalFilterYear();
+  await loadSellers(false,false,'raios','monteiro');
+  fillSellerSelect('pal-filter-seller',document.getElementById('pal-filter-seller')?.value||'',true);
+  var sellerId = document.getElementById('pal-filter-seller')?.value || '';
+  var sellerSelect=document.getElementById('pal-filter-seller');
+  if(sellerSelect && sellerSelect.options.length) sellerSelect.options[0].textContent='Todos os vendedores';
   // Subtitle do período
   var meses = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   var subEl = document.getElementById('pal-period-subtitle');
@@ -15905,9 +16032,9 @@ async function loadPaladarSummary(){
   var tsEl = document.getElementById('pal-update-ts');
   if(tsEl) tsEl.textContent = 'Atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
   try{
-    var data = await api('/api/monteiro/summary?period='+period+'&month='+month+'&year='+year);
+    var data = await api('/api/monteiro/summary?period='+period+'&month='+month+'&year='+year+(sellerId?'&seller_id='+encodeURIComponent(sellerId):''));
     // Garantir campos seguros
-    if(!data || typeof data.total_receita === 'undefined') data = {total_receita:0,total_vendas:0,ticket_medio:0,dias_produtivos:0,por_dia:[],por_produto:[],melhor_dia:{date:null,total:0,qty:0,count:0}};
+    if(!data || typeof data.total_receita === 'undefined') data = {total_receita:0,total_vendas:0,ticket_medio:0,dias_produtivos:0,por_dia:[],por_produto:[],por_vendedor:[],melhor_dia:{date:null,total:0,qty:0,count:0}};
     // Variação vs período anterior
     var prevData = null;
     if(period==='quinzenal'){
@@ -15946,6 +16073,18 @@ async function loadPaladarSummary(){
       if(vt) vt.innerHTML = fmtVar(data.ticket_medio||0, prevData.ticket_medio||0, true);
       var vd = document.getElementById('pal-kpi-dias-var');
       if(vd) vd.innerHTML = fmtVar(data.dias_produtivos||0, prevData.dias_produtivos||0, false);
+    }
+    var sellerBox=document.getElementById('pal-seller-breakdown');
+    if(sellerBox){
+      var sellers=data.por_vendedor||[];
+      sellerBox.innerHTML=sellers.length?sellers.map(function(s){
+        return '<div style="display:grid;grid-template-columns:1.4fr .8fr .8fr .7fr;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--border)">'
+          +'<div style="font-weight:800;color:var(--g800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+String(s.seller_name||'Nao informado').replace(/</g,'&lt;')+'</div>'
+          +'<div style="font-family:monospace;font-weight:800">R$ '+(s.total_receita||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div>'
+          +'<div style="font-family:monospace">R$ '+(s.ticket_medio||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div>'
+          +'<div style="font-size:11px;color:var(--muted);text-align:right">'+(s.total_vendas||0)+' venda(s) · '+(s.dias_produtivos||0)+' dia(s)</div>'
+          +'</div>';
+      }).join(''):'<div style="color:var(--muted)">Nenhuma venda no período.</div>';
     }
     // Charts
     if(palChart1) palChart1.destroy();
@@ -18102,6 +18241,9 @@ setTimeout(installMobileReadOnlyGuards,0);
         <option value="2024">2024</option><option value="2025">2025</option>
         <option value="2026">2026</option><option value="2027">2027</option>
       </select>
+      <select id="pal-filter-seller" class="filt" style="font-size:11px;padding:4px 8px;min-width:160px" onchange="loadPaladarSummary()">
+        <option value="">Todos os vendedores</option>
+      </select>
       <button class="btn btn-secondary btn-sm" onclick="loadPaladarSummary();loadPaladarSales();loadPaladarClients();loadPaladarPayments();loadAppNotes();loadAppCalendar();loadAppVales()" style="font-size:11px;padding:4px 10px"> Filtrar</button>
     </div>
   </div>
@@ -18135,6 +18277,10 @@ setTimeout(installMobileReadOnlyGuards,0);
           <div style="font-size:20px;font-weight:700;font-family:monospace;color:var(--g800)" id="pal-kpi-dias">—</div>
           <div id="pal-kpi-dias-var" style="font-size:11px;margin-top:3px;font-weight:500"></div>
         </div>
+      </div>
+      <div class="card" style="padding:14px;margin-bottom:18px">
+        <div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:10px">👤 Produtividade por vendedor</div>
+        <div id="pal-seller-breakdown"></div>
       </div>
       <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:14px;margin-bottom:18px">
         <div class="card" style="padding:14px">
@@ -18471,6 +18617,14 @@ setTimeout(installMobileReadOnlyGuards,0);
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
           <div><label style="font-size:11px;font-weight:600;color:var(--muted);display:block;margin-bottom:3px">Número NF</label><input type="text" id="pal-sale-nf" placeholder="Ex: 105.200.01" style="width:100%;padding:7px 9px;border:1px solid #ddd;border-radius:7px;font-size:13px;font-family:inherit;box-sizing:border-box"></div>
+          <div><label style="font-size:11px;font-weight:600;color:var(--muted);display:block;margin-bottom:3px">Quem vendeu *</label>
+            <div style="display:flex;gap:6px;align-items:center">
+              <select id="pal-sale-seller" style="width:100%;padding:7px 9px;border:1px solid #ddd;border-radius:7px;font-size:13px;font-family:inherit;box-sizing:border-box"></select>
+              <button type="button" onclick="quickRegisterSeller('pal-sale-seller')" title="Cadastrar vendedor" style="border:1px solid #ddd;border-radius:7px;background:#fff;padding:7px 9px;cursor:pointer">+</button>
+            </div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
           <div><label style="font-size:11px;font-weight:600;color:var(--muted);display:block;margin-bottom:3px">Entregador</label>
             <input type="text" id="pal-sale-driver" list="pal-driver-list" placeholder="Nome do entregador..." autocomplete="off" style="width:100%;padding:7px 9px;border:1px solid #ddd;border-radius:7px;font-size:13px;font-family:inherit;box-sizing:border-box">
             <datalist id="pal-driver-list"></datalist>

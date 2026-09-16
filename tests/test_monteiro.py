@@ -157,6 +157,16 @@ def _sale_payload(client="Cliente Monteiro Padrao", nf_number=None, **overrides)
     return payload
 
 
+def _seller_id(test_client, token, company="raios", name="Vendedor Monteiro"):
+    response = test_client.post(
+        "/api/sellers",
+        headers=_headers(token, company),
+        json={"name": name},
+    )
+    assert response.status_code == 200
+    return response.json()["seller"]["id"]
+
+
 def _payment_payload(client="Cliente Monteiro Padrao", amount=100, **overrides):
     payload = {
         "client": client,
@@ -182,20 +192,26 @@ def _post_product(test_client, token, company="raios", **overrides):
 
 
 def _post_sale(test_client, token, company="raios", **overrides):
+    payload = _sale_payload(**overrides)
+    if not payload.get("seller_id"):
+        payload["seller_id"] = _seller_id(test_client, token, "raios")
     response = test_client.post(
         "/api/monteiro/sales",
         headers=_headers(token, company),
-        json=_sale_payload(**overrides),
+        json=payload,
     )
     assert response.status_code == 200
     return response.json()
 
 
 def _post_paladar_sale(test_client, token, company="raios", **overrides):
+    payload = _sale_payload(**overrides)
+    if not payload.get("seller_id"):
+        payload["seller_id"] = _seller_id(test_client, token, "raios")
     response = test_client.post(
         "/api/paladar/sales",
         headers=_headers(token, company),
-        json=_sale_payload(**overrides),
+        json=payload,
     )
     assert response.status_code == 200
     return response.json()
@@ -344,6 +360,7 @@ def test_monteiro_sale_invalid_later_item_rolls_back_and_allows_next_write(isola
     payload = _sale_payload(
         client="Cliente Monteiro Falha Item",
         nf_number="MON-FALHA-ITEM",
+        seller_id=_seller_id(isolated_app.client, token),
         items=[
             {
                 "product": "Produto Valido Antes Da Falha",
@@ -644,7 +661,11 @@ def test_monteiro_auth_permissions_and_current_role_behavior(isolated_app):
     editor_create_sale = isolated_app.client.post(
         "/api/monteiro/sales",
         headers=_headers(editor_token),
-        json=_sale_payload(client="Cliente Editor Permitido", nf_number="MON-EDIT-001"),
+        json=_sale_payload(
+            client="Cliente Editor Permitido",
+            nf_number="MON-EDIT-001",
+            seller_id=_seller_id(isolated_app.client, admin_token),
+        ),
     )
     editor_create_payment_default = isolated_app.client.post(
         "/api/monteiro/payments",

@@ -197,6 +197,28 @@ Nao existe ambiente de staging configurado para este ciclo. Nenhum envio real, d
 
 O servico Baileys existente em `baileys-api/server.js` continua sendo a unica conexao WhatsApp. O listener `messages.upsert` e instalado no mesmo `sock`; nenhuma segunda instancia, sessao ou rotina de QR Code e criada.
 
+## Vendedores e Produtividade
+
+O sistema diferencia **quem vendeu** de motorista, entregador ou usuario que digitou a venda. O vendedor fica cadastrado na entidade `sellers`, separado por empresa, com nome normalizado para evitar duplicidades por acento, maiusculas, espacos extras ou pontuacao simples.
+
+Vendas novas exigem um vendedor ativo:
+
+- Menina dos Raios grava `seller_id` e `seller_name_snapshot` em `sales`;
+- Menina da Estrada usa o mesmo modelo em seu banco da empresa;
+- Monteiro grava `seller_id` e `seller_name_snapshot` em `paladar_sales`;
+- registros antigos sem vendedor permanecem validos e aparecem como `Nao informado`;
+- orcamentos continuam fora deste escopo.
+
+O snapshot preserva o nome usado no momento da venda mesmo se o cadastro do vendedor for renomeado depois. O historico de nomes fica em `seller_history`. Entregador, motorista e veiculo continuam campos logisticos independentes e nao sao usados para inferir produtividade de venda.
+
+A produtividade principal pode ser filtrada por vendedor sem alterar os totais quando o filtro estiver em **Todos os vendedores**. As formulas atuais foram preservadas: receita soma vendas que nao sao avaria, avarias somam `sale_type = AVARIA`, liquido e projecao usam receita menos avarias, e dias produtivos continuam baseados nos dias com venda. No Monteiro, a produtividade por vendedor usa a mesma base do painel: receita `SUM(total)`, vendas `COUNT(DISTINCT sale_group)`, ticket medio por grupo e dias produtivos por data.
+
+Permissoes seguem o RBAC existente pelo modulo `vendedores`. Cargos gerenciados continuam em negacao padrao ate receberem permissao explicita; administradores mantem acesso integral. O escopo e validado por area e empresa: permissao de Monteiro nao libera automaticamente a tela principal, permissao de Menina dos Raios nao libera Menina da Estrada, e Monteiro usa vendedores apenas quando o request declara o contexto Monteiro/Raios. Atribuir vendedor em vendas novas ou edicoes exige pelo menos `vendedores.view` no contexto correto, alem das permissoes ja existentes de venda/produto.
+
+A migracao incremental cria `sellers`, `seller_history` e adiciona as colunas de vendedor em `sales` e `paladar_sales` por meio do runner oficial `apply_sellers_schema()` em `backend/repositories/sellers_repository.py`. O runner inspeciona tabelas, colunas e indices, adiciona somente o que falta, bloqueia schema parcial com erro claro e usa savepoint para reverter falhas durante a tentativa. O arquivo SQL `20260916_sellers_up.sql` documenta as estruturas auxiliares e deve ser tratado como migração de aplicação única; para reaplicacao segura, inclusive apos `20260916_sellers_down.sql`, use o runner oficial.
+
+Limitação SQLite: `ALTER TABLE ADD COLUMN IF NOT EXISTS` e rollback fisico de colunas nao sao portaveis em todas as versoes suportadas. Por isso, o rollback `20260916_sellers_down.sql` remove indices e tabelas auxiliares, mas preserva `seller_id` e `seller_name_snapshot` em `sales` e `paladar_sales`. Rollback fisico completo dessas colunas exige restauracao de backup validado ou rebuild controlado em ciclo separado. Vendas antigas nao recebem preenchimento automatico e continuam aparecendo como `Nao informado`.
+
 ### Fluxos previstos
 
 Uma mensagem recebida devera ser identificada por empresa, ID externo, JID, horario e hash do evento. A chave de idempotencia e deterministica e inclui a empresa, impedindo que o mesmo evento seja tratado como novo em repeticoes do Baileys. Antes de criar um pedido, o servico futuro devera verificar mensagem processada, pedido aberto na conversa, chave repetida, confirmacao anterior e pedido recente do cliente. Uma ocorrencia suspeita deve ficar em `duplicado_suspeito` para revisao humana.

@@ -62,6 +62,8 @@ backups/server_snapshots/
 !backend/migrations/20260914_whatsapp_orders_down.sql
 !backend/migrations/20260914_whatsapp_inbound_up.sql
 !backend/migrations/20260914_whatsapp_inbound_down.sql
+!backend/migrations/20260916_sellers_up.sql
+!backend/migrations/20260916_sellers_down.sql
 *.db
 *.sqlite
 *.sqlite3

@@ -9,17 +9,17 @@ AREA_MODULES = {
         "consolidado", "nf", "pr", "avulso", "avaria", "projecao",
         "grafico", "produtividade", "clientes", "boletos", "pendentes",
         "produtos", "config", "cargos", "clientes_whatsapp", "clientes_whatsapp_sugestoes",
-        "clientes_whatsapp_lotes", "clientes_whatsapp_envio", "clientes_pedidos",
+        "clientes_whatsapp_lotes", "clientes_whatsapp_envio", "clientes_pedidos", "vendedores",
     ],
     "monteiro": [
         "painel", "lancamentos", "produtos", "clientes", "pagamentos",
-        "notas_app", "calendario", "dados",
+        "notas_app", "calendario", "dados", "vendedores",
     ],
     "menina_da_estrada": [
         "consolidado", "nf", "avulso", "avaria", "projecao", "grafico",
         "produtividade", "clientes", "boletos", "pendentes", "produtos",
         "config", "cargos", "clientes_whatsapp", "clientes_whatsapp_sugestoes",
-        "clientes_whatsapp_lotes", "clientes_whatsapp_envio", "clientes_pedidos",
+        "clientes_whatsapp_lotes", "clientes_whatsapp_envio", "clientes_pedidos", "vendedores",
     ],
 }
 

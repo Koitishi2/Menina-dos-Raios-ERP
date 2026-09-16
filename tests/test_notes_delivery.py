@@ -39,11 +39,24 @@ def _sale_payload(**overrides):
     return payload
 
 
+def _seller_id(test_client, token, company="raios", name="Vendedor Entrega"):
+    response = test_client.post(
+        "/api/sellers",
+        headers=_headers(token, company),
+        json={"name": name},
+    )
+    assert response.status_code == 200
+    return response.json()["seller"]["id"]
+
+
 def _create_sale(test_client, token, company="raios", **overrides):
+    payload = _sale_payload(**overrides)
+    if not payload.get("seller_id"):
+        payload["seller_id"] = _seller_id(test_client, token, company)
     response = test_client.post(
         "/api/sales",
         headers=_headers(token, company),
-        json=_sale_payload(**overrides),
+        json=payload,
     )
     assert response.status_code == 200
     return response.json()

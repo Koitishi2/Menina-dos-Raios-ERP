@@ -24,13 +24,16 @@ try:
     from .monteiro_periods import _pal_period_where, _pay_period_map
     from .orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from .permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
+    from .repositories.sellers_repository import init_sellers_schema
     from .repositories.whatsapp_repository import init_whatsapp_schema
+    from .routers.sellers import create_sellers_router
     from .routers.whatsapp_clients import create_whatsapp_clients_router
     from .routers.whatsapp_campaigns import create_whatsapp_campaigns_router
     from .routers.whatsapp_inbound import create_whatsapp_inbound_router
     from .rbac import ACTIONS, AREA_MODULES, allowed_product_keys, ensure_permission_product, filter_records_by_product, init_rbac_schema, normalize_product_key, role_context_from_db, role_has_permission, seed_rbac_defaults
     from .security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from .security_request import _client_ip, _is_trusted_proxy_host
+    from .services.sellers_service import require_active_seller
     from .schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
     from .utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
 except ImportError:
@@ -42,13 +45,16 @@ except ImportError:
     from monteiro_periods import _pal_period_where, _pay_period_map
     from orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
+    from repositories.sellers_repository import init_sellers_schema
     from repositories.whatsapp_repository import init_whatsapp_schema
+    from routers.sellers import create_sellers_router
     from routers.whatsapp_clients import create_whatsapp_clients_router
     from routers.whatsapp_campaigns import create_whatsapp_campaigns_router
     from routers.whatsapp_inbound import create_whatsapp_inbound_router
     from rbac import ACTIONS, AREA_MODULES, allowed_product_keys, ensure_permission_product, filter_records_by_product, init_rbac_schema, normalize_product_key, role_context_from_db, role_has_permission, seed_rbac_defaults
     from security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from security_request import _client_ip, _is_trusted_proxy_host
+    from services.sellers_service import require_active_seller
     from schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
     from utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
 
@@ -699,6 +705,7 @@ def init_db(company: str = None):
             conn.execute(idx_sql)
         except sqlite3.OperationalError as e:
             print(f"indice paladar_sales falhou: {e}")
+    init_sellers_schema(conn)
     # Tabela de pagamentos do Monteiro
     try:
         conn.execute("""CREATE TABLE IF NOT EXISTS monteiro_payments (
@@ -865,6 +872,26 @@ def require_whatsapp_action(x_token:str,module_key:str,action:str="view")->dict:
             return sess
     elif module_key in ("clientes_whatsapp_sugestoes","clientes_whatsapp_lotes","clientes_whatsapp_envio"):
         if sess.get("role")=="admin":
+            return sess
+    elif action=="view" or sess.get("role") in ("admin","editor"):
+        return sess
+    raise HTTPException(403,"Voce nao tem permissao para acessar esta area.")
+
+def _sellers_area_key(company_key:str="",module_context:str="")->str:
+    company=_company_key(company_key or CURRENT_COMPANY.get())
+    context=str(module_context or "").strip().lower()
+    if context=="monteiro":
+        if company!="raios":
+            raise HTTPException(403,"Vendedores do Monteiro pertencem ao contexto Menina dos Raios.")
+        return "monteiro"
+    return "menina_da_estrada" if company=="estrada" else "menina_dos_raios"
+
+def require_sellers_action(x_token:str,module_key:str="vendedores",action:str="view",company_key:str=None,module_context:str="")->dict:
+    sess=require_auth(x_token)
+    area_key=_sellers_area_key(company_key or CURRENT_COMPANY.get(),module_context)
+    context=_rbac_context_for_session(sess)
+    if context.get("managed"):
+        if role_has_permission(context,area_key,module_key,action):
             return sess
     elif action=="view" or sess.get("role") in ("admin","editor"):
         return sess
@@ -1196,6 +1223,18 @@ def _managed_route_permission(path:str,method:str):
         return (None,"clientes_whatsapp","view" if method=="GET" else "create")
     if path=="/api/whatsapp/webhooks/incoming" and method=="POST":
         return (None,"clientes_whatsapp","create")
+    if path=="/api/sellers" and method=="GET":
+        return (None,"vendedores","view")
+    if path=="/api/sellers/similar" and method=="GET":
+        return (None,"vendedores","view")
+    if path=="/api/sellers" and method=="POST":
+        return (None,"vendedores","create")
+    if re.fullmatch(r"/api/sellers/[^/]+",path) and method=="PUT":
+        return (None,"vendedores","edit")
+    if re.fullmatch(r"/api/sellers/[^/]+/(?:activate|deactivate)",path) and method=="POST":
+        return (None,"vendedores","edit")
+    if re.fullmatch(r"/api/sellers/[^/]+/history",path) and method=="GET":
+        return (None,"vendedores","view")
     if path.startswith("/api/admin/roles") or path=="/api/admin/permission-products":
         return ("any","cargos","configure")
     return None
@@ -1223,7 +1262,13 @@ async def company_context_middleware(request: Request, call_next):
                         if not any(role_has_permission(context,key,module_key,action) for key in AREA_MODULES):
                             return JSONResponse(status_code=403,content={"detail":"Voce nao tem permissao para acessar esta area."})
                     else:
-                        area_key=area_key or _current_area_key()
+                        if module_key=="vendedores":
+                            try:
+                                area_key=_sellers_area_key(CURRENT_COMPANY.get(),request.query_params.get("module_context",""))
+                            except HTTPException as exc:
+                                return JSONResponse(status_code=exc.status_code,content={"detail":exc.detail})
+                        else:
+                            area_key=area_key or _current_area_key()
                         if not role_has_permission(context,area_key,module_key,action):
                             return JSONResponse(status_code=403,content={"detail":"Voce nao tem permissao para acessar esta area."})
         return await call_next(request)
@@ -1249,6 +1294,12 @@ app.include_router(create_whatsapp_campaigns_router(
 ))
 
 # â”€â”€ Auth endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+app.include_router(create_sellers_router(
+    get_db,
+    lambda: _company_key(CURRENT_COMPANY.get()),
+    require_sellers_action,
+))
+
 @app.post("/api/auth/login")
 def login(body:LoginIn, request:Request):
     ip = _client_ip(request)
@@ -1862,6 +1913,7 @@ def list_sales(sale_type:Optional[str]=None,month:Optional[int]=None,
 @app.post("/api/sales")
 def create_sale(sale:SaleIn,x_token:str=Header("")):
     sess=require_editor_tab_access(x_token,["consolidado","nf","pr","avulso","avaria","pendentes"])
+    require_sellers_action(x_token,action="view",company_key=_company_key(CURRENT_COMPANY.get()))
     total=sale.total if sale.total is not None else sale.quantity*sale.unit_price
     new_id=str(uuid.uuid4()); now=datetime.now()
     # Normaliza nome do produto (unifica "Alho 250g"/"ALHO 250G", Macaxeira, etc).
@@ -1869,23 +1921,37 @@ def create_sale(sale:SaleIn,x_token:str=Header("")):
     product_norm = norm_p(sale.product, sale.sale_type) if sale.product else sale.product
     _require_product_action(sess,product_norm,"create")
     conn=get_db()
-    conn.execute("""INSERT INTO sales(id,sale_type,sale_date,sale_time,client,product,nf_number,
-        quantity,unit_price,total,notes,delivery_person,plate,source,created_by,created_at)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-        (new_id,sale.sale_type,sale.sale_date,sale.sale_time or now.strftime("%H:%M"),
-         sale.client,product_norm,sale.nf_number,sale.quantity,sale.unit_price,total,
-         sale.notes,sale.delivery_person,sale.plate,sale.source,sess["username"],now.isoformat()))
-    import json as _json
-    log_action(conn,sess,"CREATE_SALE","",product_norm or "",
-               "venda_criada","",
-               _json.dumps({"tipo":sale.sale_type,"data":sale.sale_date,"hora":sale.sale_time or "",
-                 "cliente":sale.client or "","produto":product_norm or "",
-                 "nf":sale.nf_number or "","placa":sale.plate or "",
-                 "entregador":sale.delivery_person or "",
-                 "qt":sale.quantity,"p_unit":sale.unit_price,"total":total},ensure_ascii=False),
-               sale.sale_date,"")
-    conn.commit(); clear_sales_cache(); row=conn.execute("SELECT * FROM sales WHERE id=?",(new_id,)).fetchone()
-    conn.close(); return dict(row)
+    try:
+        if not sale.seller_id:
+            raise HTTPException(400,"Informe quem vendeu.")
+        try:
+            seller=require_active_seller(conn,_company_key(CURRENT_COMPANY.get()),sale.seller_id)
+        except ValueError as exc:
+            raise HTTPException(400,str(exc))
+        conn.execute("""INSERT INTO sales(id,sale_type,sale_date,sale_time,client,product,nf_number,
+            quantity,unit_price,total,notes,delivery_person,plate,source,created_by,created_at,
+            seller_id,seller_name_snapshot)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (new_id,sale.sale_type,sale.sale_date,sale.sale_time or now.strftime("%H:%M"),
+             sale.client,product_norm,sale.nf_number,sale.quantity,sale.unit_price,total,
+             sale.notes,sale.delivery_person,sale.plate,sale.source,sess["username"],now.isoformat(),
+             seller["id"],seller["name"]))
+        import json as _json
+        log_action(conn,sess,"CREATE_SALE","",product_norm or "",
+                   "venda_criada","",
+                   _json.dumps({"tipo":sale.sale_type,"data":sale.sale_date,"hora":sale.sale_time or "",
+                     "cliente":sale.client or "","produto":product_norm or "",
+                     "nf":sale.nf_number or "","placa":sale.plate or "",
+                     "entregador":sale.delivery_person or "","vendedor":seller["name"],
+                     "qt":sale.quantity,"p_unit":sale.unit_price,"total":total},ensure_ascii=False),
+                   sale.sale_date,"")
+        conn.commit(); clear_sales_cache(); row=conn.execute("SELECT * FROM sales WHERE id=?",(new_id,)).fetchone()
+        return dict(row)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 @app.put("/api/sales/bulk-delivered")
 def bulk_delivery_status(body:dict,x_token:str=Header("")):
@@ -1934,6 +2000,16 @@ def update_sale(sale_id:str,body:dict,x_token:str=Header("")):
         for f in fields:
             if f in body:
                 conn.execute(f"UPDATE sales SET {f}=? WHERE id=?",(body[f],sale_id))
+        if "seller_id" in body and body.get("seller_id"):
+            require_sellers_action(x_token,action="view",company_key=_company_key(CURRENT_COMPANY.get()))
+            try:
+                seller=require_active_seller(conn,_company_key(CURRENT_COMPANY.get()),body.get("seller_id"))
+            except ValueError as exc:
+                raise HTTPException(400,str(exc))
+            conn.execute(
+                "UPDATE sales SET seller_id=?, seller_name_snapshot=? WHERE id=?",
+                (seller["id"], seller["name"], sale_id),
+            )
         log_action(conn,sess,"EDIT_SALE","","",str(old["product"]),"venda editada","",str(old["sale_date"]),"")
         conn.commit()
     except Exception:
@@ -3976,9 +4052,15 @@ def delete_paladar_product(pid:str,x_token:str=Header("")):
 
 @app.get("/api/monteiro/summary")
 @app.get("/api/paladar/summary")
-def paladar_summary(period:Optional[str]=None,month:Optional[str]=None,year:Optional[str]=None,x_token:str=Header("")):
+def paladar_summary(period:Optional[str]=None,month:Optional[str]=None,year:Optional[str]=None,
+                    seller_id:Optional[str]=None,x_token:str=Header("")):
     require_auth(x_token); conn=get_db()
     where, args = _pal_period_where(period, month, year)
+    if seller_id:
+        if seller_id=="__none__":
+            where.append("seller_id IS NULL")
+        else:
+            where.append("seller_id=?"); args.append(seller_id)
     ws=" AND ".join(where) if where else "1"
     row=conn.execute(f"""SELECT
         COALESCE(SUM(total),0) as total_receita,
@@ -4004,6 +4086,15 @@ def paladar_summary(period:Optional[str]=None,month:Optional[str]=None,year:Opti
     # Por dia
     dia=conn.execute(f"""SELECT saledate as date, SUM(total) as total, SUM(quantity) as qty, COUNT(DISTINCT sale_group) as count
         FROM paladar_sales WHERE {ws} GROUP BY saledate ORDER BY saledate""",args).fetchall()
+    sellers=conn.execute(f"""SELECT COALESCE(seller_id,'__none__') as seller_id,
+        COALESCE(MAX(seller_name_snapshot),'Nao informado') as seller_name,
+        COALESCE(SUM(total),0) as total_receita,
+        COUNT(DISTINCT sale_group) as total_vendas,
+        CASE WHEN COUNT(DISTINCT sale_group)>0 THEN COALESCE(SUM(total),0)/COUNT(DISTINCT sale_group) ELSE 0 END as ticket_medio,
+        COUNT(DISTINCT saledate) as dias_produtivos
+        FROM paladar_sales WHERE {ws}
+        GROUP BY COALESCE(seller_id,'__none__')
+        ORDER BY total_receita DESC""",args).fetchall()
     conn.close()
     return {
         "total_receita": float(row["total_receita"]),
@@ -4012,7 +4103,8 @@ def paladar_summary(period:Optional[str]=None,month:Optional[str]=None,year:Opti
         "dias_produtivos": row["dias_produtivos"],
         "melhor_dia": dict(melhor) if melhor else {"date":None,"total":0,"qty":0,"count":0},
         "por_produto": prod,
-        "por_dia": [dict(r) for r in dia]
+        "por_dia": [dict(r) for r in dia],
+        "por_vendedor": [dict(r) for r in sellers]
     }
 
 @app.get("/api/monteiro/sales")
@@ -4051,16 +4143,26 @@ def paladar_sales(period:Optional[str]=None,month:Optional[str]=None,year:Option
 @app.post("/api/monteiro/sales")
 @app.post("/api/paladar/sales")
 def create_paladar_sale(body:dict,x_token:str=Header("")):
-    require_editor_tab_access(x_token,["consolidado","nf","avulso","pendentes"]); conn=get_db()
+    require_editor_tab_access(x_token,["consolidado","nf","avulso","pendentes"])
+    require_sellers_action(x_token,action="view",company_key="raios",module_context="monteiro")
+    conn=get_db()
     try:
         saledate=body.get("saledate")
         items=body.get("items")
+        seller_id=body.get("seller_id")
+        if not seller_id:
+            raise HTTPException(400,"Informe quem vendeu.")
+        try:
+            seller=require_active_seller(conn,_company_key(CURRENT_COMPANY.get()),seller_id)
+        except ValueError as exc:
+            raise HTTPException(400,str(exc))
         # Campos de cabeÃ§alho (cÃ³pia para todos os itens do grupo)
         nf_number=body.get("nf_number","") or ""
         driver=body.get("driver","") or ""
         vehicle=body.get("vehicle","") or ""
         plate=body.get("plate","") or ""
         client=body.get("client","") or ""
+        notes=body.get("notes","") or ""
         # Suporte legado: body antigo de item Ãºnico
         if not items:
             items=[{"product":body.get("product"),"quantity":body.get("quantity",1),
@@ -4076,6 +4178,9 @@ def create_paladar_sale(body:dict,x_token:str=Header("")):
                                   (nf_number,saledate,client)).fetchone()
             if existing:
                 group=existing["sale_group"]
+                existing_seller=conn.execute("SELECT seller_id FROM paladar_sales WHERE sale_group=? AND seller_id IS NOT NULL LIMIT 1",(group,)).fetchone()
+                if existing_seller and existing_seller["seller_id"] != seller["id"]:
+                    raise HTTPException(409,"Esta NF ja possui outro vendedor no grupo.")
                 # Atualizar campos de cabeÃ§alho no grupo existente
                 conn.execute("UPDATE paladar_sales SET driver=?,vehicle=?,plate=?,notes=? WHERE sale_group=? AND id=(SELECT MIN(id) FROM paladar_sales WHERE sale_group=?)",
                              (driver,vehicle,plate,notes,group,group))
@@ -4084,12 +4189,12 @@ def create_paladar_sale(body:dict,x_token:str=Header("")):
         ids=[]
         for it in items:
             conn.execute("""INSERT INTO paladar_sales(sale_group,saledate,product,quantity,unitprice,total,notes,
-                nf_number,driver,vehicle,plate,client)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+                nf_number,driver,vehicle,plate,client,seller_id,seller_name_snapshot)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (group,saledate,it.get("product"),
                  float(it.get("quantity",1)),float(it.get("unitprice",0)),
                  float(it.get("total",0)),it.get("notes",""),
-                 nf_number,driver,vehicle,plate,client))
+                 nf_number,driver,vehicle,plate,client,seller["id"],seller["name"]))
             ids.append(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
         conn.commit()
         return {"ids":ids,"group":group,"message":"ok"}

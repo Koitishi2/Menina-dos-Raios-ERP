@@ -65,6 +65,16 @@ def _monteiro_sale_payload(**overrides):
     return payload
 
 
+def _seller_id(test_client, token, company="raios", name="Vendedor Pagamentos"):
+    response = test_client.post(
+        "/api/sellers",
+        headers=_headers(token, company),
+        json={"name": name},
+    )
+    assert response.status_code == 200
+    return response.json()["seller"]["id"]
+
+
 def _payment_payload(**overrides):
     payload = {
         "client": "Cliente Pagamento Padrao",
@@ -78,20 +88,26 @@ def _payment_payload(**overrides):
 
 
 def _create_sale(test_client, token, company="raios", **overrides):
+    payload = _sale_payload(**overrides)
+    if not payload.get("seller_id"):
+        payload["seller_id"] = _seller_id(test_client, token, company)
     response = test_client.post(
         "/api/sales",
         headers=_headers(token, company),
-        json=_sale_payload(**overrides),
+        json=payload,
     )
     assert response.status_code == 200
     return response.json()
 
 
 def _create_monteiro_sale(test_client, token, company="raios", **overrides):
+    payload = _monteiro_sale_payload(**overrides)
+    if not payload.get("seller_id"):
+        payload["seller_id"] = _seller_id(test_client, token, "raios")
     response = test_client.post(
         "/api/monteiro/sales",
         headers=_headers(token, company),
-        json=_monteiro_sale_payload(**overrides),
+        json=payload,
     )
     assert response.status_code == 200
     return response.json()
