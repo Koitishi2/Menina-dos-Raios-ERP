@@ -217,6 +217,14 @@ def test_parent_commit_helper():
     assert parent != builder.run(["git", "rev-parse", "HEAD"]).stdout.strip()
 
 
+def test_is_ancestor():
+    builder = _load_builder()
+    current = builder.run(["git", "rev-parse", "HEAD"]).stdout.strip()
+    parent = builder.parent_commit(current)
+    assert builder.is_ancestor(parent, current)
+    assert not builder.is_ancestor(current, parent)
+
+
 def test_version_commit_accepts_head(monkeypatch, tmp_path):
     builder = _load_builder()
     current = builder.run(["git", "rev-parse", "HEAD"]).stdout.strip()
@@ -245,12 +253,20 @@ def test_version_commit_accepts_parent():
     parent = builder.parent_commit(current)
     assert parent is not None
     assert len(parent) == 40
+    assert builder.is_ancestor(parent, current)
 
 
-def test_version_commit_rejects_invalid(monkeypatch, tmp_path):
+def test_version_commit_accepts_old_ancestor():
     builder = _load_builder()
     current = builder.run(["git", "rev-parse", "HEAD"]).stdout.strip()
     parent = builder.parent_commit(current)
+    grandparent = builder.parent_commit(parent)
+    assert builder.is_ancestor(grandparent, current)
+
+
+def test_version_commit_rejects_non_ancestor(monkeypatch, tmp_path):
+    builder = _load_builder()
+    current = builder.run(["git", "rev-parse", "HEAD"]).stdout.strip()
     fake_commit = "0000000000000000000000000000000000000000"
     manifest = tmp_path / "manifest.txt"
     manifest.write_text(
@@ -267,7 +283,7 @@ def test_version_commit_rejects_invalid(monkeypatch, tmp_path):
         "[rollback]\n",
         encoding="utf-8",
     )
-    with pytest.raises(builder.PackageError, match="commit diferente do manifesto"):
+    with pytest.raises(builder.PackageError, match="nao e ancestral"):
         builder.main([
             "--commit", current,
             "--manifest", str(manifest),

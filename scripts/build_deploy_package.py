@@ -74,6 +74,14 @@ def parent_commit(commit):
     return result.stdout.strip()
 
 
+def is_ancestor(ancestor, descendant):
+    try:
+        run(["git", "merge-base", "--is-ancestor", ancestor, descendant])
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+
 def sha256(path):
     h = hashlib.sha256()
     with path.open("rb") as f:
@@ -347,14 +355,10 @@ def main(argv=None):
 
     meta, sections = parse_manifest(args.manifest)
     if meta.get("version_commit") and meta["version_commit"] != args.commit:
-        try:
-            expected_parent = parent_commit(args.commit)
-        except Exception:
-            expected_parent = None
-        if meta["version_commit"] != expected_parent:
+        if not is_ancestor(meta["version_commit"], args.commit):
             raise PackageError(
                 f"commit diferente do manifesto: {meta['version_commit']}"
-                f" (esperado {args.commit} ou seu pai {expected_parent})"
+                f" nao e ancestral de {args.commit}"
             )
     if args.require_published and not is_commit_published(args.commit):
         raise PackageError(f"commit nao publicado em remote conhecido: {args.commit}")
