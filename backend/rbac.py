@@ -8,7 +8,8 @@ AREA_MODULES = {
     "menina_dos_raios": [
         "consolidado", "nf", "pr", "avulso", "avaria", "projecao",
         "grafico", "produtividade", "clientes", "boletos", "pendentes",
-        "produtos", "config", "cargos",
+        "produtos", "config", "cargos", "clientes_whatsapp", "clientes_whatsapp_sugestoes",
+        "clientes_whatsapp_lotes", "clientes_whatsapp_envio", "clientes_pedidos",
     ],
     "monteiro": [
         "painel", "lancamentos", "produtos", "clientes", "pagamentos",
@@ -17,7 +18,8 @@ AREA_MODULES = {
     "menina_da_estrada": [
         "consolidado", "nf", "avulso", "avaria", "projecao", "grafico",
         "produtividade", "clientes", "boletos", "pendentes", "produtos",
-        "config", "cargos",
+        "config", "cargos", "clientes_whatsapp", "clientes_whatsapp_sugestoes",
+        "clientes_whatsapp_lotes", "clientes_whatsapp_envio", "clientes_pedidos",
     ],
 }
 

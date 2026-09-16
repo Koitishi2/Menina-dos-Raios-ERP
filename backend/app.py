@@ -24,6 +24,10 @@ try:
     from .monteiro_periods import _pal_period_where, _pay_period_map
     from .orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from .permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
+    from .repositories.whatsapp_repository import init_whatsapp_schema
+    from .routers.whatsapp_clients import create_whatsapp_clients_router
+    from .routers.whatsapp_campaigns import create_whatsapp_campaigns_router
+    from .routers.whatsapp_inbound import create_whatsapp_inbound_router
     from .rbac import ACTIONS, AREA_MODULES, allowed_product_keys, ensure_permission_product, filter_records_by_product, init_rbac_schema, normalize_product_key, role_context_from_db, role_has_permission, seed_rbac_defaults
     from .security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from .security_request import _client_ip, _is_trusted_proxy_host
@@ -38,6 +42,10 @@ except ImportError:
     from monteiro_periods import _pal_period_where, _pay_period_map
     from orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
+    from repositories.whatsapp_repository import init_whatsapp_schema
+    from routers.whatsapp_clients import create_whatsapp_clients_router
+    from routers.whatsapp_campaigns import create_whatsapp_campaigns_router
+    from routers.whatsapp_inbound import create_whatsapp_inbound_router
     from rbac import ACTIONS, AREA_MODULES, allowed_product_keys, ensure_permission_product, filter_records_by_product, init_rbac_schema, normalize_product_key, role_context_from_db, role_has_permission, seed_rbac_defaults
     from security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from security_request import _client_ip, _is_trusted_proxy_host
@@ -745,6 +753,7 @@ def init_db(company: str = None):
     except sqlite3.OperationalError:
         # nf_number jÃ¡ existe â€” migraÃ§Ã£o jÃ¡ rodou, esperado
         pass
+    init_whatsapp_schema(conn)
     conn.commit(); conn.close()
 
 def load_prices() -> Dict[str,float]:
@@ -845,6 +854,19 @@ def require_module_action(x_token:str,area_key:str,module_key:str,action:str="vi
     sess=require_auth(x_token)
     context=_rbac_context_for_session(sess)
     if not context.get("managed") or role_has_permission(context,area_key,module_key,action):
+        return sess
+    raise HTTPException(403,"Voce nao tem permissao para acessar esta area.")
+
+def require_whatsapp_action(x_token:str,module_key:str,action:str="view")->dict:
+    sess=require_auth(x_token)
+    context=_rbac_context_for_session(sess)
+    if context.get("managed"):
+        if role_has_permission(context,_current_area_key(),module_key,action):
+            return sess
+    elif module_key in ("clientes_whatsapp_sugestoes","clientes_whatsapp_lotes","clientes_whatsapp_envio"):
+        if sess.get("role")=="admin":
+            return sess
+    elif action=="view" or sess.get("role") in ("admin","editor"):
         return sess
     raise HTTPException(403,"Voce nao tem permissao para acessar esta area.")
 
@@ -1096,8 +1118,8 @@ async def lifespan(app_instance):
     # Iniciar thread de backup automÃ¡tico
     bk_thread=threading.Thread(target=backup_scheduler,daemon=True)
     bk_thread.start()
-    motivation_thread=threading.Thread(target=motivation_scheduler,daemon=True)
-    motivation_thread.start()
+    # Politica atual: mensagens WhatsApp exigem selecao e confirmacao humanas.
+    # A rotina legada permanece disponivel para acionamento manual, sem scheduler.
     yield
 
 app=FastAPI(title="Menina dos Raios Ltda API", lifespan=lifespan)
@@ -1140,6 +1162,40 @@ def _managed_route_permission(path:str,method:str):
         return (None,"produtos","view")
     if path=="/api/product-stats" and method=="GET":
         return (None,"produtos","view")
+    if path=="/api/whatsapp/status" and method=="GET":
+        return (None,"clientes_whatsapp","view")
+    if re.fullmatch(r"/api/clients/[^/]+/whatsapp(?:/conversations)?",path) and method=="GET":
+        return (None,"clientes_whatsapp","view")
+    if path=="/api/whatsapp/conversations" and method=="GET":
+        return (None,"clientes_whatsapp","view")
+    if path=="/api/whatsapp/inbound-events" and method=="GET":
+        return (None,"clientes_whatsapp","view")
+    if path=="/api/whatsapp/suggestions" and method=="GET":
+        return (None,"clientes_whatsapp_sugestoes","view")
+    if path=="/api/whatsapp/manual-batches" and method=="GET":
+        return (None,"clientes_whatsapp_lotes","view")
+    if path=="/api/whatsapp/manual-batches" and method=="POST":
+        return (None,"clientes_whatsapp_lotes","create")
+    if re.fullmatch(r"/api/whatsapp/manual-batches/[^/]+",path) and method=="GET":
+        return (None,"clientes_whatsapp_lotes","view")
+    if re.fullmatch(r"/api/whatsapp/manual-batches/[^/]+/confirm",path) and method=="POST":
+        return (None,"clientes_whatsapp_lotes","approve")
+    if re.fullmatch(r"/api/whatsapp/manual-batches/[^/]+/cancel",path) and method=="POST":
+        return (None,"clientes_whatsapp_lotes","edit")
+    if re.fullmatch(r"/api/whatsapp/manual-batches/[^/]+/send",path) and method=="POST":
+        return (None,"clientes_whatsapp_envio","create")
+    if re.fullmatch(r"/api/whatsapp/conversations/[^/]+",path) and method=="GET":
+        return (None,"clientes_whatsapp","view")
+    if path=="/api/whatsapp/orders" and method=="GET":
+        return (None,"clientes_pedidos","view")
+    if re.fullmatch(r"/api/whatsapp/orders/[^/]+",path) and method=="GET":
+        return (None,"clientes_pedidos","view")
+    if re.fullmatch(r"/api/clients/[^/]+/consumption",path):
+        return (None,"clientes_whatsapp","view" if method=="GET" else "edit")
+    if re.fullmatch(r"/api/clients/[^/]+/damages",path):
+        return (None,"clientes_whatsapp","view" if method=="GET" else "create")
+    if path=="/api/whatsapp/webhooks/incoming" and method=="POST":
+        return (None,"clientes_whatsapp","create")
     if path.startswith("/api/admin/roles") or path=="/api/admin/permission-products":
         return ("any","cargos","configure")
     return None
@@ -1173,6 +1229,24 @@ async def company_context_middleware(request: Request, call_next):
         return await call_next(request)
     finally:
         CURRENT_COMPANY.reset(token)
+
+app.include_router(create_whatsapp_clients_router(
+    get_db,
+    lambda: _company_key(CURRENT_COMPANY.get()),
+    require_whatsapp_action,
+))
+app.include_router(create_whatsapp_inbound_router(
+    get_db,
+    lambda: _company_key(CURRENT_COMPANY.get()),
+    frozenset(COMPANY_DBS),
+    require_whatsapp_action,
+))
+app.include_router(create_whatsapp_campaigns_router(
+    get_db,
+    lambda: _company_key(CURRENT_COMPANY.get()),
+    require_whatsapp_action,
+    lambda phone, message, config: wa_send(phone, message, config),
+))
 
 # â”€â”€ Auth endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @app.post("/api/auth/login")

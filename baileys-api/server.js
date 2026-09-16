@@ -12,6 +12,8 @@ const { default: makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLat
 const express = require("express");
 const pino    = require("pino");
 const fs      = require("fs");
+const { createInboundForwarder, installInboundListener } = require("./inbound");
+const { authorizeApiKey, authorizeLegacySend } = require("./security");
 require("dotenv").config();
 
 const app     = express();
@@ -20,6 +22,16 @@ app.use(express.json());
 const PORT     = parseInt(process.env.PORT    || "3001");
 const API_KEY  = (process.env.API_KEY         || "").trim();
 const AUTH_DIR = process.env.AUTH_DIR         || "./auth_info_baileys";
+const OUTBOUND_ENABLED = process.env.WHATSAPP_OUTBOUND_ENABLED || "false";
+const inbound = createInboundForwarder({
+    enabled: process.env.WHATSAPP_INBOUND_ENABLED || "false",
+    instance: process.env.WHATSAPP_INBOUND_INSTANCE || "",
+    token: process.env.WHATSAPP_INBOUND_TOKEN || "",
+    url: process.env.WHATSAPP_INBOUND_URL || "http://127.0.0.1:8765/internal/whatsapp/events",
+    timeoutMs: process.env.WHATSAPP_INBOUND_TIMEOUT_MS || "5000",
+    maxAttempts: process.env.WHATSAPP_INBOUND_MAX_ATTEMPTS || "3",
+    maxQueue: process.env.WHATSAPP_INBOUND_MAX_QUEUE || "100",
+});
 
 let sock      = null;
 let qrString  = null;   // string do QR (Baileys devolve a string raw)
@@ -31,9 +43,14 @@ let lastConnectionUpdate = null;
 
 /* ── Auth middleware ─────────────────────────────────────── */
 function checkAuth(req, res, next) {
-    if (API_KEY && req.headers["x-api-key"] !== API_KEY) {
-        return res.status(401).json({ error: "Unauthorized" });
-    }
+    const auth = authorizeApiKey(API_KEY, req.headers["x-api-key"]);
+    if (!auth.ok) return res.status(auth.status).json({ error: auth.code });
+    next();
+}
+
+function checkLegacySend(req, res, next) {
+    const auth = authorizeLegacySend(API_KEY, req.headers["x-api-key"], OUTBOUND_ENABLED);
+    if (!auth.ok) return res.status(auth.status).json({ error: auth.code, sent: "false" });
     next();
 }
 
@@ -91,13 +108,17 @@ async function startBaileys() {
     });
 
     sock.ev.on("creds.update", saveCreds);
+    installInboundListener(sock, inbound);
 }
 
 /* ── Endpoints ───────────────────────────────────────────── */
 
 // Status (sem auth — o Python usa para health-check)
 app.get("/status", (_req, res) => {
-    res.json({ connected, hasQR: !!qrString, starting, lastConnectionUpdate });
+    res.json({
+        connected, hasQR: !!qrString, starting, lastConnectionUpdate,
+        inbound: { enabled: inbound.enabled, queued: inbound.queueLength(), failed: inbound.stats.failed },
+    });
 });
 
 // QR Code em texto (o frontend exibe com uma lib JS qrcode)
@@ -141,7 +162,7 @@ app.post("/disconnect", checkAuth, async (_req, res) => {
 });
 
 // Envio de mensagem — usado pelo Python
-app.post("/send", checkAuth, async (req, res) => {
+app.post("/send", checkLegacySend, async (req, res) => {
     const { phone, message } = req.body || {};
     if (!phone || !message) {
         return res.status(400).json({ error: "phone e message são obrigatórios", sent: "false" });

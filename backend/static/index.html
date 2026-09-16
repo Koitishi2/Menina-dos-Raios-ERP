@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Menina dos Raios Ltda</title>
+<link rel="stylesheet" href="/css/client_whatsapp.css">
+<link rel="stylesheet" href="/css/client_orders.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -3616,6 +3618,14 @@ body.paladar-active #notif-restore{display:none!important}
           style="padding:6px 16px;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);display:flex;align-items:center;gap:5px">
           🎯 Oportunidades
         </button>
+        <button id="cv-btn-whatsapp" onclick="switchClientView('whatsapp')"
+          style="padding:6px 16px;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);display:flex;align-items:center;gap:5px">
+          WhatsApp
+        </button>
+        <button id="cv-btn-pedidos" onclick="switchClientView('pedidos')"
+          style="padding:6px 16px;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);display:flex;align-items:center;gap:5px">
+          Pedidos
+        </button>
 
       </div>
       <div id="cv-cadastro-actions" style="display:flex;gap:7px;margin-left:auto;align-items:center">
@@ -3746,6 +3756,70 @@ body.paladar-active #notif-restore{display:none!important}
           </div>
         </div>
       </div>
+    </div>
+
+    <div id="cv-whatsapp" style="display:none">
+      <div class="client-foundation-banner">
+        <div><strong id="client-whatsapp-mode">Recebimento WhatsApp desativado</strong><br><span>Nenhuma resposta ou campanha é executada automaticamente.</span></div>
+        <span id="client-whatsapp-integration">Consultando integração...</span>
+      </div>
+      <div class="client-wa-toolbar">
+        <div>
+          <div class="card-title">Clientes e WhatsApp</div>
+          <div id="client-whatsapp-summary" class="client-wa-summary">Carregando clientes...</div>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="ClientWhatsAppFoundation.load(_clients)">Atualizar</button>
+      </div>
+      <div id="client-whatsapp-list" class="client-wa-list"></div>
+      <div id="client-whatsapp-detail" class="client-wa-detail" style="display:none"></div>
+      <div id="client-wa-manual-campaign">
+      <div class="client-wa-section-head">
+        <div><strong>Clientes sugeridos</strong><span>Selecione manualmente quem poderá compor este lote.</span></div>
+        <span id="client-wa-selected-count">0 selecionados</span>
+      </div>
+      <div class="client-wa-filters">
+        <label>Dias sem compra<input id="client-wa-min-days" type="number" min="0" value="8"></label>
+        <label class="client-wa-check"><input id="client-wa-include-blocked" type="checkbox"> Mostrar bloqueados</label>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="ClientWhatsAppFoundation.reloadSuggestions()">Aplicar filtros</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="ClientWhatsAppFoundation.selectFiltered()">Selecionar filtrados</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="ClientWhatsAppFoundation.clearSelection()">Limpar seleção</button>
+      </div>
+      <div id="client-wa-suggestions" class="client-wa-suggestions"></div>
+      <div id="client-wa-notice" class="client-wa-notice" role="alert" style="display:none"></div>
+      <div class="client-wa-composer">
+        <label>Mensagem manual<textarea id="client-wa-message" maxlength="2000" placeholder="Olá, {cliente}. Sentimos sua falta."></textarea></label>
+        <div class="client-wa-composer-actions">
+          <span id="client-wa-batch-status">Crie um lote para revisar a mensagem final de cada cliente.</span>
+          <button type="button" class="btn btn-secondary" onclick="ClientWhatsAppFoundation.prepareBatch()">Revisar seleção</button>
+          <button id="client-wa-send-selected" type="button" class="btn btn-primary" onclick="ClientWhatsAppFoundation.confirmAndSend()" disabled>Envio desativado neste ambiente</button>
+        </div>
+      </div>
+      <div id="client-wa-batch-preview" class="client-wa-detail" style="display:none"></div>
+      </div>
+      <div class="client-wa-section-head"><div><strong>Auditoria de recebimento</strong><span>Eventos processados, bloqueados, duplicados e não identificados.</span></div></div>
+      <div id="client-wa-inbound-events" class="client-wa-events"></div>
+    </div>
+
+    <div id="cv-pedidos" style="display:none">
+      <div class="client-foundation-banner">
+        <div><strong>Pedidos em modo de preparação</strong><br><span>Nenhum pedido será enviado, aprovado ou convertido em venda nesta etapa.</span></div>
+        <span>Dados exibidos: somente simulação local.</span>
+      </div>
+      <div class="client-orders-filters">
+        <label>Cliente<input id="client-orders-client" class="filt" type="search" placeholder="Buscar cliente" oninput="ClientOrdersFoundation.applyFilters()"></label>
+        <label>Empresa<select class="filt" disabled><option>Empresa atual</option></select></label>
+        <label>Período<input id="client-orders-period" class="filt" type="month" onchange="ClientOrdersFoundation.applyFilters()"></label>
+        <label>Status<select id="client-orders-status" class="filt" onchange="ClientOrdersFoundation.applyFilters()"><option value="">Todos os status</option><option value="rascunho">Rascunho</option><option value="aguardando_confirmacao">Aguardando confirmação</option><option value="aguardando_aprovacao">Aguardando aprovação</option><option value="aprovado">Aprovado</option><option value="cancelado">Cancelado</option><option value="convertido_em_venda">Convertido em venda</option><option value="erro">Erro</option><option value="duplicado_suspeito">Duplicado suspeito</option></select></label>
+        <label>Origem<select id="client-orders-origin" class="filt" onchange="ClientOrdersFoundation.applyFilters()"><option value="">Todas as origens</option><option value="whatsapp">WhatsApp</option></select></label>
+      </div>
+      <div class="client-orders-options">
+        <label><input id="client-orders-damage" type="checkbox" onchange="ClientOrdersFoundation.applyFilters()"> Com avaria</label>
+        <label><input id="client-orders-maximum" type="checkbox" onchange="ClientOrdersFoundation.applyFilters()"> Acima do consumo máximo</label>
+        <label><input id="client-orders-duplicate" type="checkbox" onchange="ClientOrdersFoundation.applyFilters()"> Duplicado ou suspeito</label>
+        <label><input id="client-orders-approval" type="checkbox" onchange="ClientOrdersFoundation.applyFilters()"> Aguardando aprovação</label>
+        <span id="client-orders-summary" class="client-orders-summary">0 pedidos em modo local</span>
+      </div>
+      <div id="client-orders-list"></div>
     </div>
 
 <!-- Cadastro view (default) -->
@@ -8127,6 +8201,10 @@ async function loadClientsPanel(){
   try{
     _clients = await api('/api/clients');
     renderClientsList(_clients);
+    const waButton=document.getElementById('cv-btn-whatsapp');
+    const orderButton=document.getElementById('cv-btn-pedidos');
+    if(waButton)waButton.style.display=managedModulePermission('clientes_whatsapp','view')?'flex':'none';
+    if(orderButton)orderButton.style.display=managedModulePermission('clientes_pedidos','view')?'flex':'none';
     // Refresh autocomplete in sale form
     const dl=document.getElementById('clients-list');
     if(dl){
@@ -9356,8 +9434,10 @@ function applyMonteiroCalendarPermUI(){
 }
 
 function switchClientView(view){
-  const panels={cadastro:'cv-cadastro',analise:'cv-analise',oportunidades:'cv-oportunidades'};
-  const btns={cadastro:'cv-btn-cadastro',analise:'cv-btn-analise',oportunidades:'cv-btn-oportunidades'};
+  if(view==='whatsapp'&&!managedModulePermission('clientes_whatsapp','view')){toast('Você não tem permissão para acessar esta sub-aba.','error');return;}
+  if(view==='pedidos'&&!managedModulePermission('clientes_pedidos','view')){toast('Você não tem permissão para acessar esta sub-aba.','error');return;}
+  const panels={cadastro:'cv-cadastro',analise:'cv-analise',oportunidades:'cv-oportunidades',whatsapp:'cv-whatsapp',pedidos:'cv-pedidos'};
+  const btns={cadastro:'cv-btn-cadastro',analise:'cv-btn-analise',oportunidades:'cv-btn-oportunidades',whatsapp:'cv-btn-whatsapp',pedidos:'cv-btn-pedidos'};
   const act=document.getElementById('cv-cadastro-actions');
   // Hide all panels, deactivate all buttons
   Object.values(panels).forEach(function(id){const e=document.getElementById(id);if(e)e.style.display='none';});
@@ -9374,6 +9454,8 @@ function switchClientView(view){
   // Load data
   if(view==='analise')loadClientAnalytics();
   if(view==='oportunidades')loadOportunidades();
+  if(view==='whatsapp' && window.ClientWhatsAppFoundation)window.ClientWhatsAppFoundation.load(_clients);
+  if(view==='pedidos' && window.ClientOrdersFoundation)window.ClientOrdersFoundation.load();
 }
 
 
@@ -18533,6 +18615,9 @@ setTimeout(installMobileReadOnlyGuards,0);
 <!-- Datalist de produtos paladar -->
 <datalist id="pal-products-list"></datalist>
 <select id="pal-products-data" style="display:none"></select>
+
+<script src="/js/client_whatsapp.js"></script>
+<script src="/js/client_orders.js"></script>
 
 </body>
 </html>

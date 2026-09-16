@@ -22,14 +22,16 @@ Deploy controlado por pacote `.zip`, preservando configuracoes locais, bancos, u
 
 ## Qualidade e Validacao
 
-A validacao da versao estavel registra:
+A linha de base validada antes deste ciclo registra:
 
-- `234 passed` na suite completa de testes;
+- `327 passed` na suite completa de testes;
 - duas execucoes consecutivas bem-sucedidas;
 - validacao de sintaxe dos modulos Python relevantes;
 - verificacao de integridade com `git diff --check`.
 
 Os testes usam ambiente temporario e bloqueiam chamadas externas reais quando aplicavel.
+
+As correcoes locais dos bloqueios do ciclo 5 elevaram a cobertura para `331 passed`, novamente em duas execucoes completas consecutivas. Essa validacao continuou exclusivamente local, sem staging, deploy ou envio real.
 
 ## Arquitetura Geral
 
@@ -177,6 +179,206 @@ python -X faulthandler -m pytest -q tests
 ```
 
 Scripts operacionais incluidos no repositorio devem ser revisados antes de uso e executados apenas em ambiente autorizado.
+
+## Clientes: WhatsApp e Pedidos
+
+Esta branch prepara duas sub-abas dentro de **Clientes**: **WhatsApp** e **Pedidos**. O desenvolvimento e validado somente em ambiente local. Nao existe envio automatico, conversao automatica de pedidos, alteracao de estoque ou mudanca de vendas.
+
+Nao existe ambiente de staging configurado para este ciclo. Nenhum envio real, deploy, acesso remoto ou alteracao de sessao Baileys foi executado durante o desenvolvimento e os testes locais.
+
+### Arquitetura inicial
+
+- `backend/domains/whatsapp_states.py`: contratos e estados previstos para mensagens, conversas, consentimento e pedidos;
+- `backend/domains/whatsapp_policies.py`: normalizacao de telefone, comandos de controle, idempotencia, elegibilidade de campanha e bloqueios de duplicidade;
+- `backend/services/whatsapp_calculation_service.py`: simulacao pura de consumo, avaria, estoque, limite e quantidade sugerida;
+- `backend/static/js/client_whatsapp.js`: apresentacao local de clientes e telefones na sub-aba WhatsApp;
+- `backend/static/js/client_orders.js`: estados, filtros e estado vazio da sub-aba Pedidos;
+- `backend/static/css/client_whatsapp.css` e `backend/static/css/client_orders.css`: layout responsivo das novas sub-abas.
+
+O servico Baileys existente em `baileys-api/server.js` continua sendo a unica conexao WhatsApp. O listener `messages.upsert` e instalado no mesmo `sock`; nenhuma segunda instancia, sessao ou rotina de QR Code e criada.
+
+### Fluxos previstos
+
+Uma mensagem recebida devera ser identificada por empresa, ID externo, JID, horario e hash do evento. A chave de idempotencia e deterministica e inclui a empresa, impedindo que o mesmo evento seja tratado como novo em repeticoes do Baileys. Antes de criar um pedido, o servico futuro devera verificar mensagem processada, pedido aberto na conversa, chave repetida, confirmacao anterior e pedido recente do cliente. Uma ocorrencia suspeita deve ficar em `duplicado_suspeito` para revisao humana.
+
+Estados de conversa preparados:
+
+```text
+nova, aguardando_resposta, identificando_produto, coletando_quantidade,
+coletando_avaria, calculando_reposicao, aguardando_confirmacao,
+pedido_rascunho, aguardando_aprovacao, concluida, cancelada,
+atendimento_humano, opt_out
+```
+
+Estados de pedido preparados:
+
+```text
+rascunho, aguardando_confirmacao, aguardando_aprovacao, aprovado,
+cancelado, convertido_em_venda, erro, duplicado_suspeito
+```
+
+Permissoes propostas para endpoints futuros:
+
+```text
+whatsapp.view, whatsapp.view_messages, whatsapp.view_suggestions,
+whatsapp.create_manual_batch, whatsapp.send_manual, whatsapp.manage_connection,
+whatsapp.manage_consent, whatsapp.manage_consumption,
+whatsapp.manage_damage, whatsapp.view_orders, whatsapp.approve_order,
+whatsapp.convert_order, whatsapp.view_audit
+```
+
+Ocultar controles no navegador nao substitui autorizacao. Cada rota valida no backend a permissao e a empresa da sessao. Os modulos sensiveis `clientes_whatsapp_sugestoes`, `clientes_whatsapp_lotes` e `clientes_whatsapp_envio` nao sao concedidos automaticamente a cargos existentes.
+
+### Consumo e avarias
+
+O simulador calcula reposicao de avaria, necessidade e quantidade sugerida com `Decimal`. Valores negativos sao rejeitados, a sugestao nunca fica abaixo de zero e somente aplica teto quando o consumo maximo estiver configurado. A memoria textual do calculo e devolvida junto do resultado para futura auditoria. Nenhuma venda ou movimentacao de estoque e criada.
+
+### Execucao e testes
+
+```bat
+python -m py_compile backend\domains\whatsapp_states.py backend\domains\whatsapp_policies.py backend\services\whatsapp_calculation_service.py
+python -X faulthandler -m pytest -q tests\test_client_whatsapp_foundation.py
+node tests\js\test_client_whatsapp_foundation.js
+python -X faulthandler -m pytest -q tests
+```
+
+### Backup e rollback desta etapa
+
+O backup anterior as alteracoes esta em `backups/client_whatsapp_orders_20260914_215124/`, acompanhado de `MANIFESTO.txt` e hashes SHA-256. Para rollback manual, restaure apenas os arquivos listados no manifesto e remova somente os arquivos novos desta etapa. Nao use comandos que descartem outras alteracoes locais.
+
+Limitacoes da primeira etapa: nao havia persistencia de conversa/pedido ou endpoints dedicados. O ciclo seguinte, descrito abaixo, prepara essas estruturas somente no ambiente local.
+
+### Ciclo persistente local
+
+O segundo ciclo adiciona uma camada persistente local e endpoints protegidos. A migracao `backend/migrations/20260914_whatsapp_orders_up.sql` cria conversas, mensagens, eventos, consentimento, rascunhos de pedidos, itens, historico, consumo e avarias. O rollback correspondente remove somente essas estruturas e preserva `clients`, `product_prices`, `sales`, `whatsapp_contacts` e demais tabelas anteriores.
+
+`whatsapp_contacts` continua sendo a tabela legada da aba principal WhatsApp. Ela nao foi reconstruida para evitar risco sobre contatos existentes. O vinculo seguro com `clients` e o telefone normalizado ficam nas estruturas novas de consentimento, conversa e mensagem.
+
+Endpoints locais preparados:
+
+```text
+GET  /api/whatsapp/status
+GET  /api/clients/{client_id}/whatsapp
+GET  /api/clients/{client_id}/whatsapp/conversations
+GET  /api/whatsapp/conversations
+GET  /api/whatsapp/conversations/{conversation_id}
+GET  /api/whatsapp/orders
+GET  /api/whatsapp/orders/{order_id}
+GET  /api/clients/{client_id}/consumption
+PUT  /api/clients/{client_id}/consumption
+GET  /api/clients/{client_id}/damages
+POST /api/clients/{client_id}/damages
+POST /api/whatsapp/webhooks/incoming
+```
+
+Todos exigem a sessao existente, usam a empresa corrente e fecham a conexao em `finally`. O webhook publico continua reservado a simulacoes autenticadas. A recepcao real usa o canal interno descrito abaixo e nunca responde, cria venda, altera estoque ou aprova pedido.
+
+No RBAC atual, as capacidades sao representadas pelos modulos `clientes_whatsapp` e `clientes_pedidos`, combinados com as acoes existentes (`view`, `create`, `edit`, `approve` e outras). Isso implementa negacao padrao para cargos gerenciados. A lista detalhada `whatsapp.*` permanece como vocabulario de dominio para uma futura evolucao do RBAC. Administrador continua protegido; nenhum cargo novo recebe acesso amplo automaticamente. Envio, aprovacao e conversao nao possuem endpoint neste ciclo.
+
+#### Decisoes de dados
+
+- Telefone armazenado para integracao: E.164 com `+55`; JID separado no formato usado pelo Baileys. Prefixos `00` sao removidos e numeros nacionais de 10 ou 11 digitos recebem `55`.
+- Nono digito: nenhum digito e criado ou removido por heuristica. Casos antigos/ambiguos ficam `PENDENTE` de regra e revisao manual.
+- Telefone invalido: evento rejeitado antes da escrita. Dois clientes ativos com o mesmo telefone normalizado tambem impedem associacao automatica.
+- Unicidade de mensagem: `(company_key, instance_key, external_message_id)` e `(company_key, idempotency_key)` sao unicos. Repeticao retorna o registro existente sem nova conversa, evento ou pedido.
+- Consentimento ausente nao equivale a opt-in. Uma conversa iniciada pelo cliente pode ser registrada, mas nao autoriza campanha. `SAIR`, `PARAR`, `STOP` e `CANCELAR` registram opt-out.
+- Retomada apos opt-out: `PENDENTE`. Nao existe reativacao automatica; exigira origem e trilha de auditoria definidas.
+- Avaria nasce como `informada`. Os estados futuros sao `aprovada`, `reposta` e `rejeitada`; este ciclo nao oferece transicao nem reposicao real.
+- Percentual de reposicao fica entre 0 e 100 e o responsavel e registrado. Aprovacao e responsavel final pela reposicao continuam `PENDENTE`.
+- Pedido permanece rascunho persistente. Confirmacao, aprovacao, cancelamento e conversao nao possuem comandos ativos. O preco unitario e gravado no item como fotografia do calculo; a politica para reajuste posterior esta `PENDENTE`.
+- Mais de um pedido aberto, pedido recente e janela temporal de suspeita continuam `PENDENTE` de politica comercial. As constraints de idempotencia ja bloqueiam repeticoes exatas.
+- Consumo e estoque rejeitam valores negativos ou invalidos. Sem consumo maximo, nao se inventa teto. Quantidade solicitada acima do maximo deve ser sinalizada para revisao, nunca aprovada automaticamente.
+
+O backup incremental deste ciclo fica em `backups/client_whatsapp_orders_cycle2_20260914_220931/`. O manifesto inclui hashes e restauracao seletiva sem invalidar o backup anterior.
+
+### Canal interno de recebimento
+
+O adaptador `baileys-api/inbound.js` recebe `messages.upsert` do socket existente e encaminha somente um contrato minimo para `POST /internal/whatsapp/events`. O endereco padrao usa HTTP em loopback; URLs externas ou rotas diferentes sao recusadas pelo adaptador. O backend tambem exige origem local direta, rejeita cabecalhos de proxy e autentica o header `x-whatsapp-inbound-token` com comparacao constante.
+
+O segredo existe apenas no ambiente dos dois processos. Nunca deve ser colocado no repositorio, frontend ou log. Configuracao local:
+
+```ini
+WHATSAPP_INBOUND_ENABLED=false
+WHATSAPP_INBOUND_TOKEN=
+WHATSAPP_INBOUND_INSTANCE=
+WHATSAPP_INBOUND_COMPANY=
+WHATSAPP_INBOUND_URL=http://127.0.0.1:8765/internal/whatsapp/events
+WHATSAPP_INBOUND_TIMEOUT_MS=5000
+WHATSAPP_INBOUND_MAX_ATTEMPTS=3
+WHATSAPP_INBOUND_MAX_QUEUE=100
+WHATSAPP_INBOUND_MAX_BODY_BYTES=32768
+```
+
+O padrao e desligado. Quando habilitado, a instancia e associada no backend a uma empresa configurada; o Node nao escolhe empresa nem cliente. O corpo JSON aceito contem `provider`, `instance`, `event_id`, `message_id`, `remote_jid`, `from_me`, `message_type`, `text`, `timestamp` e `raw_type` opcional. Payload bruto nao e persistido.
+
+O diretorio de autenticacao do Baileys e definido somente pelo ambiente e permanece ignorado pelo Git, assim como artefatos locais de QR Code. O valor real e as credenciais da sessao nao devem ser documentados, copiados para backups de codigo ou exibidos em logs.
+
+Grupos, mensagens proprias, mensagens de sistema, JID invalido e telefone invalido ficam bloqueados e auditados. Numeros sem um unico cliente ativo ficam `nao_identificado`. Eventos repetidos incrementam `duplicate_count` no registro existente e nao criam nova mensagem ou conversa. Mensagens diretas validas sao registradas transacionalmente; opt-out atualiza conversa e consentimento sem resposta automatica.
+
+Se o FastAPI estiver indisponivel, o adaptador usa fila em memoria limitada, timeout e no maximo tres tentativas com backoff. Nao ha retry infinito e a conexao Baileys nao e encerrada. A fila nao e duravel: reiniciar o processo pode perder eventos ainda nao entregues, risco que exige decisao antes de uma futura fila persistente.
+
+### Sugestoes e envio exclusivamente manual
+
+`GET /api/whatsapp/suggestions` calcula clientes sem compra ha mais de sete dias e informa telefone, consentimento, ultima compra, dias sem compra, ultima mensagem, ultimo envio, conversa aberta, pedido pendente e bloqueios. A lista e apenas sugestao. Filtros ou recarregamento invalidam a selecao no navegador.
+
+O fluxo manual usa:
+
+```text
+GET  /api/whatsapp/suggestions
+GET  /api/whatsapp/manual-batches
+POST /api/whatsapp/manual-batches
+GET  /api/whatsapp/manual-batches/{id}
+POST /api/whatsapp/manual-batches/{id}/confirm
+POST /api/whatsapp/manual-batches/{id}/cancel
+POST /api/whatsapp/manual-batches/{id}/send
+GET  /api/whatsapp/inbound-events
+```
+
+O usuario seleciona clientes, prepara um lote, revisa a mensagem personalizada e confirma explicitamente. A selecao expira em 15 minutos. Antes de cada tentativa, o backend revalida empresa, cliente ativo, telefone, consentimento, opt-out, compra recente, conversa, pedido, sandbox e mensagem igual enviada recentemente. Cada item possui chave idempotente e resultado proprio; falhas nunca sao reenviadas automaticamente.
+
+A criacao do lote aceita uma `request_id` local gerada pela interface. Repetir a mesma requisicao retorna o mesmo lote; reutilizar a chave com clientes, filtros ou mensagem diferentes e recusado. Isso protege repeticoes de clique ou de rede sem impedir que o usuario inicie conscientemente um novo lote com uma nova chave.
+
+O agendador legado de mensagens motivacionais nao e iniciado pelo backend. O comando manual existente foi preservado, mas nenhuma rotina periodica envia mensagens sem acao humana.
+
+O envio permanece protegido por duas travas independentes:
+
+```ini
+WHATSAPP_OUTBOUND_ENABLED=false
+WHATSAPP_OUTBOUND_MODE=disabled
+WHATSAPP_OUTBOUND_SANDBOX_NUMBERS=
+WHATSAPP_OUTBOUND_PRODUCTION_APPROVED=false
+WHATSAPP_OUTBOUND_DEDUPE_DAYS=7
+```
+
+Os modos aceitos sao `disabled`, `sandbox` e `production`. `sandbox` aceita somente numeros explicitamente permitidos. `production` ainda exige `WHATSAPP_OUTBOUND_PRODUCTION_APPROVED=true`, permissao RBAC e provedor Baileys configurado. Nenhuma dessas variaveis e ativada pelos testes.
+
+O endpoint legado local `/send` permanece por compatibilidade, mas opera com falha fechada: `API_KEY` e obrigatoria, a comparacao e constante e chave ausente ou incorreta recusa a requisicao. Mesmo com chave correta, o endpoint continua bloqueado enquanto `WHATSAPP_OUTBOUND_ENABLED=false`. A chave nunca e registrada em log ou resposta.
+
+### Migracao, teste e desligamento
+
+`backend/migrations/20260914_whatsapp_inbound_up.sql` adiciona auditoria inbound, lotes e itens manuais. O rollback `20260914_whatsapp_inbound_down.sql` remove somente essas tres tabelas e preserva a migracao de pedidos, clientes, mensagens, vendas e estoque.
+
+O `.gitignore` continua protegendo dumps SQL em geral, mas possui excecoes explicitas somente para as migracoes versionaveis de RBAC e WhatsApp. As migracoes `up` e `down` deste ciclo permanecem integras e nao foram aplicadas em banco remoto.
+
+Para desligar imediatamente, configure `WHATSAPP_INBOUND_ENABLED=false`, `WHATSAPP_OUTBOUND_ENABLED=false` e `WHATSAPP_OUTBOUND_MODE=disabled`, depois use apenas o procedimento operacional autorizado para recarregar os processos. Nao apague sessao, QR Code ou dados.
+
+Validacao local:
+
+```bat
+python -m py_compile backend\app.py backend\routers\whatsapp_inbound.py backend\routers\whatsapp_campaigns.py backend\services\whatsapp_inbound_service.py backend\services\whatsapp_campaign_service.py
+node --check baileys-api\server.js
+node --check baileys-api\inbound.js
+node --check baileys-api\security.js
+node tests\js\test_baileys_inbound.js
+node tests\js\test_baileys_security.js
+node tests\js\test_client_whatsapp_foundation.js
+python -X faulthandler -m pytest -q tests\test_whatsapp_inbound_campaigns.py
+python -X faulthandler -m pytest -q tests\test_cycle5_blockers.py
+```
+
+Os backups incrementais locais preservam arquivos anteriores e incluem manifesto, hashes e restauracao seletiva. Eles nao sao pacotes de deploy e nao devem conter `.env`, sessao Baileys, tokens, bancos ou mensagens reais.
+
+Limitacoes conhecidas antes de qualquer futura ativacao: a fila inbound nao e persistente e nao possui dead-letter; nao ha politica automatica de retencao de mensagens; consentimento e retomada apos opt-out exigem governanca operacional; a politica de multiplos pedidos abertos permanece pendente; lotes interrompidos em `processando` nao possuem recuperacao automatica; vendas ainda sao relacionadas ao cliente por nome em parte da elegibilidade; e os avisos de depreciacao do ecossistema Python devem ser acompanhados separadamente de falhas reais.
 
 ## Seguranca e Privacidade
 
