@@ -147,8 +147,8 @@ COMPANY_DBS = {
 }
 CURRENT_COMPANY: ContextVar[str] = ContextVar("CURRENT_COMPANY", default="raios")
 APP_NOTES_DB_PATH = BASE_DIR / "app_notes.db"
-APP_NOTES_TOKEN = os.environ.get("APP_NOTES_TOKEN", "6ab5af8ad03f2f9c4a2d6589838c7e0bee6a56886910b5df98b01557e0138fce")
-APP_CALENDAR_TOKEN = os.environ.get("APP_CALENDAR_TOKEN", APP_NOTES_TOKEN)
+APP_NOTES_TOKEN = (os.environ.get("APP_NOTES_TOKEN") or "").strip()
+APP_CALENDAR_TOKEN = (os.environ.get("APP_CALENDAR_TOKEN") or "").strip()
 MONTEIRO_NOTES_DIR = BASE_DIR / "monteiro_notas"
 MONTEIRO_NOTES_DIR.mkdir(exist_ok=True)
 SESSION_HOURS = 10

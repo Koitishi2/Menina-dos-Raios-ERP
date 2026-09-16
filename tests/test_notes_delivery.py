@@ -987,6 +987,43 @@ def test_app_note_mobile_create_multiple_items_submission_and_total(isolated_app
     assert created_after_mobile_create["client"] == "Cliente Escrita Posterior"
 
 
+def test_app_note_mobile_requires_configured_token_and_rejects_missing_or_wrong_token(isolated_app):
+    assert isolated_app.module.APP_NOTES_TOKEN == "test-notes-token"
+
+    no_header = isolated_app.client.post("/api/app-notes/mobile", json=_app_note_payload())
+    wrong = isolated_app.client.post(
+        "/api/app-notes/mobile",
+        headers={"x-app-token": "token-incorreto"},
+        json=_app_note_payload(),
+    )
+    assert no_header.status_code == 401
+    assert wrong.status_code == 401
+    for detail in (no_header.json()["detail"], wrong.json()["detail"]):
+        assert detail.startswith("Aplicativo ")
+        assert detail.endswith(" autorizado.")
+        assert "test-notes-token" not in detail
+        assert "token-incorreto" not in detail
+
+
+def test_app_note_mobile_is_disabled_when_token_is_empty(isolated_app):
+    original = isolated_app.module.APP_NOTES_TOKEN
+    isolated_app.module.APP_NOTES_TOKEN = ""
+    try:
+        response = isolated_app.client.post(
+            "/api/app-notes/mobile",
+            headers={"x-app-token": "test-notes-token"},
+            json=_app_note_payload(),
+        )
+    finally:
+        isolated_app.module.APP_NOTES_TOKEN = original
+
+    assert response.status_code == 401
+    detail = response.json()["detail"]
+    assert detail.startswith("Aplicativo ")
+    assert detail.endswith(" autorizado.")
+    assert "test-notes-token" not in detail
+
+
 def test_notes_list_pending_nf_filters_and_delivery_sync(isolated_app):
     token = _login(isolated_app.client)
     nf_pending = _create_sale(

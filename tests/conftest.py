@@ -161,6 +161,8 @@ def isolated_app(tmp_path, monkeypatch):
 
     monkeypatch.setenv("BACKUP_DIR", str(temp_backup))
     monkeypatch.setenv("CORS_ORIGINS", "*")
+    monkeypatch.setenv("APP_NOTES_TOKEN", "test-notes-token")
+    monkeypatch.setenv("APP_CALENDAR_TOKEN", "test-calendar-token")
     monkeypatch.syspath_prepend(str(temp_backend))
     sys.modules.pop("backend.app", None)
 

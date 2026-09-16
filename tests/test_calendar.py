@@ -523,6 +523,42 @@ def test_list_app_calendar_mobile_closes_connection_when_auto_complete_fails(iso
     _assert_calendar_write_after_restoring(isolated_app, "Escrita apos falha mobile")
 
 
+def test_app_calendar_mobile_requires_configured_token_and_rejects_missing_or_wrong_token(isolated_app):
+    assert isolated_app.module.APP_CALENDAR_TOKEN == "test-calendar-token"
+
+    no_header = isolated_app.client.get("/api/app-calendar/mobile")
+    wrong = isolated_app.client.get(
+        "/api/app-calendar/mobile",
+        headers={"x-app-token": "token-incorreto"},
+    )
+    correct = isolated_app.client.get(
+        "/api/app-calendar/mobile",
+        headers={"x-app-token": isolated_app.module.APP_CALENDAR_TOKEN},
+    )
+
+    assert no_header.status_code == 401
+    assert wrong.status_code == 401
+    assert no_header.json()["detail"] == "Aplicativo nao autorizado."
+    assert wrong.json()["detail"] == "Aplicativo nao autorizado."
+    assert correct.status_code == 200
+    assert "events" in correct.json()
+
+
+def test_app_calendar_mobile_is_disabled_when_token_is_empty(isolated_app):
+    original = isolated_app.module.APP_CALENDAR_TOKEN
+    isolated_app.module.APP_CALENDAR_TOKEN = ""
+    try:
+        response = isolated_app.client.get(
+            "/api/app-calendar/mobile",
+            headers={"x-app-token": "test-calendar-token"},
+        )
+    finally:
+        isolated_app.module.APP_CALENDAR_TOKEN = original
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Aplicativo nao autorizado."
+
+
 def test_list_app_calendar_mobile_closes_connection_when_select_fails(isolated_app):
     original_get_app_notes_db, tracked = _install_calendar_connection_spy(
         isolated_app,

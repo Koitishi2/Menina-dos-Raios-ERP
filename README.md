@@ -148,6 +148,55 @@ O script nao deve conter credenciais, caminhos privados ou comandos de servico
 na versao publica. Detalhes de infraestrutura devem ser preenchidos apenas por
 operador autorizado em copia operacional local.
 
+## Pacote WhatsApp, Pedidos e Vendedores
+
+O pacote local dos ciclos WhatsApp/Pedidos e Vendedores/Produtividade deve ser
+gerado somente a partir de commit publicado, usando `git archive`, para evitar
+misturar arquivos do worktree. O manifesto autorizado fica em
+`deploy/whatsapp_sellers_manifest.txt` e o gerador local fica em
+`scripts/build_deploy_package.py`.
+
+O fluxo local valida dependencias antes de gerar o `.zip`: modulos Python,
+referencias JS/CSS do frontend, dependencias locais do Baileys, ordem das
+migracoes, hashes conhecidos e ausencia de dados protegidos. O pacote nao deve
+conter `.env`, bancos, uploads, logs, backups, sessoes Baileys, QR Codes,
+`node_modules`, temporarios ou scripts operacionais locais nao aprovados.
+
+O gerador nao executa SSH, SCP, deploy, migracao, restart ou envio de mensagem.
+As variaveis de envio WhatsApp continuam desligadas por padrao:
+
+```ini
+WHATSAPP_OUTBOUND_ENABLED=false
+WHATSAPP_OUTBOUND_MODE=disabled
+```
+
+No estado atual, a geracao do pacote deve permanecer bloqueada enquanto houver
+segredo ou valor sensivel hardcoded em arquivo de runtime incluido no pacote,
+especialmente em `backend/app.py`. Nao ignore esse bloqueio; remova o valor
+sensivel em um ciclo local separado, valide novamente e gere um novo pacote a
+partir do commit publicado corrigido.
+
+## Tokens Dos Apps Moveis
+
+As rotas moveis de Notas APP e Calendario APP usam tokens externos de ambiente:
+
+```ini
+APP_NOTES_TOKEN=
+APP_CALENDAR_TOKEN=
+```
+
+Esses valores devem ser configurados fora do Git e fora do pacote publico. O
+codigo nao deve possuir fallback funcional hardcoded, e o README nao deve
+documentar valores reais. Quando o token correspondente estiver ausente ou
+vazio, somente a rota movel dependente fica bloqueada com falha fechada; a
+aplicacao principal continua inicializando para permitir operacao e correcao de
+configuracao.
+
+Se houver evidencia de que um valor real ja foi versionado, trate-o como
+exposto: planeje a rotacao em ciclo operacional separado, com backup e janela
+aprovada. Nao rotacione credenciais durante revisoes locais ou geracao de
+pacote.
+
 ## Instalacao e Atualizacao
 
 A implantacao deve ser feita somente por operador autorizado.
