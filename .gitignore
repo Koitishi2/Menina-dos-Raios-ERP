@@ -58,6 +58,10 @@ backups/server_snapshots/
 *.sql
 !backend/migrations/20260826_rbac_roles.sql
 !backend/migrations/20260826_rbac_roles_rollback.sql
+!backend/migrations/20260914_whatsapp_orders_up.sql
+!backend/migrations/20260914_whatsapp_orders_down.sql
+!backend/migrations/20260914_whatsapp_inbound_up.sql
+!backend/migrations/20260914_whatsapp_inbound_down.sql
 *.db
 *.sqlite
 *.sqlite3
@@ -146,6 +150,10 @@ celerybeat.pid
 # Environments
 .env
 node_modules/
+baileys-api/auth_info_baileys/
+**/auth_info_baileys/
+baileys-api/qr*.png
+baileys-api/qr*.txt
 atualizarrefatorado.local.bat
 logs_atualizacao_refatorada/
 logs_apk_publicacao/
