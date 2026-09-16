@@ -1,6 +1,6 @@
-version_commit=a1bfa3ffcd1ea0acdc26f79a963b526bb57d44b6
+version_commit=657ef222310d22be87280594058d3b031d7429df
 branch=feat/clientes-whatsapp-pedidos
-package_name=bm_app_whatsapp_sellers_a1bfa3f.zip
+package_name=bm_app_whatsapp_sellers_657ef22.zip
 
 [runtime]
 README.md
