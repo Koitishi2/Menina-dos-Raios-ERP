@@ -198,8 +198,20 @@ def local_module_names(source):
     return names
 
 
+def local_package_names(source):
+    names = set()
+    for init in (source / "backend").rglob("__init__.py"):
+        if "__pycache__" in init.parts:
+            continue
+        rel = init.parent.relative_to(source / "backend")
+        if rel.parts:
+            names.add(".".join(rel.parts))
+    return names
+
+
 def validate_python_imports(source):
     modules = local_module_names(source)
+    packages = local_package_names(source)
     missing = []
     for py in (source / "backend").rglob("*.py"):
         if "__pycache__" in py.parts:
@@ -214,7 +226,7 @@ def validate_python_imports(source):
                         missing.append(f"{py.relative_to(source)} -> {node.module}")
                     for alias in node.names:
                         candidate = f"{full}.{alias.name}"
-                        if alias.name != "*" and first in {"domains", "repositories", "routers", "services"}:
+                        if alias.name != "*" and first in {"domains", "repositories", "routers", "services"} and full in packages:
                             if candidate not in modules and alias.name not in modules:
                                 missing.append(f"{py.relative_to(source)} -> {candidate}")
             elif isinstance(node, ast.Import):

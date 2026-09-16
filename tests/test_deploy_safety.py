@@ -23,13 +23,32 @@ def _write(path, content="ok"):
 
 def _minimal_source(tmp_path):
     source = tmp_path / "source"
-    _write(source / "backend" / "app.py", "from routers.sellers import create_sellers_router\n")
+    _write(
+        source / "backend" / "app.py",
+        "from routers.sellers import create_sellers_router\n"
+        "from services.sellers_service import require_active_seller\n"
+        "from repositories.sellers_repository import init_sellers_schema\n",
+    )
     _write(source / "backend" / "routers" / "__init__.py", "")
-    _write(source / "backend" / "routers" / "sellers.py", "from services import sellers_service\n")
+    _write(
+        source / "backend" / "routers" / "sellers.py",
+        "from services import sellers_service\n"
+        "def create_sellers_router():\n"
+        "    return None\n",
+    )
     _write(source / "backend" / "services" / "__init__.py", "")
-    _write(source / "backend" / "services" / "sellers_service.py", "from repositories import sellers_repository\n")
+    _write(
+        source / "backend" / "services" / "sellers_service.py",
+        "from repositories import sellers_repository\n"
+        "def require_active_seller():\n"
+        "    return None\n",
+    )
     _write(source / "backend" / "repositories" / "__init__.py", "")
-    _write(source / "backend" / "repositories" / "sellers_repository.py", "")
+    _write(
+        source / "backend" / "repositories" / "sellers_repository.py",
+        "def init_sellers_schema():\n"
+        "    return None\n",
+    )
     _write(source / "backend" / "static" / "index.html", '<link href="css/client_whatsapp.css"><script src="js/client_orders.js"></script>')
     _write(source / "backend" / "static" / "css" / "client_whatsapp.css", "")
     _write(source / "backend" / "static" / "js" / "client_orders.js", "")
@@ -94,6 +113,22 @@ def test_packager_blocks_missing_python_dependency(tmp_path):
     (source / "backend" / "repositories" / "sellers_repository.py").unlink()
 
     with pytest.raises(builder.PackageError, match="imports Python locais ausentes"):
+        builder.validate_python_imports(source)
+
+
+def test_packager_resolves_backend_root_imports_and_module_members(tmp_path):
+    builder = _load_builder()
+    source = _minimal_source(tmp_path)
+
+    builder.validate_python_imports(source)
+
+
+def test_packager_blocks_missing_backend_root_submodule_import(tmp_path):
+    builder = _load_builder()
+    source = _minimal_source(tmp_path)
+    (source / "backend" / "services" / "sellers_service.py").unlink()
+
+    with pytest.raises(builder.PackageError, match="services.sellers_service"):
         builder.validate_python_imports(source)
 
 
