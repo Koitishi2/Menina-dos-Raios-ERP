@@ -285,15 +285,28 @@ def _company_key(value: str = "") -> str:
 def _company_db_path(company: str = "") -> Path:
     return company_db_path_for(company, COMPANY_DBS, DB_PATH)
 
+DB_BUSY_TIMEOUT_SECONDS = 20
+DB_BUSY_TIMEOUT_MS = DB_BUSY_TIMEOUT_SECONDS * 1000
+
+def _initialize_database_journal(company: str = None):
+    """Define WAL durante a inicializacao, antes de aceitar requisicoes."""
+    path=_company_db_path(company if company is not None else CURRENT_COMPANY.get())
+    conn=sqlite3.connect(str(path),timeout=DB_BUSY_TIMEOUT_SECONDS,check_same_thread=False)
+    try:
+        conn.execute(f"PRAGMA busy_timeout={DB_BUSY_TIMEOUT_MS}")
+        mode=conn.execute("PRAGMA journal_mode=WAL").fetchone()[0]
+        if str(mode).lower() != "wal":
+            raise RuntimeError(f"Nao foi possivel ativar WAL em {path.name}.")
+    finally:
+        conn.close()
+
 def get_db(company: str = None):
     path=_company_db_path(company if company is not None else CURRENT_COMPANY.get())
-    conn=sqlite3.connect(str(path),check_same_thread=False)
+    conn=sqlite3.connect(str(path),timeout=DB_BUSY_TIMEOUT_SECONDS,check_same_thread=False)
     conn.row_factory=sqlite3.Row
-    # ConcorrÃªncia: WAL permite leitura simultÃ¢nea durante escrita (backup nÃ£o trava)
-    conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA foreign_keys=ON")
-    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute(f"PRAGMA busy_timeout={DB_BUSY_TIMEOUT_MS}")
     conn.execute("PRAGMA cache_size=-8000")   # ~8MB de cache em RAM
     conn.execute("PRAGMA temp_store=MEMORY")  # ordenaÃ§Ãµes/temporÃ¡rios em RAM
     return conn
@@ -303,6 +316,7 @@ def get_control_db():
     return get_db("raios")
 
 def init_db(company: str = None):
+    _initialize_database_journal(company)
     conn=get_db(company)
     conn.executescript("""
     CREATE TABLE IF NOT EXISTS users (
@@ -1126,6 +1140,7 @@ async def lifespan(app_instance):
     """Inicializa banco e inicia scheduler de backup."""
     for company in COMPANY_DBS:
         init_db(company)
+    _initialize_app_notes_journal()
     # Limpeza de sessÃµes expiradas ao subir o serviÃ§o
     try:
         c=get_control_db()
@@ -1984,7 +1999,10 @@ def clear_imports(x_token:str=Header("")):
 
 @app.put("/api/sales/{sale_id}")
 def update_sale(sale_id:str,body:dict,x_token:str=Header("")):
-    sess=require_editor_tab_access(x_token,["consolidado","nf","pr","avulso","avaria","pendentes"]); conn=get_db()
+    sess=require_editor_tab_access(x_token,["consolidado","nf","pr","avulso","avaria","pendentes"])
+    if body.get("seller_id"):
+        require_sellers_action(x_token,action="view",company_key=_company_key(CURRENT_COMPANY.get()))
+    conn=get_db()
     try:
         old=conn.execute("SELECT * FROM sales WHERE id=?",(sale_id,)).fetchone()
         if not old: raise HTTPException(404,"Venda nÃ£o encontrada.")
@@ -2001,7 +2019,6 @@ def update_sale(sale_id:str,body:dict,x_token:str=Header("")):
             if f in body:
                 conn.execute(f"UPDATE sales SET {f}=? WHERE id=?",(body[f],sale_id))
         if "seller_id" in body and body.get("seller_id"):
-            require_sellers_action(x_token,action="view",company_key=_company_key(CURRENT_COMPANY.get()))
             try:
                 seller=require_active_seller(conn,_company_key(CURRENT_COMPANY.get()),body.get("seller_id"))
             except ValueError as exc:
@@ -6505,11 +6522,21 @@ def wa_test_message(body: dict, x_token: str = Header(...)):
     return {"ok": res.get("ok"), "response": res.get("response")}
 
 # â”€â”€ Notas enviadas pelo aplicativo Android (banco independente) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+def _initialize_app_notes_journal():
+    conn=sqlite3.connect(APP_NOTES_DB_PATH,timeout=DB_BUSY_TIMEOUT_SECONDS)
+    try:
+        conn.execute(f"PRAGMA busy_timeout={DB_BUSY_TIMEOUT_MS}")
+        mode=conn.execute("PRAGMA journal_mode=WAL").fetchone()[0]
+        if str(mode).lower() != "wal":
+            raise RuntimeError("Nao foi possivel ativar WAL em app_notes.db.")
+    finally:
+        conn.close()
+
 def get_app_notes_db():
-    conn=sqlite3.connect(APP_NOTES_DB_PATH,timeout=20)
+    conn=sqlite3.connect(APP_NOTES_DB_PATH,timeout=DB_BUSY_TIMEOUT_SECONDS)
     conn.row_factory=sqlite3.Row
     try:
-        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute(f"PRAGMA busy_timeout={DB_BUSY_TIMEOUT_MS}")
         conn.execute("PRAGMA foreign_keys=ON")
         conn.executescript("""
           CREATE TABLE IF NOT EXISTS app_notes(
@@ -6915,5 +6942,6 @@ if __name__=="__main__":
     # ("systemctl restart menina"). Deploy via ATUALIZAR.bat (scp + restart).
     for company in COMPANY_DBS:
         init_db(company)
+    _initialize_app_notes_journal()
     port=int(os.environ.get("PORT",8765))
     uvicorn.run(app,host="0.0.0.0",port=port,log_level="warning")
