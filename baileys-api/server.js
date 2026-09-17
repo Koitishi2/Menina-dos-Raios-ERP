@@ -14,6 +14,7 @@ const pino    = require("pino");
 const fs      = require("fs");
 const { createInboundForwarder, installInboundListener } = require("./inbound");
 const { authorizeApiKey, authorizeLegacySend } = require("./security");
+const { fetchLatestVersion, launchApprovedUpdate, readVersionState } = require("./maintenance");
 require("dotenv").config();
 
 const app     = express();
@@ -25,6 +26,8 @@ const AUTH_DIR = process.env.AUTH_DIR         || "./auth_info_baileys";
 const OUTBOUND_ENABLED = process.env.WHATSAPP_OUTBOUND_ENABLED || "false";
 const inbound = createInboundForwarder({
     enabled: process.env.WHATSAPP_INBOUND_ENABLED || "false",
+    mode: process.env.WHATSAPP_INBOUND_MODE || "disabled",
+    sandboxNumbers: process.env.WHATSAPP_INBOUND_SANDBOX_NUMBERS || "",
     instance: process.env.WHATSAPP_INBOUND_INSTANCE || "",
     token: process.env.WHATSAPP_INBOUND_TOKEN || "",
     url: process.env.WHATSAPP_INBOUND_URL || "http://127.0.0.1:8765/internal/whatsapp/events",
@@ -40,6 +43,7 @@ let retries   = 0;
 let starting  = false;
 let manualDisconnect = false;
 let lastConnectionUpdate = null;
+let inboundListenerInstalled = false;
 
 /* ── Auth middleware ─────────────────────────────────────── */
 function checkAuth(req, res, next) {
@@ -108,7 +112,7 @@ async function startBaileys() {
     });
 
     sock.ev.on("creds.update", saveCreds);
-    installInboundListener(sock, inbound);
+    inboundListenerInstalled = installInboundListener(sock, inbound);
 }
 
 /* ── Endpoints ───────────────────────────────────────────── */
@@ -117,8 +121,45 @@ async function startBaileys() {
 app.get("/status", (_req, res) => {
     res.json({
         connected, hasQR: !!qrString, starting, lastConnectionUpdate,
-        inbound: { enabled: inbound.enabled, queued: inbound.queueLength(), failed: inbound.stats.failed },
+        inbound: {
+            enabled: inbound.enabled,
+            mode: inbound.mode,
+            listenerInstalled: inboundListenerInstalled,
+            queued: inbound.queueLength(),
+            forwarded: inbound.stats.forwarded,
+            failed: inbound.stats.failed,
+            filtered: inbound.stats.filtered,
+            duplicate: inbound.stats.duplicate,
+        },
     });
+});
+
+app.get("/maintenance/status", checkAuth, async (req, res) => {
+    const state = readVersionState(__dirname);
+    const refresh = String(req.query.refresh || "") === "1";
+    const latest = refresh ? await fetchLatestVersion() : null;
+    res.json({
+        ...state,
+        latest_version: latest,
+        connected,
+        inbound_enabled: inbound.enabled,
+        inbound_mode: inbound.mode,
+        listener_installed: inboundListenerInstalled,
+        node_version: process.version,
+    });
+});
+
+app.post("/maintenance/update", checkAuth, (_req, res) => {
+    const state = readVersionState(__dirname);
+    if (!state.can_update) return res.status(409).json({ ok: false, error: "versao_aprovada_ausente" });
+    if (state.update_status === "running") return res.status(409).json({ ok: false, error: "atualizacao_em_andamento" });
+    try {
+        const launched = launchApprovedUpdate();
+        return res.status(202).json({ ok: true, message: "Atualizacao segura iniciada.", ...launched });
+    } catch (error) {
+        console.error("[Baileys] Falha ao iniciar atualizacao:", error.message);
+        return res.status(503).json({ ok: false, error: error.message });
+    }
 });
 
 // QR Code em texto (o frontend exibe com uma lib JS qrcode)

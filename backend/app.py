@@ -3,6 +3,7 @@ Menina dos Raios Ltda â€” Backend v15
 Multi-usuÃ¡rio Â· SessÃµes Â· HistÃ³rico por conta Â· Placa Â· Hora Â· PreÃ§o por data
 """
 import os, sys, re, uuid, sqlite3, webbrowser, threading, io, json, hashlib, socket, hmac, logging, shutil, base64
+from urllib.parse import urlparse
 from contextvars import ContextVar
 from contextlib import contextmanager
 from collections import defaultdict
@@ -6326,6 +6327,53 @@ def wa_baileys_connection(action: str, x_token: str = Header(...)):
     if response.status_code not in (200,201):
         raise HTTPException(response.status_code,payload.get("error") or payload.get("message") or response.text[:300])
     return payload
+
+def _baileys_maintenance_config():
+    conn=get_db()
+    try:
+        cfg={r["key"]:r["value"] for r in conn.execute("SELECT key,value FROM whatsapp_config").fetchall()}
+    finally:
+        conn.close()
+    if cfg.get("provider","ultramsg")!="baileys":
+        raise HTTPException(400,"Selecione o provedor Baileys antes de gerenciar atualizacoes.")
+    api_url=(cfg.get("api_url") or "http://127.0.0.1:3001").strip().rstrip("/")
+    parsed=urlparse(api_url)
+    if parsed.scheme!="http" or parsed.hostname not in ("127.0.0.1","localhost") or parsed.port!=3001:
+        raise HTTPException(400,"A atualizacao Baileys exige a API local em http://127.0.0.1:3001.")
+    return api_url,cfg.get("api_token","")
+
+def _baileys_maintenance_request(method:str,path:str,refresh:bool=False):
+    api_url,token=_baileys_maintenance_config()
+    target=f"{api_url}{path}"
+    try:
+        try:
+            import httpx as _hx
+            if method=="GET":
+                response=_hx.get(target,headers={"x-api-key":token},params={"refresh":"1"} if refresh else None,timeout=8)
+            else:
+                response=_hx.post(target,headers={"x-api-key":token},json={},timeout=12)
+        except ImportError:
+            import requests as _rq
+            if method=="GET":
+                response=_rq.get(target,headers={"x-api-key":token},params={"refresh":"1"} if refresh else None,timeout=8)
+            else:
+                response=_rq.post(target,headers={"x-api-key":token},json={},timeout=12)
+        payload=response.json() if response.text else {}
+    except Exception as exc:
+        raise HTTPException(503,f"Servico Baileys offline ou inacessivel: {type(exc).__name__}")
+    if response.status_code not in (200,201,202):
+        raise HTTPException(response.status_code,payload.get("error") or payload.get("message") or "Falha no servico Baileys.")
+    return payload
+
+@app.get("/api/whatsapp/baileys-update-status")
+def wa_baileys_update_status(refresh:bool=False,x_token:str=Header(...)):
+    require_admin(x_token)
+    return _baileys_maintenance_request("GET","/maintenance/status",refresh=refresh)
+
+@app.post("/api/whatsapp/baileys-update")
+def wa_baileys_update(x_token:str=Header(...)):
+    require_admin(x_token)
+    return _baileys_maintenance_request("POST","/maintenance/update")
 
 @app.get("/api/whatsapp/log")
 def get_wa_log(page: int = 1, limit: int = 10, x_token: str = Header(...)):

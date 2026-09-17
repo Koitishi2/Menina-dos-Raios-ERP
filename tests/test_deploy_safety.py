@@ -52,9 +52,11 @@ def _minimal_source(tmp_path):
     _write(source / "backend" / "static" / "index.html", '<link href="css/client_whatsapp.css"><script src="js/client_orders.js"></script>')
     _write(source / "backend" / "static" / "css" / "client_whatsapp.css", "")
     _write(source / "backend" / "static" / "js" / "client_orders.js", "")
-    _write(source / "baileys-api" / "server.js", "require('./inbound')\nrequire('./security')\n")
+    _write(source / "baileys-api" / "server.js", "require('./inbound')\nrequire('./security')\nrequire('./maintenance')\n")
     _write(source / "baileys-api" / "inbound.js", "")
     _write(source / "baileys-api" / "security.js", "")
+    _write(source / "baileys-api" / "maintenance.js", "")
+    _write(source / "baileys-api" / "update-baileys-safe.sh", "#!/usr/bin/env bash\n")
     _write(source / "baileys-api" / "package.json", "{}")
     _write(source / "baileys-api" / "package-lock.json", "{}")
     for migration in (
@@ -83,6 +85,8 @@ def test_manifest_lists_runtime_dependencies_without_protected_data():
         "baileys-api/server.js",
         "baileys-api/inbound.js",
         "baileys-api/security.js",
+        "baileys-api/maintenance.js",
+        "baileys-api/update-baileys-safe.sh",
         "backend/migrations/20260914_whatsapp_orders_up.sql",
         "backend/migrations/20260914_whatsapp_inbound_up.sql",
         "backend/migrations/20260916_sellers_up.sql",

@@ -442,6 +442,14 @@ Os modos aceitos sao `disabled`, `sandbox` e `production`. `sandbox` aceita some
 
 O endpoint legado local `/send` permanece por compatibilidade, mas opera com falha fechada: `API_KEY` e obrigatoria, a comparacao e constante e chave ausente ou incorreta recusa a requisicao. Mesmo com chave correta, o endpoint continua bloqueado enquanto `WHATSAPP_OUTBOUND_ENABLED=false`. A chave nunca e registrada em log ou resposta.
 
+### Atualizacao interna do Baileys
+
+A sub-aba `Configuracoes > WhatsApp > Atualizar Baileys` consulta o servico local autenticado e exibe as versoes instalada, aprovada e disponivel. A interface nunca aceita comandos, caminhos ou versoes informados pelo navegador. O botao aplica somente a versao exata previamente versionada em `baileys-api/package.json` e `package-lock.json`.
+
+O helper `baileys-api/update-baileys-safe.sh` prepara `npm ci` em staging, valida os modulos, para apenas `menina-baileys`, troca somente `node_modules`, religa o servico e verifica `/status`. Em caso de falha, restaura o `node_modules` anterior e tenta religar o servico. `.env`, `auth_info_baileys`, QR Codes, bancos e arquivos do backend nao participam da atualizacao. O disparo e feito por uma unit transitoria do systemd e exige que o helper remoto seja arquivo regular, pertencente a root e sem permissao de escrita para grupo ou terceiros.
+
+O listener de pedidos continua fechado por padrao. Atualizar a biblioteca nao ativa entrada nem saida real; `WHATSAPP_INBOUND_ENABLED`, `WHATSAPP_OUTBOUND_ENABLED` e seus modos permanecem controles independentes.
+
 ### Migracao, teste e desligamento
 
 `backend/migrations/20260914_whatsapp_inbound_up.sql` adiciona auditoria inbound, lotes e itens manuais. O rollback `20260914_whatsapp_inbound_down.sql` remove somente essas tres tabelas e preserva a migracao de pedidos, clientes, mensagens, vendas e estoque.
@@ -457,8 +465,10 @@ python -m py_compile backend\app.py backend\routers\whatsapp_inbound.py backend\
 node --check baileys-api\server.js
 node --check baileys-api\inbound.js
 node --check baileys-api\security.js
+node --check baileys-api\maintenance.js
 node tests\js\test_baileys_inbound.js
 node tests\js\test_baileys_security.js
+node tests\js\test_baileys_maintenance.js
 node tests\js\test_client_whatsapp_foundation.js
 python -X faulthandler -m pytest -q tests\test_whatsapp_inbound_campaigns.py
 python -X faulthandler -m pytest -q tests\test_cycle5_blockers.py

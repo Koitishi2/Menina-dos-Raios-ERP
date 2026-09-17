@@ -12,6 +12,15 @@ function isEnabled(value) {
     return ["1", "true", "yes", "on"].includes(String(value || "").trim().toLowerCase());
 }
 
+function normalizePhone(value) {
+    return String(value || "").split("@")[0].split(":")[0].replace(/\D/g, "");
+}
+
+function parseSandboxNumbers(value) {
+    const entries = Array.isArray(value) ? value : String(value || "").split(",");
+    return new Set(entries.map(normalizePhone).filter((phone) => phone.length >= 10 && phone.length <= 15));
+}
+
 function validateLocalUrl(value) {
     const parsed = new URL(value);
     if (parsed.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname)) {
@@ -72,6 +81,8 @@ function buildInboundEvent(message, instance, now) {
 
 function createInboundForwarder(options = {}) {
     const enabled = isEnabled(options.enabled);
+    const mode = String(options.mode || "disabled").trim().toLowerCase();
+    const sandboxNumbers = parseSandboxNumbers(options.sandboxNumbers);
     const instance = String(options.instance || "").trim();
     const token = String(options.token || "").trim();
     const url = validateLocalUrl(options.url || "http://127.0.0.1:8765/internal/whatsapp/events");
@@ -82,9 +93,23 @@ function createInboundForwarder(options = {}) {
     const sleep = options.sleep || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     const logger = options.logger || console;
     const queue = [];
+    const knownEvents = new Map();
+    const maxKnownEvents = Math.max(100, Math.min(Number(options.maxKnownEvents || 2000), 10000));
     let processing = false;
     let drainPromise = Promise.resolve();
-    const stats = { queued: 0, forwarded: 0, failed: 0, dropped: 0 };
+    const stats = { queued: 0, forwarded: 0, failed: 0, dropped: 0, filtered: 0, duplicate: 0 };
+
+    function rememberEvent(eventId) {
+        knownEvents.delete(eventId);
+        knownEvents.set(eventId, true);
+        while (knownEvents.size > maxKnownEvents) knownEvents.delete(knownEvents.keys().next().value);
+    }
+
+    function isSandboxAllowed(event) {
+        if (mode !== "sandbox" || sandboxNumbers.size === 0) return false;
+        if (!event || event.from_me || !String(event.remote_jid || "").endsWith("@s.whatsapp.net")) return false;
+        return sandboxNumbers.has(normalizePhone(event.remote_jid));
+    }
 
     async function post(event) {
         let lastError;
@@ -119,8 +144,14 @@ function createInboundForwarder(options = {}) {
             while (queue.length) {
                 const event = queue.shift();
                 const ok = await post(event);
-                if (ok) stats.forwarded += 1;
-                else stats.failed += 1;
+                if (ok) {
+                    stats.forwarded += 1;
+                    rememberEvent(event.event_id);
+                    if (typeof logger.info === "function") logger.info("[Baileys inbound] Evento sandbox encaminhado.");
+                } else {
+                    stats.failed += 1;
+                    knownEvents.delete(event.event_id);
+                }
             }
             processing = false;
         })();
@@ -129,9 +160,17 @@ function createInboundForwarder(options = {}) {
 
     function enqueue(event) {
         if (!enabled) return false;
+        if (!isSandboxAllowed(event)) {
+            stats.filtered += 1;
+            return false;
+        }
         if (!instance || !token) {
             logger.error("[Baileys inbound] Configuracao incompleta; evento nao encaminhado.");
             stats.dropped += 1;
+            return false;
+        }
+        if (!event.event_id || knownEvents.has(event.event_id)) {
+            stats.duplicate += 1;
             return false;
         }
         if (queue.length >= maxQueue) {
@@ -139,6 +178,7 @@ function createInboundForwarder(options = {}) {
             stats.dropped += 1;
             return false;
         }
+        knownEvents.set(event.event_id, false);
         queue.push(event);
         stats.queued += 1;
         void work();
@@ -152,7 +192,10 @@ function createInboundForwarder(options = {}) {
         }
     }
 
-    return { enabled, enqueue, handleUpsert, drain: () => drainPromise, stats, queueLength: () => queue.length };
+    return {
+        enabled, mode, enqueue, handleUpsert, isSandboxAllowed,
+        drain: () => drainPromise, stats, queueLength: () => queue.length,
+    };
 }
 
 function installInboundListener(sock, forwarder) {
@@ -164,5 +207,5 @@ function installInboundListener(sock, forwarder) {
 
 module.exports = {
     buildInboundEvent, createInboundForwarder, installInboundListener,
-    isEnabled, messageTypeAndText, timestampIso, validateLocalUrl,
+    isEnabled, messageTypeAndText, normalizePhone, parseSandboxNumbers, timestampIso, validateLocalUrl,
 };

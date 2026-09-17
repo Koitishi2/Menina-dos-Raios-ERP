@@ -1226,6 +1226,14 @@ body.tv-active #btn-top{display:none!important}
 .wa-preview-box{padding:10px 14px;background:var(--card2);border-radius:8px;font-size:12px;color:var(--g700);white-space:pre-wrap;margin-top:8px;border:1px dashed var(--border)}
 .wa-tpl-preview{padding:10px 14px;background:#f8fafc;border-radius:8px;font-size:12px;color:#334155;white-space:pre-wrap;margin:8px 0;border:1px dashed #cbd5e1;min-height:50px}
 [data-theme="dark"] .wa-tpl-preview{background:#1e293b;color:#e2e8f0;border-color:#334155}
+.wa-maint-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.wa-maint-cell{padding:12px 14px;background:var(--card);border-right:1px solid var(--border);min-width:0}
+.wa-maint-cell:last-child{border-right:0}
+.wa-maint-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px}
+.wa-maint-value{font-size:13px;font-weight:700;color:var(--ink);overflow-wrap:anywhere}
+.wa-maint-state{margin-top:12px;padding:10px 12px;border-left:3px solid var(--border);background:var(--card2);font-size:12px;color:var(--muted)}
+.wa-maint-state.ok{border-color:#22c55e;color:#166534}.wa-maint-state.warn{border-color:#f59e0b;color:#92400e}.wa-maint-state.error{border-color:#ef4444;color:#991b1b}
+@media(max-width:760px){.wa-maint-grid{grid-template-columns:1fr}.wa-maint-cell{border-right:0;border-bottom:1px solid var(--border)}.wa-maint-cell:last-child{border-bottom:0}}
 body.tv-active #wa-section{display:none!important}
 
 /* ── Monteiro App (overlay fullscreen independente) ── */
@@ -4455,6 +4463,7 @@ body.paladar-active #notif-restore{display:none!important}
       <button class="wa-sub-btn" data-view="autoreply" onclick="switchWaSubView('autoreply')">🤖 Auto respostas</button>
       <button class="wa-sub-btn" data-view="templates" onclick="switchWaSubView('templates')">📦 Modelos</button>
       <button class="wa-sub-btn" data-view="bot" onclick="switchWaSubView('bot')">⚙ Bot</button>
+      <button class="wa-sub-btn" data-view="update" onclick="switchWaSubView('update')">↻ Atualizar Baileys</button>
     </div>
 
     <div id="wa-view-main">
@@ -4594,6 +4603,24 @@ body.paladar-active #notif-restore{display:none!important}
       </div>
 
     </div><!-- /wa-view-bot -->
+
+    <div id="wa-view-update" style="display:none">
+      <div class="wa-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+          <div style="font-size:12px;font-weight:700;color:var(--g800)">Atualização do Baileys</div>
+          <button class="btn btn-secondary btn-sm" onclick="loadWaBaileysUpdate(true)">↻ Verificar versão</button>
+        </div>
+        <div class="wa-maint-grid">
+          <div class="wa-maint-cell"><div class="wa-maint-label">Instalada</div><div id="wa-update-installed" class="wa-maint-value">Verificando...</div></div>
+          <div class="wa-maint-cell"><div class="wa-maint-label">Aprovada</div><div id="wa-update-approved" class="wa-maint-value">Verificando...</div></div>
+          <div class="wa-maint-cell"><div class="wa-maint-label">Disponível</div><div id="wa-update-latest" class="wa-maint-value">Verificar</div></div>
+        </div>
+        <div id="wa-update-state" class="wa-maint-state">Carregando estado do serviço...</div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;flex-wrap:wrap">
+          <button id="wa-update-apply" class="btn btn-primary" onclick="applyWaBaileysUpdate()" disabled>Atualizar versão aprovada</button>
+        </div>
+      </div>
+    </div><!-- /wa-view-update -->
 
   </div><!-- /wa-section -->
   </div><!-- /cfg-whatsapp -->
@@ -14723,13 +14750,14 @@ function switchWaSubView(view){
   document.querySelectorAll('.wa-sub-btn').forEach(function(b){
     b.classList.toggle('active', b.dataset.view === view);
   });
-  ['main','autoreply','templates','bot'].forEach(function(v){
+  ['main','autoreply','templates','bot','update'].forEach(function(v){
     var el=document.getElementById('wa-view-'+v);
     if(el) el.style.display = v===view ? 'block' : 'none';
   });
   if(view==='autoreply') loadWaAutoRules();
   if(view==='templates') loadWaTemplates();
   if(view==='bot') loadWaBotSettings();
+  if(view==='update') loadWaBaileysUpdate(false);
 }
 
 // ── Auto Rules CRUD ──
@@ -14991,6 +15019,59 @@ async function saveWaBotSettings(){
     await api('/api/whatsapp/bot-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     toast('✅ Configurações do bot salvas!');
   }catch(e){ toast(e.message,'error'); }
+}
+
+function waUpdateText(id,value){
+  var el=document.getElementById(id);
+  if(el) el.textContent=value||'—';
+}
+
+async function loadWaBaileysUpdate(refresh){
+  var state=document.getElementById('wa-update-state');
+  var button=document.getElementById('wa-update-apply');
+  if(!state||!button) return;
+  state.className='wa-maint-state';
+  state.textContent=refresh?'Consultando versão disponível...':'Verificando serviço Baileys...';
+  button.disabled=true;
+  try{
+    var data=await api('/api/whatsapp/baileys-update-status'+(refresh?'?refresh=true':''));
+    waUpdateText('wa-update-installed',data.installed_version||'Não identificada');
+    waUpdateText('wa-update-approved',data.approved_version||'Não configurada');
+    waUpdateText('wa-update-latest',data.latest_version||'Não consultada');
+    var ready=data.connected&&data.listener_installed;
+    var inbound=data.inbound_enabled ? ('Inbound '+(data.inbound_mode||'ativo')) : 'Inbound desativado';
+    var detail=data.update_detail ? ' · '+data.update_detail : '';
+    if(data.update_status==='running'){
+      state.className='wa-maint-state warn';
+      state.textContent='Atualização em andamento · '+inbound;
+      setTimeout(function(){ loadWaBaileysUpdate(false); },5000);
+    }else if(data.update_status==='failed'){
+      state.className='wa-maint-state error';
+      state.textContent='Última atualização falhou'+detail+' · '+inbound;
+    }else{
+      state.className='wa-maint-state '+(ready?'ok':'warn');
+      state.textContent=(ready?'Conectado e listener ativo':'Serviço requer atenção')+' · '+inbound+detail;
+    }
+    button.disabled=!data.can_update||data.update_status==='running';
+    button.textContent=data.update_available?'Atualizar versão aprovada':'Reinstalar versão aprovada';
+  }catch(e){
+    state.className='wa-maint-state error';
+    state.textContent=e.message;
+  }
+}
+
+async function applyWaBaileysUpdate(){
+  if(!confirm('Aplicar a versão aprovada do Baileys? A conexão será reiniciada por alguns segundos e a sessão será preservada.')) return;
+  var button=document.getElementById('wa-update-apply');
+  if(button) button.disabled=true;
+  try{
+    await api('/api/whatsapp/baileys-update',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    toast('Atualização Baileys iniciada.');
+    setTimeout(function(){ loadWaBaileysUpdate(false); },3000);
+  }catch(e){
+    toast(e.message,'error');
+    loadWaBaileysUpdate(false);
+  }
 }
 
 // ─── fim WhatsApp ──────────────────────────────────────

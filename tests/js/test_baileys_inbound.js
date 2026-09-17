@@ -1,7 +1,10 @@
 "use strict";
 
 const assert = require("assert");
-const { buildInboundEvent, createInboundForwarder, installInboundListener, validateLocalUrl } = require("../../baileys-api/inbound");
+const {
+  buildInboundEvent, createInboundForwarder, installInboundListener,
+  normalizePhone, parseSandboxNumbers, validateLocalUrl,
+} = require("../../baileys-api/inbound");
 
 async function main() {
   assert.throws(() => validateLocalUrl("https://example.com/internal/whatsapp/events"), /loopback/);
@@ -12,10 +15,13 @@ async function main() {
   assert.strictEqual(event.message_type, "conversation");
   assert.strictEqual(event.text, "Oi");
   assert.strictEqual(event.timestamp, "1970-01-01T00:16:40.000Z");
+  assert.strictEqual(normalizePhone("5595991234567:4@s.whatsapp.net"), "5595991234567");
+  assert.deepStrictEqual([...parseSandboxNumbers("+55 (95) 99123-4567,invalid")], ["5595991234567"]);
 
   const calls = [], waits = [], errors = [];
   const forwarder = createInboundForwarder({
-    enabled: "true", instance: "raios-primary", token: "secret",
+    enabled: "true", mode: "sandbox", sandboxNumbers: "5595991234567",
+    instance: "raios-primary", token: "secret",
     fetch: async (_url, options) => {
       calls.push(JSON.parse(options.body));
       return { ok: calls.length >= 3, status: calls.length >= 3 ? 200 : 503 };
@@ -23,12 +29,40 @@ async function main() {
     sleep: async (ms) => { waits.push(ms); },
     logger: { error: (message) => errors.push(message) }, maxAttempts: 3
   });
-  forwarder.handleUpsert({ messages: [{ key: { id: "msg-2", remoteJid: "120@g.us" }, message: { protocolMessage: {} }, messageTimestamp: 1001 }] });
+  forwarder.handleUpsert({ messages: [{ key: { id: "msg-2", remoteJid: "5595991234567@s.whatsapp.net" }, message: { conversation: "Pedido" }, messageTimestamp: 1001 }] });
   await forwarder.drain();
   assert.strictEqual(calls.length, 3);
   assert.deepStrictEqual(waits, [500, 1000]);
   assert.strictEqual(forwarder.stats.forwarded, 1);
   assert.strictEqual(errors.length, 0);
+
+  forwarder.handleUpsert({ messages: [{ key: { id: "msg-2", remoteJid: "5595991234567@s.whatsapp.net" }, message: { conversation: "Pedido repetido" }, messageTimestamp: 1002 }] });
+  await forwarder.drain();
+  assert.strictEqual(calls.length, 3);
+  assert.strictEqual(forwarder.stats.duplicate, 1);
+
+  for (const blockedMessage of [
+    { key: { id: "other", remoteJid: "5595990000000@s.whatsapp.net" }, message: { conversation: "fora" } },
+    { key: { id: "group", remoteJid: "120@g.us" }, message: { conversation: "grupo" } },
+    { key: { id: "self", remoteJid: "5595991234567@s.whatsapp.net", fromMe: true }, message: { conversation: "propria" } },
+  ]) forwarder.handleUpsert({ messages: [blockedMessage] });
+  await forwarder.drain();
+  assert.strictEqual(calls.length, 3);
+  assert.strictEqual(forwarder.stats.filtered, 3);
+
+  const failClosedCalls = [];
+  for (const config of [
+    { enabled: "true", mode: "disabled", sandboxNumbers: "5595991234567" },
+    { enabled: "true", mode: "sandbox", sandboxNumbers: "" },
+  ]) {
+    const failClosed = createInboundForwarder({
+      ...config, instance: "x", token: "y", fetch: async () => failClosedCalls.push(1),
+    });
+    failClosed.enqueue(event);
+    await failClosed.drain();
+    assert.strictEqual(failClosed.stats.filtered, 1);
+  }
+  assert.deepStrictEqual(failClosedCalls, []);
 
   const disabledCalls = [];
   const disabled = createInboundForwarder({ enabled: "false", instance: "x", token: "y", fetch: async () => disabledCalls.push(1) });
@@ -41,21 +75,41 @@ async function main() {
   assert.strictEqual(installInboundListener(sock, disabled), true);
   assert.strictEqual(installInboundListener(sock, disabled), false);
   assert.strictEqual(typeof handler, "function");
+  let reconnectHandler;
+  const reconnectedSock = { ev: { on: (_name, callback) => { reconnectHandler = callback; } } };
+  assert.strictEqual(installInboundListener(reconnectedSock, disabled), true);
+  assert.strictEqual(typeof reconnectHandler, "function");
+
+  const incompleteCalls = [];
+  const incomplete = createInboundForwarder({
+    enabled: "true", mode: "sandbox", sandboxNumbers: "5595991234567",
+    instance: "raios-primary", token: "", fetch: async () => incompleteCalls.push(1),
+    logger: { error: (message) => errors.push(message) },
+  });
+  incomplete.enqueue(event);
+  await incomplete.drain();
+  assert.deepStrictEqual(incompleteCalls, []);
+  assert.strictEqual(incomplete.stats.dropped, 1);
+  assert.ok(errors.some((message) => message.includes("Configuracao incompleta")));
 
   const failingCalls = [];
   const failing = createInboundForwarder({
-    enabled: "true", instance: "x", token: "y", maxAttempts: 3,
+    enabled: "true", mode: "sandbox", sandboxNumbers: "5595991234567",
+    instance: "x", token: "y", maxAttempts: 3,
     fetch: async () => { failingCalls.push(1); throw new Error("offline"); }, sleep: async () => {},
     logger: { error: (message) => errors.push(message) }
   });
   failing.enqueue(event); await failing.drain();
   assert.strictEqual(failingCalls.length, 3);
   assert.strictEqual(failing.stats.failed, 1);
-  assert.ok(errors[0].includes("3 tentativa"));
+  assert.ok(errors.some((message) => message.includes("3 tentativa")));
+  failing.enqueue(event); await failing.drain();
+  assert.strictEqual(failingCalls.length, 6);
 
   let nonRetryCalls = 0;
   const nonRetry = createInboundForwarder({
-    enabled: "true", instance: "x", token: "y", maxAttempts: 3,
+    enabled: "true", mode: "sandbox", sandboxNumbers: "5595991234567",
+    instance: "x", token: "y", maxAttempts: 3,
     fetch: async () => { nonRetryCalls += 1; return { ok: false, status: 422 }; },
     sleep: async () => { throw new Error("must not retry 4xx"); }, logger: { error: () => {} }
   });

@@ -53,6 +53,8 @@ baileys-api/package-lock.json
 baileys-api/server.js
 baileys-api/inbound.js
 baileys-api/security.js
+baileys-api/maintenance.js
+baileys-api/update-baileys-safe.sh
 
 [migrations]
 backend/migrations/20260826_rbac_roles.sql
@@ -93,6 +95,8 @@ python -m py_compile backend/*.py backend/domains/*.py backend/repositories/*.py
 node --check baileys-api/server.js
 node --check baileys-api/inbound.js
 node --check baileys-api/security.js
+node --check baileys-api/maintenance.js
+bash -n baileys-api/update-baileys-safe.sh
 GET /health
 
 [rollback]

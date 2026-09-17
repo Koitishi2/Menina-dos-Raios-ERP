@@ -271,10 +271,10 @@ def validate_static_refs(source):
 
 def validate_node_refs(source):
     base = source / "baileys-api"
-    for name in ("server.js", "inbound.js", "security.js", "package.json", "package-lock.json"):
+    for name in ("server.js", "inbound.js", "security.js", "maintenance.js", "update-baileys-safe.sh", "package.json", "package-lock.json"):
         if not (base / name).exists():
             raise PackageError(f"Baileys runtime ausente: baileys-api/{name}")
-    for script in ("server.js", "inbound.js", "security.js"):
+    for script in ("server.js", "inbound.js", "security.js", "maintenance.js"):
         text = (base / script).read_text(encoding="utf-8")
         refs = re.findall(r"""require\(["'](\./[^"']+)["']\)""", text)
         for ref in refs:
