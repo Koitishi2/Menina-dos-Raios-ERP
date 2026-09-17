@@ -1,3 +1,4 @@
+import json
 import sqlite3
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -45,6 +46,27 @@ def _configure_inbound(monkeypatch, company="raios", enabled="true"):
     monkeypatch.setenv("WHATSAPP_INBOUND_TOKEN", "inbound-test-token")
     monkeypatch.setenv("WHATSAPP_INBOUND_INSTANCE", "raios-primary")
     monkeypatch.setenv("WHATSAPP_INBOUND_COMPANY", company)
+
+
+def _configure_order_bot(isolated_app, monkeypatch):
+    monkeypatch.setenv("WHATSAPP_OUTBOUND_ENABLED", "true")
+    monkeypatch.setenv("WHATSAPP_OUTBOUND_MODE", "sandbox")
+    monkeypatch.setenv("WHATSAPP_OUTBOUND_SANDBOX_NUMBERS", "+5595991234567")
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    try:
+        conn.executemany(
+            "INSERT OR REPLACE INTO whatsapp_config(key,value) VALUES(?,?)",
+            [
+                ("provider", "baileys"),
+                ("bot_active", "1"),
+                ("auto_reply_enabled", "1"),
+                ("auto_reply_from", "00:00"),
+                ("auto_reply_to", "23:59"),
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def _create_client(app, token, name="Cliente Inbound", phone="95991234567", company="raios"):
@@ -171,6 +193,277 @@ def test_valid_inbound_is_idempotent_and_creates_no_order_sale_or_stock(isolated
     assert isolated_app.external_calls == []
 
 
+def test_order_bot_collects_request_and_creates_approval_order_without_sale(isolated_app, monkeypatch):
+    _configure_inbound(monkeypatch)
+    _configure_order_bot(isolated_app, monkeypatch)
+    token = _login(isolated_app)
+    client = _create_client(isolated_app, token, name="Cliente Pedido")
+    sent = []
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    product_prices_before = conn.execute("SELECT * FROM product_prices ORDER BY key").fetchall()
+    conn.close()
+
+    def fake_send(phone, message, config):
+        sent.append({"phone": phone, "message": message, "provider": config.get("provider"), "session": "initial"})
+        return {"ok": True, "response": "mock_ok"}
+
+    def restarted_send(phone, message, config):
+        sent.append({"phone": phone, "message": message, "provider": config.get("provider"), "session": "restarted"})
+        return {"ok": True, "response": "mock_ok"}
+
+    isolated_app.module.wa_send = fake_send
+    texts = ["Oi", "1", "10 kg", "nao", "sim"]
+    responses = []
+    for index, text in enumerate(texts, start=1):
+        if index == 5:
+            isolated_app.module.wa_send = restarted_send
+        response = isolated_app.client.post(
+            "/internal/whatsapp/events",
+            headers=_internal_headers(),
+            json=_event(
+                event_id=f"order-event-{index}",
+                message_id=f"order-message-{index}",
+                text=text,
+                timestamp=f"2026-09-14T12:0{index}:00-04:00",
+            ),
+        )
+        assert response.status_code == 200, response.text
+        responses.append(response.json())
+
+    assert [item["bot"]["state"] for item in responses] == [
+        "identificando_produto", "coletando_quantidade", "coletando_avaria",
+        "aguardando_confirmacao", "aguardando_aprovacao",
+    ]
+    assert all(item["bot"]["delivery"]["sent"] is True for item in responses)
+    assert sent[0]["phone"] == "5595991234567"
+    assert "Cliente Pedido" in sent[0]["message"]
+    assert "atendimento automatizado" in sent[0]["message"]
+    assert "conversa será registrada" in sent[0]["message"]
+    assert "Macaxeira com casca" in sent[0]["message"]
+    assert "Qual quantidade" in sent[1]["message"]
+    assert "Tem avaria" in sent[2]["message"]
+    assert "Está correto? Responda SIM ou NAO." in sent[3]["message"]
+    assert "Pedido feito" in sent[4]["message"]
+    assert sent[4]["session"] == "restarted"
+
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    conn.row_factory = sqlite3.Row
+    try:
+        order = conn.execute("SELECT * FROM whatsapp_order_drafts").fetchone()
+        item = conn.execute("SELECT * FROM whatsapp_order_items WHERE order_id=?", (order["id"],)).fetchone()
+        assert order["status"] == "aguardando_aprovacao"
+        assert order["requested_quantity"] == "10"
+        assert item["product_key"] == "MAC_PCT"
+        assert item["confirmed_quantity"] == "10"
+        assert item["confirmed_damage"] == "0"
+        score = json.loads(order["calculation_memory"])
+        assert score["origin"] == "cliente_iniciou_contato"
+        assert score["order_score"] == 100
+        assert sum(score["score_components"].values()) == 100
+        assert conn.execute("SELECT COUNT(*) FROM whatsapp_consent WHERE client_id=?", (client["id"],)).fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM sales").fetchone()[0] == 0
+        assert [tuple(row) for row in conn.execute("SELECT * FROM product_prices ORDER BY key").fetchall()] == product_prices_before
+        assert conn.execute("SELECT COUNT(*) FROM whatsapp_messages WHERE direction='recebida'").fetchone()[0] == 5
+        assert conn.execute("SELECT COUNT(*) FROM whatsapp_messages WHERE direction='enviada'").fetchone()[0] == 5
+    finally:
+        conn.close()
+
+    listed = isolated_app.client.get("/api/whatsapp/orders", headers=_headers(token))
+    assert listed.status_code == 200
+    assert listed.json()[0]["status"] == "aguardando_aprovacao"
+    assert isolated_app.external_calls == []
+
+    repeated = isolated_app.client.post(
+        "/internal/whatsapp/events",
+        headers=_internal_headers(),
+        json=_event(
+            event_id="order-event-repeat-sim", message_id="order-message-repeat-sim",
+            text="SIM", timestamp="2026-09-14T12:06:00-04:00",
+        ),
+    )
+    assert repeated.status_code == 200
+    assert repeated.json()["bot"]["handled"] is False
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM whatsapp_order_drafts").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM whatsapp_messages WHERE direction='enviada'").fetchone()[0] == 5
+    finally:
+        conn.close()
+
+    for marker in (
+        "WEBHOOK_RECEBIDO_OK", "CONVERSA_REGISTRADA_OK", "MENSAGEM_AUTOMATICA_OK",
+        "RESUMO_CONFIRMADO_OK", "PEDIDO_AGUARDANDO_APROVACAO_OK", "PONTUACAO_SALVA_OK",
+        "VENDA_NAO_CRIADA_OK", "ESTOQUE_NAO_ALTERADO_OK", "IDEMPOTENCIA_OK",
+    ):
+        print(marker)
+
+
+def test_order_bot_creates_unknown_client_only_when_sandbox_is_active(isolated_app, monkeypatch):
+    _configure_inbound(monkeypatch)
+    _configure_order_bot(isolated_app, monkeypatch)
+    sent = []
+    isolated_app.module.wa_send = lambda phone, message, config: sent.append((phone, message)) or {
+        "ok": True, "response": "mock_ok",
+    }
+
+    response = isolated_app.client.post(
+        "/internal/whatsapp/events", headers=_internal_headers(),
+        json=_event(event_id="unknown-event", message_id="unknown-message", text="Oi"),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["bot"]["state"] == "identificando_produto"
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    conn.row_factory = sqlite3.Row
+    try:
+        client = conn.execute("SELECT * FROM clients WHERE phone='+5595991234567'").fetchone()
+        assert client["name"] == "Cliente WhatsApp 4567"
+        assert client["created_by"] == "whatsapp_bot"
+        assert "Cadastro automatico" in client["notes"]
+        assert conn.execute("SELECT COUNT(*) FROM whatsapp_consent WHERE client_id=?", (client["id"],)).fetchone()[0] == 0
+    finally:
+        conn.close()
+    assert len(sent) == 1
+
+
+def test_order_bot_requests_only_missing_invalid_data(isolated_app, monkeypatch):
+    _configure_inbound(monkeypatch)
+    _configure_order_bot(isolated_app, monkeypatch)
+    token = _login(isolated_app)
+    _create_client(isolated_app, token)
+    sent = []
+    isolated_app.module.wa_send = lambda phone, message, config: sent.append(message) or {
+        "ok": True, "response": "mock_ok",
+    }
+
+    texts = ["Oi", "1", "dez", "10 litros", "10 kg", "talvez"]
+    states = []
+    for index, text in enumerate(texts):
+        response = isolated_app.client.post(
+            "/internal/whatsapp/events", headers=_internal_headers(),
+            json=_event(
+                event_id=f"invalid-event-{index}", message_id=f"invalid-message-{index}",
+                text=text, timestamp=f"2026-09-14T13:0{index}:00-04:00",
+            ),
+        )
+        assert response.status_code == 200
+        states.append(response.json()["bot"]["state"])
+
+    assert states == [
+        "identificando_produto", "coletando_quantidade", "coletando_quantidade",
+        "coletando_quantidade", "coletando_avaria", "coletando_avaria",
+    ]
+    assert "quantidade valida em KG" in sent[2]
+    assert "quantidade valida em KG" in sent[3]
+    assert "Responda NAO ou informe a avaria em KG" in sent[5]
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    try:
+        assert conn.execute("SELECT status FROM whatsapp_order_drafts").fetchone()[0] == "rascunho"
+        assert conn.execute("SELECT COUNT(*) FROM sales").fetchone()[0] == 0
+    finally:
+        conn.close()
+
+
+def test_order_bot_records_outbound_failure_without_sale(isolated_app, monkeypatch):
+    _configure_inbound(monkeypatch)
+    _configure_order_bot(isolated_app, monkeypatch)
+    token = _login(isolated_app)
+    _create_client(isolated_app, token)
+    isolated_app.module.wa_send = lambda *args: {"ok": False, "response": "falha_mockada"}
+
+    response = isolated_app.client.post(
+        "/internal/whatsapp/events", headers=_internal_headers(),
+        json=_event(event_id="failed-send-event", message_id="failed-send-message", text="Oi"),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["bot"]["delivery"]["sent"] is False
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    try:
+        outgoing = conn.execute(
+            "SELECT status,error_text FROM whatsapp_messages WHERE direction='enviada'"
+        ).fetchone()
+        assert outgoing == ("falha", "falha_mockada")
+        assert conn.execute("SELECT COUNT(*) FROM sales").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM whatsapp_order_drafts").fetchone()[0] == 0
+    finally:
+        conn.close()
+
+
+def test_order_bot_hands_off_to_human_without_automatic_reply(isolated_app, monkeypatch):
+    _configure_inbound(monkeypatch)
+    _configure_order_bot(isolated_app, monkeypatch)
+    token = _login(isolated_app)
+    client = _create_client(isolated_app, token, name="Cliente Humano")
+    sent = []
+    isolated_app.module.wa_send = lambda *args: sent.append(args) or {"ok": True, "response": "mock"}
+
+    first = isolated_app.client.post(
+        "/internal/whatsapp/events",
+        headers=_internal_headers(),
+        json=_event(event_id="human-start-event", message_id="human-start-message", text="Oi"),
+    )
+    assert first.status_code == 200
+    assert len(sent) == 1
+
+    response = isolated_app.client.post(
+        "/internal/whatsapp/events",
+        headers=_internal_headers(),
+        json=_event(event_id="human-event", message_id="human-message", text="Quero falar com atendente"),
+    )
+
+    assert response.status_code == 200
+    assert "bot" not in response.json()
+    assert len(sent) == 1
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    try:
+        conversation = conn.execute(
+            "SELECT status FROM whatsapp_conversations WHERE client_id=?", (client["id"],)
+        ).fetchone()
+        event = conn.execute(
+            "SELECT command,new_state FROM whatsapp_inbound_events WHERE event_id='human-event'"
+        ).fetchone()
+        assert conversation[0] == "atendimento_humano"
+        assert event == ("QUERO FALAR COM ATENDENTE", "atendimento_humano")
+        assert conn.execute("SELECT COUNT(*) FROM whatsapp_messages WHERE direction='enviada'").fetchone()[0] == 1
+    finally:
+        conn.close()
+    print("ATENDIMENTO_HUMANO_OK")
+
+
+def test_order_bot_test_mode_requires_sandbox(isolated_app, monkeypatch):
+    _configure_inbound(monkeypatch)
+    token = _login(isolated_app)
+    client = _create_client(isolated_app, token, name="Cliente Teste", phone="95991234567")
+    _configure_order_bot(isolated_app, monkeypatch)
+    monkeypatch.setenv("WHATSAPP_OUTBOUND_MODE", "production")
+    monkeypatch.setenv("WHATSAPP_OUTBOUND_PRODUCTION_APPROVED", "true")
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    conn.execute("INSERT OR REPLACE INTO whatsapp_config(key,value) VALUES('test_mode','1')")
+    conn.commit()
+    conn.close()
+
+    response = isolated_app.client.post(
+        "/internal/whatsapp/events",
+        headers=_internal_headers(),
+        json=_event(
+            event_id="test-mode-event", message_id="test-mode-message",
+            text="Oi", timestamp="2026-09-17T10:00:00-04:00",
+        ),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["bot"] == {"handled": False, "reason": "modo_teste_exige_sandbox"}
+    assert isolated_app.external_calls == []
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    try:
+        assert conn.execute(
+            "SELECT COUNT(*) FROM whatsapp_order_drafts WHERE client_id=?", (client["id"],)
+        ).fetchone()[0] == 0
+    finally:
+        conn.close()
+
+
 def test_event_id_and_message_id_are_independently_idempotent(isolated_app, monkeypatch):
     _configure_inbound(monkeypatch)
     token = _login(isolated_app)
@@ -224,20 +517,39 @@ def test_unknown_and_other_company_client_are_audited_without_exposure(isolated_
     assert foreign == []
 
 
-def test_opt_out_from_internal_event_records_command_and_blocks_consent(isolated_app, monkeypatch):
+@pytest.mark.parametrize("command", ["SAIR", "STOP", "PARAR", "CANCELAR"])
+def test_opt_out_from_internal_event_records_command_and_blocks_consent(isolated_app, monkeypatch, command):
     _configure_inbound(monkeypatch)
+    _configure_order_bot(isolated_app, monkeypatch)
     token = _login(isolated_app)
     client = _create_client(isolated_app, token)
-    response = isolated_app.client.post("/internal/whatsapp/events", headers=_internal_headers(), json=_event(text="STOP"))
+    sent = []
+    isolated_app.module.wa_send = lambda *args: sent.append(args) or {"ok": True, "response": "mock"}
+    initial = isolated_app.client.post(
+        "/internal/whatsapp/events", headers=_internal_headers(),
+        json=_event(event_id="before-optout", message_id="before-optout", text="Oi"),
+    )
+    assert initial.status_code == 200
+    assert len(sent) == 1
+    response = isolated_app.client.post(
+        "/internal/whatsapp/events", headers=_internal_headers(),
+        json=_event(event_id="optout-event", message_id="optout-message", text=command),
+    )
     assert response.status_code == 200
+    assert "bot" not in response.json()
+    assert len(sent) == 1
     conn = sqlite3.connect(isolated_app.db_paths["raios"])
     try:
-        event = conn.execute("SELECT command,new_state FROM whatsapp_inbound_events").fetchone()
+        event = conn.execute(
+            "SELECT command,new_state FROM whatsapp_inbound_events WHERE event_id='optout-event'"
+        ).fetchone()
         consent = conn.execute("SELECT status FROM whatsapp_consent WHERE client_id=?", (client["id"],)).fetchone()
-        assert event == ("STOP", "opt_out")
+        assert event == (command, "opt_out")
         assert consent[0] == "opt_out"
+        assert conn.execute("SELECT COUNT(*) FROM whatsapp_messages WHERE direction='enviada'").fetchone()[0] == 1
     finally:
         conn.close()
+    print("OPT_OUT_OK")
 
 
 def test_inbound_database_failure_rolls_back_all_and_later_write_works(isolated_app, monkeypatch):

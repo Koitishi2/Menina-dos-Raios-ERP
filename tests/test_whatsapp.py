@@ -399,6 +399,34 @@ def test_whatsapp_config_save_success_preserves_response_and_values(isolated_app
     assert "ignored" not in cfg
 
 
+def test_whatsapp_bot_order_messages_can_be_read_and_updated(isolated_app):
+    token = _login(isolated_app.client)
+    headers = _headers(token)
+
+    initial = isolated_app.client.get("/api/whatsapp/bot-settings", headers=headers)
+    assert initial.status_code == 200
+    assert "atendimento automatizado" in initial.json()["order_bot_disclosure_message"]
+    assert "{cliente}" in initial.json()["order_bot_welcome_message"]
+    assert "KG ou UN" in initial.json()["order_bot_quantity_message"]
+
+    messages = {
+        "order_bot_disclosure_message": "Atendimento automatizado e registrado.",
+        "order_bot_welcome_message": "Ola, {cliente}! Escolha um produto.",
+        "order_bot_quantity_message": "Qual quantidade em KG ou UN?",
+        "order_bot_damage_message": "Existe avaria?",
+        "order_bot_confirm_message": "Posso salvar?",
+        "order_bot_done_message": "Pedido registrado.",
+    }
+    saved = isolated_app.client.put("/api/whatsapp/bot-settings", headers=headers, json=messages)
+    assert saved.status_code == 200
+    assert saved.json() == {"ok": True}
+
+    current = isolated_app.client.get("/api/whatsapp/bot-settings", headers=headers)
+    assert current.status_code == 200
+    for key, value in messages.items():
+        assert current.json()[key] == value
+
+
 def test_whatsapp_config_save_commits_and_closes_on_success(isolated_app, monkeypatch):
     monkeypatch.setattr(isolated_app.module, "require_admin", lambda token: {"username": "admin", "role": "admin"})
     state = _install_tracked_db(monkeypatch, isolated_app)

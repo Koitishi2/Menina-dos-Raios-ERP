@@ -7,11 +7,17 @@ from datetime import datetime
 try:
     from ..domains.whatsapp_policies import conversation_control_intent, normalize_brazil_phone, normalize_command
     from ..repositories import whatsapp_repository as repository
-    from .whatsapp_order_service import register_incoming_message
+    from .whatsapp_order_bot_service import (
+        advance_order_bot, order_bot_config, order_bot_runtime_reason, send_and_record_reply,
+    )
+    from .whatsapp_order_service import ensure_inbound_client, register_incoming_message
 except ImportError:
     from domains.whatsapp_policies import conversation_control_intent, normalize_brazil_phone, normalize_command
     from repositories import whatsapp_repository as repository
-    from services.whatsapp_order_service import register_incoming_message
+    from services.whatsapp_order_bot_service import (
+        advance_order_bot, order_bot_config, order_bot_runtime_reason, send_and_record_reply,
+    )
+    from services.whatsapp_order_service import ensure_inbound_client, register_incoming_message
 
 
 SYSTEM_MESSAGE_TYPES = frozenset({
@@ -36,8 +42,8 @@ def event_hash(payload):
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def _result(row, duplicate=False):
-    return {
+def _result(row, duplicate=False, bot=None):
+    result = {
         "ok": row["processing_status"] not in ("erro",),
         "duplicate": duplicate,
         "event_record_id": row["id"],
@@ -46,6 +52,9 @@ def _result(row, duplicate=False):
         "message_id": row["message_id"],
         "error_code": row["error_code"],
     }
+    if bot is not None:
+        result["bot"] = bot
+    return result
 
 
 def _mark_duplicate(conn, row):
@@ -59,7 +68,7 @@ def _mark_duplicate(conn, row):
     return _result(conn.execute("SELECT * FROM whatsapp_inbound_events WHERE id=?", (row["id"],)).fetchone(), True)
 
 
-def process_inbound_event(conn, company_key, payload):
+def process_inbound_event(conn, company_key, payload, sender=None, outbound=None):
     instance_key = str(payload.get("instance") or "").strip()
     event_id = str(payload.get("event_id") or "").strip()
     external_id = str(payload.get("message_id") or "").strip()
@@ -68,13 +77,18 @@ def process_inbound_event(conn, company_key, payload):
     raw_type = str(payload.get("raw_type") or "").strip()[:100] or None
     text = str(payload.get("text") or "")[:10000]
     received_at = validate_iso_timestamp(payload.get("timestamp"))
+    phone = normalize_brazil_phone(jid.split("@", 1)[0].split(":", 1)[0])
+    config = order_bot_config(conn) if sender is not None and outbound is not None else None
+    runtime_reason = (
+        order_bot_runtime_reason(config, outbound, phone.e164, datetime.fromisoformat(received_at))
+        if config is not None else None
+    )
 
     duplicate = repository.find_inbound_duplicate(conn, company_key, instance_key, event_id, external_id)
     if duplicate:
         return _mark_duplicate(conn, duplicate)
 
     record_id = str(uuid.uuid4())
-    phone = normalize_brazil_phone(jid.split("@", 1)[0].split(":", 1)[0])
     base = (
         record_id, company_key, "baileys", instance_key, event_id, external_id, jid,
         phone.e164 or None, message_type, raw_type, text[:500], received_at,
@@ -124,25 +138,39 @@ def process_inbound_event(conn, company_key, payload):
         try:
             processed = register_incoming_message(conn, company_key, incoming, manage_transaction=False)
         except LookupError:
-            conn.execute(
-                """UPDATE whatsapp_inbound_events
-                   SET processing_status='nao_identificado',error_code='cliente_nao_encontrado_ou_duplicado',updated_at=datetime('now')
-                   WHERE id=?""",
-                (record_id,),
-            )
-            conn.commit()
-            row = conn.execute("SELECT * FROM whatsapp_inbound_events WHERE id=?", (record_id,)).fetchone()
-            return _result(row)
+            if runtime_reason == "ativo":
+                ensure_inbound_client(conn, phone.e164)
+                processed = register_incoming_message(conn, company_key, incoming, manage_transaction=False)
+            else:
+                conn.execute(
+                    """UPDATE whatsapp_inbound_events
+                       SET processing_status='nao_identificado',error_code='cliente_nao_encontrado_ou_duplicado',updated_at=datetime('now')
+                       WHERE id=?""",
+                    (record_id,),
+                )
+                conn.commit()
+                row = conn.execute("SELECT * FROM whatsapp_inbound_events WHERE id=?", (record_id,)).fetchone()
+                return _result(row)
 
-        command = normalize_command(text) if conversation_control_intent(text) == "opt_out" else None
+        intent = conversation_control_intent(text)
+        command = normalize_command(text) if intent is not None else None
+        bot = None
+        if sender is not None and outbound is not None and intent is None:
+            if runtime_reason == "ativo":
+                bot = advance_order_bot(conn, company_key, processed, text, config)
+            else:
+                bot = {"handled": False, "reason": runtime_reason}
+        final_state = bot.get("state") if bot and bot.get("state") else processed["new_state"]
         conn.execute(
             """UPDATE whatsapp_inbound_events SET processing_status='processado',client_id=?,message_id=?,
                    command=?,previous_state=?,new_state=?,updated_at=datetime('now') WHERE id=?""",
-            (processed["client_id"], processed["message_id"], command, processed["previous_state"], processed["new_state"], record_id),
+            (processed["client_id"], processed["message_id"], command, processed["previous_state"], final_state, record_id),
         )
         conn.commit()
+        if bot and bot.get("reply"):
+            bot["delivery"] = send_and_record_reply(conn, company_key, processed, bot["reply"], sender, config)
         row = conn.execute("SELECT * FROM whatsapp_inbound_events WHERE id=?", (record_id,)).fetchone()
-        return _result(row)
+        return _result(row, bot=bot)
     except sqlite3.IntegrityError:
         conn.rollback()
         duplicate = repository.find_inbound_duplicate(conn, company_key, instance_key, event_id, external_id)

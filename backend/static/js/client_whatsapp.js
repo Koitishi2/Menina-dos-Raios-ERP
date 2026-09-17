@@ -55,6 +55,24 @@
   const selection = createSelectionModel();
   function escapeHtml(value) { return String(value == null ? "" : value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
   function maskPhone(value) { const text = String(value || ""); return text.length > 7 ? text.slice(0, 5) + "****" + text.slice(-4) : text; }
+  function consentLabel(value) {
+    const labels = {
+      desconhecido: "Sem autorizacao de envio",
+      nao_configurado: "Sem autorizacao de envio",
+      opt_in: "Consentimento autorizado",
+      opt_out: "Envio recusado",
+      pausado: "Consentimento pausado"
+    };
+    return labels[String(value || "").toLowerCase()] || String(value || "Sem autorizacao de envio").replace(/_/g, " ");
+  }
+  function revealDetail(detail) {
+    detail.style.display = "block";
+    if (typeof detail.scrollIntoView === "function") detail.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (typeof detail.focus === "function") {
+      detail.tabIndex = -1;
+      detail.focus({ preventScroll: true });
+    }
+  }
 
   function showNotice(message, type) {
     const notice = root.document && root.document.getElementById("client-wa-notice");
@@ -100,7 +118,7 @@
       return {
         id: String(client.id || ""), name: String(client.name || "Cliente"), originalPhone: String(client.phone || ""),
         normalizedPhone: phone.e164, phoneValid: phone.valid, phoneReason: phone.reason,
-        consent: conversation && conversation.consent_status ? conversation.consent_status : "nao_configurado",
+        consent: conversation && conversation.consent_status ? conversation.consent_status : "desconhecido",
         conversation: conversation ? conversation.status : "sem_conversa",
         conversationId: conversation ? conversation.id : "", pendingOrder: false
       };
@@ -118,8 +136,8 @@
       const phone = row.phoneValid ? row.normalizedPhone : (row.phoneReason || "Telefone invalido");
       return '<div class="client-wa-row"><div class="client-wa-identity"><strong>' + escapeHtml(row.name) + '</strong><span>' + escapeHtml(phone) + '</span></div>'
         + '<span class="client-wa-tag ' + (row.phoneValid ? "is-ready" : "is-warning") + '">' + (row.phoneValid ? "Telefone pronto" : "Revisar telefone") + '</span>'
-        + '<span class="client-wa-tag">' + escapeHtml(row.consent.replace(/_/g, " ")) + '</span><span class="client-wa-muted">' + escapeHtml(row.conversation.replace(/_/g, " ")) + '</span>'
-        + '<button type="button" class="btn btn-secondary btn-sm" data-wa-conversation="' + escapeHtml(row.conversationId) + '" ' + (row.conversationId ? "" : "disabled") + '>Abrir conversa</button></div>';
+        + '<span class="client-wa-tag">' + escapeHtml(consentLabel(row.consent)) + '</span><span class="client-wa-muted">' + escapeHtml(row.conversation.replace(/_/g, " ")) + '</span>'
+        + '<button type="button" class="btn btn-secondary btn-sm" data-wa-conversation="' + escapeHtml(row.conversationId) + '" data-wa-client-id="' + escapeHtml(row.id) + '">' + (row.conversationId ? "Abrir conversa" : "Ver detalhes") + '</button></div>';
     }).join("");
   }
 
@@ -226,13 +244,26 @@
     }
   }
 
-  async function openConversation(id) {
-    if (!id) return;
+  async function openConversation(id, clientId) {
+    if (!id && !clientId) return;
     const detail = root.document.getElementById("client-whatsapp-detail"); if (!detail) return;
     try {
-      const item = await root.api("/api/whatsapp/conversations/" + encodeURIComponent(id)); detail.style.display = "block";
+      if (!id) {
+        const summary = await root.api("/api/clients/" + encodeURIComponent(clientId) + "/whatsapp");
+        const client = summary.client || {}, consent = summary.consent || {};
+        detail.innerHTML = '<div class="client-wa-detail-head"><strong>' + escapeHtml(client.name || "Cliente") + '</strong><button class="btn btn-secondary btn-sm" data-wa-close>Fechar</button></div>'
+          + '<div class="client-wa-message"><strong>' + escapeHtml(consentLabel(consent.status || "desconhecido")) + '</strong><span>' + escapeHtml(client.phone || "Telefone nao informado") + '</span></div>'
+          + '<div class="client-wa-empty">Ainda nao existe conversa registrada para este cliente. Ela aparecera aqui depois que uma mensagem recebida for processada.<br><br>Consentimento nao informado significa que nao ha autorizacao registrada para iniciar mensagens ou campanhas. Mensagens enviadas pelo proprio cliente ainda podem ser recebidas quando a entrada estiver configurada e ativa.</div>';
+        revealDetail(detail);
+        return;
+      }
+      const item = await root.api("/api/whatsapp/conversations/" + encodeURIComponent(id));
       detail.innerHTML = '<div class="client-wa-detail-head"><strong>' + escapeHtml(item.client_name || "Conversa") + '</strong><button class="btn btn-secondary btn-sm" data-wa-close>Fechar</button></div>' + ((item.messages || []).length ? item.messages.map(function (message) { return '<div class="client-wa-message"><strong>Mensagem ' + escapeHtml(message.direction) + '</strong><span>' + escapeHtml(message.created_at || "") + ' · ' + escapeHtml(message.status || "") + '</span><div>' + escapeHtml(message.body || "") + '</div></div>'; }).join("") : '<div class="client-wa-empty">Nenhuma mensagem registrada.</div>');
-    } catch (error) { detail.style.display = "block"; detail.textContent = error.message; }
+      revealDetail(detail);
+    } catch (error) {
+      detail.innerHTML = '<div class="client-wa-detail-head"><strong>Nao foi possivel abrir os detalhes</strong><button class="btn btn-secondary btn-sm" data-wa-close>Fechar</button></div><div class="client-wa-empty">' + escapeHtml(error && error.message ? error.message : "Erro desconhecido") + '</div>';
+      revealDetail(detail);
+    }
   }
 
   if (root.document) root.document.addEventListener("change", function (event) {
@@ -240,10 +271,10 @@
     if (input) { selection.toggle(input.dataset.waSelect, input.checked, suggestionRevision()); currentBatch = null; resetBatchRequest(); updateSelectedCount(); renderIntegration(); }
   });
   if (root.document) root.document.addEventListener("click", function (event) {
-    const open = event.target.closest && event.target.closest("[data-wa-conversation]"); if (open) openConversation(open.dataset.waConversation);
+    const open = event.target.closest && event.target.closest("[data-wa-conversation]"); if (open) openConversation(open.dataset.waConversation, open.dataset.waClientId);
     if (event.target.closest && event.target.closest("[data-wa-close]")) root.document.getElementById("client-whatsapp-detail").style.display = "none";
     if (event.target.closest && event.target.closest("[data-wa-dismiss-notice]")) hideNotice();
   });
 
-  return { normalizePhone, createSelectionModel, buildRows, batchResultRows, batchRequestFor, resetBatchRequest, renderBatchPreview, showNotice, hideNotice, render, load, openConversation, reloadSuggestions, selectFiltered, clearSelection, prepareBatch, confirmAndSend };
+  return { normalizePhone, consentLabel, revealDetail, createSelectionModel, buildRows, batchResultRows, batchRequestFor, resetBatchRequest, renderBatchPreview, showNotice, hideNotice, render, load, openConversation, reloadSuggestions, selectFiltered, clearSelection, prepareBatch, confirmAndSend };
 });

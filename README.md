@@ -231,7 +231,7 @@ Scripts operacionais incluidos no repositorio devem ser revisados antes de uso e
 
 ## Clientes: WhatsApp e Pedidos
 
-Esta branch prepara duas sub-abas dentro de **Clientes**: **WhatsApp** e **Pedidos**. O desenvolvimento e validado somente em ambiente local. Nao existe envio automatico, conversao automatica de pedidos, alteracao de estoque ou mudanca de vendas.
+Esta branch adiciona duas sub-abas dentro de **Clientes**: **WhatsApp** e **Pedidos**. O recebimento e o bot de pedidos podem ser ativados de forma controlada, mas permanecem desligados por padrao pelas variaveis de ambiente. A confirmacao do cliente cria somente um pedido em `aguardando_aprovacao`; nao existe conversao automatica em venda nem alteracao automatica de estoque.
 
 Nao existe ambiente de staging configurado para este ciclo. Nenhum envio real, deploy, acesso remoto ou alteracao de sessao Baileys foi executado durante o desenvolvimento e os testes locais.
 
@@ -245,6 +245,23 @@ Nao existe ambiente de staging configurado para este ciclo. Nenhum envio real, d
 - `backend/static/css/client_whatsapp.css` e `backend/static/css/client_orders.css`: layout responsivo das novas sub-abas.
 
 O servico Baileys existente em `baileys-api/server.js` continua sendo a unica conexao WhatsApp. O listener `messages.upsert` e instalado no mesmo `sock`; nenhuma segunda instancia, sessao ou rotina de QR Code e criada.
+
+### Bot de pedidos
+
+As mensagens do fluxo ficam em **Configuracoes > WhatsApp > Bot**. O administrador pode editar o aviso de atendimento automatizado e registro, a saudacao/lista de produtos, a pergunta de quantidade, a pergunta de avaria, a confirmacao e a mensagem final. O marcador `{cliente}` usa o nome do cliente cadastrado.
+
+O fluxo automatico e:
+
+```text
+mensagem inicial -> escolha do produto -> quantidade em KG/UN -> avaria em KG/UN
+-> confirmacao SIM/NAO -> pedido aguardando aprovacao humana
+```
+
+Os produtos aceitos sao Macaxeira com casca, Macaxeira a vacuo, Alho descascado 250g, Alho descascado 1kg, Macaxeira chips e Macaxeira pre-cozida. O cliente pode responder pelo numero de 1 a 6 ou pelo nome. A unidade e validada conforme o produto e a avaria nao pode superar a quantidade solicitada.
+
+O bot somente responde quando todas as travas estiverem liberadas: canal inbound configurado, `bot_active=1`, `auto_reply_enabled=1`, horario permitido, provedor Baileys e outbound habilitado. Em modo teste, o outbound deve estar em `sandbox` e o numero precisa estar na lista permitida. Em producao, tambem e obrigatoria a aprovacao explicita do ambiente. Falha de envio fica registrada e nao cria venda nem movimenta estoque.
+
+O atendimento iniciado pelo cliente usa a origem `cliente_iniciou_contato` e nao depende de consentimento de marketing. `SAIR`, `STOP`, `PARAR` ou `CANCELAR` registram opt-out e bloqueiam novas respostas automaticas. Pedidos de atendente mudam a conversa para `atendimento_humano`. A pontuacao de completude e sua composicao ficam registradas na memoria de calculo do pedido; um pedido confirmado com todos os dados recebe 100 pontos.
 
 ## Vendedores e Produtividade
 

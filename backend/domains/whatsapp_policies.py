@@ -50,7 +50,7 @@ def conversation_control_intent(value: str) -> Optional[str]:
     command = normalize_command(value)
     if command in OPT_OUT_WORDS:
         return "opt_out"
-    if command in HUMAN_WORDS or command == "3":
+    if command in HUMAN_WORDS or re.search(r"\b(ATENDENTE|HUMANO)\b", command) or command == "3":
         return "atendimento_humano"
     if command == "4":
         return "opt_out"

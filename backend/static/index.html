@@ -14960,6 +14960,14 @@ async function loadWaBotSettings(){
       +'<div class="wa-bot-item"><label> Horário fim</label><input type="time" id="wbs-auto-reply-to" value="'+(s.auto_reply_to||'19:00')+'"></div>'
       +'<div class="wa-bot-item"><label> Intervalo min (seg)</label><input type="number" id="wbs-min-interval" value="'+(s.min_interval_secs||'30')+'" min="1"></div>'
       +'<div class="wa-bot-item"><label>📊 Máx/dia/cliente</label><input type="number" id="wbs-max-per-day" value="'+(s.max_per_day_per_client||'10')+'" min="0"></div>'
+      +'</div>'
+      +'<div style="display:grid;gap:10px;margin-top:14px">'
+      +'<label class="wa-bot-message"><span>1. Aviso de atendimento automatizado</span><textarea id="wbs-order-disclosure" rows="2">'+waLogEsc(s.order_bot_disclosure_message||'')+'</textarea></label>'
+      +'<label class="wa-bot-message"><span>2. Saudação e produtos</span><textarea id="wbs-order-welcome" rows="8">'+waLogEsc(s.order_bot_welcome_message||'')+'</textarea></label>'
+      +'<label class="wa-bot-message"><span>3. Pergunta de quantidade</span><textarea id="wbs-order-quantity" rows="2">'+waLogEsc(s.order_bot_quantity_message||'')+'</textarea></label>'
+      +'<label class="wa-bot-message"><span>4. Pergunta de avaria</span><textarea id="wbs-order-damage" rows="2">'+waLogEsc(s.order_bot_damage_message||'')+'</textarea></label>'
+      +'<label class="wa-bot-message"><span>5. Confirmação do pedido</span><textarea id="wbs-order-confirm" rows="2">'+waLogEsc(s.order_bot_confirm_message||'')+'</textarea></label>'
+      +'<label class="wa-bot-message"><span>6. Pedido confirmado</span><textarea id="wbs-order-done" rows="3">'+waLogEsc(s.order_bot_done_message||'')+'</textarea></label>'
       +'</div>';
   }catch(e){ el.innerHTML='<div class="wa-empty">'+e.message+'</div>'; }
 }
@@ -14973,6 +14981,12 @@ async function saveWaBotSettings(){
   body.auto_reply_to=document.getElementById('wbs-auto-reply-to')?.value||'19:00';
   body.min_interval_secs=parseInt(document.getElementById('wbs-min-interval')?.value)||30;
   body.max_per_day_per_client=parseInt(document.getElementById('wbs-max-per-day')?.value)||10;
+  body.order_bot_disclosure_message=document.getElementById('wbs-order-disclosure')?.value.trim()||'';
+  body.order_bot_welcome_message=document.getElementById('wbs-order-welcome')?.value.trim()||'';
+  body.order_bot_quantity_message=document.getElementById('wbs-order-quantity')?.value.trim()||'';
+  body.order_bot_damage_message=document.getElementById('wbs-order-damage')?.value.trim()||'';
+  body.order_bot_confirm_message=document.getElementById('wbs-order-confirm')?.value.trim()||'';
+  body.order_bot_done_message=document.getElementById('wbs-order-done')?.value.trim()||'';
   try{
     await api('/api/whatsapp/bot-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     toast('✅ Configurações do bot salvas!');

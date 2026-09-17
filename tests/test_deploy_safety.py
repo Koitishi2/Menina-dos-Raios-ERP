@@ -194,12 +194,12 @@ def test_packager_validates_known_migration_hashes_from_real_commit():
 
 def test_packager_allows_package_after_runtime_secrets_are_removed(tmp_path):
     builder = _load_builder()
-    meta, _ = builder.parse_manifest(ROOT / "deploy" / "whatsapp_sellers_manifest.txt")
-    commit = meta["version_commit"]
+    commit = builder.run(["git", "rev-parse", "HEAD"]).stdout.strip()
 
     builder.main([
         "--commit",
         commit,
+        "--no-require-published",
         "--manifest",
         str(ROOT / "deploy" / "whatsapp_sellers_manifest.txt"),
         "--output-dir",

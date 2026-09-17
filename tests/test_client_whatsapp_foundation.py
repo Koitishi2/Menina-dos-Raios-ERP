@@ -67,6 +67,7 @@ def test_control_commands_and_baileys_readiness():
     assert conversation_control_intent("sair") == "opt_out"
     assert conversation_control_intent("STOP") == "opt_out"
     assert conversation_control_intent("Falar com atendente") == "atendimento_humano"
+    assert conversation_control_intent("Quero falar com um atendente, por favor") == "atendimento_humano"
     assert conversation_control_intent("quero comprar") is None
     assert baileys_readiness(False, True) == (False, "baileys_desconectado")
     assert baileys_readiness(False, False) == (False, "credenciais_ausentes")

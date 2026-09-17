@@ -42,6 +42,35 @@ def find_client_for_phone(conn, phone_value):
     return (matches[0] if len(matches) == 1 else None), target
 
 
+def ensure_inbound_client(conn, phone_value):
+    client, phone = find_client_for_phone(conn, phone_value)
+    if client:
+        return client, False
+    if not phone.valid:
+        raise ValueError(phone.reason)
+    matches = []
+    for row in active_clients(conn):
+        current = normalize_brazil_phone(row["phone"])
+        if current.valid and current.digits == phone.digits:
+            matches.append(row)
+    if matches:
+        raise LookupError("cliente_duplicado_para_telefone")
+    client_id = str(uuid.uuid4())
+    suffix = phone.digits[-4:]
+    conn.execute(
+        """INSERT INTO clients(id,name,phone,notes,created_by)
+           VALUES(?,?,?,?,?)""",
+        (
+            client_id,
+            f"Cliente WhatsApp {suffix}",
+            phone.e164,
+            "Cadastro automatico por conversa iniciada no WhatsApp.",
+            "whatsapp_bot",
+        ),
+    )
+    return conn.execute("SELECT * FROM clients WHERE id=?", (client_id,)).fetchone(), True
+
+
 def register_incoming_message(conn, company_key, payload, manage_transaction=True):
     external_id = str(payload.get("external_message_id") or "").strip()
     instance_key = str(payload.get("instance_key") or "").strip()

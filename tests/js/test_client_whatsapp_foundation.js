@@ -20,6 +20,9 @@ const rows = whatsapp.buildRows([
 assert.strictEqual(rows.length, 2);
 assert.strictEqual(rows[0].normalizedPhone, "+5595991234567");
 assert.strictEqual(rows[1].phoneValid, false);
+assert.strictEqual(rows[0].consent, "desconhecido");
+assert.strictEqual(whatsapp.consentLabel("desconhecido"), "Sem autorizacao de envio");
+assert.strictEqual(whatsapp.consentLabel("opt_in"), "Consentimento autorizado");
 
 const selection = whatsapp.createSelectionModel();
 selection.reset("filter-a");
@@ -68,6 +71,32 @@ async function testVisibleAsyncFailureWithoutRetry() {
   delete global.document;
 }
 
+async function testClientDetailsWithoutConversation() {
+  let scrolled = false, focused = false;
+  const detail = {
+    style: {}, innerHTML: "", textContent: "",
+    scrollIntoView: () => { scrolled = true; },
+    focus: () => { focused = true; }
+  };
+  const apiCalls = [];
+  global.document = { getElementById: (id) => id === "client-whatsapp-detail" ? detail : null };
+  global.api = async (path) => {
+    apiCalls.push(path);
+    return { client: { id: "1", name: "Cliente A", phone: "+5595991234567" }, consent: null, conversation: null };
+  };
+  await whatsapp.openConversation("", "1");
+  assert.deepStrictEqual(apiCalls, ["/api/clients/1/whatsapp"]);
+  assert.strictEqual(detail.style.display, "block");
+  assert.ok(detail.innerHTML.includes("Cliente A"));
+  assert.ok(detail.innerHTML.includes("Sem autorizacao de envio"));
+  assert.ok(detail.innerHTML.includes("Ainda nao existe conversa registrada"));
+  assert.ok(detail.innerHTML.includes("nao ha autorizacao registrada"));
+  assert.strictEqual(scrolled, true);
+  assert.strictEqual(focused, true);
+  delete global.api;
+  delete global.document;
+}
+
 assert.deepStrictEqual(orders.ORDER_STATES, [
   "rascunho", "aguardando_confirmacao", "aguardando_aprovacao", "aprovado",
   "cancelado", "convertido_em_venda", "erro", "duplicado_suspeito"
@@ -82,5 +111,6 @@ assert.deepStrictEqual(orders.filterOrders(sampleOrders, { suspectedDuplicate: t
 assert.deepStrictEqual(orders.filterOrders(sampleOrders, { company: "raios", withDamage: true }), [sampleOrders[0]]);
 
 testVisibleAsyncFailureWithoutRetry()
+  .then(testClientDetailsWithoutConversation)
   .then(() => console.log("client WhatsApp/orders foundation JS: OK"))
   .catch((error) => { console.error(error); process.exit(1); });

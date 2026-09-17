@@ -562,7 +562,13 @@ def init_db(company: str = None):
             ('block_duplicate', '1'), ('max_per_day_per_client', '10'),
             ('test_mode', '0'), ('motivation_enabled', '1'),
             ('motivation_time', '07:00'), ('motivation_last_success', ''),
-            ('motivation_last_attempt', '');
+            ('motivation_last_attempt', ''),
+            ('order_bot_disclosure_message', 'Este é um atendimento automatizado. Esta conversa será registrada para processar o seu pedido.'),
+            ('order_bot_welcome_message', 'Olá, {cliente}! Qual produto você deseja solicitar?\n\nNossa lista de produtos:\n1. Macaxeira com casca\n2. Macaxeira a vácuo\n3. Alho descascado 250g\n4. Alho descascado 1kg\n5. Macaxeira chips\n6. Macaxeira pré-cozida'),
+            ('order_bot_quantity_message', 'Qual quantidade? Informe o valor em KG ou UN.'),
+            ('order_bot_damage_message', 'Tem avaria? Se sim, informe quantos KG ou UN. Se não, responda NÃO.'),
+            ('order_bot_confirm_message', 'Está correto? Responda SIM ou NAO.'),
+            ('order_bot_done_message', 'Pedido feito! Aguarde a mensagem da data que será entregue! Normalmente, a entrega ocorre em até 24 horas após o pedido.');
     """)
     # Migrations for existing DBs
     for col_def in [
@@ -1285,6 +1291,7 @@ app.include_router(create_whatsapp_inbound_router(
     lambda: _company_key(CURRENT_COMPANY.get()),
     frozenset(COMPANY_DBS),
     require_whatsapp_action,
+    lambda phone, message, config: wa_send(phone, message, config),
 ))
 app.include_router(create_whatsapp_campaigns_router(
     get_db,
@@ -6455,7 +6462,9 @@ def delete_wa_template(tid: str, x_token: str = Header(...)):
 
 # â”€â”€ WhatsApp Bot Settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 _BOT_SETTINGS_KEYS = ["bot_active","auto_reply_enabled","auto_reply_from","auto_reply_to",
-                      "min_interval_secs","block_groups","block_duplicate","max_per_day_per_client","test_mode"]
+                      "min_interval_secs","block_groups","block_duplicate","max_per_day_per_client","test_mode",
+                      "order_bot_disclosure_message","order_bot_welcome_message","order_bot_quantity_message","order_bot_damage_message",
+                      "order_bot_confirm_message","order_bot_done_message"]
 
 @app.get("/api/whatsapp/bot-settings")
 def get_wa_bot_settings(x_token: str = Header(...)):

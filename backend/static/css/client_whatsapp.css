@@ -62,6 +62,8 @@
 .client-wa-detail-head { align-items: center; display: flex; justify-content: space-between; margin-bottom: 8px; }
 .client-wa-message { border-top: 1px solid var(--border); display: grid; gap: 3px; padding: 8px 0; }
 .client-wa-message span { color: var(--muted); font-size: 10px; }
+.wa-bot-message { color: var(--muted); display: grid; font-size: 10px; font-weight: 700; gap: 5px; }
+.wa-bot-message textarea { background: var(--card); border: 1px solid var(--border); color: var(--ink); font: inherit; font-size: 12px; line-height: 1.45; padding: 9px; resize: vertical; width: 100%; }
 
 .client-wa-section-head {
   align-items: end;

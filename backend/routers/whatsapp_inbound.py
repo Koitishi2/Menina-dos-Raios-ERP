@@ -9,9 +9,11 @@ from pydantic import BaseModel, Field, ValidationError
 
 try:
     from ..repositories import whatsapp_repository as repository
+    from .whatsapp_campaigns import outbound_settings
     from ..services.whatsapp_inbound_service import process_inbound_event
 except ImportError:
     from repositories import whatsapp_repository as repository
+    from routers.whatsapp_campaigns import outbound_settings
     from services.whatsapp_inbound_service import process_inbound_event
 
 
@@ -76,7 +78,7 @@ async def _read_limited_json(request, max_bytes):
     return value
 
 
-def create_whatsapp_inbound_router(get_db, company_key, valid_companies, require_permission):
+def create_whatsapp_inbound_router(get_db, company_key, valid_companies, require_permission, sender=None):
     router = APIRouter()
 
     @router.post("/internal/whatsapp/events")
@@ -103,7 +105,9 @@ def create_whatsapp_inbound_router(get_db, company_key, valid_companies, require
         conn = get_db(settings["company"])
         try:
             try:
-                result = process_inbound_event(conn, settings["company"], body.model_dump())
+                result = process_inbound_event(
+                    conn, settings["company"], body.model_dump(), sender=sender, outbound=outbound_settings(),
+                )
             except ValueError as exc:
                 raise HTTPException(400, str(exc)) from exc
         except HTTPException:
