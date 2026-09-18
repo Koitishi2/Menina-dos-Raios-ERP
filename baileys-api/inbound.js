@@ -16,9 +16,35 @@ function normalizePhone(value) {
     return String(value || "").split("@")[0].split(":")[0].replace(/\D/g, "");
 }
 
+function phoneAliases(value) {
+    const phone = normalizePhone(value);
+    const aliases = new Set(phone ? [phone] : []);
+    // O WhatsApp ainda pode entregar celulares brasileiros no JID legado,
+    // sem o nono digito. A equivalencia fica restrita ao DDI 55.
+    if (/^55\d{11}$/.test(phone) && phone[4] === "9") {
+        aliases.add(`${phone.slice(0, 4)}${phone.slice(5)}`);
+    } else if (/^55\d{10}$/.test(phone)) {
+        aliases.add(`${phone.slice(0, 4)}9${phone.slice(4)}`);
+    }
+    return aliases;
+}
+
 function parseSandboxNumbers(value) {
     const entries = Array.isArray(value) ? value : String(value || "").split(",");
-    return new Set(entries.map(normalizePhone).filter((phone) => phone.length >= 10 && phone.length <= 15));
+    const numbers = new Set();
+    for (const entry of entries) {
+        for (const phone of phoneAliases(entry)) {
+            if (phone.length >= 10 && phone.length <= 15) numbers.add(phone);
+        }
+    }
+    return numbers;
+}
+
+function individualJid(key = {}) {
+    const candidates = [key.remoteJidAlt, key.participantAlt, key.remoteJid, key.participant]
+        .map((value) => String(value || "").trim().toLowerCase())
+        .filter(Boolean);
+    return candidates.find((jid) => jid.endsWith("@s.whatsapp.net")) || candidates[0] || "";
 }
 
 function validateLocalUrl(value) {
@@ -61,7 +87,7 @@ function timestampIso(value, now = () => Date.now()) {
 function buildInboundEvent(message, instance, now) {
     const key = message && message.key || {};
     const messageId = String(key.id || "").trim();
-    const remoteJid = String(key.remoteJid || "").trim().toLowerCase();
+    const remoteJid = individualJid(key);
     if (!messageId || !remoteJid) return null;
     const parsed = messageTypeAndText(message.message);
     const identity = `${instance}\n${messageId}\n${remoteJid}`;
@@ -108,7 +134,7 @@ function createInboundForwarder(options = {}) {
     function isSandboxAllowed(event) {
         if (mode !== "sandbox" || sandboxNumbers.size === 0) return false;
         if (!event || event.from_me || !String(event.remote_jid || "").endsWith("@s.whatsapp.net")) return false;
-        return sandboxNumbers.has(normalizePhone(event.remote_jid));
+        return [...phoneAliases(event.remote_jid)].some((phone) => sandboxNumbers.has(phone));
     }
 
     async function post(event) {
@@ -207,5 +233,6 @@ function installInboundListener(sock, forwarder) {
 
 module.exports = {
     buildInboundEvent, createInboundForwarder, installInboundListener,
-    isEnabled, messageTypeAndText, normalizePhone, parseSandboxNumbers, timestampIso, validateLocalUrl,
+    individualJid, isEnabled, messageTypeAndText, normalizePhone, parseSandboxNumbers, phoneAliases,
+    timestampIso, validateLocalUrl,
 };

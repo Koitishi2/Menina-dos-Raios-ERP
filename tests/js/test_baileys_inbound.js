@@ -3,7 +3,7 @@
 const assert = require("assert");
 const {
   buildInboundEvent, createInboundForwarder, installInboundListener,
-  normalizePhone, parseSandboxNumbers, validateLocalUrl,
+  individualJid, normalizePhone, parseSandboxNumbers, phoneAliases, validateLocalUrl,
 } = require("../../baileys-api/inbound");
 
 async function main() {
@@ -16,7 +16,14 @@ async function main() {
   assert.strictEqual(event.text, "Oi");
   assert.strictEqual(event.timestamp, "1970-01-01T00:16:40.000Z");
   assert.strictEqual(normalizePhone("5595991234567:4@s.whatsapp.net"), "5595991234567");
-  assert.deepStrictEqual([...parseSandboxNumbers("+55 (95) 99123-4567,invalid")], ["5595991234567"]);
+  assert.deepStrictEqual([...parseSandboxNumbers("+55 (95) 99123-4567,invalid")], ["5595991234567", "559591234567"]);
+  assert.deepStrictEqual([...phoneAliases("5521984261686")], ["5521984261686", "552184261686"]);
+  assert.strictEqual(individualJid({ remoteJid: "123@lid", remoteJidAlt: "5521984261686@s.whatsapp.net" }), "5521984261686@s.whatsapp.net");
+  const altEvent = buildInboundEvent({
+    key: { id: "msg-alt", remoteJid: "123456@lid", remoteJidAlt: "5521984261686@s.whatsapp.net" },
+    message: { conversation: "Oi alternativo" }, messageTimestamp: 1000,
+  }, "raios-primary");
+  assert.strictEqual(altEvent.remote_jid, "5521984261686@s.whatsapp.net");
 
   const calls = [], waits = [], errors = [];
   const forwarder = createInboundForwarder({
@@ -35,6 +42,20 @@ async function main() {
   assert.deepStrictEqual(waits, [500, 1000]);
   assert.strictEqual(forwarder.stats.forwarded, 1);
   assert.strictEqual(errors.length, 0);
+
+  const brazilLegacyCalls = [];
+  const brazilLegacy = createInboundForwarder({
+    enabled: "true", mode: "sandbox", sandboxNumbers: "5521984261686",
+    instance: "raios-primary", token: "secret",
+    fetch: async (_url, options) => { brazilLegacyCalls.push(JSON.parse(options.body)); return { ok: true, status: 200 }; },
+  });
+  brazilLegacy.handleUpsert({ messages: [{
+    key: { id: "msg-br-legacy", remoteJid: "552184261686@s.whatsapp.net", fromMe: false },
+    message: { conversation: "Oi legado" }, messageTimestamp: 1001,
+  }] });
+  await brazilLegacy.drain();
+  assert.strictEqual(brazilLegacyCalls.length, 1);
+  assert.strictEqual(brazilLegacy.stats.forwarded, 1);
 
   forwarder.handleUpsert({ messages: [{ key: { id: "msg-2", remoteJid: "5595991234567@s.whatsapp.net" }, message: { conversation: "Pedido repetido" }, messageTimestamp: 1002 }] });
   await forwarder.drain();
