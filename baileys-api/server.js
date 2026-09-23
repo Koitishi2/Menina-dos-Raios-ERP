@@ -137,11 +137,11 @@ app.get("/status", (_req, res) => {
 app.get("/maintenance/status", checkAuth, async (req, res) => {
     const state = readVersionState(__dirname);
     const refresh = String(req.query.refresh || "") === "1";
-    const registry = refresh ? await fetchRegistryVersions() : { latest: null, stable: null };
+    const registry = refresh ? await fetchRegistryVersions() : { latest: null, legacy: null };
     res.json({
         ...state,
         latest_version: registry.latest,
-        stable_version: registry.stable,
+        legacy_version: registry.legacy,
         connected,
         inbound_enabled: inbound.enabled,
         inbound_mode: inbound.mode,

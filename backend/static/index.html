@@ -4613,7 +4613,7 @@ body.paladar-active #notif-restore{display:none!important}
         <div class="wa-maint-grid">
           <div class="wa-maint-cell"><div class="wa-maint-label">Instalada</div><div id="wa-update-installed" class="wa-maint-value">Verificando...</div></div>
           <div class="wa-maint-cell"><div class="wa-maint-label">Aprovada</div><div id="wa-update-approved" class="wa-maint-value">Verificando...</div></div>
-          <div class="wa-maint-cell"><div class="wa-maint-label">Estável oficial</div><div id="wa-update-stable" class="wa-maint-value">Verificar</div></div>
+          <div class="wa-maint-cell"><div class="wa-maint-label">Canal legacy</div><div id="wa-update-legacy" class="wa-maint-value">Verificar</div></div>
           <div class="wa-maint-cell"><div class="wa-maint-label">Pré-lançamento</div><div id="wa-update-latest" class="wa-maint-value">Verificar</div></div>
         </div>
         <div id="wa-update-state" class="wa-maint-state">Carregando estado do serviço...</div>
@@ -15038,7 +15038,7 @@ async function loadWaBaileysUpdate(refresh){
     var data=await api('/api/whatsapp/baileys-update-status'+(refresh?'?refresh=true':''));
     waUpdateText('wa-update-installed',data.installed_version||'Não identificada');
     waUpdateText('wa-update-approved',data.approved_version||'Não configurada');
-    waUpdateText('wa-update-stable',data.stable_version||'Não consultada');
+    waUpdateText('wa-update-legacy',data.legacy_version||'Não consultada');
     waUpdateText('wa-update-latest',data.latest_version||'Não consultada');
     var ready=data.connected&&data.listener_installed;
     var inbound=data.inbound_enabled ? ('Inbound '+(data.inbound_mode||'ativo')) : 'Inbound desativado';
@@ -15052,7 +15052,7 @@ async function loadWaBaileysUpdate(refresh){
       state.textContent='Última atualização falhou'+detail+' · '+inbound;
     }else if(!data.update_available&&data.installed_version&&data.installed_version===data.approved_version){
       state.className='wa-maint-state '+(ready?'ok':'warn');
-      state.textContent='Versão estável aprovada já instalada · '+inbound+detail;
+      state.textContent='Versão aprovada já instalada · '+inbound+detail;
     }else{
       state.className='wa-maint-state '+(ready?'ok':'warn');
       state.textContent=(ready?'Conectado e listener ativo':'Serviço requer atenção')+' · '+inbound+detail;

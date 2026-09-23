@@ -47,16 +47,16 @@ function fetchRegistryVersions(options = {}) {
             res.setEncoding("utf8");
             res.on("data", (chunk) => { if (body.length < 100000) body += chunk; });
             res.on("end", () => {
-                if (res.statusCode !== 200) return resolve({ latest: null, stable: null });
+                if (res.statusCode !== 200) return resolve({ latest: null, legacy: null });
                 const tags = readJsonText(body)["dist-tags"] || {};
                 resolve({
                     latest: exactVersion(tags.latest) || null,
-                    stable: exactVersion(tags.legacy) || null,
+                    legacy: exactVersion(tags.legacy) || null,
                 });
             });
         });
         req.setTimeout(timeoutMs, () => req.destroy(new Error("registry_timeout")));
-        req.on("error", () => resolve({ latest: null, stable: null }));
+        req.on("error", () => resolve({ latest: null, legacy: null }));
     });
 }
 

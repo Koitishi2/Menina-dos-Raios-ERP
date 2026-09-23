@@ -34,7 +34,7 @@ def test_baileys_update_status_uses_local_authenticated_service(isolated_app, mo
         text = "{}"
 
         def json(self):
-            return {"installed_version": "6.7.24", "approved_version": "6.7.24", "stable_version": "6.7.24"}
+            return {"installed_version": "6.7.24", "approved_version": "6.7.24", "legacy_version": "6.7.24"}
 
     import httpx
 
@@ -109,7 +109,7 @@ def test_frontend_exposes_baileys_update_tab_and_bot_prompts(isolated_app):
     assert 'id="wa-view-update"' in html
     assert "/api/whatsapp/baileys-update-status" in html
     assert "/api/whatsapp/baileys-update" in html
-    assert 'id="wa-update-stable"' in html
+    assert 'id="wa-update-legacy"' in html
     assert "Versão aprovada instalada" in html
     assert "order_bot_welcome_message" in isolated_app.module._BOT_SETTINGS_KEYS
 

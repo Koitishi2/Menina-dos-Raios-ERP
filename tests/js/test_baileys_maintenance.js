@@ -70,7 +70,7 @@ assert.strictEqual(spawnCall.options.detached, true);
 assert.strictEqual(child.unrefCalled, true);
 
 fetchRegistryVersions({ request: registryRequest }).then((versions) => {
-    assert.deepStrictEqual(versions, { latest: "7.0.0-rc14", stable: "6.7.24" });
+    assert.deepStrictEqual(versions, { latest: "7.0.0-rc14", legacy: "6.7.24" });
     fs.rmSync(root, { recursive: true, force: true });
     console.log("baileys maintenance: OK");
 });
