@@ -47,6 +47,27 @@ function individualJid(key = {}) {
     return candidates.find((jid) => jid.endsWith("@s.whatsapp.net")) || candidates[0] || "";
 }
 
+function maskedJid(value) {
+    const jid = String(value || "").trim().toLowerCase();
+    if (!jid) return null;
+    const [user = "", domain = "unknown"] = jid.split("@", 2);
+    return {
+        domain,
+        suffix: user.replace(/\D/g, "").slice(-4) || "none",
+        fingerprint: crypto.createHash("sha256").update(jid).digest("hex").slice(0, 12),
+    };
+}
+
+function eventDiagnostics(key = {}) {
+    return {
+        remoteJid: maskedJid(key.remoteJid),
+        remoteJidAlt: maskedJid(key.remoteJidAlt),
+        participant: maskedJid(key.participant),
+        participantAlt: maskedJid(key.participantAlt),
+        addressingMode: String(key.addressingMode || "unset").slice(0, 20),
+    };
+}
+
 function validateLocalUrl(value) {
     const parsed = new URL(value);
     if (parsed.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname)) {
@@ -91,7 +112,7 @@ function buildInboundEvent(message, instance, now) {
     if (!messageId || !remoteJid) return null;
     const parsed = messageTypeAndText(message.message);
     const identity = `${instance}\n${messageId}\n${remoteJid}`;
-    return {
+    const event = {
         provider: "baileys",
         instance,
         event_id: crypto.createHash("sha256").update(identity).digest("hex"),
@@ -103,6 +124,8 @@ function buildInboundEvent(message, instance, now) {
         timestamp: timestampIso(message.messageTimestamp, now),
         raw_type: parsed.system ? parsed.type : undefined,
     };
+    Object.defineProperty(event, "_diagnostics", { value: eventDiagnostics(key), enumerable: false });
+    return event;
 }
 
 function createInboundForwarder(options = {}) {
@@ -123,7 +146,35 @@ function createInboundForwarder(options = {}) {
     const maxKnownEvents = Math.max(100, Math.min(Number(options.maxKnownEvents || 2000), 10000));
     let processing = false;
     let drainPromise = Promise.resolve();
-    const stats = { queued: 0, forwarded: 0, failed: 0, dropped: 0, filtered: 0, duplicate: 0 };
+    const stats = {
+        received: 0, accepted: 0, queued: 0, forwarded: 0, retry: 0,
+        forward_failed: 0, failed: 0, dropped: 0, filtered: 0, duplicate: 0,
+    };
+
+    function diagnosticRecord(event, decision, reason, extra = {}) {
+        return JSON.stringify({
+            decision,
+            reason,
+            event: String(event && event.event_id || "").slice(0, 12) || "none",
+            fromMe: Boolean(event && event.from_me),
+            selectedJid: maskedJid(event && event.remote_jid),
+            candidates: event && event._diagnostics || null,
+            mode,
+            sandboxConfigured: sandboxNumbers.size,
+            ...extra,
+        });
+    }
+
+    function filterReason(event) {
+        if (!enabled) return "inbound_disabled";
+        if (mode !== "sandbox") return "mode_not_sandbox";
+        if (sandboxNumbers.size === 0) return "sandbox_empty";
+        if (!event) return "invalid_event";
+        if (event.from_me) return "from_me";
+        if (!String(event.remote_jid || "").endsWith("@s.whatsapp.net")) return "non_phone_jid";
+        if (![...phoneAliases(event.remote_jid)].some((phone) => sandboxNumbers.has(phone))) return "number_not_allowed";
+        return null;
+    }
 
     function rememberEvent(eventId) {
         knownEvents.delete(eventId);
@@ -132,9 +183,7 @@ function createInboundForwarder(options = {}) {
     }
 
     function isSandboxAllowed(event) {
-        if (mode !== "sandbox" || sandboxNumbers.size === 0) return false;
-        if (!event || event.from_me || !String(event.remote_jid || "").endsWith("@s.whatsapp.net")) return false;
-        return [...phoneAliases(event.remote_jid)].some((phone) => sandboxNumbers.has(phone));
+        return filterReason(event) === null;
     }
 
     async function post(event) {
@@ -151,13 +200,19 @@ function createInboundForwarder(options = {}) {
                 });
                 if (response.ok) return true;
                 lastError = new Error(`backend_http_${response.status}`);
+                if (typeof logger.warn === "function") {
+                    logger.warn(`[Baileys inbound] POST backend status=${response.status} path=/internal/whatsapp/events event=${event.event_id.slice(0, 12)}`);
+                }
                 if (response.status < 500 && ![408, 429].includes(response.status)) break;
             } catch (error) {
                 lastError = error;
             } finally {
                 clearTimeout(timeout);
             }
-            if (attempt < maxAttempts) await sleep(Math.min(500 * (2 ** (attempt - 1)), 4000));
+            if (attempt < maxAttempts) {
+                stats.retry += 1;
+                await sleep(Math.min(500 * (2 ** (attempt - 1)), 4000));
+            }
         }
         logger.error(`[Baileys inbound] Evento nao entregue apos ${maxAttempts} tentativa(s): ${lastError && lastError.message || "erro"}`);
         return false;
@@ -173,9 +228,12 @@ function createInboundForwarder(options = {}) {
                 if (ok) {
                     stats.forwarded += 1;
                     rememberEvent(event.event_id);
-                    if (typeof logger.info === "function") logger.info("[Baileys inbound] Evento sandbox encaminhado.");
+                    if (typeof logger.info === "function") {
+                        logger.info(`[Baileys inbound] ${diagnosticRecord(event, "forwarded", "backend_accepted", { httpStatus: 200 })}`);
+                    }
                 } else {
                     stats.failed += 1;
+                    stats.forward_failed += 1;
                     knownEvents.delete(event.event_id);
                 }
             }
@@ -185,9 +243,12 @@ function createInboundForwarder(options = {}) {
     }
 
     function enqueue(event) {
-        if (!enabled) return false;
-        if (!isSandboxAllowed(event)) {
+        const reason = filterReason(event);
+        if (reason) {
             stats.filtered += 1;
+            if (typeof logger.info === "function") {
+                logger.info(`[Baileys inbound] ${diagnosticRecord(event, "filtered", reason)}`);
+            }
             return false;
         }
         if (!instance || !token) {
@@ -206,15 +267,26 @@ function createInboundForwarder(options = {}) {
         }
         knownEvents.set(event.event_id, false);
         queue.push(event);
+        stats.accepted += 1;
         stats.queued += 1;
+        if (typeof logger.info === "function") {
+            logger.info(`[Baileys inbound] ${diagnosticRecord(event, "accepted", "sandbox_match")}`);
+        }
         void work();
         return true;
     }
 
     function handleUpsert(update) {
         for (const message of update && Array.isArray(update.messages) ? update.messages : []) {
+            stats.received += 1;
             const event = buildInboundEvent(message, instance, options.now);
             if (event) enqueue(event);
+            else {
+                stats.filtered += 1;
+                if (typeof logger.info === "function") {
+                    logger.info(`[Baileys inbound] ${JSON.stringify({ decision: "filtered", reason: "event_without_id_or_jid", mode })}`);
+                }
+            }
         }
     }
 
@@ -233,6 +305,6 @@ function installInboundListener(sock, forwarder) {
 
 module.exports = {
     buildInboundEvent, createInboundForwarder, installInboundListener,
-    individualJid, isEnabled, messageTypeAndText, normalizePhone, parseSandboxNumbers, phoneAliases,
+    eventDiagnostics, individualJid, isEnabled, maskedJid, messageTypeAndText, normalizePhone, parseSandboxNumbers, phoneAliases,
     timestampIso, validateLocalUrl,
 };

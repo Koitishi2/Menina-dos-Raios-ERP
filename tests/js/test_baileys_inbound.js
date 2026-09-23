@@ -3,7 +3,7 @@
 const assert = require("assert");
 const {
   buildInboundEvent, createInboundForwarder, installInboundListener,
-  individualJid, normalizePhone, parseSandboxNumbers, phoneAliases, validateLocalUrl,
+  eventDiagnostics, individualJid, maskedJid, normalizePhone, parseSandboxNumbers, phoneAliases, validateLocalUrl,
 } = require("../../baileys-api/inbound");
 
 async function main() {
@@ -15,6 +15,9 @@ async function main() {
   assert.strictEqual(event.message_type, "conversation");
   assert.strictEqual(event.text, "Oi");
   assert.strictEqual(event.timestamp, "1970-01-01T00:16:40.000Z");
+  assert.strictEqual(JSON.stringify(event).includes("_diagnostics"), false);
+  assert.deepStrictEqual(maskedJid("5521984261686@s.whatsapp.net").suffix, "1686");
+  assert.strictEqual(eventDiagnostics({ remoteJid: "123456@lid" }).remoteJid.domain, "lid");
   assert.strictEqual(normalizePhone("5595991234567:4@s.whatsapp.net"), "5595991234567");
   assert.deepStrictEqual([...parseSandboxNumbers("+55 (95) 99123-4567,invalid")], ["5595991234567", "559591234567"]);
   assert.deepStrictEqual([...phoneAliases("5521984261686")], ["5521984261686", "552184261686"]);
@@ -34,13 +37,16 @@ async function main() {
       return { ok: calls.length >= 3, status: calls.length >= 3 ? 200 : 503 };
     },
     sleep: async (ms) => { waits.push(ms); },
-    logger: { error: (message) => errors.push(message) }, maxAttempts: 3
+    logger: { error: (message) => errors.push(message), info: () => {}, warn: () => {} }, maxAttempts: 3
   });
   forwarder.handleUpsert({ messages: [{ key: { id: "msg-2", remoteJid: "5595991234567@s.whatsapp.net" }, message: { conversation: "Pedido" }, messageTimestamp: 1001 }] });
   await forwarder.drain();
   assert.strictEqual(calls.length, 3);
   assert.deepStrictEqual(waits, [500, 1000]);
   assert.strictEqual(forwarder.stats.forwarded, 1);
+  assert.strictEqual(forwarder.stats.received, 1);
+  assert.strictEqual(forwarder.stats.accepted, 1);
+  assert.strictEqual(forwarder.stats.retry, 2);
   assert.strictEqual(errors.length, 0);
 
   const brazilLegacyCalls = [];
@@ -56,6 +62,24 @@ async function main() {
   await brazilLegacy.drain();
   assert.strictEqual(brazilLegacyCalls.length, 1);
   assert.strictEqual(brazilLegacy.stats.forwarded, 1);
+
+  const diagnosticLogs = [];
+  const lidOnly = createInboundForwarder({
+    enabled: "true", mode: "sandbox", sandboxNumbers: "5521984261686",
+    instance: "raios-primary", token: "secret", fetch: async () => ({ ok: true, status: 200 }),
+    logger: { info: (message) => diagnosticLogs.push(message), error: () => {}, warn: () => {} },
+  });
+  lidOnly.handleUpsert({ messages: [{
+    key: { id: "msg-lid-only", remoteJid: "123456789012345@lid", fromMe: false, addressingMode: "lid" },
+    message: { conversation: "segredo nao deve aparecer no log" }, messageTimestamp: 1001,
+  }] });
+  await lidOnly.drain();
+  assert.strictEqual(lidOnly.stats.received, 1);
+  assert.strictEqual(lidOnly.stats.filtered, 1);
+  assert.strictEqual(lidOnly.stats.forwarded, 0);
+  assert.ok(diagnosticLogs.some((line) => line.includes('"reason":"non_phone_jid"')));
+  assert.ok(diagnosticLogs.some((line) => line.includes('"domain":"lid"')));
+  assert.ok(diagnosticLogs.every((line) => !line.includes("segredo nao deve aparecer")));
 
   forwarder.handleUpsert({ messages: [{ key: { id: "msg-2", remoteJid: "5595991234567@s.whatsapp.net" }, message: { conversation: "Pedido repetido" }, messageTimestamp: 1002 }] });
   await forwarder.drain();
