@@ -100,6 +100,8 @@ async function main() {
   assert.strictEqual(mappedForwarder.stats.accepted, 1);
   assert.strictEqual(mappedForwarder.stats.forwarded, 1);
   assert.strictEqual(mappedCalls[0].remote_jid, "5521984261686@s.whatsapp.net");
+  assert.strictEqual(mappedForwarder.resolveOutboundJid("+5521984261686"), mappedLid);
+  assert.strictEqual(mappedForwarder.resolveOutboundJid("559591505239"), "");
   assert.ok(diagnosticLogs.some((line) => line.includes('"reason":"sandbox_lid_map"')));
 
   const unmappedTarget = createInboundForwarder({

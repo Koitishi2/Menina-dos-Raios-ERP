@@ -157,6 +157,7 @@ function createInboundForwarder(options = {}) {
     const logger = options.logger || console;
     const queue = [];
     const knownEvents = new Map();
+    const outboundJids = new Map();
     const maxKnownEvents = Math.max(100, Math.min(Number(options.maxKnownEvents || 2000), 10000));
     let processing = false;
     let drainPromise = Promise.resolve();
@@ -182,12 +183,22 @@ function createInboundForwarder(options = {}) {
 
     function resolveSandboxLid(event) {
         if (mode !== "sandbox" || !event || !String(event.remote_jid || "").endsWith("@lid")) return false;
+        const originalJid = event.remote_jid;
         const fingerprint = maskedJid(event.remote_jid).fingerprint;
         const mappedPhone = sandboxLidMap.get(fingerprint);
         if (!mappedPhone || ![...phoneAliases(mappedPhone)].some((phone) => sandboxNumbers.has(phone))) return false;
+        for (const phone of phoneAliases(mappedPhone)) outboundJids.set(phone, originalJid);
         event.remote_jid = `${mappedPhone}@s.whatsapp.net`;
         if (event._diagnostics) event._diagnostics.lidMapped = true;
         return true;
+    }
+
+    function resolveOutboundJid(value) {
+        if (mode !== "sandbox") return "";
+        for (const phone of phoneAliases(value)) {
+            if (sandboxNumbers.has(phone) && outboundJids.has(phone)) return outboundJids.get(phone);
+        }
+        return "";
     }
 
     function filterReason(event) {
@@ -318,7 +329,7 @@ function createInboundForwarder(options = {}) {
 
     return {
         enabled, mode, enqueue, handleUpsert, isSandboxAllowed,
-        drain: () => drainPromise, stats, queueLength: () => queue.length,
+        drain: () => drainPromise, resolveOutboundJid, stats, queueLength: () => queue.length,
     };
 }
 

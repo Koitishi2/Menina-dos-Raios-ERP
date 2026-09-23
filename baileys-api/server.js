@@ -220,7 +220,9 @@ app.post("/send", checkLegacySend, async (req, res) => {
     }
     try {
         // Aceita "5595999999999" ou "5595999999999@s.whatsapp.net"
-        const jid = phone.includes("@") ? phone : `${phone}@s.whatsapp.net`;
+        const mappedJid = inbound.resolveOutboundJid(phone);
+        const jid = mappedJid || (phone.includes("@") ? phone : `${phone}@s.whatsapp.net`);
+        if (mappedJid) console.log("[Baileys] Envio sandbox usando o LID capturado na mensagem recebida.");
         await sock.sendMessage(jid, { text: message });
         return res.json({ sent: "true", ok: true });
     } catch (e) {
