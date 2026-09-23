@@ -3,7 +3,7 @@
 const assert = require("assert");
 const {
   buildInboundEvent, createInboundForwarder, installInboundListener,
-  eventDiagnostics, individualJid, maskedJid, normalizePhone, parseSandboxNumbers, phoneAliases, validateLocalUrl,
+  eventDiagnostics, individualJid, maskedJid, normalizePhone, parseSandboxLidMap, parseSandboxNumbers, phoneAliases, validateLocalUrl,
 } = require("../../baileys-api/inbound");
 
 async function main() {
@@ -21,6 +21,7 @@ async function main() {
   assert.strictEqual(normalizePhone("5595991234567:4@s.whatsapp.net"), "5595991234567");
   assert.deepStrictEqual([...parseSandboxNumbers("+55 (95) 99123-4567,invalid")], ["5595991234567", "559591234567"]);
   assert.deepStrictEqual([...phoneAliases("5521984261686")], ["5521984261686", "552184261686"]);
+  assert.deepStrictEqual([...parseSandboxLidMap("a612caf2beaa:5521984261686,bad:value")], [["a612caf2beaa", "5521984261686"]]);
   assert.strictEqual(individualJid({ remoteJid: "123@lid", remoteJidAlt: "5521984261686@s.whatsapp.net" }), "5521984261686@s.whatsapp.net");
   const altEvent = buildInboundEvent({
     key: { id: "msg-alt", remoteJid: "123456@lid", remoteJidAlt: "5521984261686@s.whatsapp.net" },
@@ -80,6 +81,35 @@ async function main() {
   assert.ok(diagnosticLogs.some((line) => line.includes('"reason":"non_phone_jid"')));
   assert.ok(diagnosticLogs.some((line) => line.includes('"domain":"lid"')));
   assert.ok(diagnosticLogs.every((line) => !line.includes("segredo nao deve aparecer")));
+
+  const mappedCalls = [];
+  const mappedLid = "123456789012345@lid";
+  const mappedFingerprint = maskedJid(mappedLid).fingerprint;
+  const mappedForwarder = createInboundForwarder({
+    enabled: "true", mode: "sandbox", sandboxNumbers: "5521984261686",
+    sandboxLidMap: `${mappedFingerprint}:5521984261686`,
+    instance: "raios-primary", token: "secret",
+    fetch: async (_url, options) => { mappedCalls.push(JSON.parse(options.body)); return { ok: true, status: 200 }; },
+    logger: { info: (message) => diagnosticLogs.push(message), error: () => {}, warn: () => {} },
+  });
+  mappedForwarder.handleUpsert({ messages: [{
+    key: { id: "msg-lid-mapped", remoteJid: mappedLid, fromMe: false },
+    message: { conversation: "Pedido seguro" }, messageTimestamp: 1001,
+  }] });
+  await mappedForwarder.drain();
+  assert.strictEqual(mappedForwarder.stats.accepted, 1);
+  assert.strictEqual(mappedForwarder.stats.forwarded, 1);
+  assert.strictEqual(mappedCalls[0].remote_jid, "5521984261686@s.whatsapp.net");
+  assert.ok(diagnosticLogs.some((line) => line.includes('"reason":"sandbox_lid_map"')));
+
+  const unmappedTarget = createInboundForwarder({
+    enabled: "true", mode: "sandbox", sandboxNumbers: "559591505239",
+    sandboxLidMap: `${mappedFingerprint}:5521984261686`, instance: "x", token: "y",
+    fetch: async () => { throw new Error("must remain blocked"); },
+  });
+  unmappedTarget.handleUpsert({ messages: [{ key: { id: "blocked-lid-map", remoteJid: mappedLid }, message: { conversation: "x" } }] });
+  await unmappedTarget.drain();
+  assert.strictEqual(unmappedTarget.stats.filtered, 1);
 
   forwarder.handleUpsert({ messages: [{ key: { id: "msg-2", remoteJid: "5595991234567@s.whatsapp.net" }, message: { conversation: "Pedido repetido" }, messageTimestamp: 1002 }] });
   await forwarder.drain();

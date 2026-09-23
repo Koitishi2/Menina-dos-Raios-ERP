@@ -40,6 +40,19 @@ function parseSandboxNumbers(value) {
     return numbers;
 }
 
+function parseSandboxLidMap(value) {
+    const mappings = new Map();
+    for (const entry of String(value || "").split(",")) {
+        const [fingerprintRaw, phoneRaw, ...extra] = entry.split(":");
+        const fingerprint = String(fingerprintRaw || "").trim().toLowerCase();
+        const phone = normalizePhone(phoneRaw);
+        if (extra.length === 0 && /^[a-f0-9]{12}$/.test(fingerprint) && phone.length >= 10 && phone.length <= 15) {
+            mappings.set(fingerprint, phone);
+        }
+    }
+    return mappings;
+}
+
 function individualJid(key = {}) {
     const candidates = [key.remoteJidAlt, key.participantAlt, key.remoteJid, key.participant]
         .map((value) => String(value || "").trim().toLowerCase())
@@ -132,6 +145,7 @@ function createInboundForwarder(options = {}) {
     const enabled = isEnabled(options.enabled);
     const mode = String(options.mode || "disabled").trim().toLowerCase();
     const sandboxNumbers = parseSandboxNumbers(options.sandboxNumbers);
+    const sandboxLidMap = parseSandboxLidMap(options.sandboxLidMap);
     const instance = String(options.instance || "").trim();
     const token = String(options.token || "").trim();
     const url = validateLocalUrl(options.url || "http://127.0.0.1:8765/internal/whatsapp/events");
@@ -161,8 +175,19 @@ function createInboundForwarder(options = {}) {
             candidates: event && event._diagnostics || null,
             mode,
             sandboxConfigured: sandboxNumbers.size,
+            sandboxLidMappings: sandboxLidMap.size,
             ...extra,
         });
+    }
+
+    function resolveSandboxLid(event) {
+        if (mode !== "sandbox" || !event || !String(event.remote_jid || "").endsWith("@lid")) return false;
+        const fingerprint = maskedJid(event.remote_jid).fingerprint;
+        const mappedPhone = sandboxLidMap.get(fingerprint);
+        if (!mappedPhone || ![...phoneAliases(mappedPhone)].some((phone) => sandboxNumbers.has(phone))) return false;
+        event.remote_jid = `${mappedPhone}@s.whatsapp.net`;
+        if (event._diagnostics) event._diagnostics.lidMapped = true;
+        return true;
     }
 
     function filterReason(event) {
@@ -243,6 +268,7 @@ function createInboundForwarder(options = {}) {
     }
 
     function enqueue(event) {
+        const lidMapped = resolveSandboxLid(event);
         const reason = filterReason(event);
         if (reason) {
             stats.filtered += 1;
@@ -270,7 +296,7 @@ function createInboundForwarder(options = {}) {
         stats.accepted += 1;
         stats.queued += 1;
         if (typeof logger.info === "function") {
-            logger.info(`[Baileys inbound] ${diagnosticRecord(event, "accepted", "sandbox_match")}`);
+            logger.info(`[Baileys inbound] ${diagnosticRecord(event, "accepted", lidMapped ? "sandbox_lid_map" : "sandbox_match")}`);
         }
         void work();
         return true;
@@ -306,5 +332,5 @@ function installInboundListener(sock, forwarder) {
 module.exports = {
     buildInboundEvent, createInboundForwarder, installInboundListener,
     eventDiagnostics, individualJid, isEnabled, maskedJid, messageTypeAndText, normalizePhone, parseSandboxNumbers, phoneAliases,
-    timestampIso, validateLocalUrl,
+    parseSandboxLidMap, timestampIso, validateLocalUrl,
 };

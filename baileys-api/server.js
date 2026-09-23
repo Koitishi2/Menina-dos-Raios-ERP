@@ -28,6 +28,7 @@ const inbound = createInboundForwarder({
     enabled: process.env.WHATSAPP_INBOUND_ENABLED || "false",
     mode: process.env.WHATSAPP_INBOUND_MODE || "disabled",
     sandboxNumbers: process.env.WHATSAPP_INBOUND_SANDBOX_NUMBERS || "",
+    sandboxLidMap: process.env.WHATSAPP_INBOUND_SANDBOX_LID_MAP || "",
     instance: process.env.WHATSAPP_INBOUND_INSTANCE || "",
     token: process.env.WHATSAPP_INBOUND_TOKEN || "",
     url: process.env.WHATSAPP_INBOUND_URL || "http://127.0.0.1:8765/internal/whatsapp/events",
