@@ -6,7 +6,7 @@ const https = require("https");
 const { spawn } = require("child_process");
 
 const PACKAGE_NAME = "@whiskeysockets/baileys";
-const REGISTRY_URL = "https://registry.npmjs.org/@whiskeysockets%2fbaileys/latest";
+const REGISTRY_URL = "https://registry.npmjs.org/@whiskeysockets%2fbaileys";
 const DEFAULT_UPDATE_SCRIPT = "/opt/menina/baileys-api/update-baileys-safe.sh";
 const DEFAULT_STATUS_FILE = "/run/menina-baileys-update-status.json";
 
@@ -30,7 +30,7 @@ function readVersionState(baseDir, options = {}) {
         installed_version: installed || null,
         approved_version: approved || null,
         update_available: Boolean(approved && installed !== approved),
-        can_update: Boolean(approved),
+        can_update: Boolean(approved && installed !== approved),
         update_status: String(updateStatus.status || "idle"),
         update_detail: String(updateStatus.detail || "").slice(0, 300),
         update_started_at: updateStatus.started_at || null,
@@ -38,7 +38,7 @@ function readVersionState(baseDir, options = {}) {
     };
 }
 
-function fetchLatestVersion(options = {}) {
+function fetchRegistryVersions(options = {}) {
     const request = options.request || https.get;
     const timeoutMs = Number(options.timeoutMs || 5000);
     return new Promise((resolve) => {
@@ -47,14 +47,22 @@ function fetchLatestVersion(options = {}) {
             res.setEncoding("utf8");
             res.on("data", (chunk) => { if (body.length < 100000) body += chunk; });
             res.on("end", () => {
-                if (res.statusCode !== 200) return resolve(null);
-                const version = exactVersion(readJsonText(body).version);
-                resolve(version || null);
+                if (res.statusCode !== 200) return resolve({ latest: null, stable: null });
+                const tags = readJsonText(body)["dist-tags"] || {};
+                resolve({
+                    latest: exactVersion(tags.latest) || null,
+                    stable: exactVersion(tags.legacy) || null,
+                });
             });
         });
         req.setTimeout(timeoutMs, () => req.destroy(new Error("registry_timeout")));
-        req.on("error", () => resolve(null));
+        req.on("error", () => resolve({ latest: null, stable: null }));
     });
+}
+
+async function fetchLatestVersion(options = {}) {
+    const versions = await fetchRegistryVersions(options);
+    return versions.latest;
 }
 
 function readJsonText(text) {
@@ -91,6 +99,7 @@ module.exports = {
     REGISTRY_URL,
     exactVersion,
     fetchLatestVersion,
+    fetchRegistryVersions,
     launchApprovedUpdate,
     readVersionState,
     validateUpdateScript,

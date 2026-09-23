@@ -14,7 +14,7 @@ const pino    = require("pino");
 const fs      = require("fs");
 const { createInboundForwarder, installInboundListener } = require("./inbound");
 const { authorizeApiKey, authorizeLegacySend } = require("./security");
-const { fetchLatestVersion, launchApprovedUpdate, readVersionState } = require("./maintenance");
+const { fetchRegistryVersions, launchApprovedUpdate, readVersionState } = require("./maintenance");
 require("dotenv").config();
 
 const app     = express();
@@ -137,10 +137,11 @@ app.get("/status", (_req, res) => {
 app.get("/maintenance/status", checkAuth, async (req, res) => {
     const state = readVersionState(__dirname);
     const refresh = String(req.query.refresh || "") === "1";
-    const latest = refresh ? await fetchLatestVersion() : null;
+    const registry = refresh ? await fetchRegistryVersions() : { latest: null, stable: null };
     res.json({
         ...state,
-        latest_version: latest,
+        latest_version: registry.latest,
+        stable_version: registry.stable,
         connected,
         inbound_enabled: inbound.enabled,
         inbound_mode: inbound.mode,
@@ -151,8 +152,9 @@ app.get("/maintenance/status", checkAuth, async (req, res) => {
 
 app.post("/maintenance/update", checkAuth, (_req, res) => {
     const state = readVersionState(__dirname);
-    if (!state.can_update) return res.status(409).json({ ok: false, error: "versao_aprovada_ausente" });
     if (state.update_status === "running") return res.status(409).json({ ok: false, error: "atualizacao_em_andamento" });
+    if (!state.approved_version) return res.status(409).json({ ok: false, error: "versao_aprovada_ausente" });
+    if (!state.update_available) return res.status(409).json({ ok: false, error: "versao_aprovada_ja_instalada" });
     try {
         const launched = launchApprovedUpdate();
         return res.status(202).json({ ok: true, message: "Atualizacao segura iniciada.", ...launched });

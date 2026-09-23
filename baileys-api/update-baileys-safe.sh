@@ -64,6 +64,16 @@ command -v flock >/dev/null
 command -v curl >/dev/null
 
 write_status "running" "preparando versao aprovada"
+APPROVED_VERSION="$(node -e 'const p=require(process.argv[1]); console.log((p.dependencies||{})["@whiskeysockets/baileys"]||"")' "$APP_DIR/package.json")" \
+  || { write_status "failed" "nao foi possivel ler a versao aprovada" yes; exit 1; }
+INSTALLED_VERSION="$(node -e 'const p=require(process.argv[1]); console.log(p.version||"")' "$APP_DIR/node_modules/@whiskeysockets/baileys/package.json")" \
+  || { write_status "failed" "nao foi possivel ler a versao instalada" yes; exit 1; }
+[[ "$APPROVED_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]
+if [[ "$INSTALLED_VERSION" == "$APPROVED_VERSION" ]]; then
+  write_status "success" "versao aprovada $APPROVED_VERSION ja instalada; nenhuma troca executada" yes
+  echo "BAILEYS_ALREADY_CURRENT=$APPROVED_VERSION"
+  exit 0
+fi
 STAGING="$(mktemp -d /opt/menina/baileys-update.XXXXXX)"
 BACKUP="/root/menina_refatoracao_backups/baileys_update_$(date +%Y%m%d_%H%M%S)"
 trap 'rollback $?' ERR
@@ -92,9 +102,11 @@ systemctl start "$SERVICE"
 sleep 6
 systemctl is-active --quiet "$SERVICE"
 curl --fail --silent --show-error --max-time 5 http://127.0.0.1:3001/status >/dev/null
+STATUS_JSON="$(curl --fail --silent --show-error --max-time 5 http://127.0.0.1:3001/status)"
+python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("connected") is True; assert d.get("inbound",{}).get("listenerInstalled") is True' <<<"$STATUS_JSON"
 
 SWAPPED=0
 trap - ERR
-write_status "success" "versao aprovada instalada; backup=$BACKUP" yes
+write_status "success" "versao aprovada $APPROVED_VERSION instalada; backup=$BACKUP" yes
 rm -rf -- "$STAGING"
 echo "BAILEYS_UPDATE_OK"

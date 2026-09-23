@@ -6,6 +6,7 @@ const os = require("os");
 const path = require("path");
 const {
     exactVersion,
+    fetchRegistryVersions,
     launchApprovedUpdate,
     readVersionState,
     validateUpdateScript,
@@ -22,9 +23,30 @@ const state = readVersionState(root, { statusFile });
 assert.strictEqual(state.installed_version, "6.7.23");
 assert.strictEqual(state.approved_version, "6.7.24");
 assert.strictEqual(state.update_available, true);
+assert.strictEqual(state.can_update, true);
 assert.strictEqual(state.update_status, "success");
 assert.strictEqual(exactVersion("^6.7.24"), "");
 assert.strictEqual(exactVersion("6.7.24"), "6.7.24");
+
+fs.writeFileSync(path.join(root, "node_modules", "@whiskeysockets", "baileys", "package.json"), JSON.stringify({ version: "6.7.24" }));
+const currentState = readVersionState(root, { statusFile });
+assert.strictEqual(currentState.update_available, false);
+assert.strictEqual(currentState.can_update, false);
+
+const registryRequest = (_url, _options, callback) => {
+    const handlers = {};
+    const response = {
+        statusCode: 200,
+        setEncoding() {},
+        on(name, handler) { handlers[name] = handler; },
+    };
+    callback(response);
+    process.nextTick(() => {
+        handlers.data(JSON.stringify({ "dist-tags": { latest: "7.0.0-rc14", legacy: "6.7.24" } }));
+        handlers.end();
+    });
+    return { setTimeout() {}, on() {} };
+};
 
 assert.throws(
     () => validateUpdateScript("/unsafe", { lstat: () => ({ isFile: () => false, isSymbolicLink: () => false }) }),
@@ -47,5 +69,8 @@ assert.deepStrictEqual(spawnCall.args.slice(-2), ["/bin/bash", "/opt/menina/bail
 assert.strictEqual(spawnCall.options.detached, true);
 assert.strictEqual(child.unrefCalled, true);
 
-fs.rmSync(root, { recursive: true, force: true });
-console.log("baileys maintenance: OK");
+fetchRegistryVersions({ request: registryRequest }).then((versions) => {
+    assert.deepStrictEqual(versions, { latest: "7.0.0-rc14", stable: "6.7.24" });
+    fs.rmSync(root, { recursive: true, force: true });
+    console.log("baileys maintenance: OK");
+});
