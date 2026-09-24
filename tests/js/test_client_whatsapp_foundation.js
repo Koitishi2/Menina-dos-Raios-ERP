@@ -97,6 +97,40 @@ async function testClientDetailsWithoutConversation() {
   delete global.document;
 }
 
+async function testOrderDetailsShowQuestionnaire() {
+  const modal = { hidden: true };
+  const body = { innerHTML: "" };
+  const subtitle = { textContent: "" };
+  global.document = { getElementById: (id) => ({
+    "client-order-detail-modal": modal,
+    "client-order-detail-body": body,
+    "client-order-detail-subtitle": subtitle
+  }[id] || null) };
+  global.api = async (path) => {
+    assert.strictEqual(path, "/api/whatsapp/orders/order-1");
+    return {
+      id: "order-1", client_name: "Cliente A", status: "aguardando_aprovacao", total: "72.00",
+      calculation_memory: JSON.stringify({ order_score: 95 }),
+      conversation: { status: "aguardando_confirmacao" },
+      items: [{ product_name: "Macaxeira com casca", requested_quantity: "8", confirmed_damage: "1", unit: "KG", total: "72.00" }],
+      messages: [
+        { direction: "enviada", status: "processada", body: "Qual quantidade?" },
+        { direction: "recebida", status: "processada", body: "8 KG" }
+      ]
+    };
+  };
+  await orders.openOrder("order-1");
+  assert.strictEqual(modal.hidden, false);
+  assert.ok(subtitle.textContent.includes("Cliente A"));
+  assert.ok(body.innerHTML.includes("Macaxeira com casca"));
+  assert.ok(body.innerHTML.includes("8 KG"));
+  assert.ok(body.innerHTML.includes("95/100"));
+  orders.closeOrder();
+  assert.strictEqual(modal.hidden, true);
+  delete global.api;
+  delete global.document;
+}
+
 assert.deepStrictEqual(orders.ORDER_STATES, [
   "rascunho", "aguardando_confirmacao", "aguardando_aprovacao", "aprovado",
   "cancelado", "convertido_em_venda", "erro", "duplicado_suspeito"
@@ -112,5 +146,6 @@ assert.deepStrictEqual(orders.filterOrders(sampleOrders, { company: "raios", wit
 
 testVisibleAsyncFailureWithoutRetry()
   .then(testClientDetailsWithoutConversation)
+  .then(testOrderDetailsShowQuestionnaire)
   .then(() => console.log("client WhatsApp/orders foundation JS: OK"))
   .catch((error) => { console.error(error); process.exit(1); });

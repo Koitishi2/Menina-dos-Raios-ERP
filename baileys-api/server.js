@@ -13,7 +13,7 @@ const express = require("express");
 const pino    = require("pino");
 const fs      = require("fs");
 const { createInboundForwarder, installInboundListener } = require("./inbound");
-const { authorizeApiKey, authorizeLegacySend } = require("./security");
+const { authorizeApiKey, authorizeOutboundSend } = require("./security");
 const { fetchRegistryVersions, launchApprovedUpdate, readVersionState } = require("./maintenance");
 require("dotenv").config();
 
@@ -24,6 +24,11 @@ const PORT     = parseInt(process.env.PORT    || "3001");
 const API_KEY  = (process.env.API_KEY         || "").trim();
 const AUTH_DIR = process.env.AUTH_DIR         || "./auth_info_baileys";
 const OUTBOUND_ENABLED = process.env.WHATSAPP_OUTBOUND_ENABLED || "false";
+const OUTBOUND_MODE = process.env.WHATSAPP_OUTBOUND_MODE ||
+    (String(process.env.WHATSAPP_INBOUND_MODE || "").toLowerCase() === "sandbox" ? "sandbox" : "disabled");
+const OUTBOUND_SANDBOX_NUMBERS = process.env.WHATSAPP_OUTBOUND_SANDBOX_NUMBERS ||
+    process.env.WHATSAPP_INBOUND_SANDBOX_NUMBERS || "";
+const OUTBOUND_PRODUCTION_APPROVED = process.env.WHATSAPP_OUTBOUND_PRODUCTION_APPROVED || "false";
 const inbound = createInboundForwarder({
     enabled: process.env.WHATSAPP_INBOUND_ENABLED || "false",
     mode: process.env.WHATSAPP_INBOUND_MODE || "disabled",
@@ -45,6 +50,30 @@ let starting  = false;
 let manualDisconnect = false;
 let lastConnectionUpdate = null;
 let inboundListenerInstalled = false;
+const outboundReceipts = new Map();
+const MAX_OUTBOUND_RECEIPTS = 2000;
+
+function deliveryLabel(status) {
+    return ({ 0: "failed", 1: "pending", 2: "server_ack", 3: "delivered", 4: "read", 5: "played" })[Number(status)] || "accepted";
+}
+
+function rememberOutboundReceipt(message) {
+    const id = message && message.key && String(message.key.id || "").trim();
+    if (!id) return null;
+    outboundReceipts.set(id, { provider_message_id: id, delivery_status: "accepted", accepted_at: new Date().toISOString() });
+    while (outboundReceipts.size > MAX_OUTBOUND_RECEIPTS) outboundReceipts.delete(outboundReceipts.keys().next().value);
+    return outboundReceipts.get(id);
+}
+
+function updateOutboundReceipts(updates) {
+    for (const item of Array.isArray(updates) ? updates : []) {
+        const id = item && item.key && String(item.key.id || "").trim();
+        const receipt = id && outboundReceipts.get(id);
+        if (!receipt || item.update && item.update.status == null) continue;
+        receipt.delivery_status = deliveryLabel(item.update.status);
+        receipt.updated_at = new Date().toISOString();
+    }
+}
 
 /* ── Auth middleware ─────────────────────────────────────── */
 function checkAuth(req, res, next) {
@@ -54,8 +83,20 @@ function checkAuth(req, res, next) {
 }
 
 function checkLegacySend(req, res, next) {
-    const auth = authorizeLegacySend(API_KEY, req.headers["x-api-key"], OUTBOUND_ENABLED);
+    const phone = req.body && req.body.phone;
+    const mappedJid = inbound.resolveOutboundJid(phone);
+    const auth = authorizeOutboundSend({
+        configuredKey: API_KEY,
+        providedKey: req.headers["x-api-key"],
+        outboundEnabled: OUTBOUND_ENABLED,
+        mode: OUTBOUND_MODE,
+        sandboxNumbers: OUTBOUND_SANDBOX_NUMBERS,
+        productionApproved: OUTBOUND_PRODUCTION_APPROVED,
+        phone,
+        hasTrustedJid: Boolean(mappedJid),
+    });
     if (!auth.ok) return res.status(auth.status).json({ error: auth.code, sent: "false" });
+    req.outboundJid = mappedJid;
     next();
 }
 
@@ -113,6 +154,7 @@ async function startBaileys() {
     });
 
     sock.ev.on("creds.update", saveCreds);
+    sock.ev.on("messages.update", updateOutboundReceipts);
     inboundListenerInstalled = installInboundListener(sock, inbound);
 }
 
@@ -136,7 +178,14 @@ app.get("/status", (_req, res) => {
             filtered: inbound.stats.filtered,
             duplicate: inbound.stats.duplicate,
         },
+        outbound: { tracked: outboundReceipts.size },
     });
+});
+
+app.get("/send-status/:messageId", checkAuth, (req, res) => {
+    const receipt = outboundReceipts.get(String(req.params.messageId || ""));
+    if (!receipt) return res.status(404).json({ error: "message_not_tracked" });
+    return res.json(receipt);
 });
 
 app.get("/maintenance/status", checkAuth, async (req, res) => {
@@ -220,11 +269,12 @@ app.post("/send", checkLegacySend, async (req, res) => {
     }
     try {
         // Aceita "5595999999999" ou "5595999999999@s.whatsapp.net"
-        const mappedJid = inbound.resolveOutboundJid(phone);
+        const mappedJid = req.outboundJid || inbound.resolveOutboundJid(phone);
         const jid = mappedJid || (phone.includes("@") ? phone : `${phone}@s.whatsapp.net`);
         if (mappedJid) console.log("[Baileys] Envio sandbox usando o LID capturado na mensagem recebida.");
-        await sock.sendMessage(jid, { text: message });
-        return res.json({ sent: "true", ok: true });
+        const result = await sock.sendMessage(jid, { text: message });
+        const receipt = rememberOutboundReceipt(result);
+        return res.json({ sent: "true", ok: true, delivery_status: "accepted", provider_message_id: receipt && receipt.provider_message_id || null });
     } catch (e) {
         console.error("[Baileys] Erro ao enviar:", e.message);
         return res.status(500).json({ error: e.message, sent: "false" });

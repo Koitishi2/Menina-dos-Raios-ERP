@@ -253,6 +253,12 @@ def test_conversation_and_order_reads_are_company_scoped_with_history(isolated_a
             "INSERT INTO whatsapp_order_history(id,company_key,order_id,previous_status,new_status,changed_by,reason) VALUES(?,?,?,?,?,?,?)",
             (str(uuid.uuid4()), "raios", order_id, "rascunho", "duplicado_suspeito", "sistema", "pedido_recente_do_cliente"),
         )
+        conn.execute(
+            """INSERT INTO whatsapp_order_items(
+                   id,order_id,product_key,requested_quantity,confirmed_quantity,confirmed_damage,total)
+               VALUES(?,?,?,?,?,?,?)""",
+            (str(uuid.uuid4()), order_id, "MAC_PCT", "8", "8", "1", "72.00"),
+        )
         conn.commit()
     finally:
         conn.close()
@@ -265,6 +271,10 @@ def test_conversation_and_order_reads_are_company_scoped_with_history(isolated_a
     assert order.status_code == 200
     assert order.json()["status"] == "duplicado_suspeito"
     assert order.json()["history"][0]["reason"] == "pedido_recente_do_cliente"
+    assert order.json()["conversation"]["id"] == incoming["conversation_id"]
+    assert order.json()["messages"][0]["direction"] == "recebida"
+    assert order.json()["items"][0]["product_name"]
+    assert order.json()["items"][0]["unit"] == "KG"
     assert foreign_conversation.status_code == 404
     assert foreign_order.status_code == 404
 

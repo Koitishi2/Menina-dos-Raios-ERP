@@ -153,8 +153,42 @@ def get_order(conn, company_key, order_id):
     if not row:
         return None
     result = dict(row)
-    result["items"] = [dict(item) for item in conn.execute("SELECT * FROM whatsapp_order_items WHERE order_id=? ORDER BY created_at,id", (order_id,)).fetchall()]
+    result["items"] = [
+        dict(item)
+        for item in conn.execute(
+            """SELECT i.*,COALESCE(p.label,i.product_key) AS product_name,
+                      CASE i.product_key
+                        WHEN 'MAC_PCT' THEN 'KG'
+                        WHEN 'MAC_VACUO' THEN 'KG'
+                        WHEN 'ALHO_KG' THEN 'KG'
+                        WHEN 'ALHO_250G' THEN 'UN'
+                        WHEN 'MAC_CHIPS' THEN 'UN'
+                        WHEN 'PRE_COZIDA' THEN 'UN'
+                        ELSE ''
+                      END AS unit
+               FROM whatsapp_order_items i
+               LEFT JOIN product_prices p ON p.key=i.product_key
+               WHERE i.order_id=? ORDER BY i.created_at,i.id""",
+            (order_id,),
+        ).fetchall()
+    ]
     result["history"] = [dict(item) for item in conn.execute("SELECT * FROM whatsapp_order_history WHERE order_id=? AND company_key=? ORDER BY created_at,id", (order_id, company_key)).fetchall()]
+    conversation = conn.execute(
+        """SELECT id,status,last_message_at,created_at,updated_at
+           FROM whatsapp_conversations WHERE id=? AND company_key=?""",
+        (result["conversation_id"], company_key),
+    ).fetchone()
+    result["conversation"] = row_dict(conversation)
+    result["messages"] = [
+        dict(message)
+        for message in conn.execute(
+            """SELECT id,direction,body,status,error_text AS error_message,
+                      received_at,processed_at AS sent_at,created_at
+               FROM whatsapp_messages WHERE conversation_id=? AND company_key=?
+               ORDER BY created_at,id""",
+            (result["conversation_id"], company_key),
+        ).fetchall()
+    ]
     return result
 
 

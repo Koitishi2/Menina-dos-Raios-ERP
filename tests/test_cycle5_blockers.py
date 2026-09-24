@@ -56,5 +56,9 @@ def test_legacy_send_route_is_fail_closed_before_handler():
     server = (ROOT / "baileys-api/server.js").read_text(encoding="utf-8")
     assert 'app.post("/send", checkLegacySend' in server
     assert 'app.post("/send", checkAuth' not in server
-    assert "authorizeLegacySend(API_KEY" in server
+    assert "authorizeOutboundSend({" in server
+    assert "hasTrustedJid: Boolean(mappedJid)" in server
+    assert 'delivery_status: "accepted"' in server
+    assert 'sock.ev.on("messages.update", updateOutboundReceipts)' in server
+    assert 'app.get("/send-status/:messageId", checkAuth' in server
     assert "WHATSAPP_OUTBOUND_ENABLED" in server

@@ -851,7 +851,11 @@ def test_revalidation_blocks_optout_phone_or_purchase_change_without_send(isolat
     elif change == "phone":
         conn.execute("UPDATE clients SET phone='95991230000' WHERE id=?", (client["id"],))
     else:
-        conn.execute("INSERT INTO sales(id,sale_type,sale_date,client,quantity,unit_price,total) VALUES('recent-sale','AVULSO','2026-09-14',?,1,1,1)", (client["name"],))
+        recent_sale_date = (datetime.now(timezone.utc).date() - timedelta(days=1)).isoformat()
+        conn.execute(
+            "INSERT INTO sales(id,sale_type,sale_date,client,quantity,unit_price,total) VALUES('recent-sale','AVULSO',?,?,1,1,1)",
+            (recent_sale_date, client["name"]),
+        )
     conn.commit(); conn.close()
     result = isolated_app.client.post(f"/api/whatsapp/manual-batches/{created['id']}/send", headers=_headers(token))
     assert result.status_code == 200
