@@ -42,6 +42,44 @@
 .client-orders-table td { border-top: 1px solid var(--border); font-size: 11px; padding: 9px 8px; }
 .client-order-status { background: var(--g50); border: 1px solid var(--border); display: inline-block; font-size: 9px; font-weight: 700; padding: 3px 6px; }
 .client-order-status.is-warning { background: #fff3e3; border-color: #efd09d; color: #935c00; }
+.client-order-row { cursor: pointer; }
+.client-order-row:hover, .client-order-row:focus { background: var(--g50); outline: 2px solid transparent; }
+.client-order-client { background: none; border: 0; color: var(--g800); cursor: pointer; font: inherit; font-weight: 700; padding: 0; text-align: left; text-decoration: underline; text-underline-offset: 3px; }
+.client-orders-notifications { margin-left: auto; position: relative; }
+.client-orders-bell { align-items: center; background: var(--card); border: 1px solid var(--border); border-radius: 8px; color: var(--g800); cursor: pointer; display: inline-flex; height: 38px; justify-content: center; position: relative; width: 42px; }
+.client-orders-bell-badge { align-items: center; background: #b91c1c; border: 2px solid var(--card); border-radius: 999px; color: #fff; display: flex; font-size: 9px; font-weight: 800; height: 19px; justify-content: center; min-width: 19px; padding: 0 4px; position: absolute; right: -7px; top: -7px; }
+.client-orders-bell-badge.is-empty { display: none; }
+.client-orders-notification-list { background: var(--card); border: 1px solid var(--border); box-shadow: 0 14px 34px rgba(15, 23, 42, .18); max-height: 340px; overflow-y: auto; padding: 8px; position: absolute; right: 0; top: 46px; width: min(360px, 82vw); z-index: 45; }
+.client-orders-notification-item { background: transparent; border: 0; border-bottom: 1px solid var(--border); color: var(--g800); cursor: pointer; display: block; padding: 10px; text-align: left; width: 100%; }
+.client-orders-notification-item:last-child { border-bottom: 0; }
+.client-orders-notification-item:hover, .client-orders-notification-item:focus { background: var(--g50); }
+.client-orders-notification-item strong, .client-orders-notification-item span { display: block; }
+.client-orders-notification-item span { color: var(--muted); font-size: 10px; margin-top: 3px; }
+.client-orders-notification-empty { color: var(--muted); font-size: 11px; padding: 16px; text-align: center; }
+.client-orders-detail-overlay { background: rgba(15, 23, 42, .35); inset: 0; position: fixed; z-index: 10020; }
+.client-orders-detail { background: var(--card); box-shadow: -18px 0 42px rgba(15, 23, 42, .2); height: 100vh; max-width: 94vw; overflow: hidden; position: fixed; right: 0; top: 0; width: 560px; z-index: 10021; }
+.client-orders-detail-head { align-items: center; background: var(--g800); color: #fff; display: flex; justify-content: space-between; min-height: 72px; padding: 14px 18px; }
+.client-orders-detail-head small { display: block; font-size: 9px; opacity: .75; text-transform: uppercase; }
+.client-orders-detail-head h3 { font-size: 16px; margin: 3px 0 0; }
+.client-orders-detail-close { background: transparent; border: 0; color: #fff; cursor: pointer; font-size: 28px; height: 40px; width: 40px; }
+.client-orders-detail-body { height: calc(100vh - 72px); overflow-y: auto; padding: 16px; }
+.client-orders-detail-loading, .client-orders-detail-error, .client-orders-client-empty { color: var(--muted); padding: 36px 16px; text-align: center; }
+.client-orders-client-card { border-bottom: 1px solid var(--border); margin-bottom: 14px; padding-bottom: 12px; }
+.client-orders-client-card strong { color: var(--g800); display: block; font-size: 15px; }
+.client-orders-client-card span { color: var(--muted); display: block; font-size: 11px; margin-top: 4px; }
+.client-orders-client-list { display: grid; gap: 7px; margin-bottom: 16px; }
+.client-orders-client-list button { background: var(--card); border: 1px solid var(--border); cursor: pointer; display: grid; gap: 3px; grid-template-columns: 1fr auto; padding: 9px; text-align: left; }
+.client-orders-client-list button.is-selected { border-color: var(--g600); background: var(--g50); }
+.client-orders-client-list small { color: var(--muted); }
+.client-orders-detail-section { border-top: 1px solid var(--border); padding: 13px 0; }
+.client-orders-detail-section h4 { color: var(--g800); font-size: 12px; margin: 0 0 9px; }
+.client-orders-detail-grid { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.client-orders-detail-field { background: var(--g50); min-width: 0; padding: 9px; }
+.client-orders-detail-field small { color: var(--muted); display: block; font-size: 8px; text-transform: uppercase; }
+.client-orders-detail-field strong { display: block; font-size: 11px; margin-top: 3px; overflow-wrap: anywhere; }
+.client-orders-item, .client-orders-history { border: 1px solid var(--border); margin-top: 7px; padding: 9px; }
+.client-orders-item strong, .client-orders-history strong { color: var(--g800); display: block; font-size: 11px; }
+.client-orders-item span, .client-orders-history span { color: var(--muted); display: block; font-size: 10px; margin-top: 3px; }
 
 @media (max-width: 1050px) {
   .client-orders-filters { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
@@ -50,4 +88,6 @@
 @media (max-width: 620px) {
   .client-orders-filters { grid-template-columns: 1fr; }
   .client-orders-summary { margin-left: 0; width: 100%; }
+  .client-orders-detail { max-width: none; width: 100%; }
+  .client-orders-detail-grid { grid-template-columns: 1fr; }
 }

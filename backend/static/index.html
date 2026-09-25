@@ -3817,7 +3817,13 @@ body.paladar-active #notif-restore{display:none!important}
     <div id="cv-pedidos" style="display:none">
       <div class="client-foundation-banner">
         <div><strong>Pedidos em modo de preparação</strong><br><span>Nenhum pedido será enviado, aprovado ou convertido em venda nesta etapa.</span></div>
-        <span>Dados exibidos: somente simulação local.</span>
+        <div class="client-orders-notifications" id="mdr-orders-notifications">
+          <button type="button" class="client-orders-bell" id="mdr-orders-bell" aria-label="Abrir pedidos pendentes" aria-expanded="false" title="Pedidos novos e pendentes">
+            <span aria-hidden="true">&#128276;</span>
+            <span class="client-orders-bell-badge" id="mdr-orders-bell-badge">0</span>
+          </button>
+          <div class="client-orders-notification-list" id="mdr-orders-notification-list" hidden></div>
+        </div>
       </div>
       <div class="client-orders-filters">
         <label>Cliente<input id="client-orders-client" class="filt" type="search" placeholder="Buscar cliente" oninput="ClientOrdersFoundation.applyFilters()"></label>
@@ -3834,6 +3840,14 @@ body.paladar-active #notif-restore{display:none!important}
         <span id="client-orders-summary" class="client-orders-summary">0 pedidos em modo local</span>
       </div>
       <div id="client-orders-list"></div>
+      <div class="client-orders-detail-overlay" id="client-orders-detail-overlay" hidden></div>
+      <aside class="client-orders-detail" id="client-orders-detail" role="dialog" aria-modal="true" aria-labelledby="client-orders-detail-title" hidden>
+        <div class="client-orders-detail-head">
+          <div><small>Pedidos do cliente</small><h3 id="client-orders-detail-title">Detalhes do pedido</h3></div>
+          <button type="button" class="client-orders-detail-close" id="client-orders-detail-close" aria-label="Fechar detalhes">&times;</button>
+        </div>
+        <div class="client-orders-detail-body" id="client-orders-detail-body"></div>
+      </aside>
     </div>
 
 <!-- Cadastro view (default) -->
@@ -8305,7 +8319,7 @@ async function loadClientsPanel(){
     const waButton=document.getElementById('cv-btn-whatsapp');
     const orderButton=document.getElementById('cv-btn-pedidos');
     if(waButton)waButton.style.display=managedModulePermission('clientes_whatsapp','view')?'flex':'none';
-    if(orderButton)orderButton.style.display=managedModulePermission('clientes_pedidos','view')?'flex':'none';
+    if(orderButton)orderButton.style.display=activeCompany==='raios'&&managedModulePermission('clientes_pedidos','view')?'flex':'none';
     // Refresh autocomplete in sale form
     const dl=document.getElementById('clients-list');
     if(dl){

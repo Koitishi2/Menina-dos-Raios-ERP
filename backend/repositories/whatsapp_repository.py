@@ -131,7 +131,7 @@ def list_orders(conn, company_key):
     return [
         dict(row)
         for row in conn.execute(
-            """SELECT o.*,cl.name AS client_name,
+            """SELECT o.*,cl.name AS client_name,cl.phone AS client_phone,
                       EXISTS(SELECT 1 FROM customer_product_damage d WHERE d.order_id=o.id) AS with_damage,
                       EXISTS(SELECT 1 FROM whatsapp_order_items i WHERE i.order_id=o.id
                              AND i.maximum_consumption IS NOT NULL
@@ -146,7 +146,7 @@ def list_orders(conn, company_key):
 
 def get_order(conn, company_key, order_id):
     row = conn.execute(
-        """SELECT o.*,cl.name AS client_name FROM whatsapp_order_drafts o
+        """SELECT o.*,cl.name AS client_name,cl.phone AS client_phone FROM whatsapp_order_drafts o
            JOIN clients cl ON cl.id=o.client_id WHERE o.id=? AND o.company_key=?""",
         (order_id, company_key),
     ).fetchone()
