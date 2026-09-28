@@ -579,10 +579,10 @@ def init_db(company: str = None):
             ('motivation_time', '07:00'), ('motivation_last_success', ''),
             ('motivation_last_attempt', ''),
             ('order_bot_disclosure_message', 'Este é um atendimento automatizado. Esta conversa será registrada para processar o seu pedido.'),
-            ('order_bot_welcome_message', 'Olá, {cliente}! Qual produto você deseja solicitar?\n\nNossa lista de produtos:\n1. Macaxeira com casca\n2. Macaxeira a vácuo\n3. Alho descascado 250g\n4. Alho descascado 1kg\n5. Macaxeira chips\n6. Macaxeira pré-cozida'),
+            ('order_bot_welcome_message', 'Olá, {cliente}! Qual produto você deseja solicitar?\n\nNossa lista de produtos:\n1. Macaxeira com casca\n2. Macaxeira a vácuo\n3. Alho descascado 250g\n4. Alho descascado 1kg\n5. Macaxeira chips\n6. Macaxeira pré-cozida\n\nVocê pode pedir mais de um produto no mesmo atendimento. Depois de informar quantidade e avaria, responda ADICIONAR para incluir outro item.'),
             ('order_bot_quantity_message', 'Qual quantidade? Informe o valor em KG ou UN.'),
             ('order_bot_damage_message', 'Tem avaria? Se sim, informe quantos KG ou UN. Se não, responda NÃO.'),
-            ('order_bot_confirm_message', 'Está correto? Responda SIM ou NAO.'),
+            ('order_bot_confirm_message', 'Está correto? Responda SIM, NAO ou ADICIONAR para incluir outro produto.'),
             ('order_bot_done_message', 'Pedido feito! Aguarde a mensagem da data que será entregue! Normalmente, a entrega ocorre em até 24 horas após o pedido.');
     """)
     # Migrations for existing DBs
@@ -1239,6 +1239,12 @@ def _managed_route_permission(path:str,method:str):
         return (None,"clientes_pedidos","view")
     if re.fullmatch(r"/api/whatsapp/orders/[^/]+",path) and method=="GET":
         return (None,"clientes_pedidos","view")
+    if re.fullmatch(r"/api/whatsapp/orders/[^/]+",path) and method=="DELETE":
+        return (None,"clientes_pedidos","edit")
+    if re.fullmatch(r"/api/whatsapp/orders/[^/]+/(?:confirm|reject)",path) and method=="POST":
+        return (None,"clientes_pedidos","edit")
+    if path=="/api/whatsapp/orders/new-for-client" and method=="POST":
+        return (None,"clientes_pedidos","create")
     if re.fullmatch(r"/api/clients/[^/]+/consumption",path):
         return (None,"clientes_whatsapp","view" if method=="GET" else "edit")
     if re.fullmatch(r"/api/clients/[^/]+/damages",path):
@@ -1301,6 +1307,7 @@ app.include_router(create_whatsapp_clients_router(
     get_db,
     lambda: _company_key(CURRENT_COMPANY.get()),
     require_whatsapp_action,
+    lambda phone, message, config: wa_send(phone, message, config),
 ))
 app.include_router(create_whatsapp_inbound_router(
     get_db,
@@ -6526,10 +6533,264 @@ def delete_wa_template(tid: str, x_token: str = Header(...)):
     return {"ok": True}
 
 # â”€â”€ WhatsApp Bot Settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+WHATSAPP_INBOUND_ENV_FILE = Path(os.environ.get("WHATSAPP_INBOUND_ENV_FILE", "/etc/menina-whatsapp-sandbox.env"))
+WHATSAPP_INBOUND_HELPER = Path(os.environ.get("WHATSAPP_INBOUND_HELPER", "/usr/local/sbin/menina-whatsapp-inbound-mode"))
+WHATSAPP_INBOUND_SERVICE = "menina-baileys.service"
+WHATSAPP_INBOUND_STATUS_URL = "http://127.0.0.1:3001/status"
+WHATSAPP_INBOUND_ALLOWED_MODES = {"sandbox", "production"}
+
+def _safe_actor_hash(sess: dict) -> str:
+    raw = f"{sess.get('user_id','')}|{sess.get('username','')}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
+
+def _parse_whatsapp_inbound_env_text(text: str) -> dict:
+    env = {}
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+            value = value[1:-1]
+        env[key] = value
+    return env
+
+def _call_whatsapp_inbound_helper(action: str, *args: str) -> dict:
+    import subprocess
+    command = ["sudo", "-n", str(WHATSAPP_INBOUND_HELPER), action, *args]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=90)
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "helper_inbound_mode_failed").strip().splitlines()
+        raise RuntimeError(detail[-1][:180] if detail else "helper_inbound_mode_failed")
+    try:
+        payload = json.loads(result.stdout or "{}")
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("helper_inbound_mode_invalid_json") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("helper_inbound_mode_invalid_payload")
+    return payload
+
+def _read_whatsapp_inbound_env():
+    path = WHATSAPP_INBOUND_ENV_FILE
+    if not path.exists():
+        raise HTTPException(500, "Arquivo de ambiente WhatsApp nao encontrado.")
+    try:
+        text = path.read_text(encoding="utf-8")
+        env = _parse_whatsapp_inbound_env_text(text)
+    except PermissionError:
+        try:
+            payload = _call_whatsapp_inbound_helper("read")
+        except Exception as exc:
+            raise HTTPException(500, "Sem permissao para ler o ambiente WhatsApp.") from exc
+        env = payload.get("env") if isinstance(payload.get("env"), dict) else {}
+        text = ""
+    return path, text, env
+
+def _set_whatsapp_inbound_mode_privileged(mode: str) -> dict:
+    if mode not in WHATSAPP_INBOUND_ALLOWED_MODES:
+        raise HTTPException(400, "Modo inbound invalido.")
+    try:
+        payload = _call_whatsapp_inbound_helper("set", mode)
+    except Exception as exc:
+        raise RuntimeError(f"helper_set_failed:{type(exc).__name__}") from exc
+    return payload
+
+def _rollback_whatsapp_inbound_mode_privileged(backup_path: str, mode: str):
+    if not backup_path:
+        return
+    args = [backup_path]
+    if mode in WHATSAPP_INBOUND_ALLOWED_MODES:
+        args.append(mode)
+    _call_whatsapp_inbound_helper("rollback", *args)
+
+def _write_whatsapp_inbound_mode(mode: str):
+    path, text, env = _read_whatsapp_inbound_env()
+    old_mode = (env.get("WHATSAPP_INBOUND_MODE") or "").strip().lower()
+    if old_mode not in WHATSAPP_INBOUND_ALLOWED_MODES:
+        raise HTTPException(500, "WHATSAPP_INBOUND_MODE ausente ou invalido no arquivo de ambiente.")
+    stat_info = path.stat()
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_root = Path(os.environ.get("MENINA_REFATORACAO_BACKUPS", "/root/menina_refatoracao_backups"))
+    backup_dir = backup_root / f"inbound_mode_{stamp}"
+    backup_dir.mkdir(parents=True, exist_ok=False)
+    backup_path = backup_dir / path.name
+    shutil.copy2(str(path), str(backup_path))
+    lines = text.splitlines()
+    replaced = False
+    new_lines = []
+    for line in lines:
+        stripped = line.lstrip()
+        if not stripped.startswith("#") and re.match(r"^WHATSAPP_INBOUND_MODE\s*=", stripped):
+            new_lines.append(f"WHATSAPP_INBOUND_MODE={mode}")
+            replaced = True
+        else:
+            new_lines.append(line)
+    if not replaced:
+        raise HTTPException(500, "Linha WHATSAPP_INBOUND_MODE nao encontrada para atualizacao segura.")
+    new_text = "\n".join(new_lines) + ("\n" if text.endswith("\n") else "")
+    tmp_path = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        tmp_path.write_text(new_text, encoding="utf-8")
+        try:
+            os.chown(str(tmp_path), stat_info.st_uid, stat_info.st_gid)
+        except AttributeError:
+            pass
+        os.chmod(str(tmp_path), stat_info.st_mode & 0o777)
+        os.replace(str(tmp_path), str(path))
+    finally:
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except Exception:
+            pass
+    return old_mode, str(backup_path)
+
+def _restore_whatsapp_inbound_env(backup_path: str):
+    path = WHATSAPP_INBOUND_ENV_FILE
+    stat_info = path.stat() if path.exists() else Path(backup_path).stat()
+    tmp_path = path.with_name(f".{path.name}.{uuid.uuid4().hex}.rollback")
+    try:
+        shutil.copy2(backup_path, str(tmp_path))
+        try:
+            os.chown(str(tmp_path), stat_info.st_uid, stat_info.st_gid)
+        except AttributeError:
+            pass
+        os.chmod(str(tmp_path), stat_info.st_mode & 0o777)
+        os.replace(str(tmp_path), str(path))
+    finally:
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except Exception:
+            pass
+
+def _systemctl(action: str, service: str, timeout: int = 30):
+    import subprocess
+    result = subprocess.run(["systemctl", action, service], capture_output=True, text=True, timeout=timeout)
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or f"systemctl {action} falhou").strip().splitlines()
+        raise RuntimeError(detail[-1][:160] if detail else f"systemctl {action} falhou")
+    return (result.stdout or "").strip()
+
+def _baileys_status_readonly():
+    try:
+        try:
+            import httpx as _hx
+            response = _hx.get(WHATSAPP_INBOUND_STATUS_URL, timeout=5)
+        except ImportError:
+            import requests as _rq
+            response = _rq.get(WHATSAPP_INBOUND_STATUS_URL, timeout=5)
+        payload = response.json() if response.text else {}
+        return response.status_code, payload
+    except Exception:
+        return 0, {}
+
+def _wait_baileys_inbound_mode(mode: str, attempts: int = 30, delay: float = 2.0):
+    import time
+    last = {"service_active": "unknown", "http_status": 0, "mode": "unknown"}
+    for attempt in range(1, attempts + 1):
+        try:
+            last["service_active"] = _systemctl("is-active", WHATSAPP_INBOUND_SERVICE, timeout=8) or "unknown"
+        except Exception:
+            last["service_active"] = "unknown"
+        http_status, payload = _baileys_status_readonly()
+        inbound = payload.get("inbound") if isinstance(payload, dict) else {}
+        last["http_status"] = http_status
+        last["mode"] = (inbound or {}).get("mode") or "unknown"
+        last["connected"] = bool(payload.get("connected")) if isinstance(payload, dict) else False
+        last["listenerInstalled"] = bool((inbound or {}).get("listenerInstalled"))
+        if last["service_active"] == "active" and http_status == 200 and last["mode"] == mode:
+            last["attempt"] = attempt
+            return last
+        time.sleep(delay)
+    raise RuntimeError(f"modo_inbound_nao_confirmado:{last.get('mode')}:{last.get('http_status')}")
+
+def _audit_whatsapp_inbound_mode(sess: dict, old_mode: str, new_mode: str, backup_path: str, result: str):
+    note = f"result={result};backup={Path(backup_path).name if backup_path else ''};actor_hash={_safe_actor_hash(sess)}"
+    conn = get_control_db()
+    try:
+        log_action(conn, sess, "WHATSAPP_INBOUND_MODE_CHANGE", "whatsapp", "Inbound automatico", "WHATSAPP_INBOUND_MODE", old_mode, new_mode, "", note)
+        conn.commit()
+    finally:
+        conn.close()
+    logger.info("WHATSAPP_INBOUND_MODE_CHANGE actor_hash=%s old_mode=%s new_mode=%s result=%s", _safe_actor_hash(sess), old_mode, new_mode, result)
+
+def _whatsapp_inbound_mode_payload():
+    _, _, env = _read_whatsapp_inbound_env()
+    configured = (env.get("WHATSAPP_INBOUND_MODE") or "").strip().lower()
+    http_status, payload = _baileys_status_readonly()
+    inbound = payload.get("inbound") if isinstance(payload, dict) else {}
+    runtime_mode = ((inbound or {}).get("mode") or "").strip().lower()
+    mode = runtime_mode if runtime_mode in WHATSAPP_INBOUND_ALLOWED_MODES else configured
+    return {
+        "mode": mode if mode in WHATSAPP_INBOUND_ALLOWED_MODES else "unknown",
+        "configured_mode": configured if configured in WHATSAPP_INBOUND_ALLOWED_MODES else "unknown",
+        "runtime_mode": runtime_mode if runtime_mode in WHATSAPP_INBOUND_ALLOWED_MODES else "unknown",
+        "service_http_status": http_status,
+        "connected": bool(payload.get("connected")) if isinstance(payload, dict) else False,
+        "listenerInstalled": bool((inbound or {}).get("listenerInstalled")),
+        "sandbox_allowlist_configured": bool((env.get("WHATSAPP_INBOUND_SANDBOX_NUMBERS") or "").strip()),
+        "requires_restart_service": WHATSAPP_INBOUND_SERVICE,
+    }
+
+@app.get("/api/whatsapp/inbound-mode")
+def get_whatsapp_inbound_mode(x_token: str = Header(...)):
+    require_admin(x_token)
+    return _whatsapp_inbound_mode_payload()
+
+@app.post("/api/whatsapp/inbound-mode")
+def set_whatsapp_inbound_mode(body: dict, x_token: str = Header(...)):
+    sess = require_admin(x_token)
+    target = str(body.get("mode") or "").strip().lower()
+    if target not in WHATSAPP_INBOUND_ALLOWED_MODES:
+        raise HTTPException(400, "Modo inbound invalido.")
+    current = _whatsapp_inbound_mode_payload()
+    configured = current.get("configured_mode")
+    if configured == target and current.get("runtime_mode") == target:
+        return {"ok": True, "mode": target, "changed": False, "restart": False, "status": current}
+    old_mode = configured if configured in WHATSAPP_INBOUND_ALLOWED_MODES else "unknown"
+    backup_path = ""
+    try:
+        helper_result = _set_whatsapp_inbound_mode_privileged(target)
+        old_mode = str(helper_result.get("old_mode") or old_mode).strip().lower()
+        backup_path = str(helper_result.get("backup") or "")
+        confirmed = _wait_baileys_inbound_mode(target)
+        _audit_whatsapp_inbound_mode(sess, old_mode, target, backup_path, "ok")
+        return {"ok": True, "mode": target, "changed": old_mode != target, "restart": True, "backup": backup_path, "status": confirmed}
+    except Exception as exc:
+        rollback_ok = False
+        rollback_error = ""
+        if backup_path:
+            try:
+                _rollback_whatsapp_inbound_mode_privileged(backup_path, old_mode)
+                if old_mode in WHATSAPP_INBOUND_ALLOWED_MODES:
+                    _wait_baileys_inbound_mode(old_mode, attempts=20, delay=2.0)
+                rollback_ok = True
+            except Exception as roll_exc:
+                rollback_error = type(roll_exc).__name__
+        try:
+            _audit_whatsapp_inbound_mode(sess, old_mode, target, backup_path, "rollback_ok" if rollback_ok else "rollback_failed")
+        except Exception:
+            pass
+        detail = f"Falha ao alterar modo inbound ({type(exc).__name__}). Rollback={'executado' if rollback_ok else 'falhou'}."
+        if rollback_error:
+            detail += f" Erro rollback={rollback_error}."
+        raise HTTPException(500, detail)
+
 _BOT_SETTINGS_KEYS = ["bot_active","auto_reply_enabled","auto_reply_from","auto_reply_to",
                       "min_interval_secs","block_groups","block_duplicate","max_per_day_per_client","test_mode",
                       "order_bot_disclosure_message","order_bot_welcome_message","order_bot_quantity_message","order_bot_damage_message",
                       "order_bot_confirm_message","order_bot_done_message"]
+_ORDER_BOT_LEGACY_DEFAULTS = {
+    "order_bot_welcome_message": "Olá, {cliente}! Qual produto você deseja solicitar?\n\nNossa lista de produtos:\n1. Macaxeira com casca\n2. Macaxeira a vácuo\n3. Alho descascado 250g\n4. Alho descascado 1kg\n5. Macaxeira chips\n6. Macaxeira pré-cozida",
+    "order_bot_confirm_message": "Está correto? Responda SIM ou NAO.",
+}
+_ORDER_BOT_CURRENT_DEFAULTS = {
+    "order_bot_welcome_message": "Olá, {cliente}! Qual produto você deseja solicitar?\n\nNossa lista de produtos:\n1. Macaxeira com casca\n2. Macaxeira a vácuo\n3. Alho descascado 250g\n4. Alho descascado 1kg\n5. Macaxeira chips\n6. Macaxeira pré-cozida\n\nVocê pode pedir mais de um produto no mesmo atendimento. Depois de informar quantidade e avaria, responda ADICIONAR para incluir outro item.",
+    "order_bot_confirm_message": "Está correto? Responda SIM, NAO ou ADICIONAR para incluir outro produto.",
+}
 
 @app.get("/api/whatsapp/bot-settings")
 def get_wa_bot_settings(x_token: str = Header(...)):
@@ -6538,7 +6799,11 @@ def get_wa_bot_settings(x_token: str = Header(...)):
     rows = conn.execute("SELECT key, value FROM whatsapp_config WHERE key IN ({})".format(
         ",".join("?" for _ in _BOT_SETTINGS_KEYS)), _BOT_SETTINGS_KEYS).fetchall()
     conn.close()
-    return {r["key"]: r["value"] for r in rows}
+    result = {r["key"]: r["value"] for r in rows}
+    for key, legacy in _ORDER_BOT_LEGACY_DEFAULTS.items():
+        if result.get(key) == legacy:
+            result[key] = _ORDER_BOT_CURRENT_DEFAULTS[key]
+    return result
 
 @app.put("/api/whatsapp/bot-settings")
 def save_wa_bot_settings(body: dict, x_token: str = Header(...)):

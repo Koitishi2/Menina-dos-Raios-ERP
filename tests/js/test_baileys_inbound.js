@@ -24,6 +24,68 @@ async function main() {
     message: { conversation: "Oi alternativo" }, messageTimestamp: 1000,
   }, "raios-primary");
   assert.strictEqual(altEvent.remote_jid, "5521984261686@s.whatsapp.net");
+  assert.strictEqual(altEvent.remote_jid_alt, "5521984261686@s.whatsapp.net");
+
+  const instrumentationLogs = [];
+  const instrumentationCalls = [];
+  const instrumentation = createInboundForwarder({
+    enabled: "true", mode: "sandbox", sandboxNumbers: "5521984261686",
+    instance: "raios-primary", token: "secret",
+    fetch: async (_url, options) => { instrumentationCalls.push(JSON.parse(options.body)); return { ok: true, status: 200 }; },
+    logger: { info: (message) => instrumentationLogs.push(message), error: (message) => instrumentationLogs.push(message) },
+  });
+  instrumentation.handleUpsert({ type: "notify", messages: [{
+    key: { id: "msg-notify", remoteJid: "123456@lid", remoteJidAlt: "5521984261686@s.whatsapp.net", fromMe: false },
+    message: { conversation: "TESTE_PEDIDOS" }, messageTimestamp: 1000,
+  }] });
+  await instrumentation.drain();
+  assert.strictEqual(instrumentationCalls.length, 1);
+  assert.strictEqual(instrumentationCalls[0].remote_jid_alt, "5521984261686@s.whatsapp.net");
+  assert.ok(instrumentationLogs.some((line) => line.includes("WA_INBOUND_EVENT_RECEIVED") && line.includes("eventType=notify") && line.includes("messageCount=1")));
+  assert.ok(instrumentationLogs.some((line) => line.includes("WA_INBOUND_NORMALIZED") && line.includes("senderMasked=****1686") && line.includes("senderKind=jid")));
+  assert.ok(instrumentationLogs.some((line) => line.includes("WA_INBOUND_ELIGIBLE") && line.includes("inboundAllowed=true") && line.includes("duplicate=false")));
+  assert.ok(instrumentationLogs.some((line) => line.includes("WA_AUTOREPLY_DECISION") && line.includes("decision=reply") && line.includes("reason=forward_backend")));
+  assert.ok(!instrumentationLogs.some((line) => line.includes("TESTE_PEDIDOS")));
+  assert.ok(!instrumentationLogs.some((line) => line.includes("5521984261686")));
+
+  instrumentation.handleUpsert({ type: "notify", messages: [{
+    key: { id: "msg-out-allow", remoteJid: "5595990000000@s.whatsapp.net", fromMe: false },
+    message: { conversation: "fora" }, messageTimestamp: 1000,
+  }] });
+  instrumentation.handleUpsert({ type: "notify", messages: [{
+    key: { id: "msg-self-log", remoteJid: "5521984261686@s.whatsapp.net", fromMe: true },
+    message: { conversation: "propria" }, messageTimestamp: 1000,
+  }] });
+  instrumentation.handleUpsert({ type: "notify", messages: [{
+    key: { id: "msg-no-text", remoteJid: "5521984261686@s.whatsapp.net", fromMe: false },
+    message: { imageMessage: {} }, messageTimestamp: 1000,
+  }] });
+  instrumentation.handleUpsert({ type: "notify", messages: [{
+    key: { id: "msg-notify", remoteJid: "123456@lid", remoteJidAlt: "5521984261686@s.whatsapp.net", fromMe: false },
+    message: { conversation: "duplicada" }, messageTimestamp: 1000,
+  }] });
+  await instrumentation.drain();
+  assert.ok(instrumentationLogs.some((line) => line.includes("reason=sandbox_inbound_blocked")));
+  assert.ok(instrumentationLogs.some((line) => line.includes("reason=from_me")));
+  assert.ok(instrumentationLogs.some((line) => line.includes("hasText=false") && line.includes("reason=missing_text")));
+  assert.ok(instrumentationLogs.some((line) => line.includes("reason=duplicate")));
+  assert.strictEqual(instrumentationCalls.length, 2, "only allowed non-duplicate inbound events are forwarded");
+
+  const lidOnlyLogs = [];
+  const lidOnlyCalls = [];
+  const lidOnly = createInboundForwarder({
+    enabled: "true", mode: "sandbox", sandboxNumbers: "5521984261686",
+    instance: "raios-primary", token: "secret",
+    fetch: async (_url, options) => { lidOnlyCalls.push(JSON.parse(options.body)); return { ok: true, status: 200 }; },
+    logger: { info: (message) => lidOnlyLogs.push(message), error: (message) => lidOnlyLogs.push(message) },
+  });
+  lidOnly.handleUpsert({ type: "notify", messages: [{
+    key: { id: "msg-lid-only", remoteJid: "abcdef@lid", fromMe: false },
+    message: { conversation: "lid puro" }, messageTimestamp: 1000,
+  }] });
+  await lidOnly.drain();
+  assert.strictEqual(lidOnlyCalls.length, 0);
+  assert.ok(lidOnlyLogs.some((line) => line.includes("reason=lid_without_alt")));
 
   const calls = [], waits = [], errors = [];
   const forwarder = createInboundForwarder({
@@ -56,6 +118,37 @@ async function main() {
   await brazilLegacy.drain();
   assert.strictEqual(brazilLegacyCalls.length, 1);
   assert.strictEqual(brazilLegacy.stats.forwarded, 1);
+
+  const productionCalls = [];
+  const production = createInboundForwarder({
+    enabled: "true", mode: "production", sandboxNumbers: "",
+    instance: "raios-primary", token: "secret",
+    fetch: async (_url, options) => { productionCalls.push(JSON.parse(options.body)); return { ok: true, status: 200 }; },
+  });
+  production.handleUpsert({ messages: [
+    { key: { id: "prod-1", remoteJid: "5595991234567@s.whatsapp.net", fromMe: false }, message: { conversation: "Ola producao" }, messageTimestamp: 1003 },
+    { key: { id: "prod-self", remoteJid: "5595991234567@s.whatsapp.net", fromMe: true }, message: { conversation: "propria" }, messageTimestamp: 1004 },
+    { key: { id: "prod-group", remoteJid: "120@g.us", fromMe: false }, message: { conversation: "grupo" }, messageTimestamp: 1005 },
+  ] });
+  await production.drain();
+  assert.strictEqual(productionCalls.length, 1);
+  assert.strictEqual(production.stats.forwarded, 1);
+  assert.strictEqual(production.stats.filtered, 2);
+
+  const productionLidCalls = [];
+  const productionLid = createInboundForwarder({
+    enabled: "true", mode: "production", sandboxNumbers: "",
+    instance: "raios-primary", token: "secret",
+    fetch: async (_url, options) => { productionLidCalls.push(JSON.parse(options.body)); return { ok: true, status: 200 }; },
+  });
+  productionLid.handleUpsert({ messages: [{
+    key: { id: "prod-lid", remoteJid: "1234567890@lid", fromMe: false },
+    message: { extendedTextMessage: { text: "pedido" } }, messageTimestamp: 1006,
+  }] });
+  await productionLid.drain();
+  assert.strictEqual(productionLidCalls.length, 1);
+  assert.strictEqual(productionLidCalls[0].remote_jid, "1234567890@lid");
+  assert.strictEqual(productionLid.stats.forwarded, 1);
 
   forwarder.handleUpsert({ messages: [{ key: { id: "msg-2", remoteJid: "5595991234567@s.whatsapp.net" }, message: { conversation: "Pedido repetido" }, messageTimestamp: 1002 }] });
   await forwarder.drain();

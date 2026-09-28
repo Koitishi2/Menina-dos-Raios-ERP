@@ -235,14 +235,14 @@ def test_order_bot_collects_request_and_creates_approval_order_without_sale(isol
         "aguardando_confirmacao", "aguardando_aprovacao",
     ]
     assert all(item["bot"]["delivery"]["sent"] is True for item in responses)
-    assert sent[0]["phone"] == "5595991234567"
+    assert sent[0]["phone"] == "5595991234567@s.whatsapp.net"
     assert "Cliente Pedido" in sent[0]["message"]
     assert "atendimento automatizado" in sent[0]["message"]
     assert "conversa será registrada" in sent[0]["message"]
     assert "Macaxeira com casca" in sent[0]["message"]
     assert "Qual quantidade" in sent[1]["message"]
     assert "Tem avaria" in sent[2]["message"]
-    assert "Está correto? Responda SIM ou NAO." in sent[3]["message"]
+    assert "Está correto? Responda SIM, NAO ou ADICIONAR" in sent[3]["message"]
     assert "Pedido feito" in sent[4]["message"]
     assert sent[4]["session"] == "restarted"
 
@@ -282,11 +282,11 @@ def test_order_bot_collects_request_and_creates_approval_order_without_sale(isol
         ),
     )
     assert repeated.status_code == 200
-    assert repeated.json()["bot"]["handled"] is False
+    assert repeated.json()["bot"]["reason"] == "pedido_pendente_aprovacao"
     conn = sqlite3.connect(isolated_app.db_paths["raios"])
     try:
         assert conn.execute("SELECT COUNT(*) FROM whatsapp_order_drafts").fetchone()[0] == 1
-        assert conn.execute("SELECT COUNT(*) FROM whatsapp_messages WHERE direction='enviada'").fetchone()[0] == 5
+        assert conn.execute("SELECT COUNT(*) FROM whatsapp_messages WHERE direction='enviada'").fetchone()[0] == 6
     finally:
         conn.close()
 
@@ -298,7 +298,199 @@ def test_order_bot_collects_request_and_creates_approval_order_without_sale(isol
         print(marker)
 
 
-def test_order_bot_creates_unknown_client_only_when_sandbox_is_active(isolated_app, monkeypatch):
+def test_order_bot_lid_continues_after_product_number(isolated_app, monkeypatch):
+    _configure_inbound(monkeypatch)
+    _configure_order_bot(isolated_app, monkeypatch)
+    sent = []
+
+    def fake_send(phone, message, config):
+        sent.append({"phone": phone, "message": message, "provider": config.get("provider")})
+        return {"ok": True, "response": "mock_ok"}
+
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    conn.row_factory = sqlite3.Row
+    try:
+        service = __import__("backend.services.whatsapp_inbound_service", fromlist=["process_inbound_event"])
+        outbound = {
+            "enabled": True,
+            "mode": "production",
+            "sandbox_numbers": set(),
+            "production_approved": True,
+        }
+        first = service.process_inbound_event(
+            conn,
+            "raios",
+            _event(
+                event_id="lid-flow-1",
+                message_id="lid-flow-msg-1",
+                remote_jid="abc123@lid",
+                text="pedido",
+                timestamp="2026-09-14T06:43:30-04:00",
+            ),
+            sender=fake_send,
+            outbound=outbound,
+        )
+        second = service.process_inbound_event(
+            conn,
+            "raios",
+            _event(
+                event_id="lid-flow-2",
+                message_id="lid-flow-msg-2",
+                remote_jid="abc123@lid",
+                text="Cliente LID",
+                timestamp="2026-09-14T06:43:40-04:00",
+            ),
+            sender=fake_send,
+            outbound=outbound,
+        )
+        third = service.process_inbound_event(
+            conn,
+            "raios",
+            _event(
+                event_id="lid-flow-3",
+                message_id="lid-flow-msg-3",
+                remote_jid="abc123@lid",
+                text="Rua LID, 123",
+                timestamp="2026-09-14T06:43:50-04:00",
+            ),
+            sender=fake_send,
+            outbound=outbound,
+        )
+        fourth = service.process_inbound_event(
+            conn,
+            "raios",
+            _event(
+                event_id="lid-flow-4",
+                message_id="lid-flow-msg-4",
+                remote_jid="abc123@lid",
+                text="3",
+                timestamp="2026-09-14T06:44:00-04:00",
+            ),
+            sender=fake_send,
+            outbound=outbound,
+        )
+    finally:
+        conn.close()
+
+    assert first["bot"]["state"] == "aguardando_resposta"
+    assert second["bot"]["state"] == "pedido_rascunho"
+    assert third["bot"]["state"] == "identificando_produto"
+    assert fourth["bot"]["state"] == "coletando_quantidade"
+    assert sent[-1]["phone"] == "abc123@lid"
+    assert "Qual quantidade" in sent[-1]["message"]
+
+
+def test_order_bot_any_text_restarts_lid_conversation_after_human_state(isolated_app, monkeypatch):
+    _configure_inbound(monkeypatch)
+    _configure_order_bot(isolated_app, monkeypatch)
+    sent = []
+
+    def fake_send(phone, message, config):
+        sent.append({"phone": phone, "message": message, "provider": config.get("provider")})
+        return {"ok": True, "response": "mock_ok"}
+
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    conn.row_factory = sqlite3.Row
+    try:
+        service = __import__("backend.services.whatsapp_inbound_service", fromlist=["process_inbound_event"])
+        outbound = {
+            "enabled": True,
+            "mode": "production",
+            "sandbox_numbers": set(),
+            "production_approved": True,
+        }
+        first = service.process_inbound_event(
+            conn,
+            "raios",
+            _event(
+                event_id="lid-human-1",
+                message_id="lid-human-msg-1",
+                remote_jid="stuck123@lid",
+                text="pedido",
+                timestamp="2026-09-14T06:43:30-04:00",
+            ),
+            sender=fake_send,
+            outbound=outbound,
+        )
+        conversation_id = conn.execute(
+            "SELECT conversation_id FROM whatsapp_messages WHERE external_message_id='lid-human-msg-1'"
+        ).fetchone()["conversation_id"]
+        client_id = conn.execute(
+            "SELECT client_id FROM whatsapp_conversations WHERE id=?", (conversation_id,)
+        ).fetchone()["client_id"]
+        conn.execute(
+            "UPDATE clients SET name='Cliente Registrado LID',address='Rua Registrada, 123' WHERE id=?",
+            (client_id,),
+        )
+        conn.execute("UPDATE whatsapp_conversations SET status='atendimento_humano' WHERE id=?", (conversation_id,))
+        conn.commit()
+        restarted = service.process_inbound_event(
+            conn,
+            "raios",
+            _event(
+                event_id="lid-human-2",
+                message_id="lid-human-msg-2",
+                remote_jid="stuck123@lid",
+                text="qualquer mensagem",
+                timestamp="2026-09-14T06:54:00-04:00",
+            ),
+            sender=fake_send,
+            outbound=outbound,
+        )
+    finally:
+        conn.close()
+
+    assert restarted["bot"]["state"] == "identificando_produto"
+    assert restarted["bot"]["delivery"]["sent"] is True
+    assert sent[-1]["phone"] == "stuck123@lid"
+    assert "Qual produto" in sent[-1]["message"]
+
+
+def test_order_bot_registers_unknown_client_name_and_address_before_order(isolated_app, monkeypatch):
+    _configure_inbound(monkeypatch)
+    _configure_order_bot(isolated_app, monkeypatch)
+    sent = []
+    isolated_app.module.wa_send = lambda phone, message, config: sent.append((phone, message)) or {
+        "ok": True, "response": "mock_ok",
+    }
+
+    responses = []
+    for index, text in enumerate(("Oi", "Adriano Silva", "Rua das Flores, 123", "3"), start=1):
+        response = isolated_app.client.post(
+            "/internal/whatsapp/events", headers=_internal_headers(),
+            json=_event(
+                event_id=f"unknown-event-{index}",
+                message_id=f"unknown-message-{index}",
+                text=text,
+                timestamp=f"2026-09-14T12:1{index}:00-04:00",
+            ),
+        )
+        assert response.status_code == 200, response.text
+        responses.append(response.json())
+
+    assert [item["bot"]["state"] for item in responses] == [
+        "aguardando_resposta", "pedido_rascunho", "identificando_produto", "coletando_quantidade",
+    ]
+    assert "como você gostaria de ser chamado" in sent[0][1]
+    assert "Qual endereço" in sent[1][1]
+    assert "Qual produto" in sent[2][1]
+    assert "Qual quantidade" in sent[3][1]
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    conn.row_factory = sqlite3.Row
+    try:
+        client = conn.execute("SELECT * FROM clients WHERE phone='+5595991234567'").fetchone()
+        assert client["name"] == "Adriano Silva"
+        assert client["address"] == "Rua das Flores, 123"
+        assert client["created_by"] == "whatsapp_bot"
+        assert "Cadastro automatico" in client["notes"]
+        assert conn.execute("SELECT COUNT(*) FROM whatsapp_consent WHERE client_id=?", (client["id"],)).fetchone()[0] == 0
+        assert conn.execute("SELECT status FROM whatsapp_conversations WHERE client_id=?", (client["id"],)).fetchone()[0] == "coletando_quantidade"
+    finally:
+        conn.close()
+    assert len(sent) == 4
+
+
+def test_order_bot_lid_registration_uses_alternate_phone_when_available(isolated_app, monkeypatch):
     _configure_inbound(monkeypatch)
     _configure_order_bot(isolated_app, monkeypatch)
     sent = []
@@ -307,23 +499,29 @@ def test_order_bot_creates_unknown_client_only_when_sandbox_is_active(isolated_a
     }
 
     response = isolated_app.client.post(
-        "/internal/whatsapp/events", headers=_internal_headers(),
-        json=_event(event_id="unknown-event", message_id="unknown-message", text="Oi"),
+        "/internal/whatsapp/events",
+        headers=_internal_headers(),
+        json=_event(
+            event_id="lid-phone-event-1",
+            message_id="lid-phone-message-1",
+            remote_jid="cliente-lid-123@lid",
+            remote_jid_alt="5595991234567@s.whatsapp.net",
+            text="Oi",
+            timestamp="2026-09-14T12:30:00-04:00",
+        ),
     )
+    assert response.status_code == 200, response.text
+    assert response.json()["bot"]["state"] == "aguardando_resposta"
 
-    assert response.status_code == 200
-    assert response.json()["bot"]["state"] == "identificando_produto"
     conn = sqlite3.connect(isolated_app.db_paths["raios"])
     conn.row_factory = sqlite3.Row
     try:
         client = conn.execute("SELECT * FROM clients WHERE phone='+5595991234567'").fetchone()
-        assert client["name"] == "Cliente WhatsApp 4567"
-        assert client["created_by"] == "whatsapp_bot"
-        assert "Cadastro automatico" in client["notes"]
-        assert conn.execute("SELECT COUNT(*) FROM whatsapp_consent WHERE client_id=?", (client["id"],)).fetchone()[0] == 0
+        assert client is not None
+        assert client["created_by"] == "whatsapp_bot_lid"
+        assert "identificador LID" in client["notes"]
     finally:
         conn.close()
-    assert len(sent) == 1
 
 
 def test_order_bot_requests_only_missing_invalid_data(isolated_app, monkeypatch):

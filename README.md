@@ -1,4 +1,4 @@
-﻿# Menina dos Raios ERP
+# Menina dos Raios ERP
 
 Aplicacao de gestao operacional para vendas, entregas, boletos, notas, orcamentos, pagamentos, calendario e integracoes de comunicacao.
 
@@ -390,12 +390,16 @@ WHATSAPP_INBOUND_ENABLED=false
 WHATSAPP_INBOUND_TOKEN=
 WHATSAPP_INBOUND_INSTANCE=
 WHATSAPP_INBOUND_COMPANY=
+WHATSAPP_INBOUND_MODE=disabled
+WHATSAPP_INBOUND_SANDBOX_NUMBERS=
 WHATSAPP_INBOUND_URL=http://127.0.0.1:8765/internal/whatsapp/events
 WHATSAPP_INBOUND_TIMEOUT_MS=5000
 WHATSAPP_INBOUND_MAX_ATTEMPTS=3
 WHATSAPP_INBOUND_MAX_QUEUE=100
 WHATSAPP_INBOUND_MAX_BODY_BYTES=32768
 ```
+
+`WHATSAPP_INBOUND_MODE` aceita `disabled`, `sandbox` e `production`. Em `sandbox`, somente os numeros de `WHATSAPP_INBOUND_SANDBOX_NUMBERS` sao encaminhados; em `production`, toda mensagem individual valida e encaminhada (o backend aplica as travas de bot, outbound e horario). Qualquer outro valor falha fechado como `disabled`.
 
 O padrao e desligado. Quando habilitado, a instancia e associada no backend a uma empresa configurada; o Node nao escolhe empresa nem cliente. O corpo JSON aceito contem `provider`, `instance`, `event_id`, `message_id`, `remote_jid`, `from_me`, `message_type`, `text`, `timestamp` e `raw_type` opcional. Payload bruto nao e persistido.
 

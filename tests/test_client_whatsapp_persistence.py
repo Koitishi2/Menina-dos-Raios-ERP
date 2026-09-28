@@ -1,5 +1,6 @@
 import sqlite3
 import uuid
+import importlib
 from pathlib import Path
 
 import pytest
@@ -41,6 +42,38 @@ def _incoming(client_id=None, **overrides):
     }
     body.update(overrides)
     return body
+
+
+def _seed_order(app, token, client, status="aguardando_aprovacao", order_id=None, message_id="msg-order"):
+    incoming = app.client.post(
+        "/api/whatsapp/webhooks/incoming",
+        headers=_headers(token),
+        json=_incoming(client["id"], external_message_id=message_id, event_hash=f"event-{message_id}"),
+    ).json()
+    oid = order_id or str(uuid.uuid4())
+    conn = sqlite3.connect(app.db_paths["raios"])
+    try:
+        conn.execute(
+            """INSERT INTO whatsapp_order_drafts(
+                   id,company_key,client_id,conversation_id,source_message_id,idempotency_key,status,total)
+               VALUES(?,?,?,?,?,?,?,?)""",
+            (oid, "raios", client["id"], incoming["conversation_id"], incoming["message_id"], f"order-key-{oid}", status, "20"),
+        )
+        conn.execute(
+            """INSERT INTO whatsapp_order_items(
+                   id,order_id,product_key,requested_quantity,confirmed_quantity,unit_price,total,confirmed_damage)
+               VALUES(?,?,?,?,?,?,?,'0')""",
+            (str(uuid.uuid4()), oid, "MAC_PCT", "10", "10", "2", "20"),
+        )
+        if status:
+            conn.execute(
+                "UPDATE whatsapp_conversations SET status=? WHERE id=?",
+                ("aguardando_aprovacao" if status == "aguardando_aprovacao" else "pedido_rascunho", incoming["conversation_id"]),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+    return oid, incoming
 
 
 def test_migration_and_rollback_on_memory_database():
@@ -264,9 +297,245 @@ def test_conversation_and_order_reads_are_company_scoped_with_history(isolated_a
     assert len(conversation.json()["messages"]) == 1
     assert order.status_code == 200
     assert order.json()["status"] == "duplicado_suspeito"
+    assert order.json()["client_phone"] == client["phone"]
     assert order.json()["history"][0]["reason"] == "pedido_recente_do_cliente"
     assert foreign_conversation.status_code == 404
     assert foreign_order.status_code == 404
+
+    listed = isolated_app.client.get("/api/whatsapp/orders", headers=_headers(token))
+    assert listed.status_code == 200
+    assert listed.json()[0]["client_id"] == client["id"]
+    assert listed.json()[0]["client_phone"] == client["phone"]
+
+
+def test_order_reads_handle_client_without_orders_and_missing_order(isolated_app):
+    token = _login(isolated_app.client)
+    _create_client(isolated_app, token, name="Cliente sem pedidos")
+    listed = isolated_app.client.get("/api/whatsapp/orders", headers=_headers(token))
+    missing = isolated_app.client.get("/api/whatsapp/orders/pedido-inexistente", headers=_headers(token))
+    assert listed.status_code == 200
+    assert listed.json() == []
+    assert missing.status_code == 404
+    assert missing.json()["detail"] == "Pedido nao encontrado."
+
+
+def test_order_actions_are_idempotent_and_do_not_create_sale_or_stock(isolated_app):
+    token = _login(isolated_app.client)
+    client = _create_client(isolated_app, token)
+    order_id, _ = _seed_order(isolated_app, token, client)
+
+    confirmed = isolated_app.client.post(f"/api/whatsapp/orders/{order_id}/confirm", headers=_headers(token))
+    repeated = isolated_app.client.post(f"/api/whatsapp/orders/{order_id}/confirm", headers=_headers(token))
+    rejected_after_confirm = isolated_app.client.post(
+        f"/api/whatsapp/orders/{order_id}/reject",
+        headers=_headers(token),
+        json={"reason": "cliente desistiu"},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    assert confirmed.json()["order"]["status"] == "aprovado"
+    assert repeated.status_code == 200
+    assert repeated.json()["changed"] is False
+    assert rejected_after_confirm.status_code == 409
+
+    reject_id, _ = _seed_order(isolated_app, token, client, order_id=str(uuid.uuid4()), message_id="msg-reject")
+    invalid_reject = isolated_app.client.post(
+        f"/api/whatsapp/orders/{reject_id}/reject",
+        headers=_headers(token),
+        json={"reason": " "},
+    )
+    rejected = isolated_app.client.post(
+        f"/api/whatsapp/orders/{reject_id}/reject",
+        headers=_headers(token),
+        json={"reason": "produto indisponivel"},
+    )
+    repeated_reject = isolated_app.client.post(
+        f"/api/whatsapp/orders/{reject_id}/reject",
+        headers=_headers(token),
+        json={"reason": "produto indisponivel"},
+    )
+    assert invalid_reject.status_code in (400, 422)
+    assert rejected.status_code == 200
+    assert rejected.json()["order"]["status"] == "cancelado"
+    assert repeated_reject.status_code == 200
+    assert repeated_reject.json()["changed"] is False
+
+    new_order = isolated_app.client.post(
+        "/api/whatsapp/orders/new-for-client",
+        headers=_headers(token),
+        json={"client_id": client["id"], "items": [{"product_key": "MAC_PCT", "quantity": "3", "damage": "0"}]},
+    )
+    assert new_order.status_code == 200, new_order.text
+    assert new_order.json()["order"]["status"] == "rascunho"
+    new_order_id = new_order.json()["order"]["id"]
+    removed = isolated_app.client.delete(f"/api/whatsapp/orders/{new_order_id}", headers=_headers(token))
+    removed_again = isolated_app.client.delete(f"/api/whatsapp/orders/{new_order_id}", headers=_headers(token))
+    removed_fetch = isolated_app.client.get(f"/api/whatsapp/orders/{new_order_id}", headers=_headers(token))
+    assert removed.status_code == 200, removed.text
+    assert removed.json()["order"]["id"] == new_order_id
+    assert removed_again.status_code == 404
+    assert removed_fetch.status_code == 404
+
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    try:
+        assert conn.execute(
+            "SELECT COUNT(*) FROM whatsapp_order_history WHERE order_id=? AND new_status='aprovado'",
+            (order_id,),
+        ).fetchone()[0] == 1
+        assert conn.execute(
+            "SELECT COUNT(*) FROM whatsapp_order_history WHERE order_id=? AND new_status='cancelado'",
+            (reject_id,),
+        ).fetchone()[0] == 1
+        assert conn.execute(
+            "SELECT COUNT(*) FROM whatsapp_order_drafts WHERE id=?",
+            (new_order_id,),
+        ).fetchone()[0] == 0
+        assert conn.execute(
+            "SELECT COUNT(*) FROM whatsapp_order_items WHERE order_id=?",
+            (new_order_id,),
+        ).fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM sales").fetchone()[0] == 0
+    finally:
+        conn.close()
+    assert isolated_app.external_calls == []
+
+
+def test_order_actions_notify_customer_when_outbound_is_allowed(isolated_app, monkeypatch):
+    monkeypatch.setenv("WHATSAPP_OUTBOUND_ENABLED", "true")
+    monkeypatch.setenv("WHATSAPP_OUTBOUND_MODE", "sandbox")
+    monkeypatch.setenv("WHATSAPP_OUTBOUND_SANDBOX_NUMBERS", "+5595991234567")
+    sent = []
+    isolated_app.module.wa_send = lambda phone, message, config: sent.append(
+        {"phone": phone, "message": message, "provider": config.get("provider")}
+    ) or {"ok": True, "response": "mock sent"}
+
+    token = _login(isolated_app.client)
+    client = _create_client(isolated_app, token, name="Cliente Teste", phone="95991234567")
+    order_id, _ = _seed_order(isolated_app, token, client, order_id=str(uuid.uuid4()), message_id="msg-notify-ok")
+    reject_id, _ = _seed_order(isolated_app, token, client, order_id=str(uuid.uuid4()), message_id="msg-notify-no")
+
+    confirmed = isolated_app.client.post(f"/api/whatsapp/orders/{order_id}/confirm", headers=_headers(token))
+    rejected = isolated_app.client.post(
+        f"/api/whatsapp/orders/{reject_id}/reject",
+        headers=_headers(token),
+        json={"reason": "produto indisponivel"},
+    )
+    repeated = isolated_app.client.post(f"/api/whatsapp/orders/{order_id}/confirm", headers=_headers(token))
+
+    assert confirmed.status_code == 200, confirmed.text
+    assert confirmed.json()["notification"] == {"sent": True, "reason": "enviado"}
+    assert rejected.status_code == 200, rejected.text
+    assert rejected.json()["notification"] == {"sent": True, "reason": "enviado"}
+    assert repeated.status_code == 200
+    assert repeated.json()["notification"] == {"sent": False, "reason": "pedido_sem_alteracao"}
+    assert len(sent) == 2
+    assert sent[0]["phone"] == "5595991234567"
+    assert "Seu pedido" in sent[0]["message"]
+    assert "foi aprovado" in sent[0]["message"]
+    assert "nao sera possivel atender" in sent[1]["message"]
+    assert "produto indisponivel" in sent[1]["message"]
+
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    try:
+        events = sorted(
+            row[0]
+            for row in conn.execute(
+                "SELECT event_type FROM whatsapp_log"
+            ).fetchall()
+        )
+        assert events == ["pedido_aprovado", "pedido_recusado"]
+    finally:
+        conn.close()
+
+
+def test_whatsapp_pending_order_replies_and_novo_starts_independent_flow(isolated_app):
+    token = _login(isolated_app.client)
+    client = _create_client(isolated_app, token)
+    order_id, incoming = _seed_order(isolated_app, token, client)
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    conn.row_factory = sqlite3.Row
+    try:
+        for key, value in {
+            "provider": "baileys",
+            "bot_active": "1",
+            "auto_reply_enabled": "1",
+            "auto_reply_from": "00:00",
+            "auto_reply_to": "23:59",
+            "test_mode": "0",
+        }.items():
+            conn.execute("INSERT OR REPLACE INTO whatsapp_config(key,value) VALUES(?,?)", (key, value))
+        conn.commit()
+        service = importlib.import_module("services.whatsapp_inbound_service")
+        sent = []
+        outbound = {
+            "enabled": True,
+            "mode": "sandbox",
+            "sandbox_numbers": {"+5595991234567"},
+            "production_approved": False,
+        }
+
+        def sender(phone, message, config):
+            sent.append({"phone": phone, "message": message})
+            return {"ok": True, "response": "mocked"}
+
+        pending_payload = {
+            "instance": "simulacao-local",
+            "event_id": "evt-pending",
+            "message_id": "msg-pending",
+            "remote_jid": "5595991234567@s.whatsapp.net",
+            "from_me": False,
+            "message_type": "conversation",
+            "text": "oi",
+            "timestamp": "2026-09-14T22:10:00-04:00",
+        }
+        pending = service.process_inbound_event(conn, "raios", pending_payload, sender=sender, outbound=outbound)
+        duplicate = service.process_inbound_event(conn, "raios", pending_payload, sender=sender, outbound=outbound)
+        assert pending["bot"]["reason"] == "pedido_pendente_aprovacao"
+        assert "NOVO" in sent[-1]["message"]
+        assert duplicate["duplicate"] is True
+        assert len(sent) == 1
+
+        outside = service.process_inbound_event(
+            conn,
+            "raios",
+            {**pending_payload, "event_id": "evt-outside", "message_id": "msg-outside", "text": "teste"},
+            sender=sender,
+            outbound={**outbound, "sandbox_numbers": set()},
+        )
+        assert outside["bot"]["reason"] == "numero_fora_da_sandbox"
+        assert len(sent) == 1
+
+        lid_payload = {
+            **pending_payload,
+            "event_id": "evt-lid",
+            "message_id": "msg-lid",
+            "remote_jid": "1234567890@lid",
+            "text": "pedido",
+        }
+        lid = service.process_inbound_event(
+            conn,
+            "raios",
+            lid_payload,
+            sender=sender,
+            outbound={**outbound, "sandbox_numbers": set()},
+        )
+        assert lid["status"] == "processado"
+        assert lid["bot"]["state"] == "identificando_produto"
+        assert sent[-1]["phone"] == "1234567890@lid"
+
+        conversations_before = conn.execute("SELECT COUNT(*) FROM whatsapp_conversations").fetchone()[0]
+        novo = service.process_inbound_event(
+            conn,
+            "raios",
+            {**pending_payload, "event_id": "evt-novo", "message_id": "msg-novo", "text": "NOVO"},
+            sender=sender,
+            outbound=outbound,
+        )
+        conversations_after = conn.execute("SELECT COUNT(*) FROM whatsapp_conversations").fetchone()[0]
+        assert novo["bot"]["state"] == "identificando_produto"
+        assert conversations_after == conversations_before + 1
+        assert conn.execute("SELECT status FROM whatsapp_order_drafts WHERE id=?", (order_id,)).fetchone()[0] == "aguardando_aprovacao"
+    finally:
+        conn.close()
 
 
 def test_managed_role_is_denied_by_default(isolated_app):

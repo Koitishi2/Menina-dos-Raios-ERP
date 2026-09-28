@@ -28,6 +28,8 @@ class BaileysInboundEvent(BaseModel):
     event_id: str = Field(min_length=1, max_length=255)
     message_id: str = Field(min_length=1, max_length=255)
     remote_jid: str = Field(min_length=1, max_length=255)
+    remote_jid_alt: str | None = Field(default=None, max_length=255)
+    participant_alt: str | None = Field(default=None, max_length=255)
     from_me: bool = False
     message_type: str = Field(min_length=1, max_length=100)
     text: str = Field(default="", max_length=10000)

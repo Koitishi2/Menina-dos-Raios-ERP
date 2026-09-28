@@ -1,4 +1,12 @@
 from pathlib import Path
+import hashlib
+import uuid
+from decimal import Decimal, InvalidOperation
+
+try:
+    from ..domains.whatsapp_policies import normalize_brazil_phone
+except ImportError:
+    from domains.whatsapp_policies import normalize_brazil_phone
 
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[1] / "migrations"
@@ -156,6 +164,164 @@ def get_order(conn, company_key, order_id):
     result["items"] = [dict(item) for item in conn.execute("SELECT * FROM whatsapp_order_items WHERE order_id=? ORDER BY created_at,id", (order_id,)).fetchall()]
     result["history"] = [dict(item) for item in conn.execute("SELECT * FROM whatsapp_order_history WHERE order_id=? AND company_key=? ORDER BY created_at,id", (order_id, company_key)).fetchall()]
     return result
+
+
+def _decimal_text(value, field, allow_zero=False):
+    try:
+        number = Decimal(str(value).replace(",", "."))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise ValueError(f"{field}_invalido") from exc
+    if not number.is_finite() or number < 0 or (number == 0 and not allow_zero):
+        raise ValueError(f"{field}_invalido")
+    return number
+
+
+def _append_order_history(conn, company_key, order_id, previous_status, new_status, username, reason):
+    conn.execute(
+        """INSERT INTO whatsapp_order_history(id,company_key,order_id,previous_status,new_status,changed_by,reason)
+           VALUES(?,?,?,?,?,?,?)""",
+        (str(uuid.uuid4()), company_key, order_id, previous_status, new_status, username or "sistema", reason or ""),
+    )
+
+
+def confirm_order(conn, company_key, order_id, username):
+    row = conn.execute(
+        "SELECT * FROM whatsapp_order_drafts WHERE id=? AND company_key=?",
+        (order_id, company_key),
+    ).fetchone()
+    if not row:
+        return None, False
+    if row["status"] == "aprovado":
+        return get_order(conn, company_key, order_id), False
+    if row["status"] != "aguardando_aprovacao":
+        raise ValueError(f"transicao_invalida:{row['status']}:aprovado")
+    conn.execute(
+        """UPDATE whatsapp_order_drafts
+           SET status='aprovado',approved_by=?,approved_at=datetime('now'),updated_at=datetime('now')
+           WHERE id=? AND company_key=?""",
+        (username or "sistema", order_id, company_key),
+    )
+    _append_order_history(conn, company_key, order_id, row["status"], "aprovado", username, "aprovacao_ui")
+    return get_order(conn, company_key, order_id), True
+
+
+def reject_order(conn, company_key, order_id, username, reason):
+    reason = str(reason or "").strip()
+    if not reason:
+        raise ValueError("motivo_obrigatorio")
+    row = conn.execute(
+        "SELECT * FROM whatsapp_order_drafts WHERE id=? AND company_key=?",
+        (order_id, company_key),
+    ).fetchone()
+    if not row:
+        return None, False
+    if row["status"] == "cancelado":
+        return get_order(conn, company_key, order_id), False
+    if row["status"] != "aguardando_aprovacao":
+        raise ValueError(f"transicao_invalida:{row['status']}:cancelado")
+    conn.execute(
+        """UPDATE whatsapp_order_drafts
+           SET status='cancelado',block_reason=?,updated_at=datetime('now')
+           WHERE id=? AND company_key=?""",
+        (reason[:500], order_id, company_key),
+    )
+    _append_order_history(conn, company_key, order_id, row["status"], "cancelado", username, reason[:500])
+    return get_order(conn, company_key, order_id), True
+
+
+def delete_order(conn, company_key, order_id, username):
+    row = conn.execute(
+        "SELECT id,status FROM whatsapp_order_drafts WHERE id=? AND company_key=?",
+        (order_id, company_key),
+    ).fetchone()
+    if not row:
+        return None, False
+    result = {"id": row["id"], "status": row["status"], "removed_by": username or "sistema"}
+    conn.execute(
+        "UPDATE customer_product_damage SET order_id=NULL WHERE order_id=? AND company_key=?",
+        (order_id, company_key),
+    )
+    conn.execute(
+        "DELETE FROM whatsapp_order_history WHERE order_id=? AND company_key=?",
+        (order_id, company_key),
+    )
+    conn.execute("DELETE FROM whatsapp_order_items WHERE order_id=?", (order_id,))
+    conn.execute("DELETE FROM whatsapp_order_drafts WHERE id=? AND company_key=?", (order_id, company_key))
+    return result, True
+
+
+def create_order_for_client(conn, company_key, client_id, items, username):
+    client = find_client(conn, client_id)
+    if not client:
+        return None
+    if not isinstance(items, list) or not items:
+        raise ValueError("itens_obrigatorios")
+    if len(items) > 20:
+        raise ValueError("itens_excedem_limite")
+    order_id = str(uuid.uuid4())
+    conversation_id = str(uuid.uuid4())
+    message_id = str(uuid.uuid4())
+    phone = normalize_brazil_phone(client["phone"] or "")
+    jid = phone.jid if phone.valid else f"{client_id}@manual.local"
+    external_id = f"ui:new-order:{order_id}"
+    idempotency = hashlib.sha256(f"{company_key}:{external_id}".encode()).hexdigest()
+    total = Decimal("0")
+    total_quantity = Decimal("0")
+    prepared_items = []
+    seen_products = set()
+    for item in items:
+        product_key = str((item or {}).get("product_key") or "").strip()
+        if not product_key:
+            raise ValueError("produto_obrigatorio")
+        if product_key in seen_products:
+            raise ValueError("produto_duplicado")
+        seen_products.add(product_key)
+        product = conn.execute("SELECT key,label,price FROM product_prices WHERE key=?", (product_key,)).fetchone()
+        if not product:
+            raise LookupError("produto_nao_encontrado")
+        quantity = _decimal_text((item or {}).get("quantity"), "quantidade")
+        damage = _decimal_text((item or {}).get("damage") or "0", "avaria", allow_zero=True)
+        if damage > quantity:
+            raise ValueError("avaria_maior_que_quantidade")
+        unit_price = Decimal(str(product["price"] or 0))
+        line_total = quantity * unit_price
+        total += line_total
+        total_quantity += quantity
+        prepared_items.append((product_key, str(quantity), str(damage), str(unit_price), str(line_total)))
+    conn.execute(
+        """INSERT INTO whatsapp_conversations(id,company_key,client_id,jid,status,last_message_at)
+           VALUES(?,?,?,?,?,datetime('now'))""",
+        (conversation_id, company_key, client_id, jid, "pedido_rascunho"),
+    )
+    conn.execute(
+        """INSERT INTO whatsapp_messages(
+               id,company_key,instance_key,conversation_id,client_id,direction,
+               external_message_id,idempotency_key,event_hash,jid,body,status,processed_at)
+           VALUES(?,?,?,?,?,'recebida',?,?,?,?,?,'processada',datetime('now'))""",
+        (
+            message_id, company_key, "ui", conversation_id, client_id,
+            external_id, idempotency, idempotency, jid, "Pedido criado manualmente na aba Pedidos.",
+        ),
+    )
+    conn.execute(
+        """INSERT INTO whatsapp_order_drafts(
+               id,company_key,client_id,conversation_id,source_message_id,idempotency_key,status,
+               requested_quantity,total,calculation_memory)
+           VALUES(?,?,?,?,?,?,'rascunho',?,?,?)""",
+        (
+            order_id, company_key, client_id, conversation_id, message_id, idempotency,
+            str(total_quantity), str(total), '{"origin":"pedidos_ui","draft_only":true}',
+        ),
+    )
+    for product_key, quantity, damage, unit_price, line_total in prepared_items:
+        conn.execute(
+            """INSERT INTO whatsapp_order_items(
+                   id,order_id,product_key,requested_quantity,confirmed_damage,unit_price,total)
+               VALUES(?,?,?,?,?,?,?)""",
+            (str(uuid.uuid4()), order_id, product_key, quantity, damage, unit_price, line_total),
+        )
+    _append_order_history(conn, company_key, order_id, None, "rascunho", username, "pedido_ui_manual")
+    return get_order(conn, company_key, order_id)
 
 
 def list_consumption(conn, company_key, client_id):

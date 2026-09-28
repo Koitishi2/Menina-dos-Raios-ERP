@@ -4,18 +4,28 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 
 try:
-    from ..domains.whatsapp_policies import conversation_control_intent, message_idempotency_key, normalize_brazil_phone
+    from ..domains.whatsapp_policies import conversation_control_intent, message_idempotency_key, normalize_brazil_phone, normalize_command
     from ..repositories.whatsapp_repository import active_clients
 except ImportError:
-    from domains.whatsapp_policies import conversation_control_intent, message_idempotency_key, normalize_brazil_phone
+    from domains.whatsapp_policies import conversation_control_intent, message_idempotency_key, normalize_brazil_phone, normalize_command
     from repositories.whatsapp_repository import active_clients
 
 
 OPEN_CONVERSATION_STATES = (
     "nova", "aguardando_resposta", "identificando_produto", "coletando_quantidade",
     "coletando_avaria", "calculando_reposicao", "aguardando_confirmacao",
-    "pedido_rascunho", "aguardando_aprovacao", "atendimento_humano",
+    "pedido_rascunho", "aguardando_aprovacao",
 )
+ORDER_BOT_CONVERSATION_STATES = frozenset({
+    "nova", "identificando_produto", "coletando_quantidade", "coletando_avaria",
+    "aguardando_confirmacao", "aguardando_aprovacao", "aguardando_resposta",
+    "pedido_rascunho",
+})
+ORDER_BOT_NUMERIC_OPTIONS = frozenset({"1", "2", "3", "4", "5", "6"})
+NEW_ORDER_COMMANDS = frozenset({
+    "PEDIDO", "FAZER PEDIDO", "QUERO PEDIDO", "QUERO FAZER PEDIDO",
+    "NOVO", "NOVO PEDIDO", "NOVO ATENDIMENTO",
+})
 
 
 def decimal_text(value, field, optional=False):
@@ -71,7 +81,64 @@ def ensure_inbound_client(conn, phone_value):
     return conn.execute("SELECT * FROM clients WHERE id=?", (client_id,)).fetchone(), True
 
 
-def register_incoming_message(conn, company_key, payload, manage_transaction=True):
+def _jid_identity_name(jid):
+    digest = uuid.uuid5(uuid.NAMESPACE_URL, f"whatsapp:{jid}").hex[:8]
+    return f"Cliente WhatsApp {digest}"
+
+
+def find_client_for_jid(conn, jid):
+    row = conn.execute(
+        """SELECT c.* FROM whatsapp_conversations wc
+           JOIN clients c ON c.id=wc.client_id
+           WHERE wc.jid=? AND c.active=1
+           ORDER BY wc.updated_at DESC LIMIT 1""",
+        (jid,),
+    ).fetchone()
+    if row:
+        return row, _jid_identity_name(jid)
+    identity = _jid_identity_name(jid)
+    row = conn.execute(
+        "SELECT * FROM clients WHERE active=1 AND name=? AND created_by='whatsapp_bot_lid' LIMIT 1",
+        (identity,),
+    ).fetchone()
+    return row, identity
+
+
+def _phone_from_optional_value(value):
+    phone = normalize_brazil_phone(str(value or "").split("@", 1)[0].split(":", 1)[0])
+    return phone if phone.valid else None
+
+
+def ensure_inbound_jid_client(conn, jid, phone_value=None):
+    client, identity = find_client_for_jid(conn, jid)
+    if client:
+        phone = _phone_from_optional_value(phone_value)
+        current_phone = normalize_brazil_phone(client["phone"])
+        if phone and not current_phone.valid:
+            conn.execute("UPDATE clients SET phone=? WHERE id=?", (phone.e164, client["id"]))
+            client = conn.execute("SELECT * FROM clients WHERE id=?", (client["id"],)).fetchone()
+        return client, False
+    phone = _phone_from_optional_value(phone_value)
+    if phone:
+        existing, _ = find_client_for_phone(conn, phone.e164)
+        if existing:
+            return existing, False
+    client_id = str(uuid.uuid4())
+    conn.execute(
+        """INSERT INTO clients(id,name,phone,notes,created_by)
+           VALUES(?,?,?,?,?)""",
+        (
+            client_id,
+            identity,
+            phone.e164 if phone else None,
+            "Cadastro automatico por conversa iniciada no WhatsApp com identificador LID.",
+            "whatsapp_bot_lid",
+        ),
+    )
+    return conn.execute("SELECT * FROM clients WHERE id=?", (client_id,)).fetchone(), True
+
+
+def register_incoming_message(conn, company_key, payload, manage_transaction=True, force_new_conversation=False):
     external_id = str(payload.get("external_message_id") or "").strip()
     instance_key = str(payload.get("instance_key") or "").strip()
     jid = str(payload.get("jid") or "").strip()
@@ -86,28 +153,43 @@ def register_incoming_message(conn, company_key, payload, manage_transaction=Tru
     if existing:
         return {"ok": True, "duplicate": True, "message_id": existing["id"], "conversation_id": existing["conversation_id"], "client_id": existing["client_id"]}
 
-    if not jid.endswith("@s.whatsapp.net"):
+    is_lid = jid.endswith("@lid")
+    if not jid.endswith("@s.whatsapp.net") and not is_lid:
         raise ValueError("jid_nao_individual")
-    client, phone = find_client_for_phone(conn, jid.split("@", 1)[0].split(":", 1)[0])
-    if not phone.valid:
-        raise ValueError(phone.reason)
+    phone_hint = payload.get("phone_e164") or payload.get("phone_jid") or payload.get("remote_jid_alt") or payload.get("participant_alt")
+    phone = None
+    if is_lid:
+        client, _ = find_client_for_jid(conn, jid)
+        phone = _phone_from_optional_value(phone_hint)
+        if not client and phone:
+            client, _ = find_client_for_phone(conn, phone.e164)
+    else:
+        client, phone = find_client_for_phone(conn, jid.split("@", 1)[0].split(":", 1)[0])
+        if not phone.valid:
+            raise ValueError(phone.reason)
     if not client:
         raise LookupError("cliente_nao_encontrado_ou_duplicado")
 
     received_at = str(payload.get("received_at") or datetime.now(timezone.utc).isoformat())
     text = str(payload.get("text") or "")
     key = message_idempotency_key(company_key, external_id, jid, received_at, {"text": text, "event_hash": event_hash})
-    states = ",".join("?" for _ in OPEN_CONVERSATION_STATES)
-    conversation = conn.execute(
-        f"""SELECT * FROM whatsapp_conversations
-            WHERE company_key=? AND client_id=? AND jid=? AND status IN ({states})
-            ORDER BY updated_at DESC LIMIT 1""",
-        (company_key, client["id"], jid, *OPEN_CONVERSATION_STATES),
-    ).fetchone()
+    conversation = None
+    if not force_new_conversation:
+        states = ",".join("?" for _ in OPEN_CONVERSATION_STATES)
+        conversation = conn.execute(
+            f"""SELECT * FROM whatsapp_conversations
+                WHERE company_key=? AND client_id=? AND jid=? AND status IN ({states})
+                ORDER BY updated_at DESC LIMIT 1""",
+            (company_key, client["id"], jid, *OPEN_CONVERSATION_STATES),
+        ).fetchone()
     conversation_id = conversation["id"] if conversation else str(uuid.uuid4())
     message_id = str(uuid.uuid4())
+    command = normalize_command(text)
     intent = conversation_control_intent(text)
-    next_state = intent or (conversation["status"] if conversation else "nova")
+    if conversation and conversation["status"] in ORDER_BOT_CONVERSATION_STATES and command in ORDER_BOT_NUMERIC_OPTIONS:
+        intent = None
+    starts_new_order = force_new_conversation and command in NEW_ORDER_COMMANDS
+    next_state = "nova" if starts_new_order else (intent or (conversation["status"] if conversation else "nova"))
 
     previous_state = conversation["status"] if conversation else None
     try:
@@ -134,6 +216,8 @@ def register_incoming_message(conn, company_key, payload, manage_transaction=Tru
             (str(uuid.uuid4()), company_key, message_id, event_hash, "incoming", "processado"),
         )
         if intent == "opt_out":
+            if not phone or not phone.valid:
+                raise ValueError("opt_out_exige_telefone")
             consent_id = str(uuid.uuid4())
             conn.execute(
                 """INSERT INTO whatsapp_consent(id,company_key,client_id,phone_e164,status,source,revoked_at)
@@ -168,6 +252,7 @@ def register_incoming_message(conn, company_key, payload, manage_transaction=Tru
         "intent": intent,
         "previous_state": previous_state,
         "new_state": next_state,
+        "forced_new_conversation": bool(force_new_conversation),
     }
 
 

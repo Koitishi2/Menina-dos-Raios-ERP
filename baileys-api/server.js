@@ -12,6 +12,7 @@ const { default: makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLat
 const express = require("express");
 const pino    = require("pino");
 const fs      = require("fs");
+const crypto  = require("crypto");
 const { createInboundForwarder, installInboundListener } = require("./inbound");
 const { authorizeApiKey, authorizeLegacySend } = require("./security");
 const { fetchRegistryVersions, launchApprovedUpdate, readVersionState } = require("./maintenance");
@@ -44,6 +45,15 @@ let starting  = false;
 let manualDisconnect = false;
 let lastConnectionUpdate = null;
 let inboundListenerInstalled = false;
+
+function maskPhone(value) {
+    const phone = String(value || "").split("@")[0].replace(/\D/g, "");
+    return phone ? `****${phone.slice(-4)}` : "none";
+}
+
+function requestTag(phone) {
+    return crypto.createHash("sha256").update(`${Date.now()}:${phone || ""}:${Math.random()}`).digest("hex").slice(0, 12);
+}
 
 /* ── Auth middleware ─────────────────────────────────────── */
 function checkAuth(req, res, next) {
@@ -207,18 +217,24 @@ app.post("/disconnect", checkAuth, async (_req, res) => {
 // Envio de mensagem — usado pelo Python
 app.post("/send", checkLegacySend, async (req, res) => {
     const { phone, message } = req.body || {};
+    const tag = requestTag(phone);
+    console.log(`WA_AUTOREPLY_SEND_ATTEMPT messageIdHash=${tag} senderMasked=${maskPhone(phone)} hasText=${!!String(message || "").trim()} connected=${connected}`);
     if (!phone || !message) {
+        console.log(`WA_AUTOREPLY_SEND_RESULT messageIdHash=${tag} result=blocked reason=invalid_payload senderMasked=${maskPhone(phone)}`);
         return res.status(400).json({ error: "phone e message são obrigatórios", sent: "false" });
     }
     if (!connected || !sock) {
+        console.log(`WA_AUTOREPLY_SEND_RESULT messageIdHash=${tag} result=blocked reason=not_connected senderMasked=${maskPhone(phone)}`);
         return res.status(503).json({ error: "WhatsApp não conectado. Escaneie o QR Code.", sent: "false" });
     }
     try {
         // Aceita "5595999999999" ou "5595999999999@s.whatsapp.net"
         const jid = phone.includes("@") ? phone : `${phone}@s.whatsapp.net`;
         await sock.sendMessage(jid, { text: message });
+        console.log(`WA_AUTOREPLY_SEND_RESULT messageIdHash=${tag} result=sent reason=ok senderMasked=${maskPhone(phone)}`);
         return res.json({ sent: "true", ok: true });
     } catch (e) {
+        console.log(`WA_AUTOREPLY_SEND_RESULT messageIdHash=${tag} result=failed reason=send_error senderMasked=${maskPhone(phone)}`);
         console.error("[Baileys] Erro ao enviar:", e.message);
         return res.status(500).json({ error: e.message, sent: "false" });
     }

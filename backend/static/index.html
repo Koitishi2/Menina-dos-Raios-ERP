@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Menina dos Raios Ltda</title>
 <link rel="stylesheet" href="/css/client_whatsapp.css">
-<link rel="stylesheet" href="/css/client_orders.css">
+<link rel="stylesheet" href="/css/client_orders.css?v=20260927-orders-remove">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -1222,6 +1222,15 @@ body.tv-active #btn-top{display:none!important}
 .wa-bot-item input[type="time"],.wa-bot-item input[type="number"]{width:110px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:var(--card);color:var(--ink);text-align:center}
 .wa-toggle-wrap{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
 .wa-toggle-wrap input[type="checkbox"]{width:16px;height:16px;accent-color:#4F46E5;cursor:pointer}
+.wa-inbound-mode-card{grid-column:span 2;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;background:var(--card)}
+.wa-inbound-mode-title{font-size:12px;font-weight:800;color:var(--g800);margin-bottom:4px}
+.wa-inbound-mode-desc{font-size:11px;color:var(--muted);line-height:1.35}
+.wa-inbound-mode-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.wa-inbound-badge{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:5px 10px;font-size:11px;font-weight:800;border:1px solid var(--border);white-space:nowrap}
+.wa-inbound-badge.sandbox{background:#fffbeb;color:#92400e;border-color:#fcd34d}
+.wa-inbound-badge.production{background:#dcfce7;color:#166534;border-color:#86efac}
+.wa-inbound-badge.unknown{background:var(--card2);color:var(--muted)}
+@media(max-width:760px){.wa-inbound-mode-card{grid-column:span 1;align-items:flex-start;flex-direction:column}.wa-inbound-mode-actions{justify-content:flex-start}}
 /* Preview */
 .wa-preview-box{padding:10px 14px;background:var(--card2);border-radius:8px;font-size:12px;color:var(--g700);white-space:pre-wrap;margin-top:8px;border:1px dashed var(--border)}
 .wa-tpl-preview{padding:10px 14px;background:#f8fafc;border-radius:8px;font-size:12px;color:#334155;white-space:pre-wrap;margin:8px 0;border:1px dashed #cbd5e1;min-height:50px}
@@ -3825,10 +3834,15 @@ body.paladar-active #notif-restore{display:none!important}
           <div class="client-orders-notification-list" id="mdr-orders-notification-list" hidden></div>
         </div>
       </div>
+      <div class="client-orders-tabs" aria-label="Visões de pedidos">
+        <button type="button" class="client-orders-tab is-active" data-client-orders-view="pending">Pendentes <span id="client-orders-count-pending">0</span></button>
+        <button type="button" class="client-orders-tab" data-client-orders-view="approved">Aprovados <span id="client-orders-count-approved">0</span></button>
+        <button type="button" class="client-orders-tab" data-client-orders-view="rejected">Recusados <span id="client-orders-count-rejected">0</span></button>
+      </div>
       <div class="client-orders-filters">
         <label>Cliente<input id="client-orders-client" class="filt" type="search" placeholder="Buscar cliente" oninput="ClientOrdersFoundation.applyFilters()"></label>
         <label>Empresa<select class="filt" disabled><option>Empresa atual</option></select></label>
-        <label>Período<input id="client-orders-period" class="filt" type="month" onchange="ClientOrdersFoundation.applyFilters()"></label>
+        <label>Período<div class="client-orders-period-filter"><select id="client-orders-period-mode" class="filt" onchange="ClientOrdersFoundation.updatePeriodInput();ClientOrdersFoundation.applyFilters()"><option value="week">Semana</option><option value="month" selected>Mês</option><option value="year">Ano</option></select><input id="client-orders-period" class="filt" type="month" onchange="ClientOrdersFoundation.applyFilters()"></div></label>
         <label>Status<select id="client-orders-status" class="filt" onchange="ClientOrdersFoundation.applyFilters()"><option value="">Todos os status</option><option value="rascunho">Rascunho</option><option value="aguardando_confirmacao">Aguardando confirmação</option><option value="aguardando_aprovacao">Aguardando aprovação</option><option value="aprovado">Aprovado</option><option value="cancelado">Cancelado</option><option value="convertido_em_venda">Convertido em venda</option><option value="erro">Erro</option><option value="duplicado_suspeito">Duplicado suspeito</option></select></label>
         <label>Origem<select id="client-orders-origin" class="filt" onchange="ClientOrdersFoundation.applyFilters()"><option value="">Todas as origens</option><option value="whatsapp">WhatsApp</option></select></label>
       </div>
@@ -14988,11 +15002,99 @@ async function waDeleteTemplate(id, name){
 }
 
 // ── Bot Settings ──
+var _waInboundModeState=null;
+
+function waInboundModeLabel(mode){
+  if(mode==='production')return 'Producao';
+  if(mode==='sandbox')return 'Sandbox';
+  return 'Indefinido';
+}
+
+function renderWaInboundModeCard(state,loading){
+  state=state||{};
+  var resolvedMode=state.mode||state.runtime_mode||state.configured_mode;
+  var mode=(resolvedMode==='production'||resolvedMode==='sandbox')?resolvedMode:'unknown';
+  var nextMode=mode==='production'?'sandbox':'production';
+  var actionLabel=nextMode==='production'?'Desativar sandbox':'Ativar sandbox';
+  var desc=mode==='production'
+    ?'O bot inbound responde automaticamente para qualquer cliente que enviar mensagem.'
+    :'O bot inbound responde somente aos numeros autorizados na allowlist de sandbox.';
+  if(mode==='unknown')desc='Nao foi possivel confirmar o modo atual do Baileys. Verifique o servico antes de alternar.';
+  var service=state.requires_restart_service||'menina-baileys.service';
+  var disabled=loading||mode==='unknown';
+  return '<div><div class="wa-inbound-mode-title">Modo inbound automatico</div>'
+    +'<div class="wa-inbound-mode-desc">'+waLogEsc(desc)+'<br>Alterar este modo reinicia brevemente '+waLogEsc(service)+'.</div></div>'
+    +'<div class="wa-inbound-mode-actions">'
+    +'<span class="wa-inbound-badge '+mode+'">'+waLogEsc(waInboundModeLabel(mode))+'</span>'
+    +'<button class="btn btn-secondary btn-sm" onclick="loadWaInboundModeStatus()" '+(loading?'disabled':'')+'>Atualizar</button>'
+    +'<button class="btn btn-primary btn-sm" onclick="changeWaInboundMode(\''+nextMode+'\')" '+(disabled?'disabled':'')+'>'+actionLabel+'</button>'
+    +'</div>';
+}
+
+async function loadWaInboundModeStatus(){
+  var card=document.getElementById('wa-inbound-mode-card');
+  if(card)card.innerHTML=renderWaInboundModeCard(_waInboundModeState,true);
+  try{
+    _waInboundModeState=await api('/api/whatsapp/inbound-mode');
+    if(card)card.innerHTML=renderWaInboundModeCard(_waInboundModeState,false);
+    return _waInboundModeState;
+  }catch(e){
+    _waInboundModeState={mode:'unknown',requires_restart_service:'menina-baileys.service'};
+    if(card)card.innerHTML='<div><div class="wa-inbound-mode-title">Modo inbound automatico</div><div class="wa-inbound-mode-desc" style="color:#991b1b">'+waLogEsc(e.message)+'</div></div><div class="wa-inbound-mode-actions"><span class="wa-inbound-badge unknown">Indefinido</span><button class="btn btn-secondary btn-sm" onclick="loadWaInboundModeStatus()">Tentar novamente</button></div>';
+    return _waInboundModeState;
+  }
+}
+
+function confirmWaInboundModeChange(targetMode){
+  return new Promise(function(resolve){
+    var old=document.getElementById('wa-inbound-mode-modal');
+    if(old)old.remove();
+    var modal=document.createElement('div');
+    modal.id='wa-inbound-mode-modal';
+    modal.className='wa-modal-overlay';
+    var title=targetMode==='production'?'Ativar modo Producao?':'Voltar para Sandbox?';
+    var body=targetMode==='production'
+      ?'Em Producao, o bot respondera automaticamente a todos os clientes que enviarem mensagem. A lista de sandbox sera preservada, mas nao limitara o inbound enquanto o modo estiver em Producao.'
+      :'Em Sandbox, o bot respondera somente aos numeros autorizados para teste. A allowlist existente sera preservada.';
+    modal.innerHTML='<div class="wa-modal-box"><button class="wa-modal-close" type="button" data-wa-inbound-cancel>&times;</button>'
+      +'<h3>'+waLogEsc(title)+'</h3>'
+      +'<div style="font-size:12px;color:var(--g700);line-height:1.45;display:grid;gap:10px">'
+      +'<p style="margin:0">'+waLogEsc(body)+'</p>'
+      +'<p style="margin:0;color:#92400e">A mudanca reinicia brevemente menina-baileys.service para reconectar o WhatsApp. Nenhuma mensagem de teste sera enviada.</p>'
+      +'</div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap">'
+      +'<button class="btn btn-secondary" type="button" data-wa-inbound-cancel>Cancelar</button>'
+      +'<button class="btn btn-primary" type="button" data-wa-inbound-confirm>Confirmar</button>'
+      +'</div></div>';
+    function close(answer){modal.remove();resolve(answer);}
+    modal.addEventListener('click',function(ev){if(ev.target===modal||ev.target.hasAttribute('data-wa-inbound-cancel'))close(false);});
+    modal.querySelector('[data-wa-inbound-confirm]').addEventListener('click',function(){close(true);});
+    document.body.appendChild(modal);
+  });
+}
+
+async function changeWaInboundMode(targetMode){
+  if(targetMode!=='sandbox'&&targetMode!=='production')return;
+  var ok=await confirmWaInboundModeChange(targetMode);
+  if(!ok)return;
+  var card=document.getElementById('wa-inbound-mode-card');
+  if(card)card.innerHTML=renderWaInboundModeCard(_waInboundModeState,true);
+  try{
+    var result=await api('/api/whatsapp/inbound-mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:targetMode})});
+    _waInboundModeState=result.status||{mode:result.mode};
+    if(card)card.innerHTML=renderWaInboundModeCard(_waInboundModeState,false);
+    toast('Modo inbound alterado para '+waInboundModeLabel(result.mode)+'.');
+  }catch(e){
+    await loadWaInboundModeStatus();
+    toast(e.message,'error');
+  }
+}
+
 async function loadWaBotSettings(){
   var el=document.getElementById('wa-bot-settings-form');
   if(!el) return;
   try{
     var s=await api('/api/whatsapp/bot-settings');
+    _waInboundModeState=await api('/api/whatsapp/inbound-mode').catch(function(){return {mode:'unknown',requires_restart_service:'menina-baileys.service'};});
     el.innerHTML='<div class="wa-bot-grid">'
       +'<div class="wa-bot-item"><label>🤖 Bot ativo</label><div class="wa-toggle-wrap"><input type="checkbox" id="wbs-bot-active"'+(s.bot_active==='1'?' checked':'')+'></div></div>'
       +'<div class="wa-bot-item"><label>💬 Auto respostas</label><div class="wa-toggle-wrap"><input type="checkbox" id="wbs-auto-reply-enabled"'+(s.auto_reply_enabled==='1'?' checked':'')+'></div></div>'
@@ -15003,6 +15105,7 @@ async function loadWaBotSettings(){
       +'<div class="wa-bot-item"><label> Horário fim</label><input type="time" id="wbs-auto-reply-to" value="'+(s.auto_reply_to||'19:00')+'"></div>'
       +'<div class="wa-bot-item"><label> Intervalo min (seg)</label><input type="number" id="wbs-min-interval" value="'+(s.min_interval_secs||'30')+'" min="1"></div>'
       +'<div class="wa-bot-item"><label>📊 Máx/dia/cliente</label><input type="number" id="wbs-max-per-day" value="'+(s.max_per_day_per_client||'10')+'" min="0"></div>'
+      +'<div class="wa-inbound-mode-card" id="wa-inbound-mode-card">'+renderWaInboundModeCard(_waInboundModeState,false)+'</div>'
       +'</div>'
       +'<div style="display:grid;gap:10px;margin-top:14px">'
       +'<label class="wa-bot-message"><span>1. Aviso de atendimento automatizado</span><textarea id="wbs-order-disclosure" rows="2">'+waLogEsc(s.order_bot_disclosure_message||'')+'</textarea></label>'
@@ -18885,7 +18988,7 @@ setTimeout(installMobileReadOnlyGuards,0);
 <select id="pal-products-data" style="display:none"></select>
 
 <script src="/js/client_whatsapp.js"></script>
-<script src="/js/client_orders.js"></script>
+<script src="/js/client_orders.js?v=20260927-orders-remove"></script>
 
 </body>
 </html>

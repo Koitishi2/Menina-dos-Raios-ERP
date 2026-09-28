@@ -19,11 +19,13 @@ DEFAULT_ORDER_BOT_MESSAGES = {
         "3. Alho descascado 250g\n"
         "4. Alho descascado 1kg\n"
         "5. Macaxeira chips\n"
-        "6. Macaxeira pré-cozida"
+        "6. Macaxeira pré-cozida\n\n"
+        "Você pode pedir mais de um produto no mesmo atendimento. "
+        "Depois de informar quantidade e avaria, responda ADICIONAR para incluir outro item."
     ),
     "order_bot_quantity_message": "Qual quantidade? Informe o valor em KG ou UN.",
     "order_bot_damage_message": "Tem avaria? Se sim, informe quantos KG ou UN. Se não, responda NÃO.",
-    "order_bot_confirm_message": "Está correto? Responda SIM ou NAO.",
+    "order_bot_confirm_message": "Está correto? Responda SIM, NAO ou ADICIONAR para incluir outro produto.",
     "order_bot_done_message": (
         "Pedido feito! Aguarde a mensagem da data que será entregue! "
         "Normalmente, a entrega ocorre em até 24 horas após o pedido."
@@ -41,7 +43,10 @@ PRODUCTS = (
 
 YES_WORDS = frozenset({"SIM", "S", "OK", "CONFIRMAR", "CONFIRMO", "PODE", "SALVAR"})
 NO_WORDS = frozenset({"NAO", "N", "CANCELAR", "CANCELE"})
+ADD_ITEM_WORDS = frozenset({"ADICIONAR", "ADD", "MAIS", "OUTRO", "OUTROS", "NOVO ITEM", "INCLUIR"})
 ORDER_ORIGIN = "cliente_iniciou_contato"
+REGISTRATION_NAME_STATE = "aguardando_resposta"
+REGISTRATION_ADDRESS_STATE = "pedido_rascunho"
 SCORE_COMPONENTS = {
     "cliente_identificado": 20,
     "produto_identificado": 20,
@@ -65,7 +70,7 @@ def order_bot_config(conn):
     return config
 
 
-def order_bot_runtime_reason(config, outbound, phone_e164, at_time):
+def order_bot_runtime_reason(config, outbound, phone_e164, at_time, jid=None):
     if str(config.get("bot_active", "0")) != "1" or str(config.get("auto_reply_enabled", "0")) != "1":
         return "bot_desativado"
     if not outbound.get("enabled") or outbound.get("mode") == "disabled":
@@ -74,7 +79,7 @@ def order_bot_runtime_reason(config, outbound, phone_e164, at_time):
         return "modo_teste_exige_sandbox"
     if outbound.get("mode") == "production" and not outbound.get("production_approved"):
         return "producao_nao_aprovada"
-    if outbound.get("mode") == "sandbox" and phone_e164 not in outbound.get("sandbox_numbers", set()):
+    if outbound.get("mode") == "sandbox" and phone_e164 not in outbound.get("sandbox_numbers", set()) and not str(jid or "").endswith("@lid"):
         return "numero_fora_da_sandbox"
     if config.get("provider") != "baileys":
         return "provedor_baileys_obrigatorio"
@@ -91,6 +96,10 @@ def match_product(value):
         if normalized in {normalize_text(alias) for alias in product["aliases"]}:
             return product
     return None
+
+
+def is_add_item_request(value):
+    return normalize_text(value).upper() in ADD_ITEM_WORDS
 
 
 def parse_quantity(value, expected_unit, allow_no=False):
@@ -139,7 +148,51 @@ def _open_order(conn, company_key, conversation_id):
 
 
 def _order_item(conn, order_id):
-    return conn.execute("SELECT * FROM whatsapp_order_items WHERE order_id=? ORDER BY created_at LIMIT 1", (order_id,)).fetchone()
+    pending = conn.execute(
+        """SELECT * FROM whatsapp_order_items
+           WHERE order_id=? AND (requested_quantity IS NULL OR requested_quantity='' OR CAST(requested_quantity AS REAL)=0)
+           ORDER BY created_at DESC,rowid DESC LIMIT 1""",
+        (order_id,),
+    ).fetchone()
+    if pending:
+        return pending
+    return conn.execute(
+        "SELECT * FROM whatsapp_order_items WHERE order_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1",
+        (order_id,),
+    ).fetchone()
+
+
+def _order_items(conn, order_id):
+    return conn.execute("SELECT * FROM whatsapp_order_items WHERE order_id=? ORDER BY created_at,rowid", (order_id,)).fetchall()
+
+
+def _recalculate_order_totals(conn, order_id):
+    rows = _order_items(conn, order_id)
+    total_quantity = Decimal("0")
+    total = Decimal("0")
+    for row in rows:
+        try:
+            total_quantity += Decimal(str(row["requested_quantity"] or 0))
+            total += Decimal(str(row["total"] or 0))
+        except InvalidOperation:
+            pass
+    conn.execute(
+        "UPDATE whatsapp_order_drafts SET requested_quantity=?,total=?,updated_at=datetime('now') WHERE id=?",
+        (str(total_quantity), str(total), order_id),
+    )
+    return total_quantity, total
+
+
+def _order_summary(conn, order_id):
+    lines = []
+    for index, item in enumerate(_order_items(conn, order_id), start=1):
+        product = next((entry for entry in PRODUCTS if entry["key"] == item["product_key"]), None)
+        product_name = product["name"] if product else item["product_key"]
+        unit = product["unit"] if product else ""
+        quantity = Decimal(str(item["requested_quantity"] or 0))
+        damage = Decimal(str(item["confirmed_damage"] or 0))
+        lines.append(f"{index}. {product_name} - Quantidade: {quantity} {unit} - Avaria: {damage} {unit}")
+    return "Resumo do pedido:\n" + "\n".join(lines) + "\n\n"
 
 
 def _set_conversation_state(conn, company_key, conversation_id, state):
@@ -151,6 +204,37 @@ def _set_conversation_state(conn, company_key, conversation_id, state):
 
 def _message(config, key, client_name):
     return str(config.get(key) or DEFAULT_ORDER_BOT_MESSAGES[key]).replace("{cliente}", client_name)
+
+
+def _row_value(row, key, default=None):
+    try:
+        if key in row.keys():
+            return row[key]
+    except AttributeError:
+        pass
+    return default
+
+
+def _clean_customer_field(value, max_length):
+    cleaned = re.sub(r"[\x00-\x1f\x7f]+", " ", str(value or ""))
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned[:max_length]
+
+
+def _is_auto_whatsapp_client(client):
+    created_by = str(_row_value(client, "created_by") or "")
+    name = str(_row_value(client, "name") or "")
+    return created_by in {"whatsapp_bot", "whatsapp_bot_lid"} or name.startswith("Cliente WhatsApp ")
+
+
+def _needs_registration_name(client):
+    name = str(_row_value(client, "name") or "").strip()
+    return _is_auto_whatsapp_client(client) and (not name or name.startswith("Cliente WhatsApp "))
+
+
+def _needs_registration_address(client):
+    address = str(_row_value(client, "address") or "").strip()
+    return _is_auto_whatsapp_client(client) and not address
 
 
 def _score_memory(*completed):
@@ -179,10 +263,88 @@ def advance_order_bot(conn, company_key, processed, incoming_text, config):
     state = conversation["status"]
     if state in ("opt_out", "atendimento_humano", "cancelada", "concluida"):
         return {"handled": False, "reason": state}
+    if state == REGISTRATION_NAME_STATE:
+        name = _clean_customer_field(incoming_text, 120)
+        if len(name) < 2:
+            return {
+                "handled": True,
+                "state": state,
+                "reply": "Como você gostaria de ser chamado? Informe seu nome para continuar o pedido.",
+            }
+        conn.execute(
+            "UPDATE clients SET name=? WHERE id=?",
+            (name, client["id"]),
+        )
+        client = conn.execute("SELECT * FROM clients WHERE id=? AND active=1", (client["id"],)).fetchone()
+        if _needs_registration_address(client):
+            _set_conversation_state(conn, company_key, conversation["id"], REGISTRATION_ADDRESS_STATE)
+            return {
+                "handled": True,
+                "state": REGISTRATION_ADDRESS_STATE,
+                "reply": f"Obrigado, {name}. Qual endereço para entrega?",
+            }
+        _set_conversation_state(conn, company_key, conversation["id"], "identificando_produto")
+        return {
+            "handled": True,
+            "state": "identificando_produto",
+            "reply": f"Obrigado, {name}.\n\n" + _message(config, "order_bot_welcome_message", name),
+        }
+
+    if state == REGISTRATION_ADDRESS_STATE:
+        address = _clean_customer_field(incoming_text, 240)
+        if len(address) < 5:
+            return {
+                "handled": True,
+                "state": state,
+                "reply": "Informe o endereço de entrega com bairro ou referência para continuar o pedido.",
+            }
+        conn.execute(
+            "UPDATE clients SET address=? WHERE id=?",
+            (address, client["id"]),
+        )
+        client_name = str(_row_value(client, "name") or "cliente")
+        _set_conversation_state(conn, company_key, conversation["id"], "identificando_produto")
+        return {
+            "handled": True,
+            "state": "identificando_produto",
+            "reply": f"Perfeito, {client_name}. Agora vamos ao pedido.\n\n" + _message(config, "order_bot_welcome_message", client_name),
+        }
+
     if state == "aguardando_aprovacao":
-        return {"handled": False, "reason": "pedido_ja_confirmado", "state": state}
+        if is_add_item_request(incoming_text):
+            _set_conversation_state(conn, company_key, conversation["id"], "identificando_produto")
+            return {
+                "handled": True,
+                "state": "identificando_produto",
+                "reply": _message(config, "order_bot_welcome_message", client["name"]),
+            }
+        return {
+            "handled": True,
+            "reason": "pedido_pendente_aprovacao",
+            "state": state,
+            "reply": (
+                "Seu pedido está aguardando aprovação. "
+                "Responda NOVO para iniciar outro pedido independente ou aguarde a confirmação."
+            ),
+        }
 
     if state == "nova":
+        if _needs_registration_name(client):
+            _set_conversation_state(conn, company_key, conversation["id"], REGISTRATION_NAME_STATE)
+            disclosure = _message(config, "order_bot_disclosure_message", client["name"])
+            return {
+                "handled": True,
+                "state": REGISTRATION_NAME_STATE,
+                "reply": f"{disclosure}\n\nAntes de iniciar seu pedido, como você gostaria de ser chamado?",
+            }
+        if _needs_registration_address(client):
+            _set_conversation_state(conn, company_key, conversation["id"], REGISTRATION_ADDRESS_STATE)
+            disclosure = _message(config, "order_bot_disclosure_message", client["name"])
+            return {
+                "handled": True,
+                "state": REGISTRATION_ADDRESS_STATE,
+                "reply": f"{disclosure}\n\nQual endereço para entrega?",
+            }
         _set_conversation_state(conn, company_key, conversation["id"], "identificando_produto")
         disclosure = _message(config, "order_bot_disclosure_message", client["name"])
         welcome = _message(config, "order_bot_welcome_message", client["name"])
@@ -212,6 +374,13 @@ def advance_order_bot(conn, company_key, processed, incoming_text, config):
                    VALUES(?,?,?,?,?,'0')""",
                 (str(uuid.uuid4()), order_id, available["key"], str(available["price"]), "0"),
             )
+        else:
+            conn.execute(
+                """INSERT INTO whatsapp_order_items(
+                       id,order_id,product_key,unit_price,total,confirmed_damage)
+                   VALUES(?,?,?,?,?,'0')""",
+                (str(uuid.uuid4()), order["id"], available["key"], str(available["price"]), "0"),
+            )
         _set_conversation_state(conn, company_key, conversation["id"], "coletando_quantidade")
         return {"handled": True, "state": "coletando_quantidade", "reply": _message(config, "order_bot_quantity_message", client["name"])}
 
@@ -234,10 +403,11 @@ def advance_order_bot(conn, company_key, processed, incoming_text, config):
             "UPDATE whatsapp_order_items SET requested_quantity=?,total=?,updated_at=datetime('now') WHERE id=?",
             (str(quantity), str(total), item["id"]),
         )
+        total_quantity, order_total = _recalculate_order_totals(conn, order["id"])
         conn.execute(
             "UPDATE whatsapp_order_drafts SET requested_quantity=?,total=?,calculation_memory=?,updated_at=datetime('now') WHERE id=?",
             (
-                str(quantity), str(total),
+                str(total_quantity), str(order_total),
                 _score_memory("cliente_identificado", "produto_identificado", "quantidade_informada"), order["id"],
             ),
         )
@@ -252,6 +422,7 @@ def advance_order_bot(conn, company_key, processed, incoming_text, config):
         if damage > requested:
             return {"handled": True, "state": state, "reply": "A avaria nao pode ser maior que a quantidade solicitada."}
         conn.execute("UPDATE whatsapp_order_items SET confirmed_damage=?,updated_at=datetime('now') WHERE id=?", (str(damage), item["id"]))
+        _recalculate_order_totals(conn, order["id"])
         conn.execute(
             "UPDATE whatsapp_order_drafts SET status='aguardando_confirmacao',calculation_memory=?,updated_at=datetime('now') WHERE id=?",
             (
@@ -262,11 +433,15 @@ def advance_order_bot(conn, company_key, processed, incoming_text, config):
             ),
         )
         _set_conversation_state(conn, company_key, conversation["id"], "aguardando_confirmacao")
-        summary = f"Produto: {product['name']}\nQuantidade: {requested} {product['unit']}\nAvaria: {damage} {product['unit']}\n\n"
+        summary = _order_summary(conn, order["id"])
         return {"handled": True, "state": "aguardando_confirmacao", "reply": summary + _message(config, "order_bot_confirm_message", client["name"])}
 
     if state == "aguardando_confirmacao":
         answer = normalize_text(incoming_text).upper()
+        if is_add_item_request(incoming_text):
+            conn.execute("UPDATE whatsapp_order_drafts SET status='rascunho',updated_at=datetime('now') WHERE id=?", (order["id"],))
+            _set_conversation_state(conn, company_key, conversation["id"], "identificando_produto")
+            return {"handled": True, "state": "identificando_produto", "reply": "Certo. Qual outro produto você deseja adicionar ao pedido?\n\n" + _message(config, "order_bot_welcome_message", client["name"])}
         if answer in YES_WORDS:
             now = datetime.now().astimezone().isoformat()
             conn.execute(
@@ -306,7 +481,9 @@ def send_and_record_reply(conn, company_key, processed, reply, sender, config):
     if not client or not conversation:
         return {"attempted": False, "reason": "destino_ausente"}
     try:
-        response = sender(conversation["jid"].split("@", 1)[0].split(":", 1)[0], reply, config)
+        jid = str(conversation["jid"] or "")
+        destination = jid if "@" in jid else jid.split(":", 1)[0]
+        response = sender(destination, reply, config)
     except Exception as exc:
         response = {"ok": False, "response": f"erro_tecnico:{type(exc).__name__}"}
     ok = bool(response.get("ok"))

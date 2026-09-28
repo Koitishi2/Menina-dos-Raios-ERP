@@ -143,6 +143,11 @@ def test_client_subtabs_expose_manual_selection_without_automatic_send():
     assert "Enviar para clientes selecionados" in whatsapp_js
     assert "WHATSAPP_OUTBOUND" not in index
     assert "Nenhum pedido será enviado, aprovado ou convertido em venda" in index
+    assert 'id="mdr-orders-bell"' in index
+    assert 'id="client-orders-detail"' in index
+    assert "data-client-order-id" in orders_js
+    assert "Este cliente ainda não possui pedidos" in orders_js
+    assert "WHATSAPP_OUTBOUND" not in orders_js
     assert "/api/whatsapp/manual-batches" in whatsapp_js
     assert "/api/whatsapp/send" not in whatsapp_js
     assert "fetch(" not in whatsapp_js
