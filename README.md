@@ -2,9 +2,9 @@
 
 Aplicacao de gestao operacional para vendas, entregas, boletos, notas, orcamentos, pagamentos, calendario e integracoes de comunicacao.
 
-Versao atual do servidor: `2.0.0`
+Versao atual do servidor: `2.1.0`
 
-Este repositorio contem a versao estavel da aplicacao, mantida no checkpoint `88fef18` e implantada como versao de servidor `2.0.0`. O foco desta versao e manter os modulos atuais operando com seguranca, preservando contratos existentes, dados persistentes e integracoes em producao.
+Este repositorio contem a versao estavel da aplicacao, atualmente na linha de servidor `2.1.0`. O foco desta versao e manter os modulos atuais operando com seguranca, preservando contratos existentes, dados persistentes, sessoes de integracao e o fluxo operacional controlado por backups e rollback.
 
 ## Estado da Versao Estavel
 
@@ -19,6 +19,27 @@ Dominios finalizados no ciclo atual:
 A funcionalidade de upload/importacao Excel foi removida por nao fazer mais parte do uso atual. Dados historicos, tabelas, compatibilidades e rotas auxiliares necessarias para registros antigos foram preservados quando aplicavel.
 
 Deploy controlado por pacote `.zip`, preservando configuracoes locais, bancos, uploads, logs, backups e sessoes de integracao. O componente WhatsApp/Baileys permanece no ciclo de producao validado com Baileys 6.7.x; Baileys 7 RC segue bloqueado para producao ate novo ciclo especifico.
+
+## Historico Operacional Recente
+
+A linha `2.1.0` consolida os deploys controlados de setembro/2026 relacionados ao atendimento WhatsApp, pedidos e operacao do bot. Os pacotes foram aplicados por SSH/SCP com validacao de SHA-256, allowlist de arquivos, backup antes da copia, reinicio apenas dos servicos declarados e rollback automatico em caso de falha.
+
+Mudancas consolidadas nesta linha:
+
+- controle de modo inbound WhatsApp pela UI, alternando `sandbox` e `production` por helper root limitado, com backup do arquivo de ambiente e restart de `menina-baileys.service` somente quando o botao da UI e acionado;
+- painel de Pedidos com abas **Pendentes**, **Aprovados** e **Recusados**, mantendo a fila principal limpa;
+- acoes de **Aprovar pedido**, **Recusar pedido** e **Remover pedido** para pedidos vindos do WhatsApp;
+- notificacao formal ao cliente quando um pedido e aprovado ou recusado, respeitando as travas de outbound, sandbox, producao aprovada e idempotencia de clique;
+- bot de pedidos iniciando por qualquer mensagem recebida quando nao houver fluxo ativo;
+- suporte a pedido com mais de um item usando a resposta `ADICIONAR`;
+- tratamento de opcoes numericas `1` a `6` como produtos durante o fluxo;
+- cadastro inicial de cliente WhatsApp novo, coletando nome e endereco antes do pedido;
+- suporte a eventos WhatsApp LID, incluindo uso de JID alternativo numerico quando o Baileys fornece esse dado;
+- registro do telefone do cliente quando o evento LID trouxer JID numerico alternativo;
+- botao de remocao para pedidos pendentes, aprovados ou recusados, com exclusao do pedido e itens relacionados;
+- health checks resilientes nos aplicadores, aguardando o Uvicorn aceitar conexao antes de considerar falha real.
+
+Os deploys dessas mudancas nao executam envio de mensagem durante o apply. Mensagens ao cliente ocorrem apenas em acoes funcionais posteriores, como aprovacao ou recusa de pedido pela UI, e continuam sujeitas as configuracoes de outbound.
 
 ## Qualidade e Validacao
 
@@ -231,9 +252,9 @@ Scripts operacionais incluidos no repositorio devem ser revisados antes de uso e
 
 ## Clientes: WhatsApp e Pedidos
 
-Esta branch adiciona duas sub-abas dentro de **Clientes**: **WhatsApp** e **Pedidos**. O recebimento e o bot de pedidos podem ser ativados de forma controlada, mas permanecem desligados por padrao pelas variaveis de ambiente. A confirmacao do cliente cria somente um pedido em `aguardando_aprovacao`; nao existe conversao automatica em venda nem alteracao automatica de estoque.
+A area **Clientes** possui as sub-abas **WhatsApp** e **Pedidos**. O recebimento pelo Baileys, o bot de pedidos e o envio de respostas ao cliente sao controlados por variaveis de ambiente, permissoes RBAC e pelo modo inbound configurado na UI. A confirmacao do cliente cria pedido em `aguardando_aprovacao`; aprovacao, recusa e remocao sao acoes humanas feitas no painel. Nao existe conversao automatica em venda nem alteracao automatica de estoque.
 
-Nao existe ambiente de staging configurado para este ciclo. Nenhum envio real, deploy, acesso remoto ou alteracao de sessao Baileys foi executado durante o desenvolvimento e os testes locais.
+O ambiente operacional atual usa pacotes controlados e backups incrementais para publicar mudancas. Deploys de codigo nao enviam mensagem WhatsApp. Mensagens reais sao disparadas apenas por fluxos explicitamente acionados depois do deploy, como o bot respondendo a uma mensagem recebida ou a notificacao de aprovacao/recusa pelo operador.
 
 ### Arquitetura inicial
 
@@ -250,18 +271,39 @@ O servico Baileys existente em `baileys-api/server.js` continua sendo a unica co
 
 As mensagens do fluxo ficam em **Configuracoes > WhatsApp > Bot**. O administrador pode editar o aviso de atendimento automatizado e registro, a saudacao/lista de produtos, a pergunta de quantidade, a pergunta de avaria, a confirmacao e a mensagem final. O marcador `{cliente}` usa o nome do cliente cadastrado.
 
-O fluxo automatico e:
+O fluxo automatico atual e:
 
 ```text
-mensagem inicial -> escolha do produto -> quantidade em KG/UN -> avaria em KG/UN
--> confirmacao SIM/NAO -> pedido aguardando aprovacao humana
+qualquer mensagem inicial -> cadastro inicial se cliente novo -> escolha do produto
+-> quantidade em KG/UN -> avaria em KG/UN -> confirmacao SIM/NAO/ADICIONAR
+-> pedido aguardando aprovacao humana
 ```
 
-Os produtos aceitos sao Macaxeira com casca, Macaxeira a vacuo, Alho descascado 250g, Alho descascado 1kg, Macaxeira chips e Macaxeira pre-cozida. O cliente pode responder pelo numero de 1 a 6 ou pelo nome. A unidade e validada conforme o produto e a avaria nao pode superar a quantidade solicitada.
+Os produtos aceitos sao Macaxeira com casca, Macaxeira a vacuo, Alho descascado 250g, Alho descascado 1kg, Macaxeira chips e Macaxeira pre-cozida. O cliente pode responder pelo numero de 1 a 6 ou pelo nome. A unidade e validada conforme o produto e a avaria nao pode superar a quantidade solicitada. A resposta `ADICIONAR` permite incluir outro item no mesmo atendimento antes da confirmacao final.
 
-O bot somente responde quando todas as travas estiverem liberadas: canal inbound configurado, `bot_active=1`, `auto_reply_enabled=1`, horario permitido, provedor Baileys e outbound habilitado. Em modo teste, o outbound deve estar em `sandbox` e o numero precisa estar na lista permitida. Em producao, tambem e obrigatoria a aprovacao explicita do ambiente. Falha de envio fica registrada e nao cria venda nem movimenta estoque.
+Quando o telefone/JID recebido ainda nao possui cliente cadastrado, o bot coleta como o cliente gostaria de ser chamado e o endereco antes de iniciar o pedido. Quando o evento vier por LID, o sistema tenta associar e gravar o telefone usando o JID numerico alternativo fornecido pelo Baileys; se esse dado nao existir no evento, o telefone real nao e inferido por heuristica.
+
+O bot somente responde quando todas as travas estiverem liberadas: canal inbound configurado, `bot_active=1`, `auto_reply_enabled=1`, horario permitido, provedor Baileys, outbound habilitado e modo inbound coerente. Em modo `sandbox`, apenas numeros permitidos respondem. Em `production`, o inbound aceita clientes individuais validos, mas o envio continua dependente das travas de outbound. Falha de envio fica registrada e nao cria venda nem movimenta estoque.
 
 O atendimento iniciado pelo cliente usa a origem `cliente_iniciou_contato` e nao depende de consentimento de marketing. `SAIR`, `STOP`, `PARAR` ou `CANCELAR` registram opt-out e bloqueiam novas respostas automaticas. Pedidos de atendente mudam a conversa para `atendimento_humano`. A pontuacao de completude e sua composicao ficam registradas na memoria de calculo do pedido; um pedido confirmado com todos os dados recebe 100 pontos.
+
+### Aprovacao, recusa, remocao e notificacao
+
+A sub-aba **Pedidos** possui visoes para **Pendentes**, **Aprovados** e **Recusados**. A lista principal deve mostrar somente a fila pendente; pedidos aprovados e recusados ficam nas respectivas abas para consulta.
+
+O operador pode:
+
+- aprovar um pedido pendente;
+- recusar um pedido pendente informando motivo;
+- remover pedido pendente, aprovado ou recusado;
+- criar um rascunho manual para o cliente a partir do painel lateral.
+
+A aprovacao ou recusa nao cria venda, nao baixa estoque e nao envia mensagem durante deploy. Quando a acao e executada na UI e a transicao realmente muda o status (`changed=true`), o backend tenta enviar uma notificacao formal ao cliente:
+
+- aprovacao: informa que o pedido foi aprovado e que a equipe dara continuidade ao atendimento;
+- recusa: informa que o pedido nao podera ser atendido naquele momento e inclui o motivo informado pelo operador.
+
+Cliques repetidos nao reenviam a notificacao porque a acao idempotente retorna `changed=false`. A notificacao respeita `WHATSAPP_OUTBOUND_ENABLED`, `WHATSAPP_OUTBOUND_MODE`, allowlist de sandbox e `WHATSAPP_OUTBOUND_PRODUCTION_APPROVED`. Se o envio for bloqueado por configuracao, a mudanca de status permanece valida e a resposta da API indica o motivo em `notification.reason`.
 
 ## Vendedores e Produtividade
 
@@ -357,11 +399,15 @@ PUT  /api/clients/{client_id}/consumption
 GET  /api/clients/{client_id}/damages
 POST /api/clients/{client_id}/damages
 POST /api/whatsapp/webhooks/incoming
+POST /api/whatsapp/orders/{order_id}/confirm
+POST /api/whatsapp/orders/{order_id}/reject
+DELETE /api/whatsapp/orders/{order_id}
+POST /api/whatsapp/orders/new-for-client
 ```
 
-Todos exigem a sessao existente, usam a empresa corrente e fecham a conexao em `finally`. O webhook publico continua reservado a simulacoes autenticadas. A recepcao real usa o canal interno descrito abaixo e nunca responde, cria venda, altera estoque ou aprova pedido.
+Todos exigem a sessao existente, usam a empresa corrente e fecham a conexao em `finally`. O webhook publico continua reservado a simulacoes autenticadas. A recepcao real usa o canal interno descrito abaixo. O bot pode responder quando configurado; nenhuma resposta cria venda, altera estoque ou aprova pedido sem acao humana.
 
-No RBAC atual, as capacidades sao representadas pelos modulos `clientes_whatsapp` e `clientes_pedidos`, combinados com as acoes existentes (`view`, `create`, `edit`, `approve` e outras). Isso implementa negacao padrao para cargos gerenciados. A lista detalhada `whatsapp.*` permanece como vocabulario de dominio para uma futura evolucao do RBAC. Administrador continua protegido; nenhum cargo novo recebe acesso amplo automaticamente. Envio, aprovacao e conversao nao possuem endpoint neste ciclo.
+No RBAC atual, as capacidades sao representadas pelos modulos `clientes_whatsapp` e `clientes_pedidos`, combinados com as acoes existentes (`view`, `create`, `edit`, `approve` e outras). Isso implementa negacao padrao para cargos gerenciados. A lista detalhada `whatsapp.*` permanece como vocabulario de dominio para uma futura evolucao do RBAC. Administrador continua protegido; nenhum cargo novo recebe acesso amplo automaticamente. Aprovacao, recusa, remocao e criacao de rascunho possuem endpoints protegidos; conversao automatica em venda permanece fora desta linha.
 
 #### Decisoes de dados
 
@@ -373,8 +419,8 @@ No RBAC atual, as capacidades sao representadas pelos modulos `clientes_whatsapp
 - Retomada apos opt-out: `PENDENTE`. Nao existe reativacao automatica; exigira origem e trilha de auditoria definidas.
 - Avaria nasce como `informada`. Os estados futuros sao `aprovada`, `reposta` e `rejeitada`; este ciclo nao oferece transicao nem reposicao real.
 - Percentual de reposicao fica entre 0 e 100 e o responsavel e registrado. Aprovacao e responsavel final pela reposicao continuam `PENDENTE`.
-- Pedido permanece rascunho persistente. Confirmacao, aprovacao, cancelamento e conversao nao possuem comandos ativos. O preco unitario e gravado no item como fotografia do calculo; a politica para reajuste posterior esta `PENDENTE`.
-- Mais de um pedido aberto, pedido recente e janela temporal de suspeita continuam `PENDENTE` de politica comercial. As constraints de idempotencia ja bloqueiam repeticoes exatas.
+- Pedido permanece persistente e revisavel. Confirmacao do cliente gera `aguardando_aprovacao`; aprovacao, cancelamento/recusa e remocao sao comandos humanos protegidos. Conversao em venda continua fora desta linha. O preco unitario e gravado no item como fotografia do calculo; a politica para reajuste posterior esta `PENDENTE`.
+- O bot permite varios itens no mesmo atendimento por `ADICIONAR`. Politicas comerciais de janela temporal e suspeita continuam conservadoras; as constraints de idempotencia bloqueiam repeticoes exatas.
 - Consumo e estoque rejeitam valores negativos ou invalidos. Sem consumo maximo, nao se inventa teto. Quantidade solicitada acima do maximo deve ser sinalizada para revisao, nunca aprovada automaticamente.
 
 O backup incremental deste ciclo fica em `backups/client_whatsapp_orders_cycle2_20260914_220931/`. O manifesto inclui hashes e restauracao seletiva sem invalidar o backup anterior.
@@ -390,7 +436,7 @@ WHATSAPP_INBOUND_ENABLED=false
 WHATSAPP_INBOUND_TOKEN=
 WHATSAPP_INBOUND_INSTANCE=
 WHATSAPP_INBOUND_COMPANY=
-WHATSAPP_INBOUND_MODE=disabled
+WHATSAPP_INBOUND_MODE=sandbox
 WHATSAPP_INBOUND_SANDBOX_NUMBERS=
 WHATSAPP_INBOUND_URL=http://127.0.0.1:8765/internal/whatsapp/events
 WHATSAPP_INBOUND_TIMEOUT_MS=5000
@@ -399,7 +445,7 @@ WHATSAPP_INBOUND_MAX_QUEUE=100
 WHATSAPP_INBOUND_MAX_BODY_BYTES=32768
 ```
 
-`WHATSAPP_INBOUND_MODE` aceita `disabled`, `sandbox` e `production`. Em `sandbox`, somente os numeros de `WHATSAPP_INBOUND_SANDBOX_NUMBERS` sao encaminhados; em `production`, toda mensagem individual valida e encaminhada (o backend aplica as travas de bot, outbound e horario). Qualquer outro valor falha fechado como `disabled`.
+`WHATSAPP_INBOUND_MODE` operacional aceita `sandbox` e `production` na UI atual. Em `sandbox`, somente os numeros de `WHATSAPP_INBOUND_SANDBOX_NUMBERS` sao encaminhados; em `production`, toda mensagem individual valida e encaminhada (o backend aplica as travas de bot, outbound e horario). Qualquer outro valor deve falhar fechado e exigir correcao operacional.
 
 O padrao e desligado. Quando habilitado, a instancia e associada no backend a uma empresa configurada; o Node nao escolhe empresa nem cliente. O corpo JSON aceito contem `provider`, `instance`, `event_id`, `message_id`, `remote_jid`, `from_me`, `message_type`, `text`, `timestamp` e `raw_type` opcional. Payload bruto nao e persistido.
 
@@ -446,6 +492,23 @@ Os modos aceitos sao `disabled`, `sandbox` e `production`. `sandbox` aceita some
 
 O endpoint legado local `/send` permanece por compatibilidade, mas opera com falha fechada: `API_KEY` e obrigatoria, a comparacao e constante e chave ausente ou incorreta recusa a requisicao. Mesmo com chave correta, o endpoint continua bloqueado enquanto `WHATSAPP_OUTBOUND_ENABLED=false`. A chave nunca e registrada em log ou resposta.
 
+### Modo inbound WhatsApp pela UI
+
+Em **Configuracoes > WhatsApp > Bot**, o painel exibe o modo inbound atual e permite alternar entre **Sandbox** e **Producao**. A leitura do modo consulta o backend e o status local do Baileys; quando a aplicacao nao consegue confirmar o modo, a interface mostra estado indefinido e recomenda verificar o servico antes de alternar.
+
+A troca usa um helper privilegiado limitado para alterar somente `WHATSAPP_INBOUND_MODE` no arquivo de ambiente operacional e reiniciar brevemente apenas `menina-baileys.service`. O deploy do codigo nao altera esse arquivo e nao reinicia o Baileys por causa desse recurso. O restart do Baileys acontece somente quando o operador aciona o botao da UI para mudar o modo.
+
+O helper deve:
+
+- aceitar apenas `sandbox` ou `production`;
+- criar backup do arquivo de ambiente antes da escrita;
+- trocar a linha `WHATSAPP_INBOUND_MODE` de forma atomica;
+- preservar dono, grupo e permissao do arquivo;
+- aguardar `/status` do Baileys confirmar o modo solicitado;
+- restaurar o backup e reiniciar novamente o Baileys se a verificacao falhar.
+
+Os logs de auditoria registram a troca de modo de forma sanitizada, sem numeros, tokens, allowlists ou conteudo de mensagens.
+
 ### Atualizacao interna do Baileys
 
 A sub-aba `Configuracoes > WhatsApp > Atualizar Baileys` consulta o servico local autenticado e exibe as versoes instalada, aprovada e disponivel. A interface nunca aceita comandos, caminhos ou versoes informados pelo navegador. O botao aplica somente a versao exata previamente versionada em `baileys-api/package.json` e `package-lock.json`.
@@ -460,7 +523,7 @@ O listener de pedidos continua fechado por padrao. Atualizar a biblioteca nao at
 
 O `.gitignore` continua protegendo dumps SQL em geral, mas possui excecoes explicitas somente para as migracoes versionaveis de RBAC e WhatsApp. As migracoes `up` e `down` deste ciclo permanecem integras e nao foram aplicadas em banco remoto.
 
-Para desligar imediatamente, configure `WHATSAPP_INBOUND_ENABLED=false`, `WHATSAPP_OUTBOUND_ENABLED=false` e `WHATSAPP_OUTBOUND_MODE=disabled`, depois use apenas o procedimento operacional autorizado para recarregar os processos. Nao apague sessao, QR Code ou dados.
+Para desligar imediatamente o envio automatico, configure `WHATSAPP_OUTBOUND_ENABLED=false` e `WHATSAPP_OUTBOUND_MODE=disabled`, depois use apenas o procedimento operacional autorizado para recarregar os processos. Para limitar a entrada sem desligar o listener, coloque o inbound em `sandbox` pela UI e mantenha a allowlist controlada. Nao apague sessao, QR Code ou dados.
 
 Validacao local:
 
