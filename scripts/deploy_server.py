@@ -250,6 +250,7 @@ def main(argv=None):
             )
 
         stage = "REMOTE-CHECKSUM"
+        verify_dir = f"{run_dir}/package_verify"
         remote_call(
             config,
             f"set -e; cd {safe_remote(run_dir)}; "
@@ -257,7 +258,10 @@ def main(argv=None):
             f"test \"$(sha256sum {safe_remote(REMOTE_SCRIPT.name)} | awk '{{print toupper($1)}}')\" = {safe_remote(script_hash)}; "
             f"test \"$(sha256sum {safe_remote(Path(package['CHECKSUMS']).name)} | awk '{{print toupper($1)}}')\" = "
             f"{safe_remote(hashlib.sha256(Path(package['CHECKSUMS']).read_bytes()).hexdigest().upper())}; "
-            f"sha256sum -c {safe_remote(Path(package['CHECKSUMS']).name)}",
+            f"mkdir {safe_remote(verify_dir)}; "
+            f"python3 -m zipfile -e {safe_remote(package_name)} {safe_remote(verify_dir)}; "
+            f"cd {safe_remote(verify_dir)}; "
+            f"sha256sum -c {safe_remote('../' + Path(package['CHECKSUMS']).name)}",
             log, stage,
         )
 
