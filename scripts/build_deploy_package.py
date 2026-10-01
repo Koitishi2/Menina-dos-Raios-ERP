@@ -1,6 +1,7 @@
 import argparse
 import ast
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -9,6 +10,7 @@ import sys
 import tarfile
 import tempfile
 import zipfile
+from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
 
@@ -320,7 +322,7 @@ def validate_package(source, sections):
     return files
 
 
-def write_package(source, files, output_dir, package_name):
+def write_package(source, files, output_dir, package_name, release_commit):
     output_dir.mkdir(parents=True, exist_ok=True)
     package_path = output_dir / package_name
     manifest_path = output_dir / f"{package_path.stem}_MANIFEST.txt"
@@ -328,6 +330,14 @@ def write_package(source, files, output_dir, package_name):
     with zipfile.ZipFile(package_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         for rel, path in iter_package_files(source, files):
             zf.write(path, rel)
+        release_info = {
+            "commit": release_commit,
+            "builtAtUtc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        }
+        zf.writestr(
+            "backend/static/deploy-version.json",
+            json.dumps(release_info, ensure_ascii=True, indent=2) + "\n",
+        )
     package_hash = sha256(package_path)
     lines = []
     checksum_lines = [f"{package_hash}  {package_path.name}"]
@@ -368,7 +378,7 @@ def main(argv=None):
         source = git_archive(args.commit, Path(tmp))
         files = validate_package(source, sections)
         package_path, package_hash, manifest_path, checksums_path, count = write_package(
-            source, files, args.output_dir, package_name
+            source, files, args.output_dir, package_name, args.commit
         )
 
     print(f"PACKAGE={package_path}")

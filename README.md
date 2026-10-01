@@ -143,11 +143,9 @@ O PIN de 4 digitos e local do aparelho e nao substitui a senha do sistema web. E
 
 ## Pacote de Atualizacao
 
-A distribuicao empacotada da versao estavel deve usar o nome:
-
-```text
-bm_app_refatorado_88fef18.zip
-```
+O `ATUALIZAR.bat` gera cada pacote a partir de um commit publicado e inclui
+manifesto, checksum e identificacao da release. O fluxo operacional e os logs
+estao descritos em [GUIA_ATUALIZACOES.md](GUIA_ATUALIZACOES.md).
 
 O pacote publicado nao deve conter:
 
@@ -161,9 +159,8 @@ O checksum SHA-256 deve ser publicado junto ao pacote quando o arquivo for dispo
 
 ## Atualizador Seguro
 
-O arquivo `atualizarrefatorado.bat` e fornecido como modelo operacional
-bloqueado por padrao. Ele deve iniciar em modo de simulacao e exigir
-configuracao explicita antes de qualquer conexao externa.
+O `atualizarrefatorado.bat` e o procedimento legado de uma versao estavel
+anterior. Para novas releases, use `ATUALIZAR.bat`.
 
 O script nao deve conter credenciais, caminhos privados ou comandos de servico
 na versao publica. Detalhes de infraestrutura devem ser preenchidos apenas por
@@ -219,6 +216,9 @@ aprovada. Nao rotacione credenciais durante revisoes locais ou geracao de
 pacote.
 
 ## Instalacao e Atualizacao
+
+O fluxo operacional com identificacao de release, validacao remota, health check
+e diagnosticos por execucao esta em [GUIA_ATUALIZACOES.md](GUIA_ATUALIZACOES.md).
 
 A implantacao deve ser feita somente por operador autorizado.
 
@@ -476,7 +476,7 @@ O usuario seleciona clientes, prepara um lote, revisa a mensagem personalizada e
 
 A criacao do lote aceita uma `request_id` local gerada pela interface. Repetir a mesma requisicao retorna o mesmo lote; reutilizar a chave com clientes, filtros ou mensagem diferentes e recusado. Isso protege repeticoes de clique ou de rede sem impedir que o usuario inicie conscientemente um novo lote com uma nova chave.
 
-O agendador legado de mensagens motivacionais nao e iniciado pelo backend. O comando manual existente foi preservado, mas nenhuma rotina periodica envia mensagens sem acao humana.
+O agendador diario de mensagens motivacionais e iniciado junto com o backend. Ele usa `motivation_enabled` e `motivation_time` do banco (padrao 07:00, fuso `America/Manaus`), tenta durante uma janela de duas horas e registra o resultado por contato em `whatsapp_log`. A tentativa diaria e protegida por transacao SQLite para evitar duplicidade quando houver mais de um worker. A tela de WhatsApp mostra se o agendador esta ativo, se o provedor tem configuracao e a data da ultima tentativa/sucesso. O envio continua sujeito a `WHATSAPP_OUTBOUND_ENABLED` e ao modo do provedor Baileys.
 
 O envio permanece protegido por duas travas independentes:
 

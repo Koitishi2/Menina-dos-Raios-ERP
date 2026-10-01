@@ -1142,9 +1142,13 @@ def backup_scheduler():
 # â”€â”€ FastAPI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 from contextlib import asynccontextmanager
 
+MOTIVATION_SCHEDULER_STARTED=False
+MOTIVATION_SCHEDULER_STOP=threading.Event()
+
 @asynccontextmanager
 async def lifespan(app_instance):
     """Inicializa banco e inicia scheduler de backup."""
+    global MOTIVATION_SCHEDULER_STARTED
     for company in COMPANY_DBS:
         init_db(company)
     _initialize_app_notes_journal()
@@ -1167,9 +1171,16 @@ async def lifespan(app_instance):
     # Iniciar thread de backup automÃ¡tico
     bk_thread=threading.Thread(target=backup_scheduler,daemon=True)
     bk_thread.start()
-    # Politica atual: mensagens WhatsApp exigem selecao e confirmacao humanas.
-    # A rotina legada permanece disponivel para acionamento manual, sem scheduler.
-    yield
+    MOTIVATION_SCHEDULER_STOP.clear()
+    motivation_thread=threading.Thread(target=motivation_scheduler,name="motivation-scheduler",daemon=True)
+    motivation_thread.start()
+    MOTIVATION_SCHEDULER_STARTED=True
+    try:
+        yield
+    finally:
+        MOTIVATION_SCHEDULER_STOP.set()
+        motivation_thread.join(timeout=10)
+        MOTIVATION_SCHEDULER_STARTED=False
 
 app=FastAPI(title="Menina dos Raios Ltda API", lifespan=lifespan)
 # GZip: comprime respostas JSON grandes (ex: /api/sales ~600KB -> ~80KB).
@@ -5859,6 +5870,7 @@ def send_daily_motivation(force:bool=False):
     now=_motivation_now();today=now.strftime("%Y-%m-%d")
     conn=get_db()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         cfg={r["key"]:r["value"] for r in conn.execute("SELECT key,value FROM whatsapp_config").fetchall()}
         if not force and cfg.get("motivation_enabled","1")!="1": return {"ok":False,"reason":"disabled"}
         send_time=cfg.get("motivation_time","07:00") or "07:00"
@@ -5886,6 +5898,7 @@ def send_daily_motivation(force:bool=False):
         if not contacts: return {"ok":False,"reason":"no_contacts","count":len(templates)}
         item=templates[(now.toordinal()-1)%len(templates)]
         content=(item.get("content") or "").strip()
+        # Serializes scheduler attempts across workers before the network send.
         conn.execute("INSERT OR REPLACE INTO whatsapp_config(key,value) VALUES('motivation_last_attempt',?)",[now.isoformat()])
         conn.commit()
     except Exception:
@@ -5921,11 +5934,12 @@ def send_daily_motivation(force:bool=False):
 
 def motivation_scheduler():
     import time
-    time.sleep(8)
-    while True:
+    if MOTIVATION_SCHEDULER_STOP.wait(8): return
+    print("[motivacao] Agendador diario ativo; fuso=America/Manaus; intervalo=300s")
+    while not MOTIVATION_SCHEDULER_STOP.is_set():
         try: send_daily_motivation()
         except Exception as e: print(f"[motivacao] Erro no agendador: {type(e).__name__}: {e}")
-        time.sleep(300)
+        if MOTIVATION_SCHEDULER_STOP.wait(300): return
 
 @app.get("/api/whatsapp/contacts")
 def list_wa_contacts(x_token: str = Header(...)):
@@ -6485,7 +6499,8 @@ def motivation_status(x_token: str = Header(...)):
     conn.close()
     return {"enabled":cfg.get("motivation_enabled","1")=="1","time":cfg.get("motivation_time","07:00"),
             "last_success":cfg.get("motivation_last_success",""),"last_attempt":cfg.get("motivation_last_attempt",""),
-            "templates":count,"active_contacts":contacts}
+            "templates":count,"active_contacts":contacts,"scheduler_running":MOTIVATION_SCHEDULER_STARTED,
+            "provider":cfg.get("provider","ultramsg"),"provider_configured":bool(cfg.get("api_url") and cfg.get("api_token"))}
 
 @app.post("/api/whatsapp/motivation-send-now")
 def motivation_send_now(x_token: str = Header(...)):
@@ -7225,6 +7240,15 @@ def list_app_calendar_mobile(x_app_token:str=Header("",alias="x-app-token")):
         return {"events":events,"count":len(events),"checked_at":datetime.now().isoformat(timespec="seconds")}
     finally:
         conn.close()
+
+@app.get("/health")
+def health_check():
+    release_path=STATIC_DIR/"deploy-version.json"
+    try:
+        release=json.loads(release_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        release={"commit":"unknown"}
+    return {"ok":True,"service":"menina","release":release}
 
 @app.get("/{full_path:path}")
 def serve_spa(full_path:str):

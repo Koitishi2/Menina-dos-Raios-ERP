@@ -1,19 +1,32 @@
 param(
     [string]$Notes = "",
-    [switch]$DryRun
+    [switch]$DryRun,
+    [string]$SourceApkPath = "",
+    [string]$AppUpdatesDirectory = ""
 )
 
 $ErrorActionPreference = "Stop"
 $Host.UI.RawUI.WindowTitle = "Menina dos Raios - Publicar APK"
 
-$APK_PATH = "C:\Users\adria\OneDrive\Documentos\vendas APK\Menina-dos-Raios-Vendas-OFICIAL.apk"
-$APP_UPDATES_DIR = "C:\Menina dos Raios\bm_app\backend\static\app-updates"
+$root = $PSScriptRoot
 $OFFICIAL_APK_NAME = "Menina-dos-Raios-Vendas-OFICIAL.apk"
 $LATEST_JSON_NAME = "latest.json"
 $CATALOG_JSON_NAME = "catalog.json"
 $CHANGELOG_NAME = "CHANGELOG-APP.md"
 $EXPECTED_PACKAGE = "br.com.meninadosraios.vendas"
 $DEFAULT_APK_BASE_URL = "https://sistema.meninadosraios.com.br/app-updates"
+$script:PublishStage = "START"
+$logDir = Join-Path $root "logs_apk_publicacao"
+New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+$logPath = Join-Path $logDir ("apk_{0}.log" -f (Get-Date -Format "yyyyMMdd_HHmmss"))
+trap {
+    $message = $_.Exception.Message
+    Write-Host "ERRO [$script:PublishStage]: $message" -ForegroundColor Red
+    Write-Host "Log: $logPath" -ForegroundColor Yellow
+    try { Stop-Transcript | Out-Null } catch {}
+    exit 1
+}
+Start-Transcript -Path $logPath -Force | Out-Null
 
 function Read-BatchConfig {
     param([string]$Path)
@@ -135,12 +148,25 @@ Write-Host " Menina dos Raios - Publicacao otimizada do APK"
 Write-Host "============================================================" -ForegroundColor Green
 Write-Host ""
 
-if (-not (Test-Path -LiteralPath $APK_PATH -PathType Leaf)) {
-    throw "APK oficial nao encontrado em $APK_PATH"
-}
-
-$root = $PSScriptRoot
+$script:PublishStage = "CONFIG"
 $config = Read-BatchConfig (Join-Path $root "atualizarrefatorado.local.bat")
+$APK_PATH = $SourceApkPath
+if ([string]::IsNullOrWhiteSpace($APK_PATH) -and $config.ContainsKey("APK_SOURCE_PATH")) {
+    $APK_PATH = [string]$config["APK_SOURCE_PATH"]
+}
+if ([string]::IsNullOrWhiteSpace($APK_PATH)) {
+    $APK_PATH = Join-Path $root "backend\static\app-updates\$OFFICIAL_APK_NAME"
+}
+$APP_UPDATES_DIR = $AppUpdatesDirectory
+if ([string]::IsNullOrWhiteSpace($APP_UPDATES_DIR) -and $config.ContainsKey("APP_UPDATES_DIR")) {
+    $APP_UPDATES_DIR = [string]$config["APP_UPDATES_DIR"]
+}
+if ([string]::IsNullOrWhiteSpace($APP_UPDATES_DIR)) {
+    $APP_UPDATES_DIR = Join-Path $root "backend\static\app-updates"
+}
+if (-not (Test-Path -LiteralPath $APK_PATH -PathType Leaf)) {
+    throw "APK oficial nao encontrado em $APK_PATH. Configure APK_SOURCE_PATH localmente ou use -SourceApkPath."
+}
 $hostName = Require-ConfigValue $config "HOST"
 $port = Require-ConfigValue $config "PORT"
 $user = Require-ConfigValue $config "USER"
@@ -154,6 +180,7 @@ if ($config.ContainsKey("APK_PUBLIC_BASE_URL") -and -not [string]::IsNullOrWhite
     $apkBaseUrl = ($config["APK_PUBLIC_BASE_URL"] -as [string]).TrimEnd("/")
 }
 
+$script:PublishStage = "APK-INSPECT"
 $apkInfo = Read-ApkInfo $APK_PATH
 if (-not [string]::IsNullOrWhiteSpace($apkInfo.warning)) {
     Write-Host "AVISO: $($apkInfo.warning)" -ForegroundColor Yellow
@@ -162,6 +189,7 @@ if ($apkInfo.packageName -ne "desconhecido" -and $apkInfo.packageName -ne $EXPEC
     throw "Package incorreto: $($apkInfo.packageName). Esperado: $EXPECTED_PACKAGE"
 }
 
+$script:PublishStage = "SIGNATURE"
 Test-ApkSignature $APK_PATH
 
 $hash = (Get-FileHash -LiteralPath $APK_PATH -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -175,9 +203,11 @@ Write-Host "SHA-256         : $hash"
 Write-Host "Tamanho         : $size bytes"
 Write-Host ""
 
+$script:PublishStage = "CONFIRM"
 $confirm = Read-Host "Deseja publicar este APK? (S/N)"
 if ($confirm -notmatch '^[sS]$') {
     Write-Host "Publicacao cancelada pelo operador." -ForegroundColor Yellow
+    Stop-Transcript | Out-Null
     exit 2
 }
 
@@ -186,13 +216,16 @@ if ([string]::IsNullOrWhiteSpace($Notes)) {
 }
 if ([string]::IsNullOrWhiteSpace($Notes)) { $Notes = "Melhorias e correcoes." }
 
+$script:PublishStage = "LOCAL-METADATA"
 New-Item -ItemType Directory -Path $APP_UPDATES_DIR -Force | Out-Null
 $localApk = Join-Path $APP_UPDATES_DIR $OFFICIAL_APK_NAME
 $latestJson = Join-Path $APP_UPDATES_DIR $LATEST_JSON_NAME
 $catalogJson = Join-Path $APP_UPDATES_DIR $CATALOG_JSON_NAME
 $changelog = Join-Path $APP_UPDATES_DIR $CHANGELOG_NAME
 
-Copy-Item -LiteralPath $APK_PATH -Destination $localApk -Force
+if ([IO.Path]::GetFullPath($APK_PATH) -ne [IO.Path]::GetFullPath($localApk)) {
+    Copy-Item -LiteralPath $APK_PATH -Destination $localApk -Force
+}
 $catalog = New-CatalogObject -ApkInfo $apkInfo -Hash $hash -ReleaseNotes $Notes -BaseUrl $apkBaseUrl -SizeBytes $size
 $catalog | ConvertTo-Json | Set-Content -LiteralPath $catalogJson -Encoding UTF8
 $catalog | ConvertTo-Json | Set-Content -LiteralPath $latestJson -Encoding UTF8
@@ -216,6 +249,8 @@ Write-Host " - $localApk"
 if ($DryRun) {
     Write-Host ""
     Write-Host "DRY_RUN solicitado. Nenhum SSH/SCP sera executado." -ForegroundColor Yellow
+    Write-Host "Log: $logPath"
+    Stop-Transcript | Out-Null
     exit 0
 }
 
@@ -227,15 +262,20 @@ Write-Host ""
 Write-Host "Enviando para o servidor. A senha sera pedida pelo SSH/SCP." -ForegroundColor Cyan
 Write-Host "Destino: $remoteAppUpdatesDir"
 
+$script:PublishStage = "REMOTE-BACKUP"
 $backupCommand = "set -e; mkdir -p '$remoteAppUpdatesDir' '$remoteApkBackupDir'; find '$remoteAppUpdatesDir' -maxdepth 1 -type f \( -name '*.apk' -o -name 'latest.json' -o -name 'catalog.json' -o -name 'CHANGELOG-APP.md' \) -exec cp -p {} '$remoteApkBackupDir/' \;; echo APK_BACKUP_OK"
 Invoke-Checked "ssh" @("-p", $port, "$user@$hostName", $backupCommand) "Falha ao preparar backup remoto."
+
+$script:PublishStage = "REMOTE-UPLOAD"
 
 Invoke-Checked "scp" @("-P", $port, $localApk, "$user@$hostName`:$remoteAppUpdatesDir/$OFFICIAL_APK_NAME") "Falha ao enviar APK oficial."
 Invoke-Checked "scp" @("-P", $port, $latestJson, "$user@$hostName`:$remoteAppUpdatesDir/$LATEST_JSON_NAME") "Falha ao enviar latest.json."
 Invoke-Checked "scp" @("-P", $port, $catalogJson, "$user@$hostName`:$remoteAppUpdatesDir/$CATALOG_JSON_NAME") "Falha ao enviar catalog.json."
 Invoke-Checked "scp" @("-P", $port, $changelog, "$user@$hostName`:$remoteAppUpdatesDir/$CHANGELOG_NAME") "Falha ao enviar changelog."
 
-$validateCommand = "set -e; test -f '$remoteAppUpdatesDir/$OFFICIAL_APK_NAME'; test -f '$remoteAppUpdatesDir/$LATEST_JSON_NAME'; test -f '$remoteAppUpdatesDir/$CATALOG_JSON_NAME'; echo APK_PUBLICATION_OK"
+$script:PublishStage = "REMOTE-VALIDATE"
+$remoteHashLine = "$hash  $remoteAppUpdatesDir/$OFFICIAL_APK_NAME"
+$validateCommand = "set -e; test -f '$remoteAppUpdatesDir/$OFFICIAL_APK_NAME'; test -f '$remoteAppUpdatesDir/$LATEST_JSON_NAME'; test -f '$remoteAppUpdatesDir/$CATALOG_JSON_NAME'; printf '%s\n' '$remoteHashLine' | sha256sum -c -; grep -Eq '""sha256""[[:space:]]*:[[:space:]]*""$hash""' '$remoteAppUpdatesDir/$LATEST_JSON_NAME'; grep -Eq '""versionCode""[[:space:]]*:[[:space:]]*$($apkInfo.versionCode)' '$remoteAppUpdatesDir/$LATEST_JSON_NAME'; echo APK_PUBLICATION_OK"
 Invoke-Checked "ssh" @("-p", $port, "$user@$hostName", $validateCommand) "Falha ao validar arquivos publicados."
 
 Write-Host ""
@@ -244,3 +284,6 @@ Write-Host "VersionName: $($apkInfo.versionName)"
 Write-Host "VersionCode: $($apkInfo.versionCode)"
 Write-Host "SHA-256: $hash"
 Write-Host "URL: $apkBaseUrl/$OFFICIAL_APK_NAME"
+Write-Host "Log: $logPath"
+$script:PublishStage = "COMPLETE"
+Stop-Transcript | Out-Null

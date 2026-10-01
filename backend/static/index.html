@@ -14311,8 +14311,11 @@ async function loadWaMotivationStatus(){
   try{
     const r=await api('/api/whatsapp/motivation-status');
     const last=r.last_success?new Date(r.last_success+'T00:00:00').toLocaleDateString('pt-BR'):'ainda nao enviado';
-    el.innerHTML='<b>'+r.templates+'</b> mensagem(ns) motivacional(is) armazenada(s) · <b>'+r.active_contacts+'</b> contato(s) ativo(s) · envio diario as <b>'+waLogEsc(r.time)+'</b> · ultimo: <b>'+last+'</b>';
-    el.style.color=r.templates&&r.active_contacts?'var(--muted)':'var(--red)';
+    const attempt=r.last_attempt?new Date(r.last_attempt).toLocaleString('pt-BR'):'nenhuma tentativa';
+    const scheduler=r.scheduler_running?'agendador ativo':'agendador parado';
+    const provider=r.provider_configured?'conector '+waLogEsc(r.provider)+' configurado':'conector nao configurado';
+    el.innerHTML='<b>'+r.templates+'</b> modelo(s) · <b>'+r.active_contacts+'</b> contato(s) ativo(s) · envio diario <b>'+waLogEsc(r.time)+'</b> · '+scheduler+' · '+provider+' · ultima tentativa: <b>'+waLogEsc(attempt)+'</b> · ultimo sucesso: <b>'+last+'</b>';
+    el.style.color=r.enabled&&r.scheduler_running&&r.provider_configured&&r.templates&&r.active_contacts?'var(--muted)':'var(--red)';
   }catch(e){el.textContent='Erro ao verificar: '+e.message;el.style.color='var(--red)';}
 }
 async function sendWaMotivationNow(){

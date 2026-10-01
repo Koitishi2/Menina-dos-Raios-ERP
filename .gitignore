@@ -159,6 +159,8 @@ baileys-api/qr*.txt
 atualizarrefatorado.local.bat
 logs_atualizacao_refatorada/
 logs_apk_publicacao/
+logs_deploy/
+backups/deploy_runs/
 baileys-api-validation/
 bm_app_refatorado_*.zip
 .venv

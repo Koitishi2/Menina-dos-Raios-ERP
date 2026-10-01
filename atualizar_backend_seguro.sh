@@ -23,15 +23,21 @@ case "$BACKUP_DIR" in
   *) echo "BACKUP_DIR_INVALIDO" >&2; exit 82 ;;
 esac
 
+DEPLOY_LOG="$RUN_DIR/deploy.log"
+exec > >(tee -a "$DEPLOY_LOG") 2>&1
+CURRENT_PHASE="BOOTSTRAP"
+printf 'DEPLOY_RUN_ID=%s\nDEPLOY_COMMIT=%s\n' "${DEPLOY_RUN_ID:-unknown}" "${DEPLOY_COMMIT:-unknown}"
+
 # Os caminhos ja foram aceitos pelo allowlist; somente agora e seguro gravar
 # o status remoto dentro do staging autorizado.
 STATUS_FILE="$RUN_DIR/deploy_status.log"
 status_phase() {
+  CURRENT_PHASE="$1"
   printf 'APPLY_PHASE=%s at=%s\n' "$1" "$(date -Is)" >> "$STATUS_FILE"
 }
 status_finish() {
   local status=$?
-  printf 'DEPLOY_EXIT_CODE=%s at=%s\n' "$status" "$(date -Is)" >> "$STATUS_FILE" 2>/dev/null || true
+  printf 'DEPLOY_EXIT_CODE=%s FAILED_PHASE=%s at=%s\n' "$status" "$CURRENT_PHASE" "$(date -Is)" >> "$STATUS_FILE" 2>/dev/null || true
 }
 printf 'DEPLOY_STARTED=%s\n' "$(date -Is)" > "$STATUS_FILE"
 status_phase "PRECHECK"
@@ -63,6 +69,14 @@ command -v python3 >/dev/null
 command -v runuser >/dev/null
 command -v node >/dev/null
 command -v systemctl >/dev/null
+if [[ "${DRY_RUN:-0}" != "1" ]]; then
+  : "${HEALTHCHECK_URL:?HEALTHCHECK_URL obrigatorio para aplicar}"
+  case "$HEALTHCHECK_URL" in
+    https://*) ;;
+    *) echo "HEALTHCHECK_URL_INVALIDO: use HTTPS" >&2; exit 86 ;;
+  esac
+  command -v curl >/dev/null
+fi
 if [[ ! -x "$SERVICE_PYTHON" ]]; then
   echo "SERVICE_PYTHON_NOT_EXECUTABLE: $SERVICE_PYTHON" >&2
   exit 84
@@ -404,6 +418,15 @@ test -f "$STAGED_BACKEND/app.py"
 test -f "$STAGED_BACKEND/backup_admin.py"
 test -f "$STAGED_BACKEND/rbac.py"
 test -f "$STAGED_BACKEND/static/index.html"
+test -f "$STAGED_BACKEND/static/deploy-version.json"
+python3 - "$STAGED_BACKEND/static/deploy-version.json" "${DEPLOY_COMMIT:-}" <<'PY'
+import json
+import sys
+from pathlib import Path
+release = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+if not sys.argv[2] or release.get("commit") != sys.argv[2]:
+    raise SystemExit("RELEASE_COMMIT_MISMATCH")
+PY
 test -d "$STAGED_BAILEYS"
 test -d "$BAILEYS_DIR/node_modules"
 test -d "$BAILEYS_DIR/auth_info_baileys"
@@ -431,6 +454,12 @@ rm -rf -- "$PREFLIGHT_DIR"
 echo "STAGING_IMPORT_APP_OK"
 validate_baileys_code "$STAGED_BAILEYS"
 echo "STAGING_BAILEYS_OK"
+
+if [[ "${DRY_RUN:-0}" = "1" ]]; then
+  status_phase "DRY_RUN_COMPLETE"
+  echo "REMOTE_STAGING_VALIDATION_OK; active files and services were not changed"
+  exit 0
+fi
 
 trap 'rollback $?' ERR
 trap 'handle_signal 129' HUP
@@ -491,8 +520,19 @@ test "$FINAL_SERVICE_STATUS" = "active"
 test "$BAILEYS_STATUS_FINAL" = "active"
 validate_baileys_health
 
-# Nao ha rota GET /health no app.py atual. O readiness fica restrito ao estado
-# do systemd; nenhuma rota com potencial efeito colateral e chamada.
+# Confirma que o processo responde pela rota da aplicacao, nao apenas pelo systemd.
+status_phase "HEALTHCHECK"
+HEALTH_BODY="$(curl --fail --silent --show-error --max-time 20 "$HEALTHCHECK_URL")"
+if ! printf '%s' "$HEALTH_BODY" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get("ok") is True and d.get("service") == "menina" else 1)'; then
+  echo "HTTP_HEALTHCHECK_INVALID_RESPONSE" >&2
+  false
+fi
+if ! printf '%s' "$HEALTH_BODY" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if (d.get("release") or {}).get("commit") == sys.argv[1] else 1)' "${DEPLOY_COMMIT:-}"; then
+  echo "HTTP_HEALTHCHECK_RELEASE_MISMATCH expected=${DEPLOY_COMMIT:-unknown}" >&2
+  false
+fi
+echo "HTTP_HEALTHCHECK_OK"
+
 trap - ERR HUP INT TERM
 status_phase "COMPLETE"
 echo "REMOTE_BACKEND_AND_BAILEYS_UPDATE_OK"
