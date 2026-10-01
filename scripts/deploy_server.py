@@ -261,7 +261,7 @@ def main(argv=None):
             f"mkdir {safe_remote(verify_dir)}; "
             f"python3 -m zipfile -e {safe_remote(package_name)} {safe_remote(verify_dir)}; "
             f"cd {safe_remote(verify_dir)}; "
-            f"sha256sum -c {safe_remote('../' + Path(package['CHECKSUMS']).name)}",
+            f"tail -n +2 {safe_remote('../' + Path(package['CHECKSUMS']).name)} | sha256sum -c -",
             log, stage,
         )
 
