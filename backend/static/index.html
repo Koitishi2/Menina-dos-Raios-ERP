@@ -6185,6 +6185,7 @@ function updateBadge(){
   else el.style.display='none';
 }
 function renderTable(data){
+  data = sortSalesByInvoiceOrder(data);
   const start=(currentPage-1)*PAGE_SIZE,page=data.slice(start,start+PAGE_SIZE);
   const filtered=data.length,from=filtered>0?(start+1):0,to=Math.min(start+PAGE_SIZE,filtered);
   var info=filtered+' registro(s)';
@@ -6213,6 +6214,43 @@ function renderPagination(total){
   }
   el.innerHTML=html;
 }
+
+function compareInvoiceNumbersNatural(left,right){
+  const a=String(left||'').trim(), b=String(right||'').trim();
+  if(!a) return b?1:0;
+  if(!b) return -1;
+  const aa=a.match(/\d+|\D+/g)||[], bb=b.match(/\d+|\D+/g)||[];
+  for(let i=0;i<Math.min(aa.length,bb.length);i++){
+    const x=aa[i], y=bb[i], xn=/^\d+$/.test(x), yn=/^\d+$/.test(y);
+    let result=0;
+    if(xn&&yn){
+      const nx=x.replace(/^0+(?=\d)/,''), ny=y.replace(/^0+(?=\d)/,'');
+      result=nx.length===ny.length ? (nx<ny?-1:nx>ny?1:0) : (nx.length<ny.length?-1:1);
+      if(!result&&x.length!==y.length) result=x.length<y.length?-1:1;
+    }else{
+      result=x.toLocaleLowerCase('pt-BR').localeCompare(y.toLocaleLowerCase('pt-BR'),'pt-BR');
+    }
+    if(result) return result;
+  }
+  return aa.length===bb.length?0:(aa.length<bb.length?-1:1);
+}
+
+function sortSalesByInvoiceOrder(rows){
+  const typeOrder={NF:0,PR:1,AVULSO:2,AVARIA:3};
+  return (rows||[]).slice().sort(function(a,b){
+    const dateResult=String(b.sale_date||'').localeCompare(String(a.sale_date||''));
+    if(dateResult) return dateResult;
+    const typeA=String(a.sale_type||'').toUpperCase(), typeB=String(b.sale_type||'').toUpperCase();
+    const typeResult=(typeOrder[typeA]??99)-(typeOrder[typeB]??99);
+    if(typeResult) return typeResult;
+    const invoiceResult=compareInvoiceNumbersNatural(b.nf_number,a.nf_number);
+    if(invoiceResult) return invoiceResult;
+    const timeResult=String(b.sale_time||'').localeCompare(String(a.sale_time||''));
+    if(timeResult) return timeResult;
+    return String(a.client||'').localeCompare(String(b.client||''),'pt-BR');
+  });
+}
+
 function changePageSize(val){PAGE_SIZE=Number(val);currentPage=1;renderTable(getFiltered());}
 function goPage(p){currentPage=p;renderTable(getFiltered());}
 function changeTypePageSize(val,type){_typePageSize=Number(val);_typePage[type]=1;renderTypePanel(type);}
@@ -6477,6 +6515,7 @@ function renderTypePanel(type){
   const mfId='mf-'+type;const curM=document.getElementById(mfId)?.value||'';
   let data=allSales.filter(s=>s.sale_type===type);
   if(curM)data=data.filter(s=>s.sale_date.slice(5,7)===curM);
+  data=sortSalesByInvoiceOrder(data);
   const total=data.reduce((a,s)=>a+Number(s.total||0),0);
   const qty=data.reduce((a,s)=>a+Number(s.quantity||0),0);
   const clients=new Set(data.map(s=>s.client).filter(Boolean)).size;
@@ -12532,31 +12571,11 @@ function sortNotasBy(col){
 
 function sortNotasList(list, col, dir){
   if(col==='nf'){
-    const compareNatural = function(left, right){
-      const a=String(left||'').trim(), b=String(right||'').trim();
-      if(!a) return b?1:0;
-      if(!b) return -1;
-      const aa=a.match(/\d+|\D+/g)||[], bb=b.match(/\d+|\D+/g)||[];
-      const count=Math.min(aa.length,bb.length);
-      for(let i=0;i<count;i++){
-        const x=aa[i], y=bb[i], xn=/^\d+$/.test(x), yn=/^\d+$/.test(y);
-        let result=0;
-        if(xn&&yn){
-          const nx=x.replace(/^0+(?=\d)/,''), ny=y.replace(/^0+(?=\d)/,'');
-          result=nx.length===ny.length ? (nx<ny?-1:nx>ny?1:0) : (nx.length<ny.length?-1:1);
-          if(!result && x.length!==y.length) result=x.length<y.length?-1:1;
-        }else{
-          result=x.toLocaleLowerCase('pt-BR').localeCompare(y.toLocaleLowerCase('pt-BR'),'pt-BR');
-        }
-        if(result) return result;
-      }
-      return aa.length===bb.length ? 0 : (aa.length<bb.length?-1:1);
-    };
     return list.slice().sort(function(a,b){
       const aNumber=String(a.nf_number||'').trim(), bNumber=String(b.nf_number||'').trim();
       if(!aNumber) return bNumber?1:0;
       if(!bNumber) return -1;
-      const result=compareNatural(a.nf_number,b.nf_number);
+      const result=compareInvoiceNumbersNatural(a.nf_number,b.nf_number);
       return dir==='desc' ? -result : result;
     });
   }
