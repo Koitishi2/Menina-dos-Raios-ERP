@@ -78,6 +78,16 @@ function Get-BuildTool {
     return ""
 }
 
+function Get-Sha256Hex {
+    param([string]$Path)
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return [BitConverter]::ToString($sha256.ComputeHash([System.IO.File]::ReadAllBytes($Path))).Replace("-", "").ToLowerInvariant()
+    } finally {
+        $sha256.Dispose()
+    }
+}
+
 function Read-ApkInfo {
     param([string]$Apk)
     $info = [ordered]@{
@@ -194,12 +204,7 @@ if ($apkInfo.packageName -ne "desconhecido" -and $apkInfo.packageName -ne $EXPEC
 $script:PublishStage = "SIGNATURE"
 Test-ApkSignature $APK_PATH
 
-$sha256 = [System.Security.Cryptography.SHA256]::Create()
-try {
-    $hash = [BitConverter]::ToString($sha256.ComputeHash([System.IO.File]::ReadAllBytes($APK_PATH))).Replace("-", "").ToLowerInvariant()
-} finally {
-    $sha256.Dispose()
-}
+$hash = Get-Sha256Hex $APK_PATH
 $size = (Get-Item -LiteralPath $APK_PATH).Length
 if (-not $apkInfo.extracted) {
     $existingLatestPath = Join-Path $APP_UPDATES_DIR $LATEST_JSON_NAME
@@ -259,6 +264,16 @@ $catalogJsonText = $catalog | ConvertTo-Json
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText($catalogJson, $catalogJsonText + "`r`n", $utf8NoBom)
 [System.IO.File]::WriteAllText($latestJson, $catalogJsonText + "`r`n", $utf8NoBom)
+foreach ($catalogPath in @($latestJson, $catalogJson)) {
+    $localCatalog = Get-Content -LiteralPath $catalogPath -Raw | ConvertFrom-Json
+    if ($localCatalog.packageName -ne $EXPECTED_PACKAGE -or
+        [int]$localCatalog.versionCode -ne [int]$apkInfo.versionCode -or
+        [string]$localCatalog.sha256 -ne $hash) {
+        throw "Catalogo local inconsistente: $catalogPath"
+    }
+}
+$latestJsonHash = Get-Sha256Hex $latestJson
+$catalogJsonHash = Get-Sha256Hex $catalogJson
 
 if (-not (Test-Path -LiteralPath $changelog -PathType Leaf)) {
     "# Changelog - Menina dos Raios Vendas`r`n" | Set-Content -LiteralPath $changelog -Encoding UTF8
@@ -305,8 +320,9 @@ Invoke-Checked "scp" @("-P", $port, $changelog, "$user@$hostName`:$remoteAppUpda
 
 $script:PublishStage = "REMOTE-VALIDATE"
 $remoteHashLine = "$hash  $remoteAppUpdatesDir/$OFFICIAL_APK_NAME"
-$catalogValidation = 'import json,sys; data=json.load(open(sys.argv[1], encoding="utf-8")); assert data.get("sha256")==sys.argv[2], "catalog SHA-256 mismatch"; assert int(data.get("versionCode",0))==int(sys.argv[3]), "catalog versionCode mismatch"; print("APK_CATALOG_OK")'
-$validateCommand = "set -e; test -f '$remoteAppUpdatesDir/$OFFICIAL_APK_NAME'; test -f '$remoteAppUpdatesDir/$LATEST_JSON_NAME'; test -f '$remoteAppUpdatesDir/$CATALOG_JSON_NAME'; printf '%s\n' '$remoteHashLine' | sha256sum -c -; python3 -c '$catalogValidation' '$remoteAppUpdatesDir/$LATEST_JSON_NAME' '$hash' '$($apkInfo.versionCode)'; python3 -c '$catalogValidation' '$remoteAppUpdatesDir/$CATALOG_JSON_NAME' '$hash' '$($apkInfo.versionCode)'; echo APK_PUBLICATION_OK"
+$latestHashLine = "$latestJsonHash  $remoteAppUpdatesDir/$LATEST_JSON_NAME"
+$catalogHashLine = "$catalogJsonHash  $remoteAppUpdatesDir/$CATALOG_JSON_NAME"
+$validateCommand = "set -e; test -f '$remoteAppUpdatesDir/$OFFICIAL_APK_NAME'; test -f '$remoteAppUpdatesDir/$LATEST_JSON_NAME'; test -f '$remoteAppUpdatesDir/$CATALOG_JSON_NAME'; printf '%s\n' '$remoteHashLine' '$latestHashLine' '$catalogHashLine' | sha256sum -c -; echo APK_PUBLICATION_OK"
 Invoke-Checked "ssh" @("-p", $port, "$user@$hostName", $validateCommand) "Falha ao validar arquivos publicados."
 
 Write-Host ""
