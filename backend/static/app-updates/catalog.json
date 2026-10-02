@@ -1,12 +1,12 @@
 {
-  "versionName": "2.0.17",
-  "versionCode": 45,
-  "packageName": "br.com.meninadosraios.vendas",
-  "sha256": "fcf4a953d241b8646947264de9f96445ac45424a65c80aebbcc5208e19b9f801",
-  "releaseNotes": "Corrige catalogo de atualizacao sem BOM UTF-8; mesmo APK 2.0.17.",
-  "notes": "Corrige catalogo de atualizacao sem BOM UTF-8; mesmo APK 2.0.17.",
-  "apkFile": "Menina-dos-Raios-Vendas-OFICIAL.apk",
-  "apkUrl": "https://sistema.meninadosraios.com.br/app-updates/Menina-dos-Raios-Vendas-OFICIAL.apk",
-  "sizeBytes": 2707259,
-  "publishedAt": "2026-10-01T22:35:27-03:00"
+    "versionName":  "2.0.18",
+    "versionCode":  46,
+    "packageName":  "br.com.meninadosraios.vendas",
+    "sha256":  "7fa4041559f3740ba42298dc6d79a03bc6dea089494bda69124fad664a39262b",
+    "releaseNotes":  "Sessao Android mais duradoura; preserva biometria e vales offline em falhas de rede.",
+    "notes":  "Sessao Android mais duradoura; preserva biometria e vales offline em falhas de rede.",
+    "apkFile":  "Menina-dos-Raios-Vendas-OFICIAL.apk",
+    "apkUrl":  "https://sistema.meninadosraios.com.br/app-updates/Menina-dos-Raios-Vendas-OFICIAL.apk",
+    "sizeBytes":  2707484,
+    "publishedAt":  "2026-10-01T23:19:28-03:00"
 }
