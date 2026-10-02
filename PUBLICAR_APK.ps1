@@ -194,7 +194,12 @@ if ($apkInfo.packageName -ne "desconhecido" -and $apkInfo.packageName -ne $EXPEC
 $script:PublishStage = "SIGNATURE"
 Test-ApkSignature $APK_PATH
 
-$hash = (Get-FileHash -LiteralPath $APK_PATH -Algorithm SHA256).Hash.ToLowerInvariant()
+$sha256 = [System.Security.Cryptography.SHA256]::Create()
+try {
+    $hash = [BitConverter]::ToString($sha256.ComputeHash([System.IO.File]::ReadAllBytes($APK_PATH))).Replace("-", "").ToLowerInvariant()
+} finally {
+    $sha256.Dispose()
+}
 $size = (Get-Item -LiteralPath $APK_PATH).Length
 if (-not $apkInfo.extracted) {
     $existingLatestPath = Join-Path $APP_UPDATES_DIR $LATEST_JSON_NAME
