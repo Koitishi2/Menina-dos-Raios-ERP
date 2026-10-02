@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Menina dos Raios Ltda</title>
+<link rel="stylesheet" href="/css/client_whatsapp.css">
+<link rel="stylesheet" href="/css/client_orders.css?v=20260927-orders-remove">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -265,9 +267,7 @@ body.notif-hidden #app.visible ~ #notif-restore{display:inline-flex!important}
 body.mobile-bell-hidden #app.visible ~ .notif-bell,
 body.mobile-bell-hidden #app.visible ~ #notif-restore{display:none!important}
 body.company-estrada #cfg-btn-whatsapp,
-body.company-estrada #cfg-btn-sebrae,
-body.company-estrada #cfg-whatsapp,
-body.company-estrada #cfg-sebrae{display:none!important}
+body.company-estrada #cfg-whatsapp{display:none!important}
 
 /* ── Modo TV — overlay full-screen para painel de escritório/sala ──────────── */
 #tv-mode{position:fixed;inset:0;height:100%;z-index:9000;background:linear-gradient(135deg,#0a1a14 0%,#1d3b2c 50%,#2c4f3a 100%);color:#fff;display:none;overflow:hidden;font-family:'DM Sans',sans-serif;flex-direction:column}
@@ -1220,10 +1220,27 @@ body.tv-active #btn-top{display:none!important}
 .wa-bot-item input[type="time"],.wa-bot-item input[type="number"]{width:110px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:var(--card);color:var(--ink);text-align:center}
 .wa-toggle-wrap{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
 .wa-toggle-wrap input[type="checkbox"]{width:16px;height:16px;accent-color:#4F46E5;cursor:pointer}
+.wa-inbound-mode-card{grid-column:span 2;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;background:var(--card)}
+.wa-inbound-mode-title{font-size:12px;font-weight:800;color:var(--g800);margin-bottom:4px}
+.wa-inbound-mode-desc{font-size:11px;color:var(--muted);line-height:1.35}
+.wa-inbound-mode-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.wa-inbound-badge{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:5px 10px;font-size:11px;font-weight:800;border:1px solid var(--border);white-space:nowrap}
+.wa-inbound-badge.sandbox{background:#fffbeb;color:#92400e;border-color:#fcd34d}
+.wa-inbound-badge.production{background:#dcfce7;color:#166534;border-color:#86efac}
+.wa-inbound-badge.unknown{background:var(--card2);color:var(--muted)}
+@media(max-width:760px){.wa-inbound-mode-card{grid-column:span 1;align-items:flex-start;flex-direction:column}.wa-inbound-mode-actions{justify-content:flex-start}}
 /* Preview */
 .wa-preview-box{padding:10px 14px;background:var(--card2);border-radius:8px;font-size:12px;color:var(--g700);white-space:pre-wrap;margin-top:8px;border:1px dashed var(--border)}
 .wa-tpl-preview{padding:10px 14px;background:#f8fafc;border-radius:8px;font-size:12px;color:#334155;white-space:pre-wrap;margin:8px 0;border:1px dashed #cbd5e1;min-height:50px}
 [data-theme="dark"] .wa-tpl-preview{background:#1e293b;color:#e2e8f0;border-color:#334155}
+.wa-maint-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.wa-maint-cell{padding:12px 14px;background:var(--card);border-right:1px solid var(--border);min-width:0}
+.wa-maint-cell:last-child{border-right:0}
+.wa-maint-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px}
+.wa-maint-value{font-size:13px;font-weight:700;color:var(--ink);overflow-wrap:anywhere}
+.wa-maint-state{margin-top:12px;padding:10px 12px;border-left:3px solid var(--border);background:var(--card2);font-size:12px;color:var(--muted)}
+.wa-maint-state.ok{border-color:#22c55e;color:#166534}.wa-maint-state.warn{border-color:#f59e0b;color:#92400e}.wa-maint-state.error{border-color:#ef4444;color:#991b1b}
+@media(max-width:760px){.wa-maint-grid{grid-template-columns:1fr}.wa-maint-cell{border-right:0;border-bottom:1px solid var(--border)}.wa-maint-cell:last-child{border-bottom:0}}
 body.tv-active #wa-section{display:none!important}
 
 /* ── Monteiro App (overlay fullscreen independente) ── */
@@ -3036,7 +3053,7 @@ body.paladar-active #notif-restore{display:none!important}
       <div class="aurora-meta"><span id="aurora-status">Sistema online</span></div>
     </div>
   </div>
-  <div class="login-version" id="login-version-display">2.0.0</div>
+  <div class="login-version" id="login-version-display">2.1.0</div>
 </div>
 
 <!-- APP -->
@@ -3120,6 +3137,12 @@ body.paladar-active #notif-restore{display:none!important}
             <button type="button" onclick="quickRegisterClient()" class="btn btn-secondary btn-sm" title="Cadastrar este cliente agora" style="flex-shrink:0;font-size:12px">+ Cadastrar</button>
           </div>
           <datalist id="clients-list"></datalist>
+        </div>
+        <div class="fg full"><label>Quem vendeu *</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="sf-seller" style="flex:1"></select>
+            <button type="button" onclick="quickRegisterSeller('sf-seller')" class="btn btn-secondary btn-sm" title="Cadastrar vendedor agora" style="flex-shrink:0;font-size:12px">+ Cadastrar</button>
+          </div>
         </div>
         <div class="fg"><label>Entregador</label>
           <select id="driver-select-modal" onchange="onDriverSelect()">
@@ -3616,6 +3639,14 @@ body.paladar-active #notif-restore{display:none!important}
           style="padding:6px 16px;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);display:flex;align-items:center;gap:5px">
           🎯 Oportunidades
         </button>
+        <button id="cv-btn-whatsapp" onclick="switchClientView('whatsapp')"
+          style="padding:6px 16px;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);display:flex;align-items:center;gap:5px">
+          WhatsApp
+        </button>
+        <button id="cv-btn-pedidos" onclick="switchClientView('pedidos')"
+          style="padding:6px 16px;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);display:flex;align-items:center;gap:5px">
+          Pedidos
+        </button>
 
       </div>
       <div id="cv-cadastro-actions" style="display:flex;gap:7px;margin-left:auto;align-items:center">
@@ -3748,6 +3779,89 @@ body.paladar-active #notif-restore{display:none!important}
       </div>
     </div>
 
+    <div id="cv-whatsapp" style="display:none">
+      <div class="client-foundation-banner">
+        <div><strong id="client-whatsapp-mode">Recebimento WhatsApp desativado</strong><br><span>Nenhuma resposta ou campanha é executada automaticamente.</span></div>
+        <span id="client-whatsapp-integration">Consultando integração...</span>
+      </div>
+      <div class="client-wa-toolbar">
+        <div>
+          <div class="card-title">Clientes e WhatsApp</div>
+          <div id="client-whatsapp-summary" class="client-wa-summary">Carregando clientes...</div>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="ClientWhatsAppFoundation.load(_clients)">Atualizar</button>
+      </div>
+      <div id="client-whatsapp-list" class="client-wa-list"></div>
+      <div id="client-whatsapp-detail" class="client-wa-detail" style="display:none"></div>
+      <div id="client-wa-manual-campaign">
+      <div class="client-wa-section-head">
+        <div><strong>Clientes sugeridos</strong><span>Selecione manualmente quem poderá compor este lote.</span></div>
+        <span id="client-wa-selected-count">0 selecionados</span>
+      </div>
+      <div class="client-wa-filters">
+        <label>Dias sem compra<input id="client-wa-min-days" type="number" min="0" value="8"></label>
+        <label class="client-wa-check"><input id="client-wa-include-blocked" type="checkbox"> Mostrar bloqueados</label>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="ClientWhatsAppFoundation.reloadSuggestions()">Aplicar filtros</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="ClientWhatsAppFoundation.selectFiltered()">Selecionar filtrados</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="ClientWhatsAppFoundation.clearSelection()">Limpar seleção</button>
+      </div>
+      <div id="client-wa-suggestions" class="client-wa-suggestions"></div>
+      <div id="client-wa-notice" class="client-wa-notice" role="alert" style="display:none"></div>
+      <div class="client-wa-composer">
+        <label>Mensagem manual<textarea id="client-wa-message" maxlength="2000" placeholder="Olá, {cliente}. Sentimos sua falta."></textarea></label>
+        <div class="client-wa-composer-actions">
+          <span id="client-wa-batch-status">Crie um lote para revisar a mensagem final de cada cliente.</span>
+          <button type="button" class="btn btn-secondary" onclick="ClientWhatsAppFoundation.prepareBatch()">Revisar seleção</button>
+          <button id="client-wa-send-selected" type="button" class="btn btn-primary" onclick="ClientWhatsAppFoundation.confirmAndSend()" disabled>Envio desativado neste ambiente</button>
+        </div>
+      </div>
+      <div id="client-wa-batch-preview" class="client-wa-detail" style="display:none"></div>
+      </div>
+      <div class="client-wa-section-head"><div><strong>Auditoria de recebimento</strong><span>Eventos processados, bloqueados, duplicados e não identificados.</span></div></div>
+      <div id="client-wa-inbound-events" class="client-wa-events"></div>
+    </div>
+
+    <div id="cv-pedidos" style="display:none">
+      <div class="client-foundation-banner">
+        <div><strong>Pedidos em modo de preparação</strong><br><span>Nenhum pedido será enviado, aprovado ou convertido em venda nesta etapa.</span></div>
+        <div class="client-orders-notifications" id="mdr-orders-notifications">
+          <button type="button" class="client-orders-bell" id="mdr-orders-bell" aria-label="Abrir pedidos pendentes" aria-expanded="false" title="Pedidos novos e pendentes">
+            <span aria-hidden="true">&#128276;</span>
+            <span class="client-orders-bell-badge" id="mdr-orders-bell-badge">0</span>
+          </button>
+          <div class="client-orders-notification-list" id="mdr-orders-notification-list" hidden></div>
+        </div>
+      </div>
+      <div class="client-orders-tabs" aria-label="Visões de pedidos">
+        <button type="button" class="client-orders-tab is-active" data-client-orders-view="pending">Pendentes <span id="client-orders-count-pending">0</span></button>
+        <button type="button" class="client-orders-tab" data-client-orders-view="approved">Aprovados <span id="client-orders-count-approved">0</span></button>
+        <button type="button" class="client-orders-tab" data-client-orders-view="rejected">Recusados <span id="client-orders-count-rejected">0</span></button>
+      </div>
+      <div class="client-orders-filters">
+        <label>Cliente<input id="client-orders-client" class="filt" type="search" placeholder="Buscar cliente" oninput="ClientOrdersFoundation.applyFilters()"></label>
+        <label>Empresa<select class="filt" disabled><option>Empresa atual</option></select></label>
+        <label>Período<div class="client-orders-period-filter"><select id="client-orders-period-mode" class="filt" onchange="ClientOrdersFoundation.updatePeriodInput();ClientOrdersFoundation.applyFilters()"><option value="week">Semana</option><option value="month" selected>Mês</option><option value="year">Ano</option></select><input id="client-orders-period" class="filt" type="month" onchange="ClientOrdersFoundation.applyFilters()"></div></label>
+        <label>Status<select id="client-orders-status" class="filt" onchange="ClientOrdersFoundation.applyFilters()"><option value="">Todos os status</option><option value="rascunho">Rascunho</option><option value="aguardando_confirmacao">Aguardando confirmação</option><option value="aguardando_aprovacao">Aguardando aprovação</option><option value="aprovado">Aprovado</option><option value="cancelado">Cancelado</option><option value="convertido_em_venda">Convertido em venda</option><option value="erro">Erro</option><option value="duplicado_suspeito">Duplicado suspeito</option></select></label>
+        <label>Origem<select id="client-orders-origin" class="filt" onchange="ClientOrdersFoundation.applyFilters()"><option value="">Todas as origens</option><option value="whatsapp">WhatsApp</option></select></label>
+      </div>
+      <div class="client-orders-options">
+        <label><input id="client-orders-damage" type="checkbox" onchange="ClientOrdersFoundation.applyFilters()"> Com avaria</label>
+        <label><input id="client-orders-maximum" type="checkbox" onchange="ClientOrdersFoundation.applyFilters()"> Acima do consumo máximo</label>
+        <label><input id="client-orders-duplicate" type="checkbox" onchange="ClientOrdersFoundation.applyFilters()"> Duplicado ou suspeito</label>
+        <label><input id="client-orders-approval" type="checkbox" onchange="ClientOrdersFoundation.applyFilters()"> Aguardando aprovação</label>
+        <span id="client-orders-summary" class="client-orders-summary">0 pedidos em modo local</span>
+      </div>
+      <div id="client-orders-list"></div>
+      <div class="client-orders-detail-overlay" id="client-orders-detail-overlay" hidden></div>
+      <aside class="client-orders-detail" id="client-orders-detail" role="dialog" aria-modal="true" aria-labelledby="client-orders-detail-title" hidden>
+        <div class="client-orders-detail-head">
+          <div><small>Pedidos do cliente</small><h3 id="client-orders-detail-title">Detalhes do pedido</h3></div>
+          <button type="button" class="client-orders-detail-close" id="client-orders-detail-close" aria-label="Fechar detalhes">&times;</button>
+        </div>
+        <div class="client-orders-detail-body" id="client-orders-detail-body"></div>
+      </aside>
+    </div>
+
 <!-- Cadastro view (default) -->
     <div id="cv-cadastro" style="display:grid;grid-template-columns:320px 1fr;gap:14px;min-height:500px">
       <!-- Lista de clientes -->
@@ -3800,10 +3914,14 @@ body.paladar-active #notif-restore{display:none!important}
       </div>
       <button onclick="selectAllProdTypes()" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:12px;background:var(--card);cursor:pointer;color:var(--muted)">Todos</button>
       <button onclick="clearProdTypes()" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:12px;background:var(--card);cursor:pointer;color:var(--muted)">Limpar</button>
+      <select id="prod-seller-filter" class="filt" onchange="loadProdutividade()" style="font-size:11px;min-width:180px">
+        <option value="">Todos os vendedores</option>
+      </select>
       <div id="prod-selected-total" style="margin-left:auto;font-size:13px;font-weight:700;font-family:monospace;color:var(--g800)"></div>
     </div>
     <!-- KPIs do mês -->
     <div id="prod-kpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px"></div>
+    <div id="prod-seller-breakdown" class="card" style="margin-bottom:14px"></div>
     <div id="prod-projection-box"></div>
     <!-- Gráfico de barras diário -->
     <div class="card" style="margin-bottom:14px">
@@ -4371,6 +4489,7 @@ body.paladar-active #notif-restore{display:none!important}
       <button class="wa-sub-btn" data-view="autoreply" onclick="switchWaSubView('autoreply')">🤖 Auto respostas</button>
       <button class="wa-sub-btn" data-view="templates" onclick="switchWaSubView('templates')">📦 Modelos</button>
       <button class="wa-sub-btn" data-view="bot" onclick="switchWaSubView('bot')">⚙ Bot</button>
+      <button class="wa-sub-btn" data-view="update" onclick="switchWaSubView('update')">↻ Atualizar Baileys</button>
     </div>
 
     <div id="wa-view-main">
@@ -4510,6 +4629,25 @@ body.paladar-active #notif-restore{display:none!important}
       </div>
 
     </div><!-- /wa-view-bot -->
+
+    <div id="wa-view-update" style="display:none">
+      <div class="wa-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+          <div style="font-size:12px;font-weight:700;color:var(--g800)">Atualização do Baileys</div>
+          <button class="btn btn-secondary btn-sm" onclick="loadWaBaileysUpdate(true)">↻ Verificar versão</button>
+        </div>
+        <div class="wa-maint-grid">
+          <div class="wa-maint-cell"><div class="wa-maint-label">Instalada</div><div id="wa-update-installed" class="wa-maint-value">Verificando...</div></div>
+          <div class="wa-maint-cell"><div class="wa-maint-label">Aprovada</div><div id="wa-update-approved" class="wa-maint-value">Verificando...</div></div>
+          <div class="wa-maint-cell"><div class="wa-maint-label">Canal legacy</div><div id="wa-update-legacy" class="wa-maint-value">Verificar</div></div>
+          <div class="wa-maint-cell"><div class="wa-maint-label">Pré-lançamento</div><div id="wa-update-latest" class="wa-maint-value">Verificar</div></div>
+        </div>
+        <div id="wa-update-state" class="wa-maint-state">Carregando estado do serviço...</div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;flex-wrap:wrap">
+          <button id="wa-update-apply" class="btn btn-primary" onclick="applyWaBaileysUpdate()" disabled>Atualizar versão aprovada</button>
+        </div>
+      </div>
+    </div><!-- /wa-view-update -->
 
   </div><!-- /wa-section -->
   </div><!-- /cfg-whatsapp -->
@@ -4793,7 +4931,7 @@ body.paladar-active #notif-restore{display:none!important}
 </div>
 
 <script>
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.0';
 
 (function hardenInnerHTML(){
   const desc = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
@@ -4895,7 +5033,7 @@ const IDLE_TIMEOUT_MS = 20 * 60 * 1000;
 let _idleTimer = null;
 let idleWarnTimer = null;
 let _idleBound = false;
-let allSales=[],allPrices=[],allPricesCompany='',allDrivers=[],chartInstances={},pdashChart=null,donutActiveFilter=null;
+let allSales=[],allPrices=[],allPricesCompany='',allDrivers=[],allSellers=[],allSellersCompany='',chartInstances={},pdashChart=null,donutActiveFilter=null;
 let PAGE_SIZE=100; let currentPage=1;
 let _typePageSize=100; let _typePage={};
 const MONTHS=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -5213,6 +5351,62 @@ async function api(path,opts={}){
   return r.json();
 }
 
+async function loadSellers(force=false, includeInactive=false, companyOverride=null, moduleContext=''){
+  const targetCompany=companyOverride||activeCompany;
+  const cacheKey=targetCompany+'|'+(moduleContext||'');
+  if(!force && allSellersCompany===cacheKey && allSellers.length)return allSellers;
+  const params=[];
+  if(includeInactive)params.push('include_inactive=1');
+  if(moduleContext)params.push('module_context='+encodeURIComponent(moduleContext));
+  const suffix=params.length?'?'+params.join('&'):'';
+  try{
+    if(companyOverride){
+      const r=await fetch(API+'/api/sellers'+suffix,{headers:{'x-token':session.token,'x-company':targetCompany}});
+      if(!r.ok){const e=await r.json().catch(()=>({detail:r.statusText}));throw new Error(e.detail||'Erro '+r.status);}
+      allSellers=await r.json();
+    }else{
+      allSellers=await api('/api/sellers'+suffix);
+    }
+    allSellersCompany=cacheKey;
+  }catch(e){
+    allSellers=[];
+  }
+  return allSellers;
+}
+
+function fillSellerSelect(selectId, selectedId, allowBlank=true){
+  const el=document.getElementById(selectId);
+  if(!el)return;
+  const current=selectedId || el.value || '';
+  const options=(allSellers||[]).filter(function(s){return Number(s.active)!==0;}).map(function(s){
+    return '<option value="'+String(s.id).replace(/"/g,'&quot;')+'"'+(String(s.id)===String(current)?' selected':'')+'>'+String(s.name||'').replace(/</g,'&lt;')+'</option>';
+  }).join('');
+  el.innerHTML=(allowBlank?'<option value="">Selecione o vendedor...</option>':'')+options;
+}
+
+async function quickRegisterSeller(targetSelectId){
+  const name=prompt('Nome de quem vendeu:');
+  if(!name || !name.trim())return;
+  const isMonteiroSeller=String(targetSelectId||'').indexOf('pal-')===0;
+  const targetCompany=isMonteiroSeller?'raios':activeCompany;
+  const moduleContext=isMonteiroSeller?'monteiro':'';
+  const suffix=moduleContext?'?module_context='+encodeURIComponent(moduleContext):'';
+  try{
+    const r=await fetch(API+'/api/sellers'+suffix,{method:'POST',headers:{'Content-Type':'application/json','x-token':session.token,'x-company':targetCompany},body:JSON.stringify({name:name.trim()})});
+    if(!r.ok){const e=await r.json().catch(()=>({detail:r.statusText}));throw new Error(e.detail||'Erro '+r.status);}
+    const res=await r.json();
+    await loadSellers(true,false,targetCompany,moduleContext);
+    fillSellerSelect(targetSelectId,res.seller&&res.seller.id,true);
+    toast(res.existed?'Vendedor ja existia e foi selecionado.':'Vendedor cadastrado.');
+  }catch(e){toast(e.message,'error');}
+}
+
+function saleSellerName(sale){
+  if(sale && sale.seller_name_snapshot)return sale.seller_name_snapshot;
+  const found=(allSellers||[]).find(function(s){return sale && String(s.id)===String(sale.seller_id);});
+  return found ? found.name : 'Nao informado';
+}
+
 async function switchCompanyUI(target){
   if(!session || !session.token){return;}
   target=target || (activeCompany==='raios'?'estrada':'raios');
@@ -5236,6 +5430,8 @@ async function switchCompanyUI(target){
     activeCompany=target;
     allPrices=[];
     allPricesCompany='';
+    allSellers=[];
+    allSellersCompany='';
     if(typeof _clients!=='undefined')_clients=[];
     if(typeof _selectedClient!=='undefined')_selectedClient=null;
     var saleLines=document.getElementById('sale-lines');
@@ -5989,6 +6185,7 @@ function updateBadge(){
   else el.style.display='none';
 }
 function renderTable(data){
+  data = sortSalesByInvoiceOrder(data);
   const start=(currentPage-1)*PAGE_SIZE,page=data.slice(start,start+PAGE_SIZE);
   const filtered=data.length,from=filtered>0?(start+1):0,to=Math.min(start+PAGE_SIZE,filtered);
   var info=filtered+' registro(s)';
@@ -6017,6 +6214,43 @@ function renderPagination(total){
   }
   el.innerHTML=html;
 }
+
+function compareInvoiceNumbersNatural(left,right){
+  const a=String(left||'').trim(), b=String(right||'').trim();
+  if(!a) return b?1:0;
+  if(!b) return -1;
+  const aa=a.match(/\d+|\D+/g)||[], bb=b.match(/\d+|\D+/g)||[];
+  for(let i=0;i<Math.min(aa.length,bb.length);i++){
+    const x=aa[i], y=bb[i], xn=/^\d+$/.test(x), yn=/^\d+$/.test(y);
+    let result=0;
+    if(xn&&yn){
+      const nx=x.replace(/^0+(?=\d)/,''), ny=y.replace(/^0+(?=\d)/,'');
+      result=nx.length===ny.length ? (nx<ny?-1:nx>ny?1:0) : (nx.length<ny.length?-1:1);
+      if(!result&&x.length!==y.length) result=x.length<y.length?-1:1;
+    }else{
+      result=x.toLocaleLowerCase('pt-BR').localeCompare(y.toLocaleLowerCase('pt-BR'),'pt-BR');
+    }
+    if(result) return result;
+  }
+  return aa.length===bb.length?0:(aa.length<bb.length?-1:1);
+}
+
+function sortSalesByInvoiceOrder(rows){
+  const typeOrder={NF:0,PR:1,AVULSO:2,AVARIA:3};
+  return (rows||[]).slice().sort(function(a,b){
+    const dateResult=String(b.sale_date||'').localeCompare(String(a.sale_date||''));
+    if(dateResult) return dateResult;
+    const typeA=String(a.sale_type||'').toUpperCase(), typeB=String(b.sale_type||'').toUpperCase();
+    const typeResult=(typeOrder[typeA]??99)-(typeOrder[typeB]??99);
+    if(typeResult) return typeResult;
+    const invoiceResult=compareInvoiceNumbersNatural(b.nf_number,a.nf_number);
+    if(invoiceResult) return invoiceResult;
+    const timeResult=String(b.sale_time||'').localeCompare(String(a.sale_time||''));
+    if(timeResult) return timeResult;
+    return String(a.client||'').localeCompare(String(b.client||''),'pt-BR');
+  });
+}
+
 function changePageSize(val){PAGE_SIZE=Number(val);currentPage=1;renderTable(getFiltered());}
 function goPage(p){currentPage=p;renderTable(getFiltered());}
 function changeTypePageSize(val,type){_typePageSize=Number(val);_typePage[type]=1;renderTypePanel(type);}
@@ -6281,6 +6515,7 @@ function renderTypePanel(type){
   const mfId='mf-'+type;const curM=document.getElementById(mfId)?.value||'';
   let data=allSales.filter(s=>s.sale_type===type);
   if(curM)data=data.filter(s=>s.sale_date.slice(5,7)===curM);
+  data=sortSalesByInvoiceOrder(data);
   const total=data.reduce((a,s)=>a+Number(s.total||0),0);
   const qty=data.reduce((a,s)=>a+Number(s.quantity||0),0);
   const clients=new Set(data.map(s=>s.client).filter(Boolean)).size;
@@ -7783,7 +8018,7 @@ async function editSale(saleId){
   }
   if(!sale){ toast('Venda não encontrada. Atualize a página e tente novamente.','error'); return; }
   _editingSaleId = saleId;
-  await loadPricesForForm(true);
+  await Promise.all([loadPricesForForm(true),loadSellers(true)]);
 
   // Open modal and pre-fill all fields
   document.getElementById('modal-overlay').classList.add('open');
@@ -7796,6 +8031,7 @@ async function editSale(saleId){
     setVal('sf-time', sale.sale_time);
     setVal('sf-nf',   sale.nf_number);
     setVal('sf-client', sale.client);
+    fillSellerSelect('sf-seller', sale.seller_id, true);
     setVal('driver-select-modal', sale.delivery_person);
     setVal('plate-input', sale.plate);
     setVal('sf-notes', sale.notes);
@@ -7850,11 +8086,13 @@ async function submitSaleMulti(){
   const time=(document.getElementById('sf-time')&&document.getElementById('sf-time').value)||new Date().toTimeString().slice(0,5);
   const nf=(document.getElementById('sf-nf')&&document.getElementById('sf-nf').value)||'';
   const client=(document.getElementById('sf-client')&&document.getElementById('sf-client').value)||'';
+  const sellerId=(document.getElementById('sf-seller')&&document.getElementById('sf-seller').value)||'';
   const driver=(document.getElementById('driver-select-modal')&&document.getElementById('driver-select-modal').value)||'';
   const plate=(document.getElementById('plate-input')&&document.getElementById('plate-input').value)||'';
   const notes=(document.getElementById('sf-notes')&&document.getElementById('sf-notes').value)||'';
   if(!type||!date){toast('Tipo e data são obrigatórios.','error');return;}
   const lines=document.querySelectorAll('#sale-lines > div[id^="sl-"]');
+  if(!sellerId && !_editingSaleId){toast('Informe quem vendeu.','error');return;}
   if(!lines.length){toast('Adicione pelo menos 1 produto.','error');return;}
   const records=[];
   let valid=true;
@@ -7868,7 +8106,7 @@ async function submitSaleMulti(){
     const pu=parseFloat(document.getElementById(id+'-price')&&document.getElementById(id+'-price').value||0);
     records.push({sale_type:type,sale_date:date,sale_time:time,client:client||null,product:prod,
       nf_number:nf||null,quantity:qty,unit_price:pu,total:qty*pu,notes:notes||null,
-      delivery_person:driver||null,plate:plate||null,source:'manual'});
+      delivery_person:driver||null,plate:plate||null,source:'manual',seller_id:sellerId||undefined});
   });
   if(!valid)return;
   try{
@@ -7894,6 +8132,7 @@ async function submitSaleMulti(){
     ['sf-nf','sf-client','sf-notes'].forEach(function(id){const e=document.getElementById(id);if(e)e.value='';});
     const pi=document.getElementById('plate-input');if(pi){pi.value='';pi.readOnly=false;pi.style.background='';}
     const vs=document.getElementById('vehicle-select');if(vs)vs.value='';
+    const seller=document.getElementById('sf-seller');if(seller)seller.value='';
     loadAll();
   }catch(e){toast(e.message,'error');}
 }
@@ -7903,7 +8142,8 @@ async function openModal(){
   document.getElementById('modal-overlay').classList.add('open');
   const d=document.getElementById('sf-date');if(d&&!d.value)d.value=new Date().toISOString().slice(0,10);
   const t=document.getElementById('sf-time');if(t&&!t.value)t.value=new Date().toTimeString().slice(0,5);
-  await Promise.all([loadPricesForForm(true),loadDriversForForm(true)]);
+  await Promise.all([loadPricesForForm(true),loadDriversForForm(true),loadSellers(true)]);
+  fillSellerSelect('sf-seller','',true);
   const saleLines=document.getElementById('sale-lines');
   if(saleLines)saleLines.innerHTML='';
   _saleLineCount=0;
@@ -8127,6 +8367,10 @@ async function loadClientsPanel(){
   try{
     _clients = await api('/api/clients');
     renderClientsList(_clients);
+    const waButton=document.getElementById('cv-btn-whatsapp');
+    const orderButton=document.getElementById('cv-btn-pedidos');
+    if(waButton)waButton.style.display=managedModulePermission('clientes_whatsapp','view')?'flex':'none';
+    if(orderButton)orderButton.style.display=activeCompany==='raios'&&managedModulePermission('clientes_pedidos','view')?'flex':'none';
     // Refresh autocomplete in sale form
     const dl=document.getElementById('clients-list');
     if(dl){
@@ -8484,18 +8728,40 @@ async function renderProdutividadeProjection(info){
 }
 
 async function loadProdutividade(){
+  await loadSellers(false);
   const now = new Date();
   const m = (document.getElementById('prod-month')&&document.getElementById('prod-month').value) || String(now.getMonth()+1).padStart(2,'0');
   const y = (document.getElementById('prod-year')&&document.getElementById('prod-year').value) || String(now.getFullYear());
+  const sellerFilter = (document.getElementById('prod-seller-filter')&&document.getElementById('prod-seller-filter').value) || '';
 
   // Filter allSales by month/year + selected types
-  const sales = allSales.filter(function(s){
+  const baseSales = allSales.filter(function(s){
     if(!s.sale_date)return false;
     const parts = s.sale_date.split('-');
     if(y && parts[0]!==y)return false;
     if(m && parts[1]!==m)return false;
     if(_prodTypes.size > 0 && !_prodTypes.has(s.sale_type))return false;
     return true;
+  });
+  const sellerSelect=document.getElementById('prod-seller-filter');
+  if(sellerSelect){
+    const current=sellerSelect.value;
+    const sellersById={};
+    (allSellers||[]).forEach(function(s){sellersById[String(s.id)]={id:s.id,name:s.name};});
+    baseSales.forEach(function(s){
+      if(s.seller_id)sellersById[String(s.seller_id)]={id:s.seller_id,name:saleSellerName(s)};
+    });
+    const names=Object.values(sellersById).sort(function(a,b){return String(a.name).localeCompare(String(b.name),'pt-BR');});
+    const hasNone=baseSales.some(function(s){return !s.seller_id;});
+    sellerSelect.innerHTML='<option value="">Todos os vendedores</option>'
+      +(hasNone?'<option value="__none__">Nao informado</option>':'')
+      +names.map(function(s){return '<option value="'+String(s.id).replace(/"/g,'&quot;')+'">'+String(s.name).replace(/</g,'&lt;')+'</option>';}).join('');
+    sellerSelect.value=current;
+  }
+  const sales = baseSales.filter(function(s){
+    if(!sellerFilter)return true;
+    if(sellerFilter==='__none__')return !s.seller_id;
+    return String(s.seller_id||'')===String(sellerFilter);
   });
   const TL2={NF:'NF-e',PR:'Prod. Rural',AVULSO:'Avulso',AVARIA:'Avaria'};
   const allProdTypeCount=activeCompany==='estrada'?3:4;
@@ -8543,6 +8809,29 @@ async function loadProdutividade(){
     +'<div style="background:#FFEBEE;border:1px solid #FFCDD2;border-radius:var(--radius);padding:12px">'
     +'<div style="font-size:9px;color:var(--red);text-transform:uppercase;margin-bottom:3px">⚠ Avarias</div>'
     +'<div style="font-size:16px;font-weight:700;color:var(--red);font-family:monospace">'+fmt(totalAv)+'</div></div>';
+
+  const sellerBreak=document.getElementById('prod-seller-breakdown');
+  if(sellerBreak){
+    const map={};
+    baseSales.forEach(function(s){
+      const key=s.seller_id||'__none__';
+      if(!map[key])map[key]={name:saleSellerName(s),receita:0,avaria:0,count:0,days:{}};
+      const v=Number(s.total||0);
+      if(s.sale_type==='AVARIA')map[key].avaria+=v; else map[key].receita+=v;
+      map[key].count++;
+      if(s.sale_date)map[key].days[s.sale_date]=true;
+    });
+    const rows=Object.values(map).sort(function(a,b){return (b.receita-b.avaria)-(a.receita-a.avaria);});
+    sellerBreak.innerHTML='<div class="card-title">👤 Produtividade por vendedor</div>'
+      +(rows.length?rows.map(function(r){
+        return '<div style="display:grid;grid-template-columns:1.4fr .8fr .8fr .7fr;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--border)">'
+          +'<div style="font-weight:800;color:var(--g800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+String(r.name).replace(/</g,'&lt;')+'</div>'
+          +'<div style="font-family:monospace;font-weight:800">'+fmt(r.receita)+'</div>'
+          +'<div style="font-family:monospace;color:var(--red)">'+fmt(r.avaria)+'</div>'
+          +'<div style="font-size:11px;color:var(--muted);text-align:right">'+r.count+' registro(s) · '+Object.keys(r.days).length+' dia(s)</div>'
+          +'</div>';
+      }).join(''):'<div style="color:var(--muted);padding-top:8px">Nenhuma venda no período.</div>');
+  }
 
   await renderProdutividadeProjection({
     year:y, month:m, monthName:mName, totalRec:totalRec, totalAv:totalAv,
@@ -8686,7 +8975,7 @@ function switchRegView(view){
 function getCompanyConfigSubIds(){
   var all=CONFIG_SUBTABS_DEF.map(function(t){return t[0];});
   if(activeCompany==='estrada'){
-    return all.filter(function(id){return ['whatsapp','sebrae'].indexOf(id)<0;});
+    return all.filter(function(id){return id!=='whatsapp';});
   }
   return all;
 }
@@ -8745,6 +9034,14 @@ function switchConfigView(view){
     if(allowed.indexOf(view)<0) view=allowed[0];
   }
   window._cfgActive=view;
+  if(view==='sebrae'){
+    var source=document.getElementById('sebrae-source');
+    var defaultSource=activeCompany==='estrada'?'produtor_rural':'sebrae';
+    if(source && source.value!==defaultSource){
+      source.value=defaultSource;
+      onSebraeSourceChange();
+    }
+  }
   ['cfg-precos','cfg-registro','cfg-cargos','cfg-importar','cfg-whatsapp','cfg-sebrae'].forEach(function(id){
     const e=document.getElementById(id); if(e) e.style.display='none';
   });
@@ -9356,8 +9653,10 @@ function applyMonteiroCalendarPermUI(){
 }
 
 function switchClientView(view){
-  const panels={cadastro:'cv-cadastro',analise:'cv-analise',oportunidades:'cv-oportunidades'};
-  const btns={cadastro:'cv-btn-cadastro',analise:'cv-btn-analise',oportunidades:'cv-btn-oportunidades'};
+  if(view==='whatsapp'&&!managedModulePermission('clientes_whatsapp','view')){toast('Você não tem permissão para acessar esta sub-aba.','error');return;}
+  if(view==='pedidos'&&!managedModulePermission('clientes_pedidos','view')){toast('Você não tem permissão para acessar esta sub-aba.','error');return;}
+  const panels={cadastro:'cv-cadastro',analise:'cv-analise',oportunidades:'cv-oportunidades',whatsapp:'cv-whatsapp',pedidos:'cv-pedidos'};
+  const btns={cadastro:'cv-btn-cadastro',analise:'cv-btn-analise',oportunidades:'cv-btn-oportunidades',whatsapp:'cv-btn-whatsapp',pedidos:'cv-btn-pedidos'};
   const act=document.getElementById('cv-cadastro-actions');
   // Hide all panels, deactivate all buttons
   Object.values(panels).forEach(function(id){const e=document.getElementById(id);if(e)e.style.display='none';});
@@ -9374,6 +9673,8 @@ function switchClientView(view){
   // Load data
   if(view==='analise')loadClientAnalytics();
   if(view==='oportunidades')loadOportunidades();
+  if(view==='whatsapp' && window.ClientWhatsAppFoundation)window.ClientWhatsAppFoundation.load(_clients);
+  if(view==='pedidos' && window.ClientOrdersFoundation)window.ClientOrdersFoundation.load();
 }
 
 
@@ -11186,12 +11487,7 @@ function renderDeliveredList(){
   const subCount = document.getElementById('notas-count-deliv');
   populatePendDriverSelect();
   let list = applyNotasFilters(getDeliveredSales());
-  list.sort(function(a,b){
-    const da = getNotaInfo(a.id); const db = getNotaInfo(b.id);
-    const dateA = (da && da.deliveredAt) || a.sale_date || '';
-    const dateB = (db && db.deliveredAt) || b.sale_date || '';
-    return dateB.localeCompare(dateA);
-  });
+  list = sortNotasList(list, 'nf', 'asc');
   if(subCount) subCount.textContent = list.length;
   if(!el) return;
   const totalAllDelivered = getDeliveredSales().length;
@@ -12259,8 +12555,8 @@ function confirmBulkDelivery(){
 // ────────────────────────────────────────────────────────────────────────
 // Ordenação de colunas + Export CSV + Undo modal + Animação fade-out
 // ────────────────────────────────────────────────────────────────────────
-let _pendSortCol = 'date';
-let _pendSortDir = 'desc';
+let _pendSortCol = 'nf';
+let _pendSortDir = 'asc';
 let _undoId = null;
 
 function sortNotasBy(col){
@@ -12274,10 +12570,18 @@ function sortNotasBy(col){
 }
 
 function sortNotasList(list, col, dir){
+  if(col==='nf'){
+    return list.slice().sort(function(a,b){
+      const aNumber=String(a.nf_number||'').trim(), bNumber=String(b.nf_number||'').trim();
+      if(!aNumber) return bNumber?1:0;
+      if(!bNumber) return -1;
+      const result=compareInvoiceNumbersNatural(a.nf_number,b.nf_number);
+      return dir==='desc' ? -result : result;
+    });
+  }
   const fn = {
     date:   function(s){ return s.sale_date || ''; },
     client: function(s){ return (s.client || '').toLowerCase(); },
-    nf:     function(s){ return s.nf_number || ''; },
     driver: function(s){ return (s.delivery_person || '').toLowerCase(); }
   }[col] || function(s){ return s.sale_date || ''; };
   const out = list.slice().sort(function(a,b){
@@ -14055,8 +14359,11 @@ async function loadWaMotivationStatus(){
   try{
     const r=await api('/api/whatsapp/motivation-status');
     const last=r.last_success?new Date(r.last_success+'T00:00:00').toLocaleDateString('pt-BR'):'ainda nao enviado';
-    el.innerHTML='<b>'+r.templates+'</b> mensagem(ns) motivacional(is) armazenada(s) · <b>'+r.active_contacts+'</b> contato(s) ativo(s) · envio diario as <b>'+waLogEsc(r.time)+'</b> · ultimo: <b>'+last+'</b>';
-    el.style.color=r.templates&&r.active_contacts?'var(--muted)':'var(--red)';
+    const attempt=r.last_attempt?new Date(r.last_attempt).toLocaleString('pt-BR'):'nenhuma tentativa';
+    const scheduler=r.scheduler_running?'agendador ativo':'agendador parado';
+    const provider=r.provider_configured?'conector '+waLogEsc(r.provider)+' configurado':'conector nao configurado';
+    el.innerHTML='<b>'+r.templates+'</b> modelo(s) · <b>'+r.active_contacts+'</b> contato(s) ativo(s) · envio diario <b>'+waLogEsc(r.time)+'</b> · '+scheduler+' · '+provider+' · ultima tentativa: <b>'+waLogEsc(attempt)+'</b> · ultimo sucesso: <b>'+last+'</b>';
+    el.style.color=r.enabled&&r.scheduler_running&&r.provider_configured&&r.templates&&r.active_contacts?'var(--muted)':'var(--red)';
   }catch(e){el.textContent='Erro ao verificar: '+e.message;el.style.color='var(--red)';}
 }
 async function sendWaMotivationNow(){
@@ -14523,13 +14830,14 @@ function switchWaSubView(view){
   document.querySelectorAll('.wa-sub-btn').forEach(function(b){
     b.classList.toggle('active', b.dataset.view === view);
   });
-  ['main','autoreply','templates','bot'].forEach(function(v){
+  ['main','autoreply','templates','bot','update'].forEach(function(v){
     var el=document.getElementById('wa-view-'+v);
     if(el) el.style.display = v===view ? 'block' : 'none';
   });
   if(view==='autoreply') loadWaAutoRules();
   if(view==='templates') loadWaTemplates();
   if(view==='bot') loadWaBotSettings();
+  if(view==='update') loadWaBaileysUpdate(false);
 }
 
 // ── Auto Rules CRUD ──
@@ -14745,11 +15053,99 @@ async function waDeleteTemplate(id, name){
 }
 
 // ── Bot Settings ──
+var _waInboundModeState=null;
+
+function waInboundModeLabel(mode){
+  if(mode==='production')return 'Producao';
+  if(mode==='sandbox')return 'Sandbox';
+  return 'Indefinido';
+}
+
+function renderWaInboundModeCard(state,loading){
+  state=state||{};
+  var resolvedMode=state.mode||state.runtime_mode||state.configured_mode;
+  var mode=(resolvedMode==='production'||resolvedMode==='sandbox')?resolvedMode:'unknown';
+  var nextMode=mode==='production'?'sandbox':'production';
+  var actionLabel=nextMode==='production'?'Desativar sandbox':'Ativar sandbox';
+  var desc=mode==='production'
+    ?'O bot inbound responde automaticamente para qualquer cliente que enviar mensagem.'
+    :'O bot inbound responde somente aos numeros autorizados na allowlist de sandbox.';
+  if(mode==='unknown')desc='Nao foi possivel confirmar o modo atual do Baileys. Verifique o servico antes de alternar.';
+  var service=state.requires_restart_service||'menina-baileys.service';
+  var disabled=loading||mode==='unknown';
+  return '<div><div class="wa-inbound-mode-title">Modo inbound automatico</div>'
+    +'<div class="wa-inbound-mode-desc">'+waLogEsc(desc)+'<br>Alterar este modo reinicia brevemente '+waLogEsc(service)+'.</div></div>'
+    +'<div class="wa-inbound-mode-actions">'
+    +'<span class="wa-inbound-badge '+mode+'">'+waLogEsc(waInboundModeLabel(mode))+'</span>'
+    +'<button class="btn btn-secondary btn-sm" onclick="loadWaInboundModeStatus()" '+(loading?'disabled':'')+'>Atualizar</button>'
+    +'<button class="btn btn-primary btn-sm" onclick="changeWaInboundMode(\''+nextMode+'\')" '+(disabled?'disabled':'')+'>'+actionLabel+'</button>'
+    +'</div>';
+}
+
+async function loadWaInboundModeStatus(){
+  var card=document.getElementById('wa-inbound-mode-card');
+  if(card)card.innerHTML=renderWaInboundModeCard(_waInboundModeState,true);
+  try{
+    _waInboundModeState=await api('/api/whatsapp/inbound-mode');
+    if(card)card.innerHTML=renderWaInboundModeCard(_waInboundModeState,false);
+    return _waInboundModeState;
+  }catch(e){
+    _waInboundModeState={mode:'unknown',requires_restart_service:'menina-baileys.service'};
+    if(card)card.innerHTML='<div><div class="wa-inbound-mode-title">Modo inbound automatico</div><div class="wa-inbound-mode-desc" style="color:#991b1b">'+waLogEsc(e.message)+'</div></div><div class="wa-inbound-mode-actions"><span class="wa-inbound-badge unknown">Indefinido</span><button class="btn btn-secondary btn-sm" onclick="loadWaInboundModeStatus()">Tentar novamente</button></div>';
+    return _waInboundModeState;
+  }
+}
+
+function confirmWaInboundModeChange(targetMode){
+  return new Promise(function(resolve){
+    var old=document.getElementById('wa-inbound-mode-modal');
+    if(old)old.remove();
+    var modal=document.createElement('div');
+    modal.id='wa-inbound-mode-modal';
+    modal.className='wa-modal-overlay';
+    var title=targetMode==='production'?'Ativar modo Producao?':'Voltar para Sandbox?';
+    var body=targetMode==='production'
+      ?'Em Producao, o bot respondera automaticamente a todos os clientes que enviarem mensagem. A lista de sandbox sera preservada, mas nao limitara o inbound enquanto o modo estiver em Producao.'
+      :'Em Sandbox, o bot respondera somente aos numeros autorizados para teste. A allowlist existente sera preservada.';
+    modal.innerHTML='<div class="wa-modal-box"><button class="wa-modal-close" type="button" data-wa-inbound-cancel>&times;</button>'
+      +'<h3>'+waLogEsc(title)+'</h3>'
+      +'<div style="font-size:12px;color:var(--g700);line-height:1.45;display:grid;gap:10px">'
+      +'<p style="margin:0">'+waLogEsc(body)+'</p>'
+      +'<p style="margin:0;color:#92400e">A mudanca reinicia brevemente menina-baileys.service para reconectar o WhatsApp. Nenhuma mensagem de teste sera enviada.</p>'
+      +'</div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap">'
+      +'<button class="btn btn-secondary" type="button" data-wa-inbound-cancel>Cancelar</button>'
+      +'<button class="btn btn-primary" type="button" data-wa-inbound-confirm>Confirmar</button>'
+      +'</div></div>';
+    function close(answer){modal.remove();resolve(answer);}
+    modal.addEventListener('click',function(ev){if(ev.target===modal||ev.target.hasAttribute('data-wa-inbound-cancel'))close(false);});
+    modal.querySelector('[data-wa-inbound-confirm]').addEventListener('click',function(){close(true);});
+    document.body.appendChild(modal);
+  });
+}
+
+async function changeWaInboundMode(targetMode){
+  if(targetMode!=='sandbox'&&targetMode!=='production')return;
+  var ok=await confirmWaInboundModeChange(targetMode);
+  if(!ok)return;
+  var card=document.getElementById('wa-inbound-mode-card');
+  if(card)card.innerHTML=renderWaInboundModeCard(_waInboundModeState,true);
+  try{
+    var result=await api('/api/whatsapp/inbound-mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:targetMode})});
+    _waInboundModeState=result.status||{mode:result.mode};
+    if(card)card.innerHTML=renderWaInboundModeCard(_waInboundModeState,false);
+    toast('Modo inbound alterado para '+waInboundModeLabel(result.mode)+'.');
+  }catch(e){
+    await loadWaInboundModeStatus();
+    toast(e.message,'error');
+  }
+}
+
 async function loadWaBotSettings(){
   var el=document.getElementById('wa-bot-settings-form');
   if(!el) return;
   try{
     var s=await api('/api/whatsapp/bot-settings');
+    _waInboundModeState=await api('/api/whatsapp/inbound-mode').catch(function(){return {mode:'unknown',requires_restart_service:'menina-baileys.service'};});
     el.innerHTML='<div class="wa-bot-grid">'
       +'<div class="wa-bot-item"><label>🤖 Bot ativo</label><div class="wa-toggle-wrap"><input type="checkbox" id="wbs-bot-active"'+(s.bot_active==='1'?' checked':'')+'></div></div>'
       +'<div class="wa-bot-item"><label>💬 Auto respostas</label><div class="wa-toggle-wrap"><input type="checkbox" id="wbs-auto-reply-enabled"'+(s.auto_reply_enabled==='1'?' checked':'')+'></div></div>'
@@ -14760,6 +15156,15 @@ async function loadWaBotSettings(){
       +'<div class="wa-bot-item"><label> Horário fim</label><input type="time" id="wbs-auto-reply-to" value="'+(s.auto_reply_to||'19:00')+'"></div>'
       +'<div class="wa-bot-item"><label> Intervalo min (seg)</label><input type="number" id="wbs-min-interval" value="'+(s.min_interval_secs||'30')+'" min="1"></div>'
       +'<div class="wa-bot-item"><label>📊 Máx/dia/cliente</label><input type="number" id="wbs-max-per-day" value="'+(s.max_per_day_per_client||'10')+'" min="0"></div>'
+      +'<div class="wa-inbound-mode-card" id="wa-inbound-mode-card">'+renderWaInboundModeCard(_waInboundModeState,false)+'</div>'
+      +'</div>'
+      +'<div style="display:grid;gap:10px;margin-top:14px">'
+      +'<label class="wa-bot-message"><span>1. Aviso de atendimento automatizado</span><textarea id="wbs-order-disclosure" rows="2">'+waLogEsc(s.order_bot_disclosure_message||'')+'</textarea></label>'
+      +'<label class="wa-bot-message"><span>2. Saudação e produtos</span><textarea id="wbs-order-welcome" rows="8">'+waLogEsc(s.order_bot_welcome_message||'')+'</textarea></label>'
+      +'<label class="wa-bot-message"><span>3. Pergunta de quantidade</span><textarea id="wbs-order-quantity" rows="2">'+waLogEsc(s.order_bot_quantity_message||'')+'</textarea></label>'
+      +'<label class="wa-bot-message"><span>4. Pergunta de avaria</span><textarea id="wbs-order-damage" rows="2">'+waLogEsc(s.order_bot_damage_message||'')+'</textarea></label>'
+      +'<label class="wa-bot-message"><span>5. Confirmação do pedido</span><textarea id="wbs-order-confirm" rows="2">'+waLogEsc(s.order_bot_confirm_message||'')+'</textarea></label>'
+      +'<label class="wa-bot-message"><span>6. Pedido confirmado</span><textarea id="wbs-order-done" rows="3">'+waLogEsc(s.order_bot_done_message||'')+'</textarea></label>'
       +'</div>';
   }catch(e){ el.innerHTML='<div class="wa-empty">'+e.message+'</div>'; }
 }
@@ -14773,10 +15178,73 @@ async function saveWaBotSettings(){
   body.auto_reply_to=document.getElementById('wbs-auto-reply-to')?.value||'19:00';
   body.min_interval_secs=parseInt(document.getElementById('wbs-min-interval')?.value)||30;
   body.max_per_day_per_client=parseInt(document.getElementById('wbs-max-per-day')?.value)||10;
+  body.order_bot_disclosure_message=document.getElementById('wbs-order-disclosure')?.value.trim()||'';
+  body.order_bot_welcome_message=document.getElementById('wbs-order-welcome')?.value.trim()||'';
+  body.order_bot_quantity_message=document.getElementById('wbs-order-quantity')?.value.trim()||'';
+  body.order_bot_damage_message=document.getElementById('wbs-order-damage')?.value.trim()||'';
+  body.order_bot_confirm_message=document.getElementById('wbs-order-confirm')?.value.trim()||'';
+  body.order_bot_done_message=document.getElementById('wbs-order-done')?.value.trim()||'';
   try{
     await api('/api/whatsapp/bot-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     toast('✅ Configurações do bot salvas!');
   }catch(e){ toast(e.message,'error'); }
+}
+
+function waUpdateText(id,value){
+  var el=document.getElementById(id);
+  if(el) el.textContent=value||'—';
+}
+
+async function loadWaBaileysUpdate(refresh){
+  var state=document.getElementById('wa-update-state');
+  var button=document.getElementById('wa-update-apply');
+  if(!state||!button) return;
+  state.className='wa-maint-state';
+  state.textContent=refresh?'Consultando versão disponível...':'Verificando serviço Baileys...';
+  button.disabled=true;
+  try{
+    var data=await api('/api/whatsapp/baileys-update-status'+(refresh?'?refresh=true':''));
+    waUpdateText('wa-update-installed',data.installed_version||'Não identificada');
+    waUpdateText('wa-update-approved',data.approved_version||'Não configurada');
+    waUpdateText('wa-update-legacy',data.legacy_version||'Não consultada');
+    waUpdateText('wa-update-latest',data.latest_version||'Não consultada');
+    var ready=data.connected&&data.listener_installed;
+    var inbound=data.inbound_enabled ? ('Inbound '+(data.inbound_mode||'ativo')) : 'Inbound desativado';
+    var detail=data.update_detail ? ' · '+data.update_detail : '';
+    if(data.update_status==='running'){
+      state.className='wa-maint-state warn';
+      state.textContent='Atualização em andamento · '+inbound;
+      setTimeout(function(){ loadWaBaileysUpdate(false); },5000);
+    }else if(data.update_status==='failed'){
+      state.className='wa-maint-state error';
+      state.textContent='Última atualização falhou'+detail+' · '+inbound;
+    }else if(!data.update_available&&data.installed_version&&data.installed_version===data.approved_version){
+      state.className='wa-maint-state '+(ready?'ok':'warn');
+      state.textContent='Versão aprovada já instalada · '+inbound+detail;
+    }else{
+      state.className='wa-maint-state '+(ready?'ok':'warn');
+      state.textContent=(ready?'Conectado e listener ativo':'Serviço requer atenção')+' · '+inbound+detail;
+    }
+    button.disabled=!data.can_update||data.update_status==='running';
+    button.textContent=data.update_available?'Atualizar versão aprovada':'Versão aprovada instalada';
+  }catch(e){
+    state.className='wa-maint-state error';
+    state.textContent=e.message;
+  }
+}
+
+async function applyWaBaileysUpdate(){
+  if(!confirm('Aplicar a versão aprovada do Baileys? A conexão será reiniciada por alguns segundos e a sessão será preservada.')) return;
+  var button=document.getElementById('wa-update-apply');
+  if(button) button.disabled=true;
+  try{
+    await api('/api/whatsapp/baileys-update',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    toast('Atualização Baileys iniciada.');
+    setTimeout(function(){ loadWaBaileysUpdate(false); },3000);
+  }catch(e){
+    toast(e.message,'error');
+    loadWaBaileysUpdate(false);
+  }
 }
 
 // ─── fim WhatsApp ──────────────────────────────────────
@@ -14884,6 +15352,16 @@ function appNoteMeasureLabel(unit){return ({KG:'Peso',UN:'Unidade',CX:'Caixa',MC
 function appNoteHasPrice(i){return i&&i.effective_price_provided!==undefined?!!i.effective_price_provided:Number(i&&i.price_provided)!==0;}
 function appNoteUnitPrice(i){return i&&i.effective_unit_price!==undefined?Number(i.effective_unit_price||0):Number(i&&i.unit_price||0);}
 function appNoteAttr(v){return admEsc(String(v==null?'':v));}
+function appNoteSubmissionLabel(s){
+  var raw=String(s&&s.received_at||'');
+  var parsed=new Date(raw.replace(' ','T'));
+  var when=isNaN(parsed.getTime())?raw:parsed.toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'});
+  var who=String(s&&s.submitted_by_name||s&&s.submitted_by_username||'Remetente não identificado');
+  return who+' · '+when;
+}
+function appNoteSubmissionSummary(n){
+  return (n&&n.submissions||[]).map(appNoteSubmissionLabel).map(appNoteAttr).join(' · ')||'Remetente/horário não identificado';
+}
 function appNoteActionButton(action,id,label,cls,style,extra){
   return '<button type="button" class="'+(cls||'btn btn-secondary btn-sm')+'" data-app-note-action="'+action+'" data-app-note-id="'+appNoteAttr(id)+'"'
     +(extra?' '+extra:'')+(style?' style="'+style+'"':'')+'>'+label+'</button>';
@@ -14962,7 +15440,7 @@ function renderAppNotes(data){
     return '<section class="card" style="padding:0;overflow:hidden;margin-bottom:14px;border:1px solid var(--border)">'
       +'<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:14px 16px;background:var(--card)">'
       +'<div style="min-width:110px"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;font-weight:700">Data</div><div style="font-size:14px;font-weight:800;color:var(--g800);margin-top:3px">'+admEsc(n.note_date||'—')+'</div></div>'
-      +'<div style="flex:1;min-width:190px"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;font-weight:700">Cliente</div><button type="button" data-app-note-action="view" data-app-note-id="'+appNoteAttr(n.id)+'" style="display:block;background:none;border:none;padding:0;margin-top:3px;font:inherit;font-size:15px;font-weight:900;color:#4338CA;cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-align:left">'+admEsc(n.client||'Sem cliente')+'</button><div style="font-size:9px;color:var(--muted);margin-top:4px">'+statusBadge+' · Atualizada '+admDate(n.updated_at||n.created_at)+'</div></div>'
+      +'<div style="flex:1;min-width:190px"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;font-weight:700">Cliente</div><button type="button" data-app-note-action="view" data-app-note-id="'+appNoteAttr(n.id)+'" style="display:block;background:none;border:none;padding:0;margin-top:3px;font:inherit;font-size:15px;font-weight:900;color:#4338CA;cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-align:left">'+admEsc(n.client||'Sem cliente')+'</button><div style="font-size:9px;color:var(--muted);margin-top:4px">'+statusBadge+' · Atualizada '+admDate(n.updated_at||n.created_at)+'</div><div style="font-size:10px;color:var(--muted);margin-top:5px">Envios: '+appNoteSubmissionSummary(n)+'</div></div>'
       +'<div style="min-width:100px"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;font-weight:700">Produtos</div><div style="font-size:16px;font-weight:900;color:var(--g800);margin-top:3px">'+(n.items||[]).length+'</div></div>'
       +'<div style="min-width:140px;text-align:right"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;font-weight:700">Total do dia</div><div style="font-size:18px;font-weight:900;color:#4F46E5;margin-top:3px">'+appNoteMoney(n.total)+'</div></div>'
       +'<div style="min-width:170px">'+actions+'</div></div>'
@@ -14989,7 +15467,9 @@ function openAppNoteDetail(id){
       +'<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase">Subtotal</div><div style="font-weight:900;color:#4F46E5;margin-top:2px">'+subtotal+'</div></div>'
       +'</div></article>';
   }).join('');
-  document.getElementById('app-note-detail-body').innerHTML='<div style="display:grid;gap:10px">'+(products||'<div class="wa-empty">Nenhum produto.</div>')+'</div>';
+  var submissions=(n.submissions||[]).map(function(s){return '<div style="padding:9px 11px;border:1px solid var(--border);border-radius:7px;background:var(--card)">'+appNoteAttr(appNoteSubmissionLabel(s))+'</div>';}).join('');
+  var history='<section><div style="font-size:11px;color:var(--muted);font-weight:800;text-transform:uppercase;margin-bottom:6px">Lançamentos e responsáveis</div><div style="display:grid;gap:6px">'+(submissions||'<div class="wa-empty">Horário ou remetente não identificado.</div>')+'</div></section>';
+  document.getElementById('app-note-detail-body').innerHTML='<div style="display:grid;gap:12px">'+history+(products||'<div class="wa-empty">Nenhum produto.</div>')+'</div>';
   document.getElementById('app-note-detail-modal').style.display='flex';
 }
 function closeAppNoteDetail(){document.getElementById('app-note-detail-modal').style.display='none';}
@@ -15008,7 +15488,7 @@ function printAppNoteReceipt(id){
   var html='<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Recibo - '+admEsc(n.client||'Cliente')+'</title><style>'
     +'@page{size:A4;margin:12mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#172033;margin:0;font-size:12px}.sheet{max-width:190mm;margin:auto;border:1px solid #cbd5e1;padding:18px}.head{display:flex;justify-content:space-between;gap:20px;border-bottom:3px solid #4f46e5;padding-bottom:12px;margin-bottom:16px}.brand{font-size:24px;font-weight:900;color:#4f46e5}.sub{font-size:11px;color:#64748b;margin-top:3px}.receipt-title{text-align:right;font-size:20px;font-weight:900}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;background:#f8fafc;border:1px solid #e2e8f0;padding:12px;margin-bottom:16px}.label{font-size:9px;text-transform:uppercase;color:#64748b;font-weight:700}.value{font-size:13px;font-weight:700;margin-top:2px}table{width:100%;border-collapse:collapse}th{background:#eef2ff;color:#3730a3;text-align:left;font-size:9px;text-transform:uppercase;padding:8px;border:1px solid #c7d2fe}td{padding:9px 8px;border:1px solid #e2e8f0}.num{text-align:right;white-space:nowrap}.total{margin-left:auto;margin-top:14px;width:270px;border:2px solid #4f46e5;padding:12px;text-align:right}.total-label{font-size:10px;color:#64748b;text-transform:uppercase}.total-value{font-size:22px;font-weight:900;color:#4f46e5;margin-top:3px}.note{margin-top:14px;padding:10px;background:#fffbeb;border:1px solid #fde68a;color:#92400e}.signatures{display:grid;grid-template-columns:1fr 1fr;gap:50px;margin-top:60px}.sign{text-align:center;border-top:1px solid #334155;padding-top:6px}.footer{margin-top:24px;text-align:center;color:#94a3b8;font-size:9px}.no-print{margin:0 auto 12px;display:block;padding:10px 22px;background:#4f46e5;color:white;border:0;border-radius:7px;font-weight:700;cursor:pointer}@media print{.no-print{display:none}.sheet{border:0;padding:0}}</style></head><body>'
     +'<button class="no-print" onclick="window.print()">🖨 Imprimir recibo</button><main class="sheet"><header class="head"><div><div class="brand"> Monteiro</div><div class="sub">Menina dos Raios Ltda · Sistema de Vendas Independente</div></div><div><div class="receipt-title">RECIBO DE PEDIDO</div><div class="sub">Nota APP nº '+admEsc(String(n.id||'—'))+'</div></div></header>'
-    +'<section class="meta"><div><div class="label">Cliente</div><div class="value">'+admEsc(n.client||'Sem cliente')+'</div></div><div><div class="label">Data do pedido</div><div class="value">'+admEsc(n.note_date||'—')+'</div></div><div><div class="label">Situação</div><div class="value">'+status+'</div></div><div><div class="label">Emitido em</div><div class="value">'+admEsc(emitido)+'</div></div></section>'
+    +'<section class="meta"><div><div class="label">Cliente</div><div class="value">'+admEsc(n.client||'Sem cliente')+'</div></div><div><div class="label">Data do pedido</div><div class="value">'+admEsc(n.note_date||'—')+'</div></div><div><div class="label">Situação</div><div class="value">'+status+'</div></div><div><div class="label">Emitido em</div><div class="value">'+admEsc(emitido)+'</div></div><div style="grid-column:1/-1"><div class="label">Lançamentos e responsáveis</div><div class="value">'+appNoteSubmissionSummary(n)+'</div></div></section>'
     +'<table><thead><tr><th>#</th><th>Produto</th><th>Tipo</th><th style="text-align:right">Medida</th><th style="text-align:right">Valor unitário</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>'+(itens||'<tr><td colspan="6">Nenhum produto informado.</td></tr>')+'</tbody></table>'
     +'<div class="total"><div class="total-label">Total do pedido</div><div class="total-value">'+appNoteMoney(n.total)+'</div></div>'
     +'<div class="note">* Valor obtido do preço atual cadastrado na aba Produtos. Este recibo comprova o registro do pedido recebido pelo aplicativo interno e não substitui documento fiscal.</div><div class="signatures"><div class="sign">Responsável pelo recebimento</div><div class="sign">Cliente</div></div><div class="footer">Gerado pelo Monteiro · Notas APP</div></main></body></html>';
@@ -15612,6 +16092,8 @@ async function openPaladarSaleModal(){
   var _pt = document.getElementById('pal-plate-manual-toggle'); if(_pt) _pt.style.display = '';
   document.getElementById('pal-sale-notes').value = '';
   var inv=document.getElementById('pal-sale-invoice'); if(inv) inv.value='';
+  await loadSellers(true,false,'raios','monteiro');
+  fillSellerSelect('pal-sale-seller','',true);
   var c = document.getElementById('pal-items-body');
   c.innerHTML = '';
   addPaladarItem();
@@ -15740,11 +16222,13 @@ async function savePaladarSale(){
   var dateVal = document.getElementById('pal-sale-date')?.value;
   var client = document.getElementById('pal-sale-client')?.value?.trim() || '';
   var nf = document.getElementById('pal-sale-nf')?.value?.trim() || '';
+  var sellerId = document.getElementById('pal-sale-seller')?.value || '';
   var driver = document.getElementById('pal-sale-driver')?.value?.trim() || '';
   var vehicle = document.getElementById('pal-sale-vehicle')?.value?.trim() || '';
   var plate = document.getElementById('pal-sale-plate')?.value?.trim().toUpperCase() || '';
   var notes = document.getElementById('pal-sale-notes')?.value || '';
   if(!dateVal){ toast('Informe a data da venda.', 'error'); return; }
+  if(!sellerId){ toast('Informe quem vendeu.', 'error'); return; }
   var rows = document.querySelectorAll('#pal-items-body .pal-item-row');
   var itens = [];
   rows.forEach(function(row){
@@ -15762,7 +16246,7 @@ async function savePaladarSale(){
     var r = await fetch('/api/monteiro/sales', {
       method:'POST',
       headers:{'Content-Type':'application/json','x-token':(typeof session !== 'undefined' ? session.token : '') || ''},
-      body:JSON.stringify({saledate:dateVal, items:itens, client:client, nf_number:nf, driver:driver, vehicle:vehicle, plate:plate})
+      body:JSON.stringify({saledate:dateVal, items:itens, client:client, nf_number:nf, driver:driver, vehicle:vehicle, plate:plate, notes:notes, seller_id:sellerId})
     });
     if(!r.ok){ var err = await r.json().catch(function(){ return {detail:r.statusText}; }); throw new Error(err.detail || 'Erro ao salvar'); }
     var result = await r.json();
@@ -15808,6 +16292,11 @@ async function loadPaladarSummary(){
   var period = getPalPeriod();
   var month = getPalFilterMonth();
   var year  = getPalFilterYear();
+  await loadSellers(false,false,'raios','monteiro');
+  fillSellerSelect('pal-filter-seller',document.getElementById('pal-filter-seller')?.value||'',true);
+  var sellerId = document.getElementById('pal-filter-seller')?.value || '';
+  var sellerSelect=document.getElementById('pal-filter-seller');
+  if(sellerSelect && sellerSelect.options.length) sellerSelect.options[0].textContent='Todos os vendedores';
   // Subtitle do período
   var meses = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   var subEl = document.getElementById('pal-period-subtitle');
@@ -15823,9 +16312,9 @@ async function loadPaladarSummary(){
   var tsEl = document.getElementById('pal-update-ts');
   if(tsEl) tsEl.textContent = 'Atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
   try{
-    var data = await api('/api/monteiro/summary?period='+period+'&month='+month+'&year='+year);
+    var data = await api('/api/monteiro/summary?period='+period+'&month='+month+'&year='+year+(sellerId?'&seller_id='+encodeURIComponent(sellerId):''));
     // Garantir campos seguros
-    if(!data || typeof data.total_receita === 'undefined') data = {total_receita:0,total_vendas:0,ticket_medio:0,dias_produtivos:0,por_dia:[],por_produto:[],melhor_dia:{date:null,total:0,qty:0,count:0}};
+    if(!data || typeof data.total_receita === 'undefined') data = {total_receita:0,total_vendas:0,ticket_medio:0,dias_produtivos:0,por_dia:[],por_produto:[],por_vendedor:[],melhor_dia:{date:null,total:0,qty:0,count:0}};
     // Variação vs período anterior
     var prevData = null;
     if(period==='quinzenal'){
@@ -15864,6 +16353,18 @@ async function loadPaladarSummary(){
       if(vt) vt.innerHTML = fmtVar(data.ticket_medio||0, prevData.ticket_medio||0, true);
       var vd = document.getElementById('pal-kpi-dias-var');
       if(vd) vd.innerHTML = fmtVar(data.dias_produtivos||0, prevData.dias_produtivos||0, false);
+    }
+    var sellerBox=document.getElementById('pal-seller-breakdown');
+    if(sellerBox){
+      var sellers=data.por_vendedor||[];
+      sellerBox.innerHTML=sellers.length?sellers.map(function(s){
+        return '<div style="display:grid;grid-template-columns:1.4fr .8fr .8fr .7fr;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--border)">'
+          +'<div style="font-weight:800;color:var(--g800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+String(s.seller_name||'Nao informado').replace(/</g,'&lt;')+'</div>'
+          +'<div style="font-family:monospace;font-weight:800">R$ '+(s.total_receita||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div>'
+          +'<div style="font-family:monospace">R$ '+(s.ticket_medio||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div>'
+          +'<div style="font-size:11px;color:var(--muted);text-align:right">'+(s.total_vendas||0)+' venda(s) · '+(s.dias_produtivos||0)+' dia(s)</div>'
+          +'</div>';
+      }).join(''):'<div style="color:var(--muted)">Nenhuma venda no período.</div>';
     }
     // Charts
     if(palChart1) palChart1.destroy();
@@ -17912,7 +18413,7 @@ setTimeout(installMobileReadOnlyGuards,0);
       </span>
       Atualização automática a cada 30 segundos · Pressione Esc para sair
     </span>
-    <span id="tv-footer-version" style="opacity:.5">2.0.0</span>
+    <span id="tv-footer-version" style="opacity:.5">2.1.0</span>
   </div>
 </div>
 <div class="notif-drawer-overlay" id="notif-drawer-overlay" onclick="toggleNotificationDrawer()"></div>
@@ -18020,6 +18521,9 @@ setTimeout(installMobileReadOnlyGuards,0);
         <option value="2024">2024</option><option value="2025">2025</option>
         <option value="2026">2026</option><option value="2027">2027</option>
       </select>
+      <select id="pal-filter-seller" class="filt" style="font-size:11px;padding:4px 8px;min-width:160px" onchange="loadPaladarSummary()">
+        <option value="">Todos os vendedores</option>
+      </select>
       <button class="btn btn-secondary btn-sm" onclick="loadPaladarSummary();loadPaladarSales();loadPaladarClients();loadPaladarPayments();loadAppNotes();loadAppCalendar();loadAppVales()" style="font-size:11px;padding:4px 10px"> Filtrar</button>
     </div>
   </div>
@@ -18053,6 +18557,10 @@ setTimeout(installMobileReadOnlyGuards,0);
           <div style="font-size:20px;font-weight:700;font-family:monospace;color:var(--g800)" id="pal-kpi-dias">—</div>
           <div id="pal-kpi-dias-var" style="font-size:11px;margin-top:3px;font-weight:500"></div>
         </div>
+      </div>
+      <div class="card" style="padding:14px;margin-bottom:18px">
+        <div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:10px">👤 Produtividade por vendedor</div>
+        <div id="pal-seller-breakdown"></div>
       </div>
       <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:14px;margin-bottom:18px">
         <div class="card" style="padding:14px">
@@ -18389,6 +18897,14 @@ setTimeout(installMobileReadOnlyGuards,0);
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
           <div><label style="font-size:11px;font-weight:600;color:var(--muted);display:block;margin-bottom:3px">Número NF</label><input type="text" id="pal-sale-nf" placeholder="Ex: 105.200.01" style="width:100%;padding:7px 9px;border:1px solid #ddd;border-radius:7px;font-size:13px;font-family:inherit;box-sizing:border-box"></div>
+          <div><label style="font-size:11px;font-weight:600;color:var(--muted);display:block;margin-bottom:3px">Quem vendeu *</label>
+            <div style="display:flex;gap:6px;align-items:center">
+              <select id="pal-sale-seller" style="width:100%;padding:7px 9px;border:1px solid #ddd;border-radius:7px;font-size:13px;font-family:inherit;box-sizing:border-box"></select>
+              <button type="button" onclick="quickRegisterSeller('pal-sale-seller')" title="Cadastrar vendedor" style="border:1px solid #ddd;border-radius:7px;background:#fff;padding:7px 9px;cursor:pointer">+</button>
+            </div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
           <div><label style="font-size:11px;font-weight:600;color:var(--muted);display:block;margin-bottom:3px">Entregador</label>
             <input type="text" id="pal-sale-driver" list="pal-driver-list" placeholder="Nome do entregador..." autocomplete="off" style="width:100%;padding:7px 9px;border:1px solid #ddd;border-radius:7px;font-size:13px;font-family:inherit;box-sizing:border-box">
             <datalist id="pal-driver-list"></datalist>
@@ -18533,6 +19049,9 @@ setTimeout(installMobileReadOnlyGuards,0);
 <!-- Datalist de produtos paladar -->
 <datalist id="pal-products-list"></datalist>
 <select id="pal-products-data" style="display:none"></select>
+
+<script src="/js/client_whatsapp.js"></script>
+<script src="/js/client_orders.js?v=20260927-orders-remove"></script>
 
 </body>
 </html>

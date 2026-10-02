@@ -134,6 +134,8 @@ def isolated_app(tmp_path, monkeypatch):
     shutil.copy2(REAL_BACKEND / "schemas.py", temp_backend / "schemas.py")
     shutil.copy2(REAL_BACKEND / "utils.py", temp_backend / "utils.py")
     shutil.copy2(REAL_STATIC / "index.html", temp_static / "index.html")
+    for directory in ("domains", "repositories", "routers", "services", "migrations"):
+        shutil.copytree(REAL_BACKEND / directory, temp_backend / directory)
 
     db_paths = {
         "raios": temp_backend / "bm_monteiro.db",
@@ -159,6 +161,8 @@ def isolated_app(tmp_path, monkeypatch):
 
     monkeypatch.setenv("BACKUP_DIR", str(temp_backup))
     monkeypatch.setenv("CORS_ORIGINS", "*")
+    monkeypatch.setenv("APP_NOTES_TOKEN", "test-notes-token")
+    monkeypatch.setenv("APP_CALENDAR_TOKEN", "test-calendar-token")
     monkeypatch.syspath_prepend(str(temp_backend))
     sys.modules.pop("backend.app", None)
 
@@ -195,7 +199,7 @@ def isolated_app(tmp_path, monkeypatch):
     module.backup_scheduler = lambda: None
     module.motivation_scheduler = lambda: None
 
-    with TestClient(module.app) as client:
+    with TestClient(module.app, client=("127.0.0.1", 50000)) as client:
         ctx = IsolatedApp(
             client=client,
             module=module,

@@ -2,7 +2,7 @@
 
 Este arquivo registra as alteracoes funcionais do aplicativo Android e da integracao com o sistema.
 
-Versao estavel atual: `2.0.17`.
+Versao estavel atual: `2.0.20`.
 
 As versoes 2.x representam a linha estavel atual do APK Android. Historicos antigos permanecem apenas como registro funcional, sem indicar estado de refatoracao ou versao experimental.
 
@@ -12,6 +12,37 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Apos `1.0.999`, a proxima versao sera `1.1.0`.
 - O `versionCode` interno do Android sempre aumenta a cada APK publicado.
 - Uma versao publicada nunca deve ser reutilizada para outro APK.
+
+## [2.0.20] - 02/10/2026
+
+### Autoria e unificacao de notas
+
+- Cada envio registra o usuário da sessão autenticada e o horário de recebimento no servidor.
+- O sistema consulta notas do mesmo estabelecimento/data e pergunta se deve unificar ou criar uma nota separada.
+- Quando há mais de uma nota correspondente, é possível escolher o destino da unificação.
+- Cada envio unificado mantém sua própria autoria e horário, exibidos em Notas APP e no recibo.
+- Reenvios offline preservam a decisão de unificação e continuam idempotentes.
+- Notas antigas continuam preservadas; envios anteriores sem identidade ficam marcados como não identificados.
+
+## [2.0.19] - 02/10/2026
+
+### Tela de lancamento de pedidos
+
+- Formulario reorganizado em secoes para cliente/data, produtos e itens do pedido.
+- Cabecalho mais compacto para priorizar o preenchimento no celular.
+- Campos de peso/quantidade e valor unitario agrupados; itens agora mostram produto, medida e total em linhas mais legiveis.
+- Estado vazio orienta a adicionar um produto e o envio fica bloqueado ate existir ao menos um item.
+- Fluxos existentes de colagem do WhatsApp, catalogo de produtos, notas pendentes e envio foram preservados.
+
+## [2.0.18] - 01/10/2026
+
+### Sessao Android, biometria e sincronizacao
+
+- Sessao Android passou a ter validade propria de ate 30 dias; as sessoes web mantem a politica existente de 20 minutos sem atividade e 10 horas de validade.
+- Falha temporaria de conexao ao validar acesso nao apaga o token salvo nem a preferencia de biometria; o app oferece tentar novamente.
+- Sessao realmente expirada e tratada separadamente, preservando a biometria para evitar reconfiguracao depois do novo login.
+- Se a biometria ja estiver ativada, um login necessario por expiracao nao pergunta novamente se deseja ativa-la.
+- Falhas no envio de vale continuam preservando assinatura e dados localmente, agora exibindo o detalhe retornado pelo servidor.
 
 ## [2.0.17] - 14/08/2026
 

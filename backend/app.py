@@ -3,6 +3,7 @@ Menina dos Raios Ltda â€” Backend v15
 Multi-usuÃ¡rio Â· SessÃµes Â· HistÃ³rico por conta Â· Placa Â· Hora Â· PreÃ§o por data
 """
 import os, sys, re, uuid, sqlite3, webbrowser, threading, io, json, hashlib, socket, hmac, logging, shutil, base64
+from urllib.parse import urlparse
 from contextvars import ContextVar
 from contextlib import contextmanager
 from collections import defaultdict
@@ -24,9 +25,16 @@ try:
     from .monteiro_periods import _pal_period_where, _pay_period_map
     from .orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from .permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
+    from .repositories.sellers_repository import init_sellers_schema
+    from .repositories.whatsapp_repository import init_whatsapp_schema
+    from .routers.sellers import create_sellers_router
+    from .routers.whatsapp_clients import create_whatsapp_clients_router
+    from .routers.whatsapp_campaigns import create_whatsapp_campaigns_router
+    from .routers.whatsapp_inbound import create_whatsapp_inbound_router
     from .rbac import ACTIONS, AREA_MODULES, allowed_product_keys, ensure_permission_product, filter_records_by_product, init_rbac_schema, normalize_product_key, role_context_from_db, role_has_permission, seed_rbac_defaults
     from .security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from .security_request import _client_ip, _is_trusted_proxy_host
+    from .services.sellers_service import require_active_seller
     from .schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
     from .utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
 except ImportError:
@@ -38,9 +46,16 @@ except ImportError:
     from monteiro_periods import _pal_period_where, _pay_period_map
     from orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
+    from repositories.sellers_repository import init_sellers_schema
+    from repositories.whatsapp_repository import init_whatsapp_schema
+    from routers.sellers import create_sellers_router
+    from routers.whatsapp_clients import create_whatsapp_clients_router
+    from routers.whatsapp_campaigns import create_whatsapp_campaigns_router
+    from routers.whatsapp_inbound import create_whatsapp_inbound_router
     from rbac import ACTIONS, AREA_MODULES, allowed_product_keys, ensure_permission_product, filter_records_by_product, init_rbac_schema, normalize_product_key, role_context_from_db, role_has_permission, seed_rbac_defaults
     from security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from security_request import _client_ip, _is_trusted_proxy_host
+    from services.sellers_service import require_active_seller
     from schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
     from utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
 
@@ -133,12 +148,13 @@ COMPANY_DBS = {
 }
 CURRENT_COMPANY: ContextVar[str] = ContextVar("CURRENT_COMPANY", default="raios")
 APP_NOTES_DB_PATH = BASE_DIR / "app_notes.db"
-APP_NOTES_TOKEN = os.environ.get("APP_NOTES_TOKEN", "6ab5af8ad03f2f9c4a2d6589838c7e0bee6a56886910b5df98b01557e0138fce")
-APP_CALENDAR_TOKEN = os.environ.get("APP_CALENDAR_TOKEN", APP_NOTES_TOKEN)
+APP_NOTES_TOKEN = (os.environ.get("APP_NOTES_TOKEN") or "").strip()
+APP_CALENDAR_TOKEN = (os.environ.get("APP_CALENDAR_TOKEN") or "").strip()
 MONTEIRO_NOTES_DIR = BASE_DIR / "monteiro_notas"
 MONTEIRO_NOTES_DIR.mkdir(exist_ok=True)
 SESSION_HOURS = 10
 SESSION_IDLE_MINUTES = 20
+ANDROID_SESSION_DAYS = 30
 MAX_EXCEL_UPLOAD = 10 * 1024 * 1024
 MAX_NF_UPLOAD = 12 * 1024 * 1024
 MAX_VERIFY_PDF_UPLOAD = 15 * 1024 * 1024
@@ -271,15 +287,28 @@ def _company_key(value: str = "") -> str:
 def _company_db_path(company: str = "") -> Path:
     return company_db_path_for(company, COMPANY_DBS, DB_PATH)
 
+DB_BUSY_TIMEOUT_SECONDS = 20
+DB_BUSY_TIMEOUT_MS = DB_BUSY_TIMEOUT_SECONDS * 1000
+
+def _initialize_database_journal(company: str = None):
+    """Define WAL durante a inicializacao, antes de aceitar requisicoes."""
+    path=_company_db_path(company if company is not None else CURRENT_COMPANY.get())
+    conn=sqlite3.connect(str(path),timeout=DB_BUSY_TIMEOUT_SECONDS,check_same_thread=False)
+    try:
+        conn.execute(f"PRAGMA busy_timeout={DB_BUSY_TIMEOUT_MS}")
+        mode=conn.execute("PRAGMA journal_mode=WAL").fetchone()[0]
+        if str(mode).lower() != "wal":
+            raise RuntimeError(f"Nao foi possivel ativar WAL em {path.name}.")
+    finally:
+        conn.close()
+
 def get_db(company: str = None):
     path=_company_db_path(company if company is not None else CURRENT_COMPANY.get())
-    conn=sqlite3.connect(str(path),check_same_thread=False)
+    conn=sqlite3.connect(str(path),timeout=DB_BUSY_TIMEOUT_SECONDS,check_same_thread=False)
     conn.row_factory=sqlite3.Row
-    # ConcorrÃªncia: WAL permite leitura simultÃ¢nea durante escrita (backup nÃ£o trava)
-    conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA foreign_keys=ON")
-    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute(f"PRAGMA busy_timeout={DB_BUSY_TIMEOUT_MS}")
     conn.execute("PRAGMA cache_size=-8000")   # ~8MB de cache em RAM
     conn.execute("PRAGMA temp_store=MEMORY")  # ordenaÃ§Ãµes/temporÃ¡rios em RAM
     return conn
@@ -289,6 +318,7 @@ def get_control_db():
     return get_db("raios")
 
 def init_db(company: str = None):
+    _initialize_database_journal(company)
     conn=get_db(company)
     conn.executescript("""
     CREATE TABLE IF NOT EXISTS users (
@@ -309,6 +339,7 @@ def init_db(company: str = None):
         role       TEXT NOT NULL,
         created_at TEXT DEFAULT (datetime('now')),
         last_seen  TEXT DEFAULT (datetime('now')),
+        client_type TEXT NOT NULL DEFAULT 'web',
         expires_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS admin_messages (
@@ -548,7 +579,13 @@ def init_db(company: str = None):
             ('block_duplicate', '1'), ('max_per_day_per_client', '10'),
             ('test_mode', '0'), ('motivation_enabled', '1'),
             ('motivation_time', '07:00'), ('motivation_last_success', ''),
-            ('motivation_last_attempt', '');
+            ('motivation_last_attempt', ''),
+            ('order_bot_disclosure_message', 'Este é um atendimento automatizado. Esta conversa será registrada para processar o seu pedido.'),
+            ('order_bot_welcome_message', 'Olá, {cliente}! Qual produto você deseja solicitar?\n\nNossa lista de produtos:\n1. Macaxeira com casca\n2. Macaxeira a vácuo\n3. Alho descascado 250g\n4. Alho descascado 1kg\n5. Macaxeira chips\n6. Macaxeira pré-cozida\n\nVocê pode pedir mais de um produto no mesmo atendimento. Depois de informar quantidade e avaria, responda ADICIONAR para incluir outro item.'),
+            ('order_bot_quantity_message', 'Qual quantidade? Informe o valor em KG ou UN.'),
+            ('order_bot_damage_message', 'Tem avaria? Se sim, informe quantos KG ou UN. Se não, responda NÃO.'),
+            ('order_bot_confirm_message', 'Está correto? Responda SIM, NAO ou ADICIONAR para incluir outro produto.'),
+            ('order_bot_done_message', 'Pedido feito! Aguarde a mensagem da data que será entregue! Normalmente, a entrega ocorre em até 24 horas após o pedido.');
     """)
     # Migrations for existing DBs
     for col_def in [
@@ -562,6 +599,7 @@ def init_db(company: str = None):
         ("sales","delivered","TEXT"),
         ("sales","delivered_at","TEXT"),
         ("sessions","last_seen","TEXT DEFAULT (datetime('now'))"),
+        ("sessions","client_type","TEXT NOT NULL DEFAULT 'web'"),
         ("quotes","company_key","TEXT NOT NULL DEFAULT 'estrada'"),
     ]:
         try: conn.execute(f"ALTER TABLE {col_def[0]} ADD COLUMN {col_def[1]} {col_def[2]}")
@@ -691,6 +729,7 @@ def init_db(company: str = None):
             conn.execute(idx_sql)
         except sqlite3.OperationalError as e:
             print(f"indice paladar_sales falhou: {e}")
+    init_sellers_schema(conn)
     # Tabela de pagamentos do Monteiro
     try:
         conn.execute("""CREATE TABLE IF NOT EXISTS monteiro_payments (
@@ -745,6 +784,7 @@ def init_db(company: str = None):
     except sqlite3.OperationalError:
         # nf_number jÃ¡ existe â€” migraÃ§Ã£o jÃ¡ rodou, esperado
         pass
+    init_whatsapp_schema(conn)
     conn.commit(); conn.close()
 
 def load_prices() -> Dict[str,float]:
@@ -791,7 +831,8 @@ def get_session(x_token:str="")->dict:
         if last:
             try:
                 last_dt=datetime.fromisoformat(str(last).replace(" ","T"))
-                if datetime.now()-last_dt > timedelta(minutes=SESSION_IDLE_MINUTES):
+                idle_limit = ANDROID_SESSION_DAYS * 24 * 60 if str(row["client_type"] or "web") == "android" else SESSION_IDLE_MINUTES
+                if datetime.now()-last_dt > timedelta(minutes=idle_limit):
                     conn.execute("DELETE FROM sessions WHERE token=?",(x_token,))
                     conn.commit(); conn.close()
                     return {}
@@ -845,6 +886,39 @@ def require_module_action(x_token:str,area_key:str,module_key:str,action:str="vi
     sess=require_auth(x_token)
     context=_rbac_context_for_session(sess)
     if not context.get("managed") or role_has_permission(context,area_key,module_key,action):
+        return sess
+    raise HTTPException(403,"Voce nao tem permissao para acessar esta area.")
+
+def require_whatsapp_action(x_token:str,module_key:str,action:str="view")->dict:
+    sess=require_auth(x_token)
+    context=_rbac_context_for_session(sess)
+    if context.get("managed"):
+        if role_has_permission(context,_current_area_key(),module_key,action):
+            return sess
+    elif module_key in ("clientes_whatsapp_sugestoes","clientes_whatsapp_lotes","clientes_whatsapp_envio"):
+        if sess.get("role")=="admin":
+            return sess
+    elif action=="view" or sess.get("role") in ("admin","editor"):
+        return sess
+    raise HTTPException(403,"Voce nao tem permissao para acessar esta area.")
+
+def _sellers_area_key(company_key:str="",module_context:str="")->str:
+    company=_company_key(company_key or CURRENT_COMPANY.get())
+    context=str(module_context or "").strip().lower()
+    if context=="monteiro":
+        if company!="raios":
+            raise HTTPException(403,"Vendedores do Monteiro pertencem ao contexto Menina dos Raios.")
+        return "monteiro"
+    return "menina_da_estrada" if company=="estrada" else "menina_dos_raios"
+
+def require_sellers_action(x_token:str,module_key:str="vendedores",action:str="view",company_key:str=None,module_context:str="")->dict:
+    sess=require_auth(x_token)
+    area_key=_sellers_area_key(company_key or CURRENT_COMPANY.get(),module_context)
+    context=_rbac_context_for_session(sess)
+    if context.get("managed"):
+        if role_has_permission(context,area_key,module_key,action):
+            return sess
+    elif action=="view" or sess.get("role") in ("admin","editor"):
         return sess
     raise HTTPException(403,"Voce nao tem permissao para acessar esta area.")
 
@@ -1072,11 +1146,16 @@ def backup_scheduler():
 # â”€â”€ FastAPI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 from contextlib import asynccontextmanager
 
+MOTIVATION_SCHEDULER_STARTED=False
+MOTIVATION_SCHEDULER_STOP=threading.Event()
+
 @asynccontextmanager
 async def lifespan(app_instance):
     """Inicializa banco e inicia scheduler de backup."""
+    global MOTIVATION_SCHEDULER_STARTED
     for company in COMPANY_DBS:
         init_db(company)
+    _initialize_app_notes_journal()
     # Limpeza de sessÃµes expiradas ao subir o serviÃ§o
     try:
         c=get_control_db()
@@ -1096,9 +1175,16 @@ async def lifespan(app_instance):
     # Iniciar thread de backup automÃ¡tico
     bk_thread=threading.Thread(target=backup_scheduler,daemon=True)
     bk_thread.start()
-    motivation_thread=threading.Thread(target=motivation_scheduler,daemon=True)
+    MOTIVATION_SCHEDULER_STOP.clear()
+    motivation_thread=threading.Thread(target=motivation_scheduler,name="motivation-scheduler",daemon=True)
     motivation_thread.start()
-    yield
+    MOTIVATION_SCHEDULER_STARTED=True
+    try:
+        yield
+    finally:
+        MOTIVATION_SCHEDULER_STOP.set()
+        motivation_thread.join(timeout=10)
+        MOTIVATION_SCHEDULER_STARTED=False
 
 app=FastAPI(title="Menina dos Raios Ltda API", lifespan=lifespan)
 # GZip: comprime respostas JSON grandes (ex: /api/sales ~600KB -> ~80KB).
@@ -1140,6 +1226,58 @@ def _managed_route_permission(path:str,method:str):
         return (None,"produtos","view")
     if path=="/api/product-stats" and method=="GET":
         return (None,"produtos","view")
+    if path=="/api/whatsapp/status" and method=="GET":
+        return (None,"clientes_whatsapp","view")
+    if re.fullmatch(r"/api/clients/[^/]+/whatsapp(?:/conversations)?",path) and method=="GET":
+        return (None,"clientes_whatsapp","view")
+    if path=="/api/whatsapp/conversations" and method=="GET":
+        return (None,"clientes_whatsapp","view")
+    if path=="/api/whatsapp/inbound-events" and method=="GET":
+        return (None,"clientes_whatsapp","view")
+    if path=="/api/whatsapp/suggestions" and method=="GET":
+        return (None,"clientes_whatsapp_sugestoes","view")
+    if path=="/api/whatsapp/manual-batches" and method=="GET":
+        return (None,"clientes_whatsapp_lotes","view")
+    if path=="/api/whatsapp/manual-batches" and method=="POST":
+        return (None,"clientes_whatsapp_lotes","create")
+    if re.fullmatch(r"/api/whatsapp/manual-batches/[^/]+",path) and method=="GET":
+        return (None,"clientes_whatsapp_lotes","view")
+    if re.fullmatch(r"/api/whatsapp/manual-batches/[^/]+/confirm",path) and method=="POST":
+        return (None,"clientes_whatsapp_lotes","approve")
+    if re.fullmatch(r"/api/whatsapp/manual-batches/[^/]+/cancel",path) and method=="POST":
+        return (None,"clientes_whatsapp_lotes","edit")
+    if re.fullmatch(r"/api/whatsapp/manual-batches/[^/]+/send",path) and method=="POST":
+        return (None,"clientes_whatsapp_envio","create")
+    if re.fullmatch(r"/api/whatsapp/conversations/[^/]+",path) and method=="GET":
+        return (None,"clientes_whatsapp","view")
+    if path=="/api/whatsapp/orders" and method=="GET":
+        return (None,"clientes_pedidos","view")
+    if re.fullmatch(r"/api/whatsapp/orders/[^/]+",path) and method=="GET":
+        return (None,"clientes_pedidos","view")
+    if re.fullmatch(r"/api/whatsapp/orders/[^/]+",path) and method=="DELETE":
+        return (None,"clientes_pedidos","edit")
+    if re.fullmatch(r"/api/whatsapp/orders/[^/]+/(?:confirm|reject)",path) and method=="POST":
+        return (None,"clientes_pedidos","edit")
+    if path=="/api/whatsapp/orders/new-for-client" and method=="POST":
+        return (None,"clientes_pedidos","create")
+    if re.fullmatch(r"/api/clients/[^/]+/consumption",path):
+        return (None,"clientes_whatsapp","view" if method=="GET" else "edit")
+    if re.fullmatch(r"/api/clients/[^/]+/damages",path):
+        return (None,"clientes_whatsapp","view" if method=="GET" else "create")
+    if path=="/api/whatsapp/webhooks/incoming" and method=="POST":
+        return (None,"clientes_whatsapp","create")
+    if path=="/api/sellers" and method=="GET":
+        return (None,"vendedores","view")
+    if path=="/api/sellers/similar" and method=="GET":
+        return (None,"vendedores","view")
+    if path=="/api/sellers" and method=="POST":
+        return (None,"vendedores","create")
+    if re.fullmatch(r"/api/sellers/[^/]+",path) and method=="PUT":
+        return (None,"vendedores","edit")
+    if re.fullmatch(r"/api/sellers/[^/]+/(?:activate|deactivate)",path) and method=="POST":
+        return (None,"vendedores","edit")
+    if re.fullmatch(r"/api/sellers/[^/]+/history",path) and method=="GET":
+        return (None,"vendedores","view")
     if path.startswith("/api/admin/roles") or path=="/api/admin/permission-products":
         return ("any","cargos","configure")
     return None
@@ -1167,14 +1305,46 @@ async def company_context_middleware(request: Request, call_next):
                         if not any(role_has_permission(context,key,module_key,action) for key in AREA_MODULES):
                             return JSONResponse(status_code=403,content={"detail":"Voce nao tem permissao para acessar esta area."})
                     else:
-                        area_key=area_key or _current_area_key()
+                        if module_key=="vendedores":
+                            try:
+                                area_key=_sellers_area_key(CURRENT_COMPANY.get(),request.query_params.get("module_context",""))
+                            except HTTPException as exc:
+                                return JSONResponse(status_code=exc.status_code,content={"detail":exc.detail})
+                        else:
+                            area_key=area_key or _current_area_key()
                         if not role_has_permission(context,area_key,module_key,action):
                             return JSONResponse(status_code=403,content={"detail":"Voce nao tem permissao para acessar esta area."})
         return await call_next(request)
     finally:
         CURRENT_COMPANY.reset(token)
 
+app.include_router(create_whatsapp_clients_router(
+    get_db,
+    lambda: _company_key(CURRENT_COMPANY.get()),
+    require_whatsapp_action,
+    lambda phone, message, config: wa_send(phone, message, config),
+))
+app.include_router(create_whatsapp_inbound_router(
+    get_db,
+    lambda: _company_key(CURRENT_COMPANY.get()),
+    frozenset(COMPANY_DBS),
+    require_whatsapp_action,
+    lambda phone, message, config: wa_send(phone, message, config),
+))
+app.include_router(create_whatsapp_campaigns_router(
+    get_db,
+    lambda: _company_key(CURRENT_COMPANY.get()),
+    require_whatsapp_action,
+    lambda phone, message, config: wa_send(phone, message, config),
+))
+
 # â”€â”€ Auth endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+app.include_router(create_sellers_router(
+    get_db,
+    lambda: _company_key(CURRENT_COMPANY.get()),
+    require_sellers_action,
+))
+
 @app.post("/api/auth/login")
 def login(body:LoginIn, request:Request):
     ip = _client_ip(request)
@@ -1199,12 +1369,13 @@ def login(body:LoginIn, request:Request):
                          (hash_password(body.password), user["id"]))
         except Exception: pass
     token=str(uuid.uuid4())
-    expires=(datetime.now()+timedelta(hours=SESSION_HOURS)).strftime("%Y-%m-%d %H:%M:%S")
+    client_type = "android" if request.headers.get("x-client-type", "").strip().lower() == "android" else "web"
+    expires=(datetime.now()+ (timedelta(days=ANDROID_SESSION_DAYS) if client_type == "android" else timedelta(hours=SESSION_HOURS))).strftime("%Y-%m-%d %H:%M:%S")
     try:
-        conn.execute("INSERT INTO sessions(token,user_id,username,full_name,role,last_seen,expires_at) VALUES(?,?,?,?,?,datetime('now'),?)",
-                     (token,user["id"],user["username"],user["full_name"],user["role"],expires))
+        conn.execute("INSERT INTO sessions(token,user_id,username,full_name,role,last_seen,client_type,expires_at) VALUES(?,?,?,?,?,datetime('now'),?,?)",
+                     (token,user["id"],user["username"],user["full_name"],user["role"],client_type,expires))
     except sqlite3.OperationalError as e:
-        if "last_seen" not in str(e).lower():
+        if "last_seen" not in str(e).lower() and "client_type" not in str(e).lower():
             raise
         conn.execute("INSERT INTO sessions(token,user_id,username,full_name,role,expires_at) VALUES(?,?,?,?,?,?)",
                      (token,user["id"],user["username"],user["full_name"],user["role"],expires))
@@ -1788,6 +1959,7 @@ def list_sales(sale_type:Optional[str]=None,month:Optional[int]=None,
 @app.post("/api/sales")
 def create_sale(sale:SaleIn,x_token:str=Header("")):
     sess=require_editor_tab_access(x_token,["consolidado","nf","pr","avulso","avaria","pendentes"])
+    require_sellers_action(x_token,action="view",company_key=_company_key(CURRENT_COMPANY.get()))
     total=sale.total if sale.total is not None else sale.quantity*sale.unit_price
     new_id=str(uuid.uuid4()); now=datetime.now()
     # Normaliza nome do produto (unifica "Alho 250g"/"ALHO 250G", Macaxeira, etc).
@@ -1795,23 +1967,37 @@ def create_sale(sale:SaleIn,x_token:str=Header("")):
     product_norm = norm_p(sale.product, sale.sale_type) if sale.product else sale.product
     _require_product_action(sess,product_norm,"create")
     conn=get_db()
-    conn.execute("""INSERT INTO sales(id,sale_type,sale_date,sale_time,client,product,nf_number,
-        quantity,unit_price,total,notes,delivery_person,plate,source,created_by,created_at)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-        (new_id,sale.sale_type,sale.sale_date,sale.sale_time or now.strftime("%H:%M"),
-         sale.client,product_norm,sale.nf_number,sale.quantity,sale.unit_price,total,
-         sale.notes,sale.delivery_person,sale.plate,sale.source,sess["username"],now.isoformat()))
-    import json as _json
-    log_action(conn,sess,"CREATE_SALE","",product_norm or "",
-               "venda_criada","",
-               _json.dumps({"tipo":sale.sale_type,"data":sale.sale_date,"hora":sale.sale_time or "",
-                 "cliente":sale.client or "","produto":product_norm or "",
-                 "nf":sale.nf_number or "","placa":sale.plate or "",
-                 "entregador":sale.delivery_person or "",
-                 "qt":sale.quantity,"p_unit":sale.unit_price,"total":total},ensure_ascii=False),
-               sale.sale_date,"")
-    conn.commit(); clear_sales_cache(); row=conn.execute("SELECT * FROM sales WHERE id=?",(new_id,)).fetchone()
-    conn.close(); return dict(row)
+    try:
+        if not sale.seller_id:
+            raise HTTPException(400,"Informe quem vendeu.")
+        try:
+            seller=require_active_seller(conn,_company_key(CURRENT_COMPANY.get()),sale.seller_id)
+        except ValueError as exc:
+            raise HTTPException(400,str(exc))
+        conn.execute("""INSERT INTO sales(id,sale_type,sale_date,sale_time,client,product,nf_number,
+            quantity,unit_price,total,notes,delivery_person,plate,source,created_by,created_at,
+            seller_id,seller_name_snapshot)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (new_id,sale.sale_type,sale.sale_date,sale.sale_time or now.strftime("%H:%M"),
+             sale.client,product_norm,sale.nf_number,sale.quantity,sale.unit_price,total,
+             sale.notes,sale.delivery_person,sale.plate,sale.source,sess["username"],now.isoformat(),
+             seller["id"],seller["name"]))
+        import json as _json
+        log_action(conn,sess,"CREATE_SALE","",product_norm or "",
+                   "venda_criada","",
+                   _json.dumps({"tipo":sale.sale_type,"data":sale.sale_date,"hora":sale.sale_time or "",
+                     "cliente":sale.client or "","produto":product_norm or "",
+                     "nf":sale.nf_number or "","placa":sale.plate or "",
+                     "entregador":sale.delivery_person or "","vendedor":seller["name"],
+                     "qt":sale.quantity,"p_unit":sale.unit_price,"total":total},ensure_ascii=False),
+                   sale.sale_date,"")
+        conn.commit(); clear_sales_cache(); row=conn.execute("SELECT * FROM sales WHERE id=?",(new_id,)).fetchone()
+        return dict(row)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 @app.put("/api/sales/bulk-delivered")
 def bulk_delivery_status(body:dict,x_token:str=Header("")):
@@ -1844,7 +2030,10 @@ def clear_imports(x_token:str=Header("")):
 
 @app.put("/api/sales/{sale_id}")
 def update_sale(sale_id:str,body:dict,x_token:str=Header("")):
-    sess=require_editor_tab_access(x_token,["consolidado","nf","pr","avulso","avaria","pendentes"]); conn=get_db()
+    sess=require_editor_tab_access(x_token,["consolidado","nf","pr","avulso","avaria","pendentes"])
+    if body.get("seller_id"):
+        require_sellers_action(x_token,action="view",company_key=_company_key(CURRENT_COMPANY.get()))
+    conn=get_db()
     try:
         old=conn.execute("SELECT * FROM sales WHERE id=?",(sale_id,)).fetchone()
         if not old: raise HTTPException(404,"Venda nÃ£o encontrada.")
@@ -1860,6 +2049,15 @@ def update_sale(sale_id:str,body:dict,x_token:str=Header("")):
         for f in fields:
             if f in body:
                 conn.execute(f"UPDATE sales SET {f}=? WHERE id=?",(body[f],sale_id))
+        if "seller_id" in body and body.get("seller_id"):
+            try:
+                seller=require_active_seller(conn,_company_key(CURRENT_COMPANY.get()),body.get("seller_id"))
+            except ValueError as exc:
+                raise HTTPException(400,str(exc))
+            conn.execute(
+                "UPDATE sales SET seller_id=?, seller_name_snapshot=? WHERE id=?",
+                (seller["id"], seller["name"], sale_id),
+            )
         log_action(conn,sess,"EDIT_SALE","","",str(old["product"]),"venda editada","",str(old["sale_date"]),"")
         conn.commit()
     except Exception:
@@ -3902,9 +4100,15 @@ def delete_paladar_product(pid:str,x_token:str=Header("")):
 
 @app.get("/api/monteiro/summary")
 @app.get("/api/paladar/summary")
-def paladar_summary(period:Optional[str]=None,month:Optional[str]=None,year:Optional[str]=None,x_token:str=Header("")):
+def paladar_summary(period:Optional[str]=None,month:Optional[str]=None,year:Optional[str]=None,
+                    seller_id:Optional[str]=None,x_token:str=Header("")):
     require_auth(x_token); conn=get_db()
     where, args = _pal_period_where(period, month, year)
+    if seller_id:
+        if seller_id=="__none__":
+            where.append("seller_id IS NULL")
+        else:
+            where.append("seller_id=?"); args.append(seller_id)
     ws=" AND ".join(where) if where else "1"
     row=conn.execute(f"""SELECT
         COALESCE(SUM(total),0) as total_receita,
@@ -3930,6 +4134,15 @@ def paladar_summary(period:Optional[str]=None,month:Optional[str]=None,year:Opti
     # Por dia
     dia=conn.execute(f"""SELECT saledate as date, SUM(total) as total, SUM(quantity) as qty, COUNT(DISTINCT sale_group) as count
         FROM paladar_sales WHERE {ws} GROUP BY saledate ORDER BY saledate""",args).fetchall()
+    sellers=conn.execute(f"""SELECT COALESCE(seller_id,'__none__') as seller_id,
+        COALESCE(MAX(seller_name_snapshot),'Nao informado') as seller_name,
+        COALESCE(SUM(total),0) as total_receita,
+        COUNT(DISTINCT sale_group) as total_vendas,
+        CASE WHEN COUNT(DISTINCT sale_group)>0 THEN COALESCE(SUM(total),0)/COUNT(DISTINCT sale_group) ELSE 0 END as ticket_medio,
+        COUNT(DISTINCT saledate) as dias_produtivos
+        FROM paladar_sales WHERE {ws}
+        GROUP BY COALESCE(seller_id,'__none__')
+        ORDER BY total_receita DESC""",args).fetchall()
     conn.close()
     return {
         "total_receita": float(row["total_receita"]),
@@ -3938,7 +4151,8 @@ def paladar_summary(period:Optional[str]=None,month:Optional[str]=None,year:Opti
         "dias_produtivos": row["dias_produtivos"],
         "melhor_dia": dict(melhor) if melhor else {"date":None,"total":0,"qty":0,"count":0},
         "por_produto": prod,
-        "por_dia": [dict(r) for r in dia]
+        "por_dia": [dict(r) for r in dia],
+        "por_vendedor": [dict(r) for r in sellers]
     }
 
 @app.get("/api/monteiro/sales")
@@ -3977,16 +4191,26 @@ def paladar_sales(period:Optional[str]=None,month:Optional[str]=None,year:Option
 @app.post("/api/monteiro/sales")
 @app.post("/api/paladar/sales")
 def create_paladar_sale(body:dict,x_token:str=Header("")):
-    require_editor_tab_access(x_token,["consolidado","nf","avulso","pendentes"]); conn=get_db()
+    require_editor_tab_access(x_token,["consolidado","nf","avulso","pendentes"])
+    require_sellers_action(x_token,action="view",company_key="raios",module_context="monteiro")
+    conn=get_db()
     try:
         saledate=body.get("saledate")
         items=body.get("items")
+        seller_id=body.get("seller_id")
+        if not seller_id:
+            raise HTTPException(400,"Informe quem vendeu.")
+        try:
+            seller=require_active_seller(conn,_company_key(CURRENT_COMPANY.get()),seller_id)
+        except ValueError as exc:
+            raise HTTPException(400,str(exc))
         # Campos de cabeÃ§alho (cÃ³pia para todos os itens do grupo)
         nf_number=body.get("nf_number","") or ""
         driver=body.get("driver","") or ""
         vehicle=body.get("vehicle","") or ""
         plate=body.get("plate","") or ""
         client=body.get("client","") or ""
+        notes=body.get("notes","") or ""
         # Suporte legado: body antigo de item Ãºnico
         if not items:
             items=[{"product":body.get("product"),"quantity":body.get("quantity",1),
@@ -4002,6 +4226,9 @@ def create_paladar_sale(body:dict,x_token:str=Header("")):
                                   (nf_number,saledate,client)).fetchone()
             if existing:
                 group=existing["sale_group"]
+                existing_seller=conn.execute("SELECT seller_id FROM paladar_sales WHERE sale_group=? AND seller_id IS NOT NULL LIMIT 1",(group,)).fetchone()
+                if existing_seller and existing_seller["seller_id"] != seller["id"]:
+                    raise HTTPException(409,"Esta NF ja possui outro vendedor no grupo.")
                 # Atualizar campos de cabeÃ§alho no grupo existente
                 conn.execute("UPDATE paladar_sales SET driver=?,vehicle=?,plate=?,notes=? WHERE sale_group=? AND id=(SELECT MIN(id) FROM paladar_sales WHERE sale_group=?)",
                              (driver,vehicle,plate,notes,group,group))
@@ -4010,12 +4237,12 @@ def create_paladar_sale(body:dict,x_token:str=Header("")):
         ids=[]
         for it in items:
             conn.execute("""INSERT INTO paladar_sales(sale_group,saledate,product,quantity,unitprice,total,notes,
-                nf_number,driver,vehicle,plate,client)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+                nf_number,driver,vehicle,plate,client,seller_id,seller_name_snapshot)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (group,saledate,it.get("product"),
                  float(it.get("quantity",1)),float(it.get("unitprice",0)),
                  float(it.get("total",0)),it.get("notes",""),
-                 nf_number,driver,vehicle,plate,client))
+                 nf_number,driver,vehicle,plate,client,seller["id"],seller["name"]))
             ids.append(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
         conn.commit()
         return {"ids":ids,"group":group,"message":"ok"}
@@ -5648,6 +5875,7 @@ def send_daily_motivation(force:bool=False):
     now=_motivation_now();today=now.strftime("%Y-%m-%d")
     conn=get_db()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         cfg={r["key"]:r["value"] for r in conn.execute("SELECT key,value FROM whatsapp_config").fetchall()}
         if not force and cfg.get("motivation_enabled","1")!="1": return {"ok":False,"reason":"disabled"}
         send_time=cfg.get("motivation_time","07:00") or "07:00"
@@ -5675,6 +5903,7 @@ def send_daily_motivation(force:bool=False):
         if not contacts: return {"ok":False,"reason":"no_contacts","count":len(templates)}
         item=templates[(now.toordinal()-1)%len(templates)]
         content=(item.get("content") or "").strip()
+        # Serializes scheduler attempts across workers before the network send.
         conn.execute("INSERT OR REPLACE INTO whatsapp_config(key,value) VALUES('motivation_last_attempt',?)",[now.isoformat()])
         conn.commit()
     except Exception:
@@ -5710,11 +5939,12 @@ def send_daily_motivation(force:bool=False):
 
 def motivation_scheduler():
     import time
-    time.sleep(8)
-    while True:
+    if MOTIVATION_SCHEDULER_STOP.wait(8): return
+    print("[motivacao] Agendador diario ativo; fuso=America/Manaus; intervalo=300s")
+    while not MOTIVATION_SCHEDULER_STOP.is_set():
         try: send_daily_motivation()
         except Exception as e: print(f"[motivacao] Erro no agendador: {type(e).__name__}: {e}")
-        time.sleep(300)
+        if MOTIVATION_SCHEDULER_STOP.wait(300): return
 
 @app.get("/api/whatsapp/contacts")
 def list_wa_contacts(x_token: str = Header(...)):
@@ -6124,6 +6354,53 @@ def wa_baileys_connection(action: str, x_token: str = Header(...)):
         raise HTTPException(response.status_code,payload.get("error") or payload.get("message") or response.text[:300])
     return payload
 
+def _baileys_maintenance_config():
+    conn=get_db()
+    try:
+        cfg={r["key"]:r["value"] for r in conn.execute("SELECT key,value FROM whatsapp_config").fetchall()}
+    finally:
+        conn.close()
+    if cfg.get("provider","ultramsg")!="baileys":
+        raise HTTPException(400,"Selecione o provedor Baileys antes de gerenciar atualizacoes.")
+    api_url=(cfg.get("api_url") or "http://127.0.0.1:3001").strip().rstrip("/")
+    parsed=urlparse(api_url)
+    if parsed.scheme!="http" or parsed.hostname not in ("127.0.0.1","localhost") or parsed.port!=3001:
+        raise HTTPException(400,"A atualizacao Baileys exige a API local em http://127.0.0.1:3001.")
+    return api_url,cfg.get("api_token","")
+
+def _baileys_maintenance_request(method:str,path:str,refresh:bool=False):
+    api_url,token=_baileys_maintenance_config()
+    target=f"{api_url}{path}"
+    try:
+        try:
+            import httpx as _hx
+            if method=="GET":
+                response=_hx.get(target,headers={"x-api-key":token},params={"refresh":"1"} if refresh else None,timeout=8)
+            else:
+                response=_hx.post(target,headers={"x-api-key":token},json={},timeout=12)
+        except ImportError:
+            import requests as _rq
+            if method=="GET":
+                response=_rq.get(target,headers={"x-api-key":token},params={"refresh":"1"} if refresh else None,timeout=8)
+            else:
+                response=_rq.post(target,headers={"x-api-key":token},json={},timeout=12)
+        payload=response.json() if response.text else {}
+    except Exception as exc:
+        raise HTTPException(503,f"Servico Baileys offline ou inacessivel: {type(exc).__name__}")
+    if response.status_code not in (200,201,202):
+        raise HTTPException(response.status_code,payload.get("error") or payload.get("message") or "Falha no servico Baileys.")
+    return payload
+
+@app.get("/api/whatsapp/baileys-update-status")
+def wa_baileys_update_status(refresh:bool=False,x_token:str=Header(...)):
+    require_admin(x_token)
+    return _baileys_maintenance_request("GET","/maintenance/status",refresh=refresh)
+
+@app.post("/api/whatsapp/baileys-update")
+def wa_baileys_update(x_token:str=Header(...)):
+    require_admin(x_token)
+    return _baileys_maintenance_request("POST","/maintenance/update")
+
 @app.get("/api/whatsapp/log")
 def get_wa_log(page: int = 1, limit: int = 10, x_token: str = Header(...)):
     require_admin(x_token)
@@ -6227,7 +6504,8 @@ def motivation_status(x_token: str = Header(...)):
     conn.close()
     return {"enabled":cfg.get("motivation_enabled","1")=="1","time":cfg.get("motivation_time","07:00"),
             "last_success":cfg.get("motivation_last_success",""),"last_attempt":cfg.get("motivation_last_attempt",""),
-            "templates":count,"active_contacts":contacts}
+            "templates":count,"active_contacts":contacts,"scheduler_running":MOTIVATION_SCHEDULER_STARTED,
+            "provider":cfg.get("provider","ultramsg"),"provider_configured":bool(cfg.get("api_url") and cfg.get("api_token"))}
 
 @app.post("/api/whatsapp/motivation-send-now")
 def motivation_send_now(x_token: str = Header(...)):
@@ -6275,8 +6553,264 @@ def delete_wa_template(tid: str, x_token: str = Header(...)):
     return {"ok": True}
 
 # â”€â”€ WhatsApp Bot Settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+WHATSAPP_INBOUND_ENV_FILE = Path(os.environ.get("WHATSAPP_INBOUND_ENV_FILE", "/etc/menina-whatsapp-sandbox.env"))
+WHATSAPP_INBOUND_HELPER = Path(os.environ.get("WHATSAPP_INBOUND_HELPER", "/usr/local/sbin/menina-whatsapp-inbound-mode"))
+WHATSAPP_INBOUND_SERVICE = "menina-baileys.service"
+WHATSAPP_INBOUND_STATUS_URL = "http://127.0.0.1:3001/status"
+WHATSAPP_INBOUND_ALLOWED_MODES = {"sandbox", "production"}
+
+def _safe_actor_hash(sess: dict) -> str:
+    raw = f"{sess.get('user_id','')}|{sess.get('username','')}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
+
+def _parse_whatsapp_inbound_env_text(text: str) -> dict:
+    env = {}
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+            value = value[1:-1]
+        env[key] = value
+    return env
+
+def _call_whatsapp_inbound_helper(action: str, *args: str) -> dict:
+    import subprocess
+    command = ["sudo", "-n", str(WHATSAPP_INBOUND_HELPER), action, *args]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=90)
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "helper_inbound_mode_failed").strip().splitlines()
+        raise RuntimeError(detail[-1][:180] if detail else "helper_inbound_mode_failed")
+    try:
+        payload = json.loads(result.stdout or "{}")
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("helper_inbound_mode_invalid_json") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("helper_inbound_mode_invalid_payload")
+    return payload
+
+def _read_whatsapp_inbound_env():
+    path = WHATSAPP_INBOUND_ENV_FILE
+    if not path.exists():
+        raise HTTPException(500, "Arquivo de ambiente WhatsApp nao encontrado.")
+    try:
+        text = path.read_text(encoding="utf-8")
+        env = _parse_whatsapp_inbound_env_text(text)
+    except PermissionError:
+        try:
+            payload = _call_whatsapp_inbound_helper("read")
+        except Exception as exc:
+            raise HTTPException(500, "Sem permissao para ler o ambiente WhatsApp.") from exc
+        env = payload.get("env") if isinstance(payload.get("env"), dict) else {}
+        text = ""
+    return path, text, env
+
+def _set_whatsapp_inbound_mode_privileged(mode: str) -> dict:
+    if mode not in WHATSAPP_INBOUND_ALLOWED_MODES:
+        raise HTTPException(400, "Modo inbound invalido.")
+    try:
+        payload = _call_whatsapp_inbound_helper("set", mode)
+    except Exception as exc:
+        raise RuntimeError(f"helper_set_failed:{type(exc).__name__}") from exc
+    return payload
+
+def _rollback_whatsapp_inbound_mode_privileged(backup_path: str, mode: str):
+    if not backup_path:
+        return
+    args = [backup_path]
+    if mode in WHATSAPP_INBOUND_ALLOWED_MODES:
+        args.append(mode)
+    _call_whatsapp_inbound_helper("rollback", *args)
+
+def _write_whatsapp_inbound_mode(mode: str):
+    path, text, env = _read_whatsapp_inbound_env()
+    old_mode = (env.get("WHATSAPP_INBOUND_MODE") or "").strip().lower()
+    if old_mode not in WHATSAPP_INBOUND_ALLOWED_MODES:
+        raise HTTPException(500, "WHATSAPP_INBOUND_MODE ausente ou invalido no arquivo de ambiente.")
+    stat_info = path.stat()
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_root = Path(os.environ.get("MENINA_REFATORACAO_BACKUPS", "/root/menina_refatoracao_backups"))
+    backup_dir = backup_root / f"inbound_mode_{stamp}"
+    backup_dir.mkdir(parents=True, exist_ok=False)
+    backup_path = backup_dir / path.name
+    shutil.copy2(str(path), str(backup_path))
+    lines = text.splitlines()
+    replaced = False
+    new_lines = []
+    for line in lines:
+        stripped = line.lstrip()
+        if not stripped.startswith("#") and re.match(r"^WHATSAPP_INBOUND_MODE\s*=", stripped):
+            new_lines.append(f"WHATSAPP_INBOUND_MODE={mode}")
+            replaced = True
+        else:
+            new_lines.append(line)
+    if not replaced:
+        raise HTTPException(500, "Linha WHATSAPP_INBOUND_MODE nao encontrada para atualizacao segura.")
+    new_text = "\n".join(new_lines) + ("\n" if text.endswith("\n") else "")
+    tmp_path = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        tmp_path.write_text(new_text, encoding="utf-8")
+        try:
+            os.chown(str(tmp_path), stat_info.st_uid, stat_info.st_gid)
+        except AttributeError:
+            pass
+        os.chmod(str(tmp_path), stat_info.st_mode & 0o777)
+        os.replace(str(tmp_path), str(path))
+    finally:
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except Exception:
+            pass
+    return old_mode, str(backup_path)
+
+def _restore_whatsapp_inbound_env(backup_path: str):
+    path = WHATSAPP_INBOUND_ENV_FILE
+    stat_info = path.stat() if path.exists() else Path(backup_path).stat()
+    tmp_path = path.with_name(f".{path.name}.{uuid.uuid4().hex}.rollback")
+    try:
+        shutil.copy2(backup_path, str(tmp_path))
+        try:
+            os.chown(str(tmp_path), stat_info.st_uid, stat_info.st_gid)
+        except AttributeError:
+            pass
+        os.chmod(str(tmp_path), stat_info.st_mode & 0o777)
+        os.replace(str(tmp_path), str(path))
+    finally:
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except Exception:
+            pass
+
+def _systemctl(action: str, service: str, timeout: int = 30):
+    import subprocess
+    result = subprocess.run(["systemctl", action, service], capture_output=True, text=True, timeout=timeout)
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or f"systemctl {action} falhou").strip().splitlines()
+        raise RuntimeError(detail[-1][:160] if detail else f"systemctl {action} falhou")
+    return (result.stdout or "").strip()
+
+def _baileys_status_readonly():
+    try:
+        try:
+            import httpx as _hx
+            response = _hx.get(WHATSAPP_INBOUND_STATUS_URL, timeout=5)
+        except ImportError:
+            import requests as _rq
+            response = _rq.get(WHATSAPP_INBOUND_STATUS_URL, timeout=5)
+        payload = response.json() if response.text else {}
+        return response.status_code, payload
+    except Exception:
+        return 0, {}
+
+def _wait_baileys_inbound_mode(mode: str, attempts: int = 30, delay: float = 2.0):
+    import time
+    last = {"service_active": "unknown", "http_status": 0, "mode": "unknown"}
+    for attempt in range(1, attempts + 1):
+        try:
+            last["service_active"] = _systemctl("is-active", WHATSAPP_INBOUND_SERVICE, timeout=8) or "unknown"
+        except Exception:
+            last["service_active"] = "unknown"
+        http_status, payload = _baileys_status_readonly()
+        inbound = payload.get("inbound") if isinstance(payload, dict) else {}
+        last["http_status"] = http_status
+        last["mode"] = (inbound or {}).get("mode") or "unknown"
+        last["connected"] = bool(payload.get("connected")) if isinstance(payload, dict) else False
+        last["listenerInstalled"] = bool((inbound or {}).get("listenerInstalled"))
+        if last["service_active"] == "active" and http_status == 200 and last["mode"] == mode:
+            last["attempt"] = attempt
+            return last
+        time.sleep(delay)
+    raise RuntimeError(f"modo_inbound_nao_confirmado:{last.get('mode')}:{last.get('http_status')}")
+
+def _audit_whatsapp_inbound_mode(sess: dict, old_mode: str, new_mode: str, backup_path: str, result: str):
+    note = f"result={result};backup={Path(backup_path).name if backup_path else ''};actor_hash={_safe_actor_hash(sess)}"
+    conn = get_control_db()
+    try:
+        log_action(conn, sess, "WHATSAPP_INBOUND_MODE_CHANGE", "whatsapp", "Inbound automatico", "WHATSAPP_INBOUND_MODE", old_mode, new_mode, "", note)
+        conn.commit()
+    finally:
+        conn.close()
+    logger.info("WHATSAPP_INBOUND_MODE_CHANGE actor_hash=%s old_mode=%s new_mode=%s result=%s", _safe_actor_hash(sess), old_mode, new_mode, result)
+
+def _whatsapp_inbound_mode_payload():
+    _, _, env = _read_whatsapp_inbound_env()
+    configured = (env.get("WHATSAPP_INBOUND_MODE") or "").strip().lower()
+    http_status, payload = _baileys_status_readonly()
+    inbound = payload.get("inbound") if isinstance(payload, dict) else {}
+    runtime_mode = ((inbound or {}).get("mode") or "").strip().lower()
+    mode = runtime_mode if runtime_mode in WHATSAPP_INBOUND_ALLOWED_MODES else configured
+    return {
+        "mode": mode if mode in WHATSAPP_INBOUND_ALLOWED_MODES else "unknown",
+        "configured_mode": configured if configured in WHATSAPP_INBOUND_ALLOWED_MODES else "unknown",
+        "runtime_mode": runtime_mode if runtime_mode in WHATSAPP_INBOUND_ALLOWED_MODES else "unknown",
+        "service_http_status": http_status,
+        "connected": bool(payload.get("connected")) if isinstance(payload, dict) else False,
+        "listenerInstalled": bool((inbound or {}).get("listenerInstalled")),
+        "sandbox_allowlist_configured": bool((env.get("WHATSAPP_INBOUND_SANDBOX_NUMBERS") or "").strip()),
+        "requires_restart_service": WHATSAPP_INBOUND_SERVICE,
+    }
+
+@app.get("/api/whatsapp/inbound-mode")
+def get_whatsapp_inbound_mode(x_token: str = Header(...)):
+    require_admin(x_token)
+    return _whatsapp_inbound_mode_payload()
+
+@app.post("/api/whatsapp/inbound-mode")
+def set_whatsapp_inbound_mode(body: dict, x_token: str = Header(...)):
+    sess = require_admin(x_token)
+    target = str(body.get("mode") or "").strip().lower()
+    if target not in WHATSAPP_INBOUND_ALLOWED_MODES:
+        raise HTTPException(400, "Modo inbound invalido.")
+    current = _whatsapp_inbound_mode_payload()
+    configured = current.get("configured_mode")
+    if configured == target and current.get("runtime_mode") == target:
+        return {"ok": True, "mode": target, "changed": False, "restart": False, "status": current}
+    old_mode = configured if configured in WHATSAPP_INBOUND_ALLOWED_MODES else "unknown"
+    backup_path = ""
+    try:
+        helper_result = _set_whatsapp_inbound_mode_privileged(target)
+        old_mode = str(helper_result.get("old_mode") or old_mode).strip().lower()
+        backup_path = str(helper_result.get("backup") or "")
+        confirmed = _wait_baileys_inbound_mode(target)
+        _audit_whatsapp_inbound_mode(sess, old_mode, target, backup_path, "ok")
+        return {"ok": True, "mode": target, "changed": old_mode != target, "restart": True, "backup": backup_path, "status": confirmed}
+    except Exception as exc:
+        rollback_ok = False
+        rollback_error = ""
+        if backup_path:
+            try:
+                _rollback_whatsapp_inbound_mode_privileged(backup_path, old_mode)
+                if old_mode in WHATSAPP_INBOUND_ALLOWED_MODES:
+                    _wait_baileys_inbound_mode(old_mode, attempts=20, delay=2.0)
+                rollback_ok = True
+            except Exception as roll_exc:
+                rollback_error = type(roll_exc).__name__
+        try:
+            _audit_whatsapp_inbound_mode(sess, old_mode, target, backup_path, "rollback_ok" if rollback_ok else "rollback_failed")
+        except Exception:
+            pass
+        detail = f"Falha ao alterar modo inbound ({type(exc).__name__}). Rollback={'executado' if rollback_ok else 'falhou'}."
+        if rollback_error:
+            detail += f" Erro rollback={rollback_error}."
+        raise HTTPException(500, detail)
+
 _BOT_SETTINGS_KEYS = ["bot_active","auto_reply_enabled","auto_reply_from","auto_reply_to",
-                      "min_interval_secs","block_groups","block_duplicate","max_per_day_per_client","test_mode"]
+                      "min_interval_secs","block_groups","block_duplicate","max_per_day_per_client","test_mode",
+                      "order_bot_disclosure_message","order_bot_welcome_message","order_bot_quantity_message","order_bot_damage_message",
+                      "order_bot_confirm_message","order_bot_done_message"]
+_ORDER_BOT_LEGACY_DEFAULTS = {
+    "order_bot_welcome_message": "Olá, {cliente}! Qual produto você deseja solicitar?\n\nNossa lista de produtos:\n1. Macaxeira com casca\n2. Macaxeira a vácuo\n3. Alho descascado 250g\n4. Alho descascado 1kg\n5. Macaxeira chips\n6. Macaxeira pré-cozida",
+    "order_bot_confirm_message": "Está correto? Responda SIM ou NAO.",
+}
+_ORDER_BOT_CURRENT_DEFAULTS = {
+    "order_bot_welcome_message": "Olá, {cliente}! Qual produto você deseja solicitar?\n\nNossa lista de produtos:\n1. Macaxeira com casca\n2. Macaxeira a vácuo\n3. Alho descascado 250g\n4. Alho descascado 1kg\n5. Macaxeira chips\n6. Macaxeira pré-cozida\n\nVocê pode pedir mais de um produto no mesmo atendimento. Depois de informar quantidade e avaria, responda ADICIONAR para incluir outro item.",
+    "order_bot_confirm_message": "Está correto? Responda SIM, NAO ou ADICIONAR para incluir outro produto.",
+}
 
 @app.get("/api/whatsapp/bot-settings")
 def get_wa_bot_settings(x_token: str = Header(...)):
@@ -6285,7 +6819,11 @@ def get_wa_bot_settings(x_token: str = Header(...)):
     rows = conn.execute("SELECT key, value FROM whatsapp_config WHERE key IN ({})".format(
         ",".join("?" for _ in _BOT_SETTINGS_KEYS)), _BOT_SETTINGS_KEYS).fetchall()
     conn.close()
-    return {r["key"]: r["value"] for r in rows}
+    result = {r["key"]: r["value"] for r in rows}
+    for key, legacy in _ORDER_BOT_LEGACY_DEFAULTS.items():
+        if result.get(key) == legacy:
+            result[key] = _ORDER_BOT_CURRENT_DEFAULTS[key]
+    return result
 
 @app.put("/api/whatsapp/bot-settings")
 def save_wa_bot_settings(body: dict, x_token: str = Header(...)):
@@ -6326,11 +6864,21 @@ def wa_test_message(body: dict, x_token: str = Header(...)):
     return {"ok": res.get("ok"), "response": res.get("response")}
 
 # â”€â”€ Notas enviadas pelo aplicativo Android (banco independente) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+def _initialize_app_notes_journal():
+    conn=sqlite3.connect(APP_NOTES_DB_PATH,timeout=DB_BUSY_TIMEOUT_SECONDS)
+    try:
+        conn.execute(f"PRAGMA busy_timeout={DB_BUSY_TIMEOUT_MS}")
+        mode=conn.execute("PRAGMA journal_mode=WAL").fetchone()[0]
+        if str(mode).lower() != "wal":
+            raise RuntimeError("Nao foi possivel ativar WAL em app_notes.db.")
+    finally:
+        conn.close()
+
 def get_app_notes_db():
-    conn=sqlite3.connect(APP_NOTES_DB_PATH,timeout=20)
+    conn=sqlite3.connect(APP_NOTES_DB_PATH,timeout=DB_BUSY_TIMEOUT_SECONDS)
     conn.row_factory=sqlite3.Row
     try:
-        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute(f"PRAGMA busy_timeout={DB_BUSY_TIMEOUT_MS}")
         conn.execute("PRAGMA foreign_keys=ON")
         conn.executescript("""
           CREATE TABLE IF NOT EXISTS app_notes(
@@ -6349,6 +6897,9 @@ def get_app_notes_db():
           );
           CREATE TABLE IF NOT EXISTS app_note_submissions(
             external_id TEXT PRIMARY KEY, note_id TEXT NOT NULL, received_at TEXT NOT NULL,
+            submitted_by_user_id TEXT NOT NULL DEFAULT '',
+            submitted_by_username TEXT NOT NULL DEFAULT '',
+            submitted_by_name TEXT NOT NULL DEFAULT '',
             FOREIGN KEY(note_id) REFERENCES app_notes(id) ON DELETE CASCADE
           );
           CREATE TABLE IF NOT EXISTS app_notes_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);
@@ -6386,6 +6937,7 @@ def get_app_notes_db():
         """)
         item_columns={r[1] for r in conn.execute("PRAGMA table_info(app_note_items)").fetchall()}
         note_columns={r[1] for r in conn.execute("PRAGMA table_info(app_notes)").fetchall()}
+        submission_columns={r[1] for r in conn.execute("PRAGMA table_info(app_note_submissions)").fetchall()}
         if "status" not in note_columns:
             conn.execute("ALTER TABLE app_notes ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'")
         if "completed_at" not in note_columns:
@@ -6397,6 +6949,9 @@ def get_app_notes_db():
             conn.execute("ALTER TABLE app_note_items ADD COLUMN quantity_provided INTEGER NOT NULL DEFAULT 1")
         if "price_provided" not in item_columns:
             conn.execute("ALTER TABLE app_note_items ADD COLUMN price_provided INTEGER NOT NULL DEFAULT 1")
+        for column in ("submitted_by_user_id", "submitted_by_username", "submitted_by_name"):
+            if column not in submission_columns:
+                conn.execute(f"ALTER TABLE app_note_submissions ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
         conn.execute("INSERT OR IGNORE INTO app_note_submissions(external_id,note_id,received_at) SELECT external_id,id,created_at FROM app_notes")
         merged=conn.execute("SELECT value FROM app_notes_meta WHERE key='merge_client_day_v1'").fetchone()
         if not merged:
@@ -6431,28 +6986,81 @@ def _app_note_catalog_prices():
     return app_note_catalog_from_rows(rows,_normalize_name)
 
 def _app_note_dict(conn,row,catalog_prices=None):
-    return app_note_dict_from_row(conn,row,catalog_prices,_normalize_name)
+    note=app_note_dict_from_row(conn,row,catalog_prices,_normalize_name)
+    note["submissions"]=[dict(r) for r in conn.execute(
+        "SELECT external_id,received_at,submitted_by_user_id,submitted_by_username,submitted_by_name "
+        "FROM app_note_submissions WHERE note_id=? ORDER BY received_at,external_id",
+        (row["id"],)).fetchall()]
+    return note
+
+def _require_app_note_token(x_app_token):
+    if not APP_NOTES_TOKEN or not hmac.compare_digest(x_app_token,APP_NOTES_TOKEN):
+        raise HTTPException(401,"Aplicativo não autorizado.")
+
+@app.get("/api/app-notes/mobile/matches")
+def find_mobile_app_note_matches(
+    client:str="", date:str="", external_id:str="",
+    x_app_token:str=Header("",alias="x-app-token"), x_token:str=Header(""),
+):
+    _require_app_note_token(x_app_token)
+    require_auth(x_token)
+    client=str(client or "").strip()[:120]
+    note_date=str(date or "").strip()[:20]
+    if not client or not note_date:
+        return {"matches":[]}
+    conn=get_app_notes_db()
+    try:
+        if external_id:
+            already=conn.execute("SELECT 1 FROM app_note_submissions WHERE external_id=?",(external_id,)).fetchone()
+            if already:
+                return {"already_received":True,"matches":[]}
+        rows=conn.execute("""SELECT n.* FROM app_notes n
+            WHERE lower(trim(n.client))=lower(trim(?)) AND n.note_date=?
+            AND NOT EXISTS (SELECT 1 FROM app_note_submissions s
+                WHERE s.note_id=n.id AND s.external_id=?)
+            ORDER BY n.updated_at DESC,n.created_at DESC""",
+            (client,note_date,str(external_id or "").strip()[:80])).fetchall()
+        matches=[]
+        for row in rows:
+            note=_app_note_dict(conn,row)
+            matches.append({
+                "id":note["id"], "client":note["client"], "note_date":note["note_date"],
+                "status":note["status"], "created_at":note["created_at"], "updated_at":note["updated_at"],
+                "item_count":len(note["items"]), "submissions":note["submissions"],
+            })
+        return {"matches":matches}
+    finally:
+        conn.close()
 
 @app.post("/api/app-notes/mobile")
-def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-token")):
-    if not APP_NOTES_TOKEN or not hmac.compare_digest(x_app_token,APP_NOTES_TOKEN):
-        raise HTTPException(401,"Aplicativo nÃ£o autorizado.")
+def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-token"),x_token:str=Header("")):
+    _require_app_note_token(x_app_token)
+    sess=get_session(x_token) if x_token else {}
+    if x_token and not sess:
+        raise HTTPException(401,"Sessão inválida. Faça login novamente.")
     external_id=str(body.get("external_id") or "").strip()[:80]
     if not external_id: raise HTTPException(400,"Identificador da nota obrigatÃ³rio.")
     client,note_date,items,total=_clean_app_note(body)
+    merge_into_id=str(body.get("merge_into_note_id") or "").strip()[:80]
     conn=get_app_notes_db()
     try:
         submission=conn.execute("SELECT note_id FROM app_note_submissions WHERE external_id=?",(external_id,)).fetchone()
         if submission:
             existing=conn.execute("SELECT * FROM app_notes WHERE id=?",(submission["note_id"],)).fetchone()
-            result=_app_note_dict(conn,existing); return {"ok":True,"duplicate":True,"merged":False,"note":result}
+            submitted=conn.execute("SELECT * FROM app_note_submissions WHERE external_id=?",(external_id,)).fetchone()
+            result=_app_note_dict(conn,existing)
+            return {"ok":True,"duplicate":True,"merged":False,"note":result,"submission":dict(submitted)}
         note_id=str(uuid.uuid4()); now=datetime.now().isoformat(timespec="seconds")
-        same_day=None
-        if client:
-            same_day=conn.execute("SELECT * FROM app_notes WHERE lower(trim(client))=lower(trim(?)) AND note_date=? ORDER BY created_at LIMIT 1",(client,note_date)).fetchone()
-        merged_note=bool(same_day)
-        if same_day:
-            note_id=same_day["id"]
+        merge_target=None
+        if merge_into_id:
+            merge_target=conn.execute("""SELECT * FROM app_notes WHERE id=?
+                AND lower(trim(client))=lower(trim(?)) AND note_date=?""",
+                (merge_into_id,client,note_date)).fetchone()
+            if not merge_target:
+                raise HTTPException(409,"A nota escolhida para unificação não corresponde ao mesmo estabelecimento e data.")
+        merged_note=bool(merge_target)
+        if merge_target:
+            note_id=merge_target["id"]
             start_position=conn.execute("SELECT COALESCE(max(position),-1)+1 p FROM app_note_items WHERE note_id=?",(note_id,)).fetchone()["p"]
         else:
             start_position=0
@@ -6461,17 +7069,22 @@ def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-toke
         for item in items:
             conn.execute("INSERT INTO app_note_items(id,note_id,product,quantity,quantity_provided,weight,unit,unit_price,price_provided,position) VALUES(?,?,?,?,?,?,?,?,?,?)",
                 (str(uuid.uuid4()),note_id,item["product"],item["quantity"],int(item["quantity_provided"]),item["weight"],item["unit"],item["unit_price"],int(item["price_provided"]),start_position+item["position"]))
-        conn.execute("INSERT INTO app_note_submissions(external_id,note_id,received_at) VALUES(?,?,?)",(external_id,note_id,now))
+        conn.execute("""INSERT INTO app_note_submissions
+            (external_id,note_id,received_at,submitted_by_user_id,submitted_by_username,submitted_by_name)
+            VALUES(?,?,?,?,?,?)""",
+            (external_id,note_id,now,str(sess.get("user_id") or ""),
+             str(sess.get("username") or "")[:120],str(sess.get("full_name") or sess.get("username") or "")[:120]))
         accumulated=conn.execute("SELECT COALESCE(sum(weight*unit_price),0) total FROM app_note_items WHERE note_id=? AND price_provided=1",(note_id,)).fetchone()["total"]
         conn.execute("UPDATE app_notes SET total=?,updated_at=?,status='pending',completed_at=NULL WHERE id=?",(round(float(accumulated or 0),2),now,note_id))
         conn.commit(); row=conn.execute("SELECT * FROM app_notes WHERE id=?",(note_id,)).fetchone()
         result=_app_note_dict(conn,row)
+        submitted=conn.execute("SELECT * FROM app_note_submissions WHERE external_id=?",(external_id,)).fetchone()
     except Exception:
         conn.rollback()
         raise
     finally:
         conn.close()
-    return {"ok":True,"duplicate":False,"merged":merged_note,"note":result}
+    return {"ok":True,"duplicate":False,"merged":merged_note,"note":result,"submission":dict(submitted)}
 
 @app.get("/api/app-notes")
 def list_app_notes(client:Optional[str]=None,month:Optional[str]=None,year:Optional[str]=None,status:Optional[str]=None,x_token:str=Header("")):
@@ -6698,6 +7311,15 @@ def list_app_calendar_mobile(x_app_token:str=Header("",alias="x-app-token")):
     finally:
         conn.close()
 
+@app.get("/health")
+def health_check():
+    release_path=STATIC_DIR/"deploy-version.json"
+    try:
+        release=json.loads(release_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        release={"commit":"unknown"}
+    return {"ok":True,"service":"menina","release":release}
+
 @app.get("/{full_path:path}")
 def serve_spa(full_path:str):
     # â”€â”€ SEGURANÃ‡A: bloqueio de path traversal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -6736,5 +7358,6 @@ if __name__=="__main__":
     # ("systemctl restart menina"). Deploy via ATUALIZAR.bat (scp + restart).
     for company in COMPANY_DBS:
         init_db(company)
+    _initialize_app_notes_journal()
     port=int(os.environ.get("PORT",8765))
     uvicorn.run(app,host="0.0.0.0",port=port,log_level="warning")
