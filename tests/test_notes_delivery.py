@@ -575,6 +575,7 @@ def test_app_note_dict_current_header_empty_items_and_total_recalculation(isolat
         "status": "completed",
         "completed_at": None,
         "items": [],
+        "submissions": [],
     }
     assert "date" not in serialized
     assert isinstance(serialized["total"], float)
@@ -985,6 +986,88 @@ def test_app_note_mobile_create_multiple_items_submission_and_total(isolated_app
         client="Cliente Escrita Posterior",
     )
     assert created_after_mobile_create["client"] == "Cliente Escrita Posterior"
+
+
+def test_mobile_notes_keep_sender_time_and_only_merge_after_explicit_choice(isolated_app):
+    token = _login(isolated_app.client)
+    headers = {
+        "x-app-token": isolated_app.module.APP_NOTES_TOKEN,
+        "x-token": token,
+    }
+    first_response = isolated_app.client.post(
+        "/api/app-notes/mobile",
+        headers=headers,
+        json=_app_note_payload(external_id="mobile-attribution-first", client="Estabelecimento A"),
+    )
+    assert first_response.status_code == 200
+    first = first_response.json()["note"]
+    assert first_response.json()["submission"]["submitted_by_username"] == "admin"
+    assert first["submissions"][0]["submitted_by_username"] == "admin"
+    assert first["submissions"][0]["submitted_by_name"]
+    assert first["submissions"][0]["received_at"]
+
+    duplicate_response = isolated_app.client.post(
+        "/api/app-notes/mobile",
+        headers=headers,
+        json=_app_note_payload(external_id="mobile-attribution-first", client="Estabelecimento A"),
+    )
+    assert duplicate_response.status_code == 200
+    assert duplicate_response.json()["duplicate"] is True
+    assert duplicate_response.json()["submission"]["received_at"] == first_response.json()["submission"]["received_at"]
+
+    second_response = isolated_app.client.post(
+        "/api/app-notes/mobile",
+        headers=headers,
+        json=_app_note_payload(external_id="mobile-attribution-second", client=" estabelecimento a "),
+    )
+    assert second_response.status_code == 200
+    second = second_response.json()["note"]
+    assert second_response.json()["merged"] is False
+    assert second["id"] != first["id"]
+
+    matches_response = isolated_app.client.get(
+        "/api/app-notes/mobile/matches",
+        headers=headers,
+        params={"client": "ESTABELECIMENTO A", "date": "20/08/2026"},
+    )
+    assert matches_response.status_code == 200
+    assert len(matches_response.json()["matches"]) == 2
+
+    merged_response = isolated_app.client.post(
+        "/api/app-notes/mobile",
+        headers=headers,
+        json=_app_note_payload(
+            external_id="mobile-attribution-merged",
+            client="Estabelecimento A",
+            merge_into_note_id=first["id"],
+        ),
+    )
+    assert merged_response.status_code == 200
+    merged = merged_response.json()
+    assert merged["merged"] is True
+    assert merged["note"]["id"] == first["id"]
+    assert len(merged["note"]["items"]) == 2
+    assert [entry["submitted_by_username"] for entry in merged["note"]["submissions"]] == ["admin", "admin"]
+
+    invalid_merge = isolated_app.client.post(
+        "/api/app-notes/mobile",
+        headers=headers,
+        json=_app_note_payload(
+            external_id="mobile-attribution-invalid-target",
+            client="Outro estabelecimento",
+            merge_into_note_id=first["id"],
+        ),
+    )
+    assert invalid_merge.status_code == 409
+
+
+def test_mobile_note_match_lookup_requires_authenticated_session(isolated_app):
+    response = isolated_app.client.get(
+        "/api/app-notes/mobile/matches",
+        headers={"x-app-token": isolated_app.module.APP_NOTES_TOKEN},
+        params={"client": "Cliente", "date": "20/08/2026"},
+    )
+    assert response.status_code == 401
 
 
 def test_app_note_mobile_requires_configured_token_and_rejects_missing_or_wrong_token(isolated_app):

@@ -6897,6 +6897,9 @@ def get_app_notes_db():
           );
           CREATE TABLE IF NOT EXISTS app_note_submissions(
             external_id TEXT PRIMARY KEY, note_id TEXT NOT NULL, received_at TEXT NOT NULL,
+            submitted_by_user_id TEXT NOT NULL DEFAULT '',
+            submitted_by_username TEXT NOT NULL DEFAULT '',
+            submitted_by_name TEXT NOT NULL DEFAULT '',
             FOREIGN KEY(note_id) REFERENCES app_notes(id) ON DELETE CASCADE
           );
           CREATE TABLE IF NOT EXISTS app_notes_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);
@@ -6934,6 +6937,7 @@ def get_app_notes_db():
         """)
         item_columns={r[1] for r in conn.execute("PRAGMA table_info(app_note_items)").fetchall()}
         note_columns={r[1] for r in conn.execute("PRAGMA table_info(app_notes)").fetchall()}
+        submission_columns={r[1] for r in conn.execute("PRAGMA table_info(app_note_submissions)").fetchall()}
         if "status" not in note_columns:
             conn.execute("ALTER TABLE app_notes ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'")
         if "completed_at" not in note_columns:
@@ -6945,6 +6949,9 @@ def get_app_notes_db():
             conn.execute("ALTER TABLE app_note_items ADD COLUMN quantity_provided INTEGER NOT NULL DEFAULT 1")
         if "price_provided" not in item_columns:
             conn.execute("ALTER TABLE app_note_items ADD COLUMN price_provided INTEGER NOT NULL DEFAULT 1")
+        for column in ("submitted_by_user_id", "submitted_by_username", "submitted_by_name"):
+            if column not in submission_columns:
+                conn.execute(f"ALTER TABLE app_note_submissions ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
         conn.execute("INSERT OR IGNORE INTO app_note_submissions(external_id,note_id,received_at) SELECT external_id,id,created_at FROM app_notes")
         merged=conn.execute("SELECT value FROM app_notes_meta WHERE key='merge_client_day_v1'").fetchone()
         if not merged:
@@ -6979,28 +6986,81 @@ def _app_note_catalog_prices():
     return app_note_catalog_from_rows(rows,_normalize_name)
 
 def _app_note_dict(conn,row,catalog_prices=None):
-    return app_note_dict_from_row(conn,row,catalog_prices,_normalize_name)
+    note=app_note_dict_from_row(conn,row,catalog_prices,_normalize_name)
+    note["submissions"]=[dict(r) for r in conn.execute(
+        "SELECT external_id,received_at,submitted_by_user_id,submitted_by_username,submitted_by_name "
+        "FROM app_note_submissions WHERE note_id=? ORDER BY received_at,external_id",
+        (row["id"],)).fetchall()]
+    return note
+
+def _require_app_note_token(x_app_token):
+    if not APP_NOTES_TOKEN or not hmac.compare_digest(x_app_token,APP_NOTES_TOKEN):
+        raise HTTPException(401,"Aplicativo não autorizado.")
+
+@app.get("/api/app-notes/mobile/matches")
+def find_mobile_app_note_matches(
+    client:str="", date:str="", external_id:str="",
+    x_app_token:str=Header("",alias="x-app-token"), x_token:str=Header(""),
+):
+    _require_app_note_token(x_app_token)
+    require_auth(x_token)
+    client=str(client or "").strip()[:120]
+    note_date=str(date or "").strip()[:20]
+    if not client or not note_date:
+        return {"matches":[]}
+    conn=get_app_notes_db()
+    try:
+        if external_id:
+            already=conn.execute("SELECT 1 FROM app_note_submissions WHERE external_id=?",(external_id,)).fetchone()
+            if already:
+                return {"already_received":True,"matches":[]}
+        rows=conn.execute("""SELECT n.* FROM app_notes n
+            WHERE lower(trim(n.client))=lower(trim(?)) AND n.note_date=?
+            AND NOT EXISTS (SELECT 1 FROM app_note_submissions s
+                WHERE s.note_id=n.id AND s.external_id=?)
+            ORDER BY n.updated_at DESC,n.created_at DESC""",
+            (client,note_date,str(external_id or "").strip()[:80])).fetchall()
+        matches=[]
+        for row in rows:
+            note=_app_note_dict(conn,row)
+            matches.append({
+                "id":note["id"], "client":note["client"], "note_date":note["note_date"],
+                "status":note["status"], "created_at":note["created_at"], "updated_at":note["updated_at"],
+                "item_count":len(note["items"]), "submissions":note["submissions"],
+            })
+        return {"matches":matches}
+    finally:
+        conn.close()
 
 @app.post("/api/app-notes/mobile")
-def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-token")):
-    if not APP_NOTES_TOKEN or not hmac.compare_digest(x_app_token,APP_NOTES_TOKEN):
-        raise HTTPException(401,"Aplicativo nÃ£o autorizado.")
+def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-token"),x_token:str=Header("")):
+    _require_app_note_token(x_app_token)
+    sess=get_session(x_token) if x_token else {}
+    if x_token and not sess:
+        raise HTTPException(401,"Sessão inválida. Faça login novamente.")
     external_id=str(body.get("external_id") or "").strip()[:80]
     if not external_id: raise HTTPException(400,"Identificador da nota obrigatÃ³rio.")
     client,note_date,items,total=_clean_app_note(body)
+    merge_into_id=str(body.get("merge_into_note_id") or "").strip()[:80]
     conn=get_app_notes_db()
     try:
         submission=conn.execute("SELECT note_id FROM app_note_submissions WHERE external_id=?",(external_id,)).fetchone()
         if submission:
             existing=conn.execute("SELECT * FROM app_notes WHERE id=?",(submission["note_id"],)).fetchone()
-            result=_app_note_dict(conn,existing); return {"ok":True,"duplicate":True,"merged":False,"note":result}
+            submitted=conn.execute("SELECT * FROM app_note_submissions WHERE external_id=?",(external_id,)).fetchone()
+            result=_app_note_dict(conn,existing)
+            return {"ok":True,"duplicate":True,"merged":False,"note":result,"submission":dict(submitted)}
         note_id=str(uuid.uuid4()); now=datetime.now().isoformat(timespec="seconds")
-        same_day=None
-        if client:
-            same_day=conn.execute("SELECT * FROM app_notes WHERE lower(trim(client))=lower(trim(?)) AND note_date=? ORDER BY created_at LIMIT 1",(client,note_date)).fetchone()
-        merged_note=bool(same_day)
-        if same_day:
-            note_id=same_day["id"]
+        merge_target=None
+        if merge_into_id:
+            merge_target=conn.execute("""SELECT * FROM app_notes WHERE id=?
+                AND lower(trim(client))=lower(trim(?)) AND note_date=?""",
+                (merge_into_id,client,note_date)).fetchone()
+            if not merge_target:
+                raise HTTPException(409,"A nota escolhida para unificação não corresponde ao mesmo estabelecimento e data.")
+        merged_note=bool(merge_target)
+        if merge_target:
+            note_id=merge_target["id"]
             start_position=conn.execute("SELECT COALESCE(max(position),-1)+1 p FROM app_note_items WHERE note_id=?",(note_id,)).fetchone()["p"]
         else:
             start_position=0
@@ -7009,17 +7069,22 @@ def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-toke
         for item in items:
             conn.execute("INSERT INTO app_note_items(id,note_id,product,quantity,quantity_provided,weight,unit,unit_price,price_provided,position) VALUES(?,?,?,?,?,?,?,?,?,?)",
                 (str(uuid.uuid4()),note_id,item["product"],item["quantity"],int(item["quantity_provided"]),item["weight"],item["unit"],item["unit_price"],int(item["price_provided"]),start_position+item["position"]))
-        conn.execute("INSERT INTO app_note_submissions(external_id,note_id,received_at) VALUES(?,?,?)",(external_id,note_id,now))
+        conn.execute("""INSERT INTO app_note_submissions
+            (external_id,note_id,received_at,submitted_by_user_id,submitted_by_username,submitted_by_name)
+            VALUES(?,?,?,?,?,?)""",
+            (external_id,note_id,now,str(sess.get("user_id") or ""),
+             str(sess.get("username") or "")[:120],str(sess.get("full_name") or sess.get("username") or "")[:120]))
         accumulated=conn.execute("SELECT COALESCE(sum(weight*unit_price),0) total FROM app_note_items WHERE note_id=? AND price_provided=1",(note_id,)).fetchone()["total"]
         conn.execute("UPDATE app_notes SET total=?,updated_at=?,status='pending',completed_at=NULL WHERE id=?",(round(float(accumulated or 0),2),now,note_id))
         conn.commit(); row=conn.execute("SELECT * FROM app_notes WHERE id=?",(note_id,)).fetchone()
         result=_app_note_dict(conn,row)
+        submitted=conn.execute("SELECT * FROM app_note_submissions WHERE external_id=?",(external_id,)).fetchone()
     except Exception:
         conn.rollback()
         raise
     finally:
         conn.close()
-    return {"ok":True,"duplicate":False,"merged":merged_note,"note":result}
+    return {"ok":True,"duplicate":False,"merged":merged_note,"note":result,"submission":dict(submitted)}
 
 @app.get("/api/app-notes")
 def list_app_notes(client:Optional[str]=None,month:Optional[str]=None,year:Optional[str]=None,status:Optional[str]=None,x_token:str=Header("")):
