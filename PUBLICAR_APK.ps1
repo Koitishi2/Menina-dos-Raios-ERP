@@ -305,7 +305,8 @@ Invoke-Checked "scp" @("-P", $port, $changelog, "$user@$hostName`:$remoteAppUpda
 
 $script:PublishStage = "REMOTE-VALIDATE"
 $remoteHashLine = "$hash  $remoteAppUpdatesDir/$OFFICIAL_APK_NAME"
-$validateCommand = "set -e; test -f '$remoteAppUpdatesDir/$OFFICIAL_APK_NAME'; test -f '$remoteAppUpdatesDir/$LATEST_JSON_NAME'; test -f '$remoteAppUpdatesDir/$CATALOG_JSON_NAME'; printf '%s\n' '$remoteHashLine' | sha256sum -c -; grep -Eq '""sha256""[[:space:]]*:[[:space:]]*""$hash""' '$remoteAppUpdatesDir/$LATEST_JSON_NAME'; grep -Eq '""versionCode""[[:space:]]*:[[:space:]]*$($apkInfo.versionCode)' '$remoteAppUpdatesDir/$LATEST_JSON_NAME'; echo APK_PUBLICATION_OK"
+$catalogValidation = 'import json,sys; data=json.load(open(sys.argv[1], encoding="utf-8")); assert data.get("sha256")==sys.argv[2], "catalog SHA-256 mismatch"; assert int(data.get("versionCode",0))==int(sys.argv[3]), "catalog versionCode mismatch"; print("APK_CATALOG_OK")'
+$validateCommand = "set -e; test -f '$remoteAppUpdatesDir/$OFFICIAL_APK_NAME'; test -f '$remoteAppUpdatesDir/$LATEST_JSON_NAME'; test -f '$remoteAppUpdatesDir/$CATALOG_JSON_NAME'; printf '%s\n' '$remoteHashLine' | sha256sum -c -; python3 -c '$catalogValidation' '$remoteAppUpdatesDir/$LATEST_JSON_NAME' '$hash' '$($apkInfo.versionCode)'; python3 -c '$catalogValidation' '$remoteAppUpdatesDir/$CATALOG_JSON_NAME' '$hash' '$($apkInfo.versionCode)'; echo APK_PUBLICATION_OK"
 Invoke-Checked "ssh" @("-p", $port, "$user@$hostName", $validateCommand) "Falha ao validar arquivos publicados."
 
 Write-Host ""
