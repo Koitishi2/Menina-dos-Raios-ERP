@@ -267,9 +267,7 @@ body.notif-hidden #app.visible ~ #notif-restore{display:inline-flex!important}
 body.mobile-bell-hidden #app.visible ~ .notif-bell,
 body.mobile-bell-hidden #app.visible ~ #notif-restore{display:none!important}
 body.company-estrada #cfg-btn-whatsapp,
-body.company-estrada #cfg-btn-sebrae,
-body.company-estrada #cfg-whatsapp,
-body.company-estrada #cfg-sebrae{display:none!important}
+body.company-estrada #cfg-whatsapp{display:none!important}
 
 /* ── Modo TV — overlay full-screen para painel de escritório/sala ──────────── */
 #tv-mode{position:fixed;inset:0;height:100%;z-index:9000;background:linear-gradient(135deg,#0a1a14 0%,#1d3b2c 50%,#2c4f3a 100%);color:#fff;display:none;overflow:hidden;font-family:'DM Sans',sans-serif;flex-direction:column}
@@ -8938,7 +8936,7 @@ function switchRegView(view){
 function getCompanyConfigSubIds(){
   var all=CONFIG_SUBTABS_DEF.map(function(t){return t[0];});
   if(activeCompany==='estrada'){
-    return all.filter(function(id){return ['whatsapp','sebrae'].indexOf(id)<0;});
+    return all.filter(function(id){return id!=='whatsapp';});
   }
   return all;
 }
@@ -8997,6 +8995,14 @@ function switchConfigView(view){
     if(allowed.indexOf(view)<0) view=allowed[0];
   }
   window._cfgActive=view;
+  if(view==='sebrae'){
+    var source=document.getElementById('sebrae-source');
+    var defaultSource=activeCompany==='estrada'?'produtor_rural':'sebrae';
+    if(source && source.value!==defaultSource){
+      source.value=defaultSource;
+      onSebraeSourceChange();
+    }
+  }
   ['cfg-precos','cfg-registro','cfg-cargos','cfg-importar','cfg-whatsapp','cfg-sebrae'].forEach(function(id){
     const e=document.getElementById(id); if(e) e.style.display='none';
   });
@@ -11442,12 +11448,7 @@ function renderDeliveredList(){
   const subCount = document.getElementById('notas-count-deliv');
   populatePendDriverSelect();
   let list = applyNotasFilters(getDeliveredSales());
-  list.sort(function(a,b){
-    const da = getNotaInfo(a.id); const db = getNotaInfo(b.id);
-    const dateA = (da && da.deliveredAt) || a.sale_date || '';
-    const dateB = (db && db.deliveredAt) || b.sale_date || '';
-    return dateB.localeCompare(dateA);
-  });
+  list = sortNotasList(list, 'nf', 'asc');
   if(subCount) subCount.textContent = list.length;
   if(!el) return;
   const totalAllDelivered = getDeliveredSales().length;
@@ -12515,8 +12516,8 @@ function confirmBulkDelivery(){
 // ────────────────────────────────────────────────────────────────────────
 // Ordenação de colunas + Export CSV + Undo modal + Animação fade-out
 // ────────────────────────────────────────────────────────────────────────
-let _pendSortCol = 'date';
-let _pendSortDir = 'desc';
+let _pendSortCol = 'nf';
+let _pendSortDir = 'asc';
 let _undoId = null;
 
 function sortNotasBy(col){
@@ -12530,10 +12531,38 @@ function sortNotasBy(col){
 }
 
 function sortNotasList(list, col, dir){
+  if(col==='nf'){
+    const compareNatural = function(left, right){
+      const a=String(left||'').trim(), b=String(right||'').trim();
+      if(!a) return b?1:0;
+      if(!b) return -1;
+      const aa=a.match(/\d+|\D+/g)||[], bb=b.match(/\d+|\D+/g)||[];
+      const count=Math.min(aa.length,bb.length);
+      for(let i=0;i<count;i++){
+        const x=aa[i], y=bb[i], xn=/^\d+$/.test(x), yn=/^\d+$/.test(y);
+        let result=0;
+        if(xn&&yn){
+          const nx=x.replace(/^0+(?=\d)/,''), ny=y.replace(/^0+(?=\d)/,'');
+          result=nx.length===ny.length ? (nx<ny?-1:nx>ny?1:0) : (nx.length<ny.length?-1:1);
+          if(!result && x.length!==y.length) result=x.length<y.length?-1:1;
+        }else{
+          result=x.toLocaleLowerCase('pt-BR').localeCompare(y.toLocaleLowerCase('pt-BR'),'pt-BR');
+        }
+        if(result) return result;
+      }
+      return aa.length===bb.length ? 0 : (aa.length<bb.length?-1:1);
+    };
+    return list.slice().sort(function(a,b){
+      const aNumber=String(a.nf_number||'').trim(), bNumber=String(b.nf_number||'').trim();
+      if(!aNumber) return bNumber?1:0;
+      if(!bNumber) return -1;
+      const result=compareNatural(a.nf_number,b.nf_number);
+      return dir==='desc' ? -result : result;
+    });
+  }
   const fn = {
     date:   function(s){ return s.sale_date || ''; },
     client: function(s){ return (s.client || '').toLowerCase(); },
-    nf:     function(s){ return s.nf_number || ''; },
     driver: function(s){ return (s.delivery_person || '').toLowerCase(); }
   }[col] || function(s){ return s.sale_date || ''; };
   const out = list.slice().sort(function(a,b){
