@@ -122,11 +122,24 @@ function Test-ApkSignature {
         Write-Host "AVISO: apksigner.bat nao encontrado. Assinatura nao foi validada pelo script." -ForegroundColor Yellow
         return
     }
+    $javaHomeCandidates = @(
+        $env:JAVA_HOME,
+        (Join-Path $env:ProgramFiles "Android\Android Studio\jbr"),
+        (Join-Path $env:ProgramFiles "Android\Android Studio\jre")
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    $javaHome = $javaHomeCandidates | Where-Object { Test-Path -LiteralPath (Join-Path $_ "bin\java.exe") -PathType Leaf } | Select-Object -First 1
+    if ($javaHome) {
+        $env:JAVA_HOME = $javaHome
+        $env:PATH = (Join-Path $javaHome "bin") + ";" + $env:PATH
+    }
     $command = '"{0}" verify --verbose "{1}" 2>&1' -f $apksigner, $Apk
     $verifyOutput = (& $env:ComSpec /d /c $command | Out-String)
     $verifyExitCode = $LASTEXITCODE
     if ($verifyExitCode -ne 0) {
-        throw "A assinatura do APK e invalida. Publicacao bloqueada."
+        if ([string]::IsNullOrWhiteSpace($javaHome)) {
+            throw "Nao foi possivel localizar Java para validar a assinatura. Configure JAVA_HOME com o JBR do Android Studio."
+        }
+        throw "A validacao da assinatura falhou (codigo $verifyExitCode). Saida do apksigner:`n$verifyOutput"
     }
     Write-Host "Assinatura do APK: OK" -ForegroundColor Green
 }
