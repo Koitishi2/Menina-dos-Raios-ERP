@@ -85,11 +85,11 @@ Em alto nivel, o aplicativo permite:
 - enviar pedidos pelo fluxo integrado do sistema;
 - consultar e informar entregas;
 - usar o mesmo login e senha do sistema web;
-- desbloquear o app com PIN local de 4 digitos apos o login inicial.
+- desbloquear o app com biometria apos o login inicial, quando ativada no aparelho.
 
 ### Estrutura do app
 
-O codigo-fonte do aplicativo Android fica no projeto `VendasWhatsApp/`.
+O codigo-fonte do aplicativo Android e mantido no projeto Gradle `VendasWhatsApp`, separado deste repositorio de backend.
 
 O APK oficial compilado usa o nome padrao:
 
@@ -136,10 +136,16 @@ Fluxo basico de uso:
 2. instalar no Android;
 3. abrir o app;
 4. fazer login com usuario e senha do sistema;
-5. criar um PIN local de 4 digitos;
+5. ativar a biometria, se desejado e disponivel no aparelho;
 6. usar as funcionalidades disponiveis, como pedidos e entregas.
 
-O PIN de 4 digitos e local do aparelho e nao substitui a senha do sistema web. Ele serve apenas para desbloquear o app apos o login inicial.
+### Sessao e sincronizacao movel
+
+O login Android identifica a sessao por `x-client-type: android`. Essas sessoes tem validade e inatividade de ate 30 dias; a regra web permanece em 10 horas de validade e 20 minutos sem atividade. O backend adiciona automaticamente o tipo de cliente em bancos existentes.
+
+Falhas temporarias de rede durante a validacao nao apagam o token nem a preferencia de biometria. Uma resposta HTTP 401/403 remove apenas as credenciais expiradas, preservando a biometria para o proximo login. A opcao **Sair da conta** continua removendo a sessao e a biometria local.
+
+Vales com assinatura sao gravados no armazenamento local antes do envio. Se o servidor estiver indisponivel, o vale permanece pendente; a tela apresenta o detalhe do erro e o app tenta sincronizar os pendentes ao entrar novamente. Notas de produtos tambem possuem fila local e reenvio manual pela tela de pendencias.
 
 ## Pacote de Atualizacao
 

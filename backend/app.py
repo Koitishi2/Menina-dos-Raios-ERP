@@ -154,6 +154,7 @@ MONTEIRO_NOTES_DIR = BASE_DIR / "monteiro_notas"
 MONTEIRO_NOTES_DIR.mkdir(exist_ok=True)
 SESSION_HOURS = 10
 SESSION_IDLE_MINUTES = 20
+ANDROID_SESSION_DAYS = 30
 MAX_EXCEL_UPLOAD = 10 * 1024 * 1024
 MAX_NF_UPLOAD = 12 * 1024 * 1024
 MAX_VERIFY_PDF_UPLOAD = 15 * 1024 * 1024
@@ -338,6 +339,7 @@ def init_db(company: str = None):
         role       TEXT NOT NULL,
         created_at TEXT DEFAULT (datetime('now')),
         last_seen  TEXT DEFAULT (datetime('now')),
+        client_type TEXT NOT NULL DEFAULT 'web',
         expires_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS admin_messages (
@@ -597,6 +599,7 @@ def init_db(company: str = None):
         ("sales","delivered","TEXT"),
         ("sales","delivered_at","TEXT"),
         ("sessions","last_seen","TEXT DEFAULT (datetime('now'))"),
+        ("sessions","client_type","TEXT NOT NULL DEFAULT 'web'"),
         ("quotes","company_key","TEXT NOT NULL DEFAULT 'estrada'"),
     ]:
         try: conn.execute(f"ALTER TABLE {col_def[0]} ADD COLUMN {col_def[1]} {col_def[2]}")
@@ -828,7 +831,8 @@ def get_session(x_token:str="")->dict:
         if last:
             try:
                 last_dt=datetime.fromisoformat(str(last).replace(" ","T"))
-                if datetime.now()-last_dt > timedelta(minutes=SESSION_IDLE_MINUTES):
+                idle_limit = ANDROID_SESSION_DAYS * 24 * 60 if str(row["client_type"] or "web") == "android" else SESSION_IDLE_MINUTES
+                if datetime.now()-last_dt > timedelta(minutes=idle_limit):
                     conn.execute("DELETE FROM sessions WHERE token=?",(x_token,))
                     conn.commit(); conn.close()
                     return {}
@@ -1365,12 +1369,13 @@ def login(body:LoginIn, request:Request):
                          (hash_password(body.password), user["id"]))
         except Exception: pass
     token=str(uuid.uuid4())
-    expires=(datetime.now()+timedelta(hours=SESSION_HOURS)).strftime("%Y-%m-%d %H:%M:%S")
+    client_type = "android" if request.headers.get("x-client-type", "").strip().lower() == "android" else "web"
+    expires=(datetime.now()+ (timedelta(days=ANDROID_SESSION_DAYS) if client_type == "android" else timedelta(hours=SESSION_HOURS))).strftime("%Y-%m-%d %H:%M:%S")
     try:
-        conn.execute("INSERT INTO sessions(token,user_id,username,full_name,role,last_seen,expires_at) VALUES(?,?,?,?,?,datetime('now'),?)",
-                     (token,user["id"],user["username"],user["full_name"],user["role"],expires))
+        conn.execute("INSERT INTO sessions(token,user_id,username,full_name,role,last_seen,client_type,expires_at) VALUES(?,?,?,?,?,datetime('now'),?,?)",
+                     (token,user["id"],user["username"],user["full_name"],user["role"],client_type,expires))
     except sqlite3.OperationalError as e:
-        if "last_seen" not in str(e).lower():
+        if "last_seen" not in str(e).lower() and "client_type" not in str(e).lower():
             raise
         conn.execute("INSERT INTO sessions(token,user_id,username,full_name,role,expires_at) VALUES(?,?,?,?,?,?)",
                      (token,user["id"],user["username"],user["full_name"],user["role"],expires))
