@@ -194,6 +194,27 @@ Test-ApkSignature $APK_PATH
 
 $hash = (Get-FileHash -LiteralPath $APK_PATH -Algorithm SHA256).Hash.ToLowerInvariant()
 $size = (Get-Item -LiteralPath $APK_PATH).Length
+if (-not $apkInfo.extracted) {
+    $existingLatestPath = Join-Path $APP_UPDATES_DIR $LATEST_JSON_NAME
+    if (Test-Path -LiteralPath $existingLatestPath -PathType Leaf) {
+        try {
+            $existingLatest = Get-Content -LiteralPath $existingLatestPath -Raw | ConvertFrom-Json
+            if ($existingLatest.sha256 -and $existingLatest.sha256.ToLowerInvariant() -eq $hash -and
+                $existingLatest.versionCode -gt 0 -and $existingLatest.packageName) {
+                $apkInfo.versionName = [string]$existingLatest.versionName
+                $apkInfo.versionCode = [int]$existingLatest.versionCode
+                $apkInfo.packageName = [string]$existingLatest.packageName
+                $apkInfo.extracted = $true
+                $apkInfo.warning = "Metadados reutilizados do catalogo porque o hash do APK e identico."
+            }
+        } catch {
+            $apkInfo.warning = "Catalogo local indisponivel para fallback de metadados."
+        }
+    }
+    if (-not $apkInfo.extracted) {
+        throw "Nao foi possivel identificar os metadados deste APK. Instale o Android build-tools ou selecione um APK cujo hash corresponda ao catalogo local."
+    }
+}
 
 Write-Host "APK selecionado : $APK_PATH"
 Write-Host "Pacote          : $($apkInfo.packageName)"
@@ -227,8 +248,10 @@ if ([IO.Path]::GetFullPath($APK_PATH) -ne [IO.Path]::GetFullPath($localApk)) {
     Copy-Item -LiteralPath $APK_PATH -Destination $localApk -Force
 }
 $catalog = New-CatalogObject -ApkInfo $apkInfo -Hash $hash -ReleaseNotes $Notes -BaseUrl $apkBaseUrl -SizeBytes $size
-$catalog | ConvertTo-Json | Set-Content -LiteralPath $catalogJson -Encoding UTF8
-$catalog | ConvertTo-Json | Set-Content -LiteralPath $latestJson -Encoding UTF8
+$catalogJsonText = $catalog | ConvertTo-Json
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText($catalogJson, $catalogJsonText + "`r`n", $utf8NoBom)
+[System.IO.File]::WriteAllText($latestJson, $catalogJsonText + "`r`n", $utf8NoBom)
 
 if (-not (Test-Path -LiteralPath $changelog -PathType Leaf)) {
     "# Changelog - Menina dos Raios Vendas`r`n" | Set-Content -LiteralPath $changelog -Encoding UTF8

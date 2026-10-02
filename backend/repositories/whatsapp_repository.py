@@ -11,10 +11,76 @@ except ImportError:
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[1] / "migrations"
 
+UMBANDA_MOTIVATION_TEMPLATES = (
+    "Que a serenidade dos Pretos-Velhos inspire seus passos. Com humildade e firmeza, um dia de cada vez, você também chega longe.",
+    "Na Umbanda, a caridade se revela nos gestos sinceros. Faça o bem que estiver ao seu alcance e siga com o coração em paz.",
+    "A sabedoria ensinada pelos Pretos-Velhos nos lembra: paciência não é desistir, é confiar no caminho enquanto fazemos a nossa parte.",
+    "Que a luz de Oxalá fortaleça sua esperança. Mesmo devagar, todo passo guiado pelo bem tem valor.",
+    "Respire fundo, aquiete o pensamento e recomece. A fé na Umbanda também floresce na coragem de tentar mais uma vez.",
+    "Os Pretos-Velhos nos inspiram a ouvir com atenção e falar com bondade. Hoje, ofereça a alguém uma palavra que acolha.",
+    "A força espiritual também se mostra na mansidão. Continue com dignidade, sem deixar que a dificuldade apague sua luz.",
+    "Que os bons caminhos se abram diante de você. Caminhe com respeito, responsabilidade e confiança no bem.",
+    "A caridade começa perto: no cuidado, na escuta e no respeito. Um gesto simples pode ser abrigo para alguém.",
+    "Quando o caminho parecer comprido, lembre-se: firmeza se constrói passo a passo, com fé e atitude.",
+    "Que a ancestralidade lhe recorde a força que existe em seguir em frente. Você carrega histórias de resistência e coragem.",
+    "A humildade não diminui ninguém; ela abre espaço para aprender, crescer e repartir o que se sabe.",
+    "Que a proteção dos bons guias acompanhe suas escolhas. Faça sua parte com honestidade e mantenha o coração sereno.",
+    "Na Umbanda, cada pessoa merece respeito. Trate a si mesmo com a mesma dignidade que você oferece ao próximo.",
+    "Os ensinamentos dos Pretos-Velhos convidam à calma: antes de responder, escute; antes de julgar, compreenda.",
+    "Que a esperança renasça hoje, ainda que pequena. Uma chama cuidada com carinho volta a iluminar o caminho.",
+    "A fé não elimina os desafios, mas pode renovar sua coragem para atravessá-los com consciência e amor.",
+    "Siga com os pés no chão e o coração voltado ao bem. Espiritualidade também é responsabilidade nas escolhas diárias.",
+    "Que a paz de um congá em oração inspire tranquilidade no seu dia, onde quer que você esteja.",
+    "Cada recomeço merece respeito. Não se cobre por ainda estar aprendendo; honre a coragem de continuar.",
+    "A palavra cuidadosa pode aliviar um peso. Que hoje sua voz leve respeito, consolo e verdade.",
+    "Os Pretos-Velhos nos inspiram a valorizar a simplicidade: presença, escuta e bondade também são grandes forças.",
+    "Que a energia de Iemanjá lhe inspire acolhimento e equilíbrio para cuidar dos sentimentos com ternura.",
+    "Com a coragem de Ogum como inspiração, enfrente os obstáculos com disciplina, prudência e determinação.",
+    "Que a alegria de Oxóssi inspire curiosidade e aprendizado. Há conhecimento novo esperando por você em cada caminho.",
+    "A justiça de Xangô nos lembra de agir com equilíbrio. Faça o que é correto, mesmo quando ninguém estiver olhando.",
+    "Que a generosidade de Oxum inspire delicadeza consigo e com os outros. Cuidar do coração também é um ato de força.",
+    "A transformação pede coragem. Deixe para trás o que já cumpriu seu ciclo e avance com sabedoria para o novo.",
+    "Que a força dos seus guias lhe inspire proteção e discernimento. Nem toda pressa é caminho; escolha com consciência.",
+    "A fé se fortalece quando caminha junto com a ação. Peça luz, planeje seus passos e faça o que depende de você.",
+    "No trabalho e na vida, faça o possível com amor e capricho. O bem semeado com constância dá frutos no tempo certo.",
+    "Que a memória dos mais velhos seja fonte de aprendizado e respeito. Honrar quem veio antes também é construir futuro.",
+    "Quando faltar ânimo, permita-se descansar e depois retomar. Cuidar das próprias forças também é caminho de equilíbrio.",
+    "A caridade verdadeira respeita a liberdade de cada pessoa. Ofereça ajuda com generosidade e sem esperar recompensa.",
+    "Que a luz que você busca também encontre espaço dentro de você: em sua coragem, sua bondade e sua capacidade de mudar.",
+    "Os ensinamentos da Umbanda valorizam o amor e o respeito. Leve esses valores para cada encontro deste dia.",
+    "Não compare sua caminhada à de ninguém. Cada pessoa tem seu tempo, seus aprendizados e sua própria estrada.",
+    "Que a firmeza dos Pretos-Velhos lhe ajude a atravessar esta fase com paciência, lucidez e esperança.",
+    "A gratidão não apaga as lutas; ela também reconhece a força que você encontrou para chegar até aqui.",
+    "Escolha a paz sempre que puder, mas não abandone seus limites. Respeito e firmeza podem caminhar juntos.",
+    "Que o amor de mãe e o acolhimento de Iemanjá lhe recordem que pedir apoio também é um gesto de coragem.",
+    "Um conselho sábio pode nascer do silêncio. Reserve um instante para ouvir sua consciência e escolher com serenidade.",
+    "A esperança não precisa ser barulhenta. Às vezes, ela é apenas a decisão tranquila de tentar novamente amanhã.",
+    "Que a força de Ogum lhe inspire a abrir caminhos sem ferir ninguém, com coragem, ética e determinação.",
+    "Respeite os ciclos: há tempo de plantar, tempo de cuidar e tempo de colher. Continue fazendo sua parte com confiança.",
+    "Seja ponte de acolhimento, não de julgamento. A empatia aproxima pessoas e fortalece comunidades.",
+    "A sabedoria dos Pretos-Velhos nos inspira a não perder a ternura diante das dificuldades. Firmeza também pode ser gentil.",
+    "Que os bons espíritos lhe inspirem clareza para reconhecer o que pode mudar e serenidade para aceitar o que não depende de você.",
+    "Cada atitude de respeito ajuda a tornar o mundo mais justo. Faça hoje a diferença que está ao seu alcance.",
+    "Siga com fé, humildade e coragem. Que seu caminho seja iluminado pelo bem que você escolhe praticar todos os dias.",
+)
+
 
 def init_whatsapp_schema(conn):
     for migration in ("20260914_whatsapp_orders_up.sql", "20260914_whatsapp_inbound_up.sql"):
         conn.executescript((MIGRATIONS_DIR / migration).read_text(encoding="utf-8"))
+    conn.executemany(
+        """INSERT OR IGNORE INTO whatsapp_templates (id, name, category, content)
+           VALUES (?, ?, ?, ?)""",
+        [
+            (
+                f"motivacao_umbanda_{index:03d}",
+                f"Umbanda - Preto Velho {index:02d}",
+                "motivacao_umbanda",
+                content,
+            )
+            for index, content in enumerate(UMBANDA_MOTIVATION_TEMPLATES, start=1)
+        ],
+    )
 
 
 def row_dict(row):
