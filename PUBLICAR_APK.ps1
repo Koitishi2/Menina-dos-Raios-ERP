@@ -112,8 +112,10 @@ function Test-ApkSignature {
         Write-Host "AVISO: apksigner.bat nao encontrado. Assinatura nao foi validada pelo script." -ForegroundColor Yellow
         return
     }
-    $verifyOutput = (& $apksigner verify --verbose $Apk 2>&1 | Out-String)
-    if ($LASTEXITCODE -ne 0) {
+    $command = '"{0}" verify --verbose "{1}" 2>&1' -f $apksigner, $Apk
+    $verifyOutput = (& $env:ComSpec /d /c $command | Out-String)
+    $verifyExitCode = $LASTEXITCODE
+    if ($verifyExitCode -ne 0) {
         throw "A assinatura do APK e invalida. Publicacao bloqueada."
     }
     Write-Host "Assinatura do APK: OK" -ForegroundColor Green
