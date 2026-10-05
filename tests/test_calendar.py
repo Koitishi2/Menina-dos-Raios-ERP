@@ -544,16 +544,49 @@ def test_app_calendar_mobile_requires_configured_token_and_rejects_missing_or_wr
     assert "events" in correct.json()
 
 
-def test_app_calendar_mobile_is_disabled_when_token_is_empty(isolated_app):
+def test_app_calendar_mobile_accepts_app_notes_token_when_calendar_token_is_missing(isolated_app):
     original = isolated_app.module.APP_CALENDAR_TOKEN
     isolated_app.module.APP_CALENDAR_TOKEN = ""
+    try:
+        response = isolated_app.client.get(
+            "/api/app-calendar/mobile",
+            headers={"x-app-token": isolated_app.module.APP_NOTES_TOKEN},
+        )
+    finally:
+        isolated_app.module.APP_CALENDAR_TOKEN = original
+
+    assert response.status_code == 200
+    assert "events" in response.json()
+
+
+def test_app_calendar_mobile_accepts_app_notes_token_when_calendar_token_differs(isolated_app):
+    original = isolated_app.module.APP_CALENDAR_TOKEN
+    isolated_app.module.APP_CALENDAR_TOKEN = "legacy-calendar-token"
+    try:
+        response = isolated_app.client.get(
+            "/api/app-calendar/mobile",
+            headers={"x-app-token": isolated_app.module.APP_NOTES_TOKEN},
+        )
+    finally:
+        isolated_app.module.APP_CALENDAR_TOKEN = original
+
+    assert response.status_code == 200
+    assert "events" in response.json()
+
+
+def test_app_calendar_mobile_is_disabled_when_all_tokens_are_empty(isolated_app):
+    original_calendar = isolated_app.module.APP_CALENDAR_TOKEN
+    original_notes = isolated_app.module.APP_NOTES_TOKEN
+    isolated_app.module.APP_CALENDAR_TOKEN = ""
+    isolated_app.module.APP_NOTES_TOKEN = ""
     try:
         response = isolated_app.client.get(
             "/api/app-calendar/mobile",
             headers={"x-app-token": "test-calendar-token"},
         )
     finally:
-        isolated_app.module.APP_CALENDAR_TOKEN = original
+        isolated_app.module.APP_CALENDAR_TOKEN = original_calendar
+        isolated_app.module.APP_NOTES_TOKEN = original_notes
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Aplicativo nao autorizado."
