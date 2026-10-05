@@ -7293,8 +7293,8 @@ def delete_app_calendar_event(event_id:str,x_token:str=Header("")):
 
 @app.get("/api/app-calendar/mobile")
 def list_app_calendar_mobile(x_app_token:str=Header("",alias="x-app-token")):
-    accepted_tokens=tuple(token for token in (APP_CALENDAR_TOKEN,APP_NOTES_TOKEN) if token)
-    if not any(hmac.compare_digest(x_app_token,token) for token in accepted_tokens):
+    configured_values=tuple(value for value in (APP_CALENDAR_TOKEN,APP_NOTES_TOKEN) if value)
+    if not any(hmac.compare_digest(x_app_token,value) for value in configured_values):
         raise HTTPException(401,"Aplicativo nao autorizado.")
     conn=get_app_notes_db()
     try:
