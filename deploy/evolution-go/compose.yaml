@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: menina-evolution-go-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: evogo_auth
+    volumes:
+      - evolution_postgres:/var/lib/postgresql/data
+      - ./init-users-db.sql:/docker-entrypoint-initdb.d/10-create-users-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d evogo_auth"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - evolution_private
+
+  evolution-go:
+    image: evoapicloud/evolution-go:0.7.2
+    container_name: menina-evolution-go
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8766:4000"
+    environment:
+      SERVER_PORT: "4000"
+      CLIENT_NAME: "menina-dos-raios"
+      GLOBAL_API_KEY: ${GLOBAL_API_KEY}
+      POSTGRES_AUTH_DB: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/evogo_auth?sslmode=disable
+      POSTGRES_USERS_DB: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/evogo_users?sslmode=disable
+      DATABASE_SAVE_MESSAGES: "false"
+      EVOLUTION_OPERATOR_EMAIL: ${EVOLUTION_OPERATOR_EMAIL:-}
+      WADEBUG: "INFO"
+      LOGTYPE: "console"
+      CONNECT_ON_STARTUP: "false"
+      WEBHOOK_FILES: "true"
+      MINIO_ENABLED: "false"
+    volumes:
+      - evolution_data:/app/dbdata
+      - evolution_logs:/app/logs
+    networks:
+      - evolution_private
+
+volumes:
+  evolution_postgres:
+    name: menina_evolution_go_postgres
+  evolution_data:
+    name: menina_evolution_go_data
+  evolution_logs:
+    name: menina_evolution_go_logs
+
+networks:
+  evolution_private:
+    name: menina_evolution_go_private
+    driver: bridge
