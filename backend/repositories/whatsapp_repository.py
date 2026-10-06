@@ -171,7 +171,13 @@ def list_conversations(conn, company_key, client_id=None):
     sql = """SELECT c.*,cl.name AS client_name,
                     (SELECT wc.status FROM whatsapp_consent wc
                      WHERE wc.company_key=c.company_key AND wc.client_id=c.client_id
-                     ORDER BY wc.updated_at DESC LIMIT 1) AS consent_status
+                     ORDER BY wc.updated_at DESC LIMIT 1) AS consent_status,
+                    (SELECT wm.direction FROM whatsapp_messages wm
+                     WHERE wm.company_key=c.company_key AND wm.conversation_id=c.id
+                     ORDER BY COALESCE(wm.received_at,wm.created_at) DESC,wm.id DESC LIMIT 1) AS last_message_direction,
+                    (SELECT wm.body FROM whatsapp_messages wm
+                     WHERE wm.company_key=c.company_key AND wm.conversation_id=c.id
+                     ORDER BY COALESCE(wm.received_at,wm.created_at) DESC,wm.id DESC LIMIT 1) AS last_message_preview
              FROM whatsapp_conversations c JOIN clients cl ON cl.id=c.client_id
              WHERE c.company_key=?"""
     args = [company_key]

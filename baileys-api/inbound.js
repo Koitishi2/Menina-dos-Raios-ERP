@@ -298,6 +298,16 @@ function createInboundForwarder(options = {}) {
             });
             return false;
         }
+        if (String(event.message_type || "") === "unknown" && !String(event.text || "").trim()) {
+            stats.filtered += 1;
+            logMarker(logger, "WA_INBOUND_IGNORED_REASON", {
+                messageIdHash: shortHash(event.message_id), reason: "message_not_decoded",
+                messageType: event.message_type,
+                senderMasked: maskPhone(event.remote_jid),
+                senderKind: jidKind(event.remote_jid),
+            });
+            return false;
+        }
         if (!instance || !token) {
             logMarker(logger, "WA_AUTOREPLY_DECISION", {
                 messageIdHash: shortHash(event.message_id), decision: "blocked", reason: "config_disabled",

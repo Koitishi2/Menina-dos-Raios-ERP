@@ -120,6 +120,8 @@
         normalizedPhone: phone.e164, phoneValid: phone.valid, phoneReason: phone.reason,
         consent: conversation && conversation.consent_status ? conversation.consent_status : "desconhecido",
         conversation: conversation ? conversation.status : "sem_conversa",
+        lastDirection: conversation ? String(conversation.last_message_direction || "") : "",
+        lastPreview: conversation ? String(conversation.last_message_preview || "") : "",
         conversationId: conversation ? conversation.id : "", pendingOrder: false
       };
     });
@@ -136,7 +138,9 @@
       const phone = row.phoneValid ? row.normalizedPhone : (row.phoneReason || "Telefone invalido");
       return '<div class="client-wa-row"><div class="client-wa-identity"><strong>' + escapeHtml(row.name) + '</strong><span>' + escapeHtml(phone) + '</span></div>'
         + '<span class="client-wa-tag ' + (row.phoneValid ? "is-ready" : "is-warning") + '">' + (row.phoneValid ? "Telefone pronto" : "Revisar telefone") + '</span>'
-        + '<span class="client-wa-tag">' + escapeHtml(consentLabel(row.consent)) + '</span><span class="client-wa-muted">' + escapeHtml(row.conversation.replace(/_/g, " ")) + '</span>'
+        + '<span class="client-wa-tag">' + escapeHtml(consentLabel(row.consent)) + '</span><span class="client-wa-muted">' + escapeHtml(row.conversation.replace(/_/g, " "))
+        + (row.lastDirection ? ' · ' + (row.lastDirection === "enviada" ? "Voce enviou" : "Cliente respondeu") : "")
+        + (row.lastPreview ? ': ' + escapeHtml(row.lastPreview.slice(0, 90)) : "") + '</span>'
         + '<button type="button" class="btn btn-secondary btn-sm" data-wa-conversation="' + escapeHtml(row.conversationId) + '" data-wa-client-id="' + escapeHtml(row.id) + '">' + (row.conversationId ? "Abrir conversa" : "Ver detalhes") + '</button></div>';
     }).join("");
   }

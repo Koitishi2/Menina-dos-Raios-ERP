@@ -1,3 +1,4 @@
+import hashlib
 import sqlite3
 import uuid
 from datetime import datetime, timezone
@@ -254,6 +255,67 @@ def register_incoming_message(conn, company_key, payload, manage_transaction=Tru
         "new_state": next_state,
         "forced_new_conversation": bool(force_new_conversation),
     }
+
+
+def register_outgoing_message(conn, company_key, client_id, instance_key, external_message_id, text, sent_at):
+    client = conn.execute(
+        "SELECT id,phone FROM clients WHERE id=? AND active=1", (client_id,),
+    ).fetchone()
+    if not client:
+        return None
+    phone = normalize_brazil_phone(client["phone"])
+    if not phone.valid:
+        return None
+    jid = f"{phone.digits}@s.whatsapp.net"
+    existing = conn.execute(
+        """SELECT id FROM whatsapp_messages
+           WHERE company_key=? AND instance_key=? AND external_message_id=?""",
+        (company_key, instance_key, external_message_id),
+    ).fetchone()
+    if existing:
+        return existing["id"]
+
+    states = ",".join("?" for _ in OPEN_CONVERSATION_STATES)
+    conversation = conn.execute(
+        f"""SELECT id FROM whatsapp_conversations
+            WHERE company_key=? AND client_id=? AND status IN ({states})
+            ORDER BY updated_at DESC LIMIT 1""",
+        (company_key, client_id, *OPEN_CONVERSATION_STATES),
+    ).fetchone()
+    conversation_id = conversation["id"] if conversation else str(uuid.uuid4())
+    message_id = str(uuid.uuid4())
+    digest = hashlib.sha256(
+        f"{company_key}\n{instance_key}\n{external_message_id}\n{jid}\n{text}".encode("utf-8")
+    ).hexdigest()
+    idempotency_key = message_idempotency_key(
+        company_key, external_message_id, jid, sent_at, {"text": text, "event_hash": digest},
+    )
+    if not conversation:
+        conn.execute(
+            """INSERT INTO whatsapp_conversations(id,company_key,client_id,jid,status,last_message_at)
+               VALUES(?,?,?,?, 'aguardando_resposta', ?)""",
+            (conversation_id, company_key, client_id, jid, sent_at),
+        )
+    else:
+        conn.execute(
+            """UPDATE whatsapp_conversations SET status='aguardando_resposta',last_message_at=?,
+               updated_at=datetime('now') WHERE id=? AND company_key=?""",
+            (sent_at, conversation_id, company_key),
+        )
+    conn.execute(
+        """INSERT INTO whatsapp_messages(
+               id,company_key,instance_key,conversation_id,client_id,direction,external_message_id,
+               idempotency_key,event_hash,jid,body,status,received_at,processed_at)
+           VALUES(?,?,?,?,?, 'enviada',?,?,?,?,?,'processada',?,?)""",
+        (message_id, company_key, instance_key, conversation_id, client_id, external_message_id,
+         idempotency_key, digest, jid, text, sent_at, sent_at),
+    )
+    conn.execute(
+        """INSERT INTO whatsapp_events(id,company_key,message_id,event_hash,event_type,processing_status)
+           VALUES(?,?,?,?, 'outgoing', 'processado')""",
+        (str(uuid.uuid4()), company_key, message_id, digest),
+    )
+    return message_id
 
 
 def save_consumption(conn, company_key, client_id, body, username):

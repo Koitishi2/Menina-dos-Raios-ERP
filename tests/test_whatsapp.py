@@ -1271,6 +1271,25 @@ def test_whatsapp_triggers_preview_does_not_send_or_log(isolated_app, monkeypatc
     assert state["open"] == 0
 
 
+def test_whatsapp_boleto_trigger_includes_overdue_beyond_configured_period(isolated_app):
+    token = _login(isolated_app.client)
+    db_path = isolated_app.db_paths["raios"]
+    old_due_date = (date.today() - timedelta(days=60)).isoformat()
+    _add_overdue_boleto(db_path, client="Cliente Boleto Antigo", due_date=old_due_date)
+    _set_config(db_path, "notify_avaria", "0")
+    _set_config(db_path, "notify_inativo", "0")
+    _set_config(db_path, "auto_period", "7")
+
+    response = isolated_app.client.post(
+        "/api/whatsapp/check-triggers", headers=_headers(token), json={"send": False},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["details"]["boleto"]["found"] == 1
+    assert "Cliente Boleto Antigo" in payload["messages"][0]["preview"]
+
+
 def test_whatsapp_triggers_send_true_sends_without_open_sqlite_and_persists_logs(isolated_app, monkeypatch):
     token = _login(isolated_app.client)
     db_path = isolated_app.db_paths["raios"]

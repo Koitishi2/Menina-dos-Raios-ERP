@@ -115,22 +115,38 @@ def process_inbound_event(conn, company_key, payload, sender=None, outbound=None
     )
 
     duplicate = repository.find_inbound_duplicate(conn, company_key, instance_key, event_id, external_id)
-    if duplicate:
+    retry_incomplete = bool(
+        duplicate
+        and duplicate["processing_status"] == "bloqueado"
+        and duplicate["error_code"] == "mensagem_de_sistema"
+        and text.strip()
+    )
+    if duplicate and not retry_incomplete:
         return _mark_duplicate(conn, duplicate)
 
-    record_id = str(uuid.uuid4())
+    record_id = duplicate["id"] if retry_incomplete else str(uuid.uuid4())
     base = (
         record_id, company_key, "baileys", instance_key, event_id, external_id, jid,
         phone.e164 or None, message_type, raw_type, text[:500], received_at,
     )
     try:
-        conn.execute(
-            """INSERT INTO whatsapp_inbound_events(
-                   id,company_key,provider,instance_key,event_id,external_message_id,jid,
-                   phone_e164,message_type,raw_type,body_preview,received_at,processing_status)
-               VALUES(?,?,?,?,?,?,?,?,?,?,?,?, 'recebido')""",
-            base,
-        )
+        if retry_incomplete:
+            conn.execute(
+                """UPDATE whatsapp_inbound_events
+                   SET processing_status='recebido',error_code=NULL,provider=?,jid=?,phone_e164=?,
+                       message_type=?,raw_type=?,body_preview=?,received_at=?,updated_at=datetime('now')
+                   WHERE id=?""",
+                (base[2], base[6], base[7], base[8], base[9], base[10], base[11], record_id),
+            )
+            conn.commit()
+        else:
+            conn.execute(
+                """INSERT INTO whatsapp_inbound_events(
+                       id,company_key,provider,instance_key,event_id,external_message_id,jid,
+                       phone_e164,message_type,raw_type,body_preview,received_at,processing_status)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?, 'recebido')""",
+                base,
+            )
 
         blocked_reason = None
         if payload.get("from_me") is True:

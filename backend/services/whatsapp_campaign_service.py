@@ -7,9 +7,11 @@ from datetime import date, datetime, timedelta, timezone
 try:
     from ..domains.whatsapp_policies import campaign_eligibility, normalize_brazil_phone
     from ..repositories import whatsapp_repository as repository
+    from .whatsapp_order_service import register_outgoing_message
 except ImportError:
     from domains.whatsapp_policies import campaign_eligibility, normalize_brazil_phone
     from repositories import whatsapp_repository as repository
+    from services.whatsapp_order_service import register_outgoing_message
 
 
 OPEN_CONVERSATION_STATES = (
@@ -311,6 +313,11 @@ def send_manual_batch(conn, company_key, batch_id, username, settings, config, s
             """UPDATE whatsapp_manual_batch_items SET status=?,result_code=?,result_detail=?,sent_at=?,updated_at=? WHERE id=?""",
             (status, "ok" if status == "enviado" else "falha_envio", detail, now.isoformat(), now.isoformat(), item["id"]),
         )
+        if status == "enviado":
+            register_outgoing_message(
+                conn, company_key, item["client_id"], config.get("instance_id") or "baileys",
+                f"manual-batch:{item['id']}", item["message_final"], now.isoformat(),
+            )
         conn.commit()
         results.append({"client_id": item["client_id"], "status": status})
     final = "concluido"

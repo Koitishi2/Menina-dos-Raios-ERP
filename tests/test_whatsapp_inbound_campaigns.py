@@ -172,6 +172,34 @@ def test_internal_endpoint_rejects_invalid_timestamp_and_oversized_text(isolated
     assert isolated_app.external_calls == []
 
 
+def test_inbound_reprocesses_same_message_after_initial_undecoded_payload(isolated_app, monkeypatch):
+    _configure_inbound(monkeypatch)
+    first = isolated_app.client.post(
+        "/internal/whatsapp/events", headers=_internal_headers(),
+        json=_event(message_type="unknown", text=""),
+    )
+    assert first.status_code == 202
+    assert first.json()["status"] == "bloqueado"
+
+    token = _login(isolated_app)
+    client = _create_client(isolated_app, token)
+    decoded = isolated_app.client.post(
+        "/internal/whatsapp/events", headers=_internal_headers(),
+        json=_event(message_type="conversation", text="Mensagem decodificada"),
+    )
+    assert decoded.status_code == 200, decoded.text
+    assert decoded.json()["client_id"] == client["id"]
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    try:
+        row = conn.execute(
+            "SELECT processing_status,message_type,body_preview,duplicate_count FROM whatsapp_inbound_events"
+        ).fetchone()
+        assert row == ("processado", "conversation", "Mensagem decodificada", 0)
+        assert conn.execute("SELECT COUNT(*) FROM whatsapp_messages").fetchone()[0] == 1
+    finally:
+        conn.close()
+
+
 def test_valid_inbound_is_idempotent_and_creates_no_order_sale_or_stock(isolated_app, monkeypatch):
     _configure_inbound(monkeypatch)
     token = _login(isolated_app)
@@ -1023,6 +1051,17 @@ def test_manual_batch_records_individual_results_for_multiple_clients(isolated_a
     stored = {item["client_id"]: item for item in result.json()["batch"]["items"]}
     assert stored[first["id"]]["status"] == "enviado"
     assert stored[second["id"]]["status"] == "falhou"
+    conversations = isolated_app.client.get("/api/whatsapp/conversations", headers=_headers(token)).json()
+    sent_conversation = next(row for row in conversations if row["client_id"] == first["id"])
+    assert sent_conversation["status"] == "aguardando_resposta"
+    assert sent_conversation["last_message_direction"] == "enviada"
+    assert sent_conversation["last_message_preview"] == "Oi, Primeiro."
+    detail = isolated_app.client.get(
+        f"/api/whatsapp/conversations/{sent_conversation['id']}", headers=_headers(token),
+    ).json()
+    assert [(message["direction"], message["body"]) for message in detail["messages"]] == [
+        ("enviada", "Oi, Primeiro."),
+    ]
 
 
 @pytest.mark.parametrize("change,expected_reason", [

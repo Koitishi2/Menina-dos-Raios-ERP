@@ -71,6 +71,22 @@ async function main() {
   assert.ok(instrumentationLogs.some((line) => line.includes("reason=duplicate")));
   assert.strictEqual(instrumentationCalls.length, 2, "only allowed non-duplicate inbound events are forwarded");
 
+  const progressiveCalls = [], progressiveLogs = [];
+  const progressive = createInboundForwarder({
+    enabled: "true", mode: "production", instance: "raios-primary", token: "secret",
+    fetch: async (_url, options) => { progressiveCalls.push(JSON.parse(options.body)); return { ok: true, status: 200 }; },
+    logger: { info: (message) => progressiveLogs.push(message), error: (message) => progressiveLogs.push(message) },
+  });
+  const progressiveKey = { id: "msg-progressive", remoteJid: "5595991234567@s.whatsapp.net", fromMe: false };
+  progressive.handleUpsert({ type: "notify", messages: [{ key: progressiveKey, message: {}, messageTimestamp: 1000 }] });
+  await progressive.drain();
+  assert.strictEqual(progressiveCalls.length, 0, "undecoded message is not remembered as delivered");
+  assert.ok(progressiveLogs.some((line) => line.includes("reason=message_not_decoded")));
+  progressive.handleUpsert({ type: "notify", messages: [{ key: progressiveKey, message: { conversation: "Mensagem decodificada" }, messageTimestamp: 1000 }] });
+  await progressive.drain();
+  assert.strictEqual(progressiveCalls.length, 1);
+  assert.strictEqual(progressiveCalls[0].text, "Mensagem decodificada");
+
   const lidOnlyLogs = [];
   const lidOnlyCalls = [];
   const lidOnly = createInboundForwarder({

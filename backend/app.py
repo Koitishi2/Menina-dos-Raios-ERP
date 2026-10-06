@@ -6049,17 +6049,14 @@ def check_wa_triggers(body: dict, x_token: str = Header(...)):
         messages = []
 
         if cfg.get("notify_boleto", "1") == "1":
-            auto_period_b = int(cfg.get("auto_period", "7"))
-            # COALESCE protege contra total_val NULL em registros antigos/migrados
+            # Os gatilhos devem incluir todo boleto pendente vencido, mesmo antigo.
             overdue = conn.execute(
                 """SELECT client, COALESCE(total_val,0) AS total_val, due_date, nf_number
                    FROM boletos
                    WHERE status='pendente'
                      AND due_date IS NOT NULL
                      AND due_date < date('now')
-                     AND due_date >= date('now', '-' || ? || ' days')
                    ORDER BY due_date""",
-                [auto_period_b]
             ).fetchall()
             if overdue:
                 lines = [f"\u2022 {(b['client'] or '?')}: R$ {(b['total_val'] or 0):.2f} (venc {b['due_date']})" for b in overdue]
