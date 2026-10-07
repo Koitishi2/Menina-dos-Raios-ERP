@@ -3159,6 +3159,43 @@ html[data-layout-skin="menina2"] .tabs-wrap{scrollbar-width:thin}
   html[data-layout-skin="menina2"] .chart-card,
   html[data-layout-skin="menina2"] .kpi{border-radius:8px}
 }
+/* Sino global: destaque colorido sem competir com o conteúdo. */
+.notif-bell{
+  width:48px;height:48px;border-radius:16px;
+  background:linear-gradient(145deg,#08AFA0 0%,#087F8C 100%)!important;
+  border:1px solid rgba(255,255,255,.72);color:#fff;
+  box-shadow:0 10px 25px rgba(8,127,140,.3),0 0 0 4px rgba(8,175,160,.1);
+  transition:transform .2s ease,box-shadow .2s ease,filter .2s ease;
+}
+.notif-bell::after{
+  content:"";position:absolute;inset:-5px;border-radius:20px;
+  border:2px solid rgba(8,175,160,0);pointer-events:none;
+}
+.notif-bell.has-pending{animation:notif-float 3.2s ease-in-out infinite}
+.notif-bell.has-pending::after{animation:notif-halo 2.4s ease-out infinite}
+.notif-bell:hover{transform:translateY(-3px) scale(1.04);filter:saturate(1.14);box-shadow:0 14px 30px rgba(8,127,140,.36),0 0 0 5px rgba(8,175,160,.13)}
+.notif-bell:active{transform:scale(.96)}
+.notif-bell:focus-visible{outline:3px solid rgba(255,183,77,.75);outline-offset:4px}
+.notif-bell .notif-badge{
+  top:-8px;right:-8px;min-width:23px;height:23px;padding:0 6px;
+  background:#F05A47;border:2px solid var(--card);font-size:11px;
+  box-shadow:0 3px 10px rgba(240,90,71,.4);
+}
+.notif-bell.has-pending .notif-badge{background:#F4A62A;color:#241600}
+.notif-bell.is-updated{animation:notif-arrival .55s cubic-bezier(.2,.8,.2,1)}
+@keyframes notif-float{0%,88%,100%{transform:translateY(0)}94%{transform:translateY(-2px)}}
+@keyframes notif-halo{0%{transform:scale(.88);opacity:.72;border-color:rgba(8,175,160,.52)}100%{transform:scale(1.28);opacity:0;border-color:rgba(8,175,160,0)}}
+@keyframes notif-arrival{0%{transform:scale(1)}38%{transform:scale(1.16) rotate(-7deg)}72%{transform:scale(.96) rotate(4deg)}100%{transform:scale(1)}}
+body.company-estrada .notif-bell{background:linear-gradient(145deg,#F06A56 0%,#D7476B 100%)!important;box-shadow:0 10px 25px rgba(215,71,107,.28),0 0 0 4px rgba(240,106,86,.1)}
+body.company-estrada .notif-bell.has-pending::after{animation-name:notif-halo-estrada}
+@keyframes notif-halo-estrada{0%{transform:scale(.88);opacity:.72;border-color:rgba(240,106,86,.52)}100%{transform:scale(1.28);opacity:0;border-color:rgba(240,106,86,0)}}
+@media (max-width:768px){
+  .notif-bell{width:48px!important;height:48px!important;top:12px!important;right:12px!important;border-radius:16px!important;box-shadow:0 8px 22px rgba(8,127,140,.3),0 0 0 3px rgba(8,175,160,.1)!important}
+  .notif-bell.has-pending{box-shadow:0 8px 22px rgba(8,127,140,.34),0 0 0 4px rgba(8,175,160,.15)!important}
+  body.company-estrada .notif-bell{box-shadow:0 8px 22px rgba(215,71,107,.3),0 0 0 3px rgba(240,106,86,.1)!important}
+  body.company-estrada .notif-bell.has-pending{box-shadow:0 8px 22px rgba(215,71,107,.34),0 0 0 4px rgba(240,106,86,.15)!important}
+}
+@media (prefers-reduced-motion:reduce){.notif-bell,.notif-bell.has-pending,.notif-bell.has-pending::after,.notif-bell.is-updated{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
@@ -12815,11 +12852,24 @@ function sebraeFilter(mode){
 
 function updateNotifBadge(){
   var badge=document.getElementById('notif-badge');
+  var bell=document.getElementById('notif-bell');
   var restoreBadge=document.getElementById('notif-restore-badge');
   var tabBadge=document.getElementById('tab-pendentes-badge');
   var ndBadge=document.getElementById('nd-badge-pendentes');
   var mobCount=document.getElementById('mob-notif-count');
   var n=getPendingCount()+(_appNotesPendingNotif||[]).length;
+  var previous=window._lastNotifBadgeCount;
+  if(bell){
+    bell.classList.toggle('has-pending',n>0);
+    bell.setAttribute('aria-label',n?'Abrir notificações: '+n+' pendentes':'Abrir notificações: nenhuma pendente');
+    if(previous!==undefined&&n>previous){
+      bell.classList.remove('is-updated');
+      void bell.offsetWidth;
+      bell.classList.add('is-updated');
+      window.setTimeout(function(){bell.classList.remove('is-updated');},650);
+    }
+  }
+  window._lastNotifBadgeCount=n;
   if(badge){badge.textContent=n>99?'99+':String(n);badge.classList.toggle('zero',n===0);}
   if(restoreBadge){restoreBadge.textContent=n>99?'99+':String(n);restoreBadge.classList.toggle('zero',n===0);}
   if(tabBadge){tabBadge.textContent=String(n);tabBadge.style.display=n===0?'none':'';}
