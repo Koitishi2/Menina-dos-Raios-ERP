@@ -857,6 +857,39 @@ main{max-width:1400px;margin:0 auto;padding:16px;display:flex;flex-direction:col
   #cfg-registro .reg-grid-main{grid-template-columns:1fr!important}
 }
 
+/* Permission editor */
+#cfg-registro .perm-editor{padding-bottom:74px}
+#cfg-registro .perm-profile-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:16px 0 10px;padding:4px;border:1px solid var(--border);border-radius:9px;background:var(--g50)}
+#cfg-registro .perm-profile-tab{min-height:42px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer}
+#cfg-registro .perm-profile-tab[aria-selected="true"]{background:var(--g800);color:#fff;box-shadow:0 2px 5px rgba(15,23,42,.12)}
+#cfg-registro .perm-profile-summary{padding:11px 13px;border:1px solid var(--border);border-radius:7px;background:var(--g50);margin-bottom:16px}
+#cfg-registro .perm-group{border:1px solid var(--border);border-radius:7px;overflow:hidden;margin:0 0 12px}
+#cfg-registro .perm-group-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 13px;background:var(--g50)}
+#cfg-registro .perm-group-toggle{display:flex;align-items:center;gap:9px;border:0;background:transparent;color:var(--ink);font-family:inherit;font-size:13px;font-weight:700;text-align:left;cursor:pointer;padding:0}
+#cfg-registro .perm-group-content[hidden]{display:none}
+#cfg-registro .perm-row{display:grid;grid-template-columns:minmax(150px,1fr) 90px minmax(100px,auto);align-items:center;gap:12px;min-height:46px;padding:6px 13px;border-top:1px solid var(--border)}
+#cfg-registro .perm-row:nth-child(even){background:var(--card)}
+#cfg-registro .perm-access{display:flex;justify-content:center;align-items:center;gap:8px}
+#cfg-registro .perm-access input{width:20px!important;height:20px!important;min-width:20px!important}
+#cfg-registro .perm-order{display:flex;gap:4px;justify-content:flex-end}
+#cfg-registro .perm-order button{width:30px;height:30px;padding:0;border:1px solid var(--border);border-radius:5px;background:var(--card);color:var(--muted);cursor:pointer}
+#cfg-registro .perm-order button:disabled{opacity:.35;cursor:not-allowed}
+#cfg-registro .perm-savebar{position:sticky;bottom:8px;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;margin-top:14px;border:1px solid var(--border);border-radius:7px;background:var(--card);box-shadow:0 8px 24px rgba(15,23,42,.12)}
+#cfg-registro .perm-savebar[hidden]{display:none}
+#cfg-registro .perm-save-status{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:700}
+#cfg-registro .perm-save-dot{width:9px;height:9px;border-radius:50%;background:#d97706}
+#cfg-registro .perm-save-status.is-clean .perm-save-dot{background:#16834a}
+#cfg-registro .perm-save-actions{display:flex;gap:8px}
+@media(max-width:600px){
+  #cfg-registro .perm-colhead{grid-template-columns:minmax(0,1fr) 82px!important}
+  #cfg-registro .perm-colhead span:last-child{display:none}
+  #cfg-registro .perm-row{grid-template-columns:minmax(0,1fr) 82px;gap:8px;padding:8px 10px}
+  #cfg-registro .perm-order{grid-column:1/-1;justify-content:flex-start}
+  #cfg-registro .perm-savebar{align-items:flex-start;flex-direction:column}
+  #cfg-registro .perm-save-actions{width:100%}
+  #cfg-registro .perm-save-actions button{flex:1}
+}
+
 
 /* ── TOOLBAR ── */
 .toolbar{display:flex;align-items:center;gap:8px;margin-bottom:11px;flex-wrap:wrap}
@@ -3196,8 +3229,8 @@ html[data-layout-skin="menina2"] .tabs-wrap{scrollbar-width:thin}
         <div style="padding:9px 14px;border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
           <div style="font-size:10px;color:var(--muted);margin-bottom:7px;font-weight:700;letter-spacing:.02em">LAYOUT</div>
           <div class="layout-skin-choice" role="group" aria-label="Selecionar layout">
-            <button type="button" data-layout-skin-choice="menina" aria-pressed="true" onclick="applyLayoutSkin('menina')">Menina</button>
-            <button type="button" data-layout-skin-choice="menina2" aria-pressed="false" onclick="applyLayoutSkin('menina2')">Menina 2.0</button>
+            <button type="button" data-layout-skin-choice="menina" aria-pressed="false" onclick="applyLayoutSkin('menina')">Menina</button>
+            <button type="button" data-layout-skin-choice="menina2" aria-pressed="true" onclick="applyLayoutSkin('menina2')">Menina 2.0</button>
           </div>
           <div style="font-size:10px;color:var(--muted);margin:10px 0 7px;font-weight:700;letter-spacing:.02em">🎨 PALETA DE CORES</div>
           <div style="display:flex;gap:9px">
@@ -4436,10 +4469,16 @@ html[data-layout-skin="menina2"] .tabs-wrap{scrollbar-width:thin}
             </div>
             <button class="btn btn-secondary btn-sm" onclick="loadTabPermissions()">↺</button>
           </div>
-          <div id="perms-matrix" style="overflow-x:auto;border-radius:8px;border:1px solid var(--border)">
+          <div id="perms-matrix" class="perm-editor">
             <div class="loader"><div class="spin"></div></div>
           </div>
-          <button class="btn btn-primary" id="btn-save-perms" onclick="saveTabPermissions()" style="width:100%;margin-top:12px">💾 Salvar Permissões</button>
+          <div id="perm-savebar" class="perm-savebar" hidden>
+            <div id="perm-save-status" class="perm-save-status" aria-live="polite"><span class="perm-save-dot"></span><span>Alterações não salvas</span></div>
+            <div class="perm-save-actions">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="discardTabPermissionChanges()">Descartar</button>
+              <button type="button" class="btn btn-primary btn-sm" id="btn-save-perms" onclick="saveTabPermissions()">Salvar alterações</button>
+            </div>
+          </div>
         </div>
 
         <!-- Permissão Pagamentos Monteiro -->
@@ -5475,11 +5514,11 @@ function applyLayoutSkin(id){
     button.setAttribute('aria-pressed',button.getAttribute('data-layout-skin-choice')===id?'true':'false');
   });
   var username=String(session&&session.username||'').trim().toLowerCase();
-  if(username){try{localStorage.setItem('layoutSkin:'+username,id);}catch(e){}}
+  if(username){try{localStorage.setItem('layoutSkin:v2:'+username,id);}catch(e){}}
 }
 function loadLayoutSkinForUser(username){
-  var saved='menina';
-  if(username){try{saved=localStorage.getItem('layoutSkin:'+String(username).trim().toLowerCase())||'menina';}catch(e){}}
+  var saved='menina2';
+  if(username){try{saved=localStorage.getItem('layoutSkin:v2:'+String(username).trim().toLowerCase())||'menina2';}catch(e){}}
   applyLayoutSkin(saved);
 }
 function toggleLayoutModuleMenu(event){
@@ -9748,32 +9787,30 @@ function migrateTabOrder(order){
 }
 
 function migratePerms(p){
-  // Auto-migracao: substitui as 4 abas antigas por 'config' (mantem retrocompatibilidade)
-  // Tambem garante que abas novas existam em permissoes salvas
+  // Migra as permissoes antigas uma vez; versao gravada impede restaurar acessos removidos pelo admin.
   if(!p) return p;
+  const schemaVersion=Number(p._schemaVersion||0);
   const OLD=['precos','registro','mesclar','importar'];
   const NEW_TABS=['pendentes','produtos','projecao','entregas'];
   const CFG_KEYS=(typeof CFG_SUB_KEYS!=='undefined')?CFG_SUB_KEYS:['cfg_precos','cfg_registro','cfg_importar','cfg_whatsapp','cfg_sebrae'];
   ['viewer','editor','admin'].forEach(function(role){
     if(Array.isArray(p[role])){
-      var had=p[role].some(function(t){return OLD.indexOf(t)>=0;});
-      p[role]=p[role].filter(function(t){return OLD.indexOf(t)<0;});
-      if(had && p[role].indexOf('config')<0) p[role].push('config');
-      // Adiciona abas novas que não existiam quando as permissões foram salvas
-      NEW_TABS.forEach(function(nt){
-        if(p[role].indexOf(nt)<0) p[role].push(nt);
-      });
-      // Sub-abas de Configurações: admin sempre todas; quem tinha 'config'
-      // (dados antigos) e nenhuma sub-aba definida ganha todas (retrocompat).
-      var hasCfgSub=p[role].some(function(t){return CFG_KEYS.indexOf(t)>=0;});
-      if(role==='admin' || (p[role].indexOf('config')>=0 && !hasCfgSub)){
-        CFG_KEYS.forEach(function(c){ if(p[role].indexOf(c)<0) p[role].push(c); });
-      }
-      if(role==='editor' && (p[role].indexOf('config')>=0 || hasCfgSub) && p[role].indexOf('cfg_precos')<0){
-        p[role].push('cfg_precos');
+      if(schemaVersion<2){
+        var had=p[role].some(function(t){return OLD.indexOf(t)>=0;});
+        p[role]=p[role].filter(function(t){return OLD.indexOf(t)<0;});
+        if(had && p[role].indexOf('config')<0) p[role].push('config');
+        NEW_TABS.forEach(function(nt){if(p[role].indexOf(nt)<0)p[role].push(nt);});
+        var hasCfgSub=p[role].some(function(t){return CFG_KEYS.indexOf(t)>=0;});
+        if(role==='admin'||(p[role].indexOf('config')>=0&&!hasCfgSub)){
+          CFG_KEYS.forEach(function(c){if(p[role].indexOf(c)<0)p[role].push(c);});
+        }
+        if(role==='editor'&&(p[role].indexOf('config')>=0||hasCfgSub)&&p[role].indexOf('cfg_precos')<0){
+          p[role].push('cfg_precos');
+        }
       }
     }
   });
+  p._schemaVersion=2;
   return p;
 }
 
@@ -9807,96 +9844,166 @@ async function loadPermissionsOnLogin(){
   }catch(e){window._authz=null;}
 }
 
+let _permissionDraft=null,_permissionSavedSnapshot='',_permissionActiveRole='editor',_permissionCollapsedGroups={};
+
+function permissionStateSnapshot(){
+  return JSON.stringify({
+    perms:_permissionDraft||{},
+    order:window._matrixTabOrder||[]
+  });
+}
+function updatePermissionSaveState(){
+  const bar=document.getElementById('perm-savebar');
+  const status=document.getElementById('perm-save-status');
+  if(!bar||!status)return;
+  const dirty=!!_permissionSavedSnapshot&&permissionStateSnapshot()!==_permissionSavedSnapshot;
+  bar.hidden=!dirty;
+  status.classList.toggle('is-clean',!dirty);
+  status.lastElementChild.textContent=dirty?'Alterações não salvas':'Permissões salvas';
+}
+function permissionRoleDescription(role){
+  return {
+    viewer:'Pode consultar as áreas liberadas, sem alterar os dados.',
+    editor:'Pode acessar as áreas liberadas conforme as permissões do sistema.',
+    admin:'Acesso administrativo. Algumas permissões são obrigatórias.'
+  }[role]||'';
+}
+function selectPermissionRole(role){
+  if(['viewer','editor','admin'].indexOf(role)<0)return;
+  _permissionActiveRole=role;
+  renderPermsMatrix(_permissionDraft,document.getElementById('perms-matrix'));
+}
+function togglePermissionGroup(group,checked){
+  const rows=PERMISSION_GROUPS[group]||[];
+  const role=_permissionActiveRole;
+  rows.forEach(function(key){
+    if(role==='admin'&&key.indexOf('cfg_')===0)return;
+    if(key==='consolidado')return;
+    const list=_permissionDraft[role]||(_permissionDraft[role]=[]);
+    const at=list.indexOf(key);
+    if(checked&&at<0)list.push(key);
+    if(!checked&&at>=0)list.splice(at,1);
+  });
+  if(_permissionDraft[role].indexOf('consolidado')<0)_permissionDraft[role].push('consolidado');
+  renderPermsMatrix(_permissionDraft,document.getElementById('perms-matrix'));
+}
+function togglePermissionGroupVisibility(group){
+  _permissionCollapsedGroups[group]=!_permissionCollapsedGroups[group];
+  renderPermsMatrix(_permissionDraft,document.getElementById('perms-matrix'));
+}
+function updatePermissionDraft(){
+  const role=_permissionActiveRole;
+  const selected=[];
+  document.querySelectorAll('#perms-matrix .perm-cb:checked').forEach(function(cb){selected.push(cb.dataset.tab);});
+  if(selected.indexOf('consolidado')<0)selected.push('consolidado');
+  const untouched=(_permissionDraft[role]||[]).filter(function(key){return key.indexOf('cfg_')===0&&document.querySelector('#perms-matrix .perm-cb[data-tab="'+key+'"]')===null;});
+  _permissionDraft[role]=Array.from(new Set(selected.concat(untouched)));
+  updatePermissionSaveState();
+}
+function moveMatrixTab(index,direction){
+  const order=window._matrixTabOrder;
+  if(!order)return;
+  const next=index+direction;
+  if(next<0||next>=order.length)return;
+  const value=order[index];order[index]=order[next];order[next]=value;
+  renderPermsMatrix(_permissionDraft,document.getElementById('perms-matrix'));
+  updatePermissionSaveState();
+}
+
+const PERMISSION_GROUPS={
+  'Visão geral':['consolidado'],
+  'Operação':['entregas','nf','pr','avulso','avaria','pendentes','produtos','boletos'],
+  'Análises':['projecao','grafico','produtividade','clientes'],
+  'Sistema':['config'].concat(CFG_SUB_KEYS)
+};
 async function loadTabPermissions(){
   const el=document.getElementById('perms-matrix');if(!el)return;
+  if(_permissionSavedSnapshot&&permissionStateSnapshot()!==_permissionSavedSnapshot&&!window.confirm('Há alterações de permissões não salvas. Descartar e recarregar?'))return;
   try{
     let p=await api('/api/settings/tab-permissions');
     p=migratePerms(p);
     window._tabPermissions=p;
+    _permissionDraft={
+      viewer:Array.isArray(p.viewer)?p.viewer.slice():[],
+      editor:Array.isArray(p.editor)?p.editor.slice():[],
+      admin:Array.isArray(p.admin)?p.admin.slice():[]
+    };
     if(!window._tabOrder){
       try{window._tabOrder=migrateTabOrder(await api('/api/settings/tab-order'));}catch(e){}
     }
     window._matrixTabOrder = window._tabOrder && window._tabOrder.length
       ? window._tabOrder.slice()
       : ALL_TABS_DEF.map(function(t){return t[0];});
-    renderPermsMatrix(p,el);
+    _permissionSavedSnapshot='';
+    _permissionSavedSnapshot=permissionStateSnapshot();
+    _permissionActiveRole='editor';
+    renderPermsMatrix(_permissionDraft,el);
+    updatePermissionSaveState();
   }catch(e){el.innerHTML='<div style="color:var(--red);font-size:12px">'+(e.message||'Erro')+'</div>';}
 }
 
 function renderPermsMatrix(perms,el){
+  if(!el||!perms)return;
   const roles=['viewer','editor','admin'];
   const rl={viewer:'Viewer',editor:'Editor',admin:'Admin'};
   const order=window._matrixTabOrder||ALL_TABS_DEF.map(function(t){return t[0];});
   const labels={};ALL_TABS_DEF.forEach(function(t){labels[t[0]]=t[1];});
-  let t='<table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr>';
-  t+='<th style="padding:6px 9px;text-align:left;border-bottom:1px solid var(--border)">Aba</th>';
-  roles.forEach(function(r){t+='<th style="padding:6px 9px;text-align:center;border-bottom:1px solid var(--border)">'+rl[r]+'</th>';});
-  t+='</tr></thead><tbody>';
-  order.forEach(function(key,i){
-    const label=labels[key]||key;
-    const mandatory=key==='consolidado';
-    t+='<tr style="background:'+(i%2===0?'var(--g50)':'var(--card)')+';border-bottom:1px solid var(--border)">';
-    t+='<td style="padding:6px 9px;font-weight:600">';
-    t+='<span style="cursor:pointer;opacity:'+(i===0?'0.3':'1')+';user-select:none" onclick="moveMatrixTab('+i+',-1)" title="Mover para cima">▲</span>';
-    t+='<span style="cursor:pointer;opacity:'+(i===order.length-1?'0.3':'1')+';user-select:none;margin-left:6px" onclick="moveMatrixTab('+i+',1)" title="Mover para baixo">▼</span>';
-    t+='<span style="margin-left:8px">'+label+'</span>';
-    t+='</td>';
-    roles.forEach(function(r){
-      const chk=(perms[r]||[]).includes(key);
-      t+='<td style="padding:6px 9px;text-align:center"><input type="checkbox" class="perm-cb" data-role="'+r+'" data-tab="'+key+'"'
-        +(chk?' checked':'')+(mandatory?' disabled checked':'')
-        +'></td>';
-    });
-    t+='</tr>';
+  const role=_permissionActiveRole;
+  const defs=ALL_TABS_DEF.concat(getCompanyConfigSubDefs().map(function(sub){return ['cfg_'+sub[0],sub[1]];}));
+  let html='<div class="perm-profile-tabs" role="tablist" aria-label="Perfil de usuário">';
+  roles.forEach(function(r){html+='<button type="button" class="perm-profile-tab" role="tab" aria-selected="'+(role===r)+'" onclick="selectPermissionRole(\''+r+'\')">'+rl[r]+'</button>';});
+  html+='</div><div class="perm-profile-summary"><strong style="display:block;color:var(--g800);font-size:12px;margin-bottom:3px">Perfil '+rl[role]+'</strong><span style="font-size:11px;color:var(--muted)">'+permissionRoleDescription(role)+'</span></div>';
+  html+='<div class="perm-colhead" style="display:grid;grid-template-columns:minmax(0,1fr) 90px minmax(100px,auto);gap:12px;padding:0 13px 6px;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase"><span>Módulo</span><span style="text-align:center">Acessar</span><span style="text-align:right">Ordem</span></div>';
+  const groups=Object.keys(PERMISSION_GROUPS).sort(function(a,b){
+    function firstPosition(group){
+      const positions=PERMISSION_GROUPS[group].map(function(key){return order.indexOf(key);}).filter(function(i){return i>=0;});
+      return positions.length?Math.min.apply(Math,positions):Number.MAX_SAFE_INTEGER;
+    }
+    return firstPosition(a)-firstPosition(b);
   });
-  t+='</tbody></table>';
-  // Seção: sub-abas de Configurações (chaves cfg_<id>)
-  t+='<div style="margin-top:14px;font-size:11px;font-weight:700;color:var(--g800);padding:0 2px">⚙ Sub-abas de Configurações</div>';
-  t+='<div style="font-size:10px;color:var(--muted);margin:2px 0 6px;padding:0 2px">Controle fino do que cada perfil vê dentro de Configurações (ex: liberar só "Verificar NF" para o Editor).</div>';
-  t+='<table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr>';
-  t+='<th style="padding:6px 9px;text-align:left;border-bottom:1px solid var(--border)">Sub-aba</th>';
-  roles.forEach(function(r){t+='<th style="padding:6px 9px;text-align:center;border-bottom:1px solid var(--border)">'+rl[r]+'</th>';});
-  t+='</tr></thead><tbody>';
-  getCompanyConfigSubDefs().forEach(function(sub,i){
-    var key='cfg_'+sub[0];
-    t+='<tr style="background:'+(i%2===0?'var(--g50)':'var(--card)')+';border-bottom:1px solid var(--border)">';
-    t+='<td style="padding:6px 9px;font-weight:600">'+sub[1]+'</td>';
-    roles.forEach(function(r){
-      var chk=(perms[r]||[]).includes(key);
-      var isAdmin=(r==='admin');
-      t+='<td style="padding:6px 9px;text-align:center"><input type="checkbox" class="perm-cb" data-role="'+r+'" data-tab="'+key+'"'
-        +(chk||isAdmin?' checked':'')+(isAdmin?' disabled':'')+'></td>';
+  groups.forEach(function(group){
+    const groupKeys=PERMISSION_GROUPS[group].filter(function(key){return defs.some(function(def){return def[0]===key;});});
+    groupKeys.sort(function(a,b){
+      const ai=order.indexOf(a),bi=order.indexOf(b);
+      if(ai<0&&bi<0)return 0;
+      if(ai<0)return 1;
+      if(bi<0)return -1;
+      return ai-bi;
     });
-    t+='</tr>';
+    if(!groupKeys.length)return;
+    const collapsed=!!_permissionCollapsedGroups[group];
+    const selectedCount=groupKeys.filter(function(key){return (perms[role]||[]).indexOf(key)>=0||(role==='admin'&&key.indexOf('cfg_')===0);}).length;
+    html+='<section class="perm-group"><div class="perm-group-head"><button type="button" class="perm-group-toggle" aria-expanded="'+(!collapsed)+'" onclick="togglePermissionGroupVisibility(\''+group+'\')"><span aria-hidden="true">'+(collapsed?'▸':'▾')+'</span><span>'+group+'</span><span style="font-size:10px;color:var(--muted);font-weight:500">'+selectedCount+' de '+groupKeys.length+' liberados</span></button><label style="display:flex;align-items:center;gap:7px;font-size:11px;white-space:nowrap"><input type="checkbox" aria-label="Marcar todos em '+group+'" onchange="togglePermissionGroup(\''+group+'\',this.checked)" '+(selectedCount===groupKeys.length?'checked':'')+' '+(role==='admin'&&group==='Sistema'?'disabled':'')+'>Marcar todos</label></div>';
+    html+='<div class="perm-group-content" '+(collapsed?'hidden':'')+'>';
+    groupKeys.forEach(function(key){
+      const def=defs.find(function(item){return item[0]===key;});
+      const mandatory=key==='consolidado';
+      const adminLocked=role==='admin'&&key.indexOf('cfg_')===0;
+      const checked=mandatory||adminLocked||(perms[role]||[]).indexOf(key)>=0;
+      const position=order.indexOf(key);
+      const canMoveUp=position>0;
+      const canMoveDown=position>=0&&position<order.length-1;
+      html+='<div class="perm-row"><span style="font-size:12px;font-weight:600">'+def[1]+(mandatory?'<span style="margin-left:7px;color:var(--muted);font-size:10px;font-weight:500">Obrigatório</span>':'')+'</span>';
+      html+='<label class="perm-access"><input type="checkbox" class="perm-cb" data-tab="'+key+'" aria-label="Permitir acesso a '+def[1]+'" '+(checked?'checked':'')+((mandatory||adminLocked)?' disabled':'')+' onchange="updatePermissionDraft()"></label>';
+      if(key.indexOf('cfg_')===0||position<0)html+='<span></span>';
+      else html+='<span class="perm-order"><button type="button" aria-label="Mover '+def[1]+' para cima" title="Mover para cima" onclick="moveMatrixTab('+position+',-1)" '+(canMoveUp?'':'disabled')+'>↑</button><button type="button" aria-label="Mover '+def[1]+' para baixo" title="Mover para baixo" onclick="moveMatrixTab('+position+',1)" '+(canMoveDown?'':'disabled')+'>↓</button></span>';
+      html+='</div>';
+    });
+    html+='</div></section>';
   });
-  t+='</tbody></table>';
-  el.innerHTML=t;
-}
-
-function moveMatrixTab(index,direction){
-  const order=window._matrixTabOrder;
-  if(!order) return;
-  const newIndex=index+direction;
-  if(newIndex<0||newIndex>=order.length) return;
-  const tmp=order[index];order[index]=order[newIndex];order[newIndex]=tmp;
-  const el=document.getElementById('perms-matrix');
-  if(el) renderPermsMatrix(window._tabPermissions, el);
+  el.innerHTML=html;
 }
 
 async function saveTabPermissions(){
   const btn = document.getElementById('btn-save-perms');
+  if(!_permissionDraft)return;
   if(btn){btn.disabled=true;btn.textContent='Salvando...';}
-  const perms={viewer:[],editor:[],admin:[]};
-  const cbs = document.querySelectorAll('#perms-matrix .perm-cb');
-  if(!cbs.length){
-    toast('Erro: checkboxes não encontrados. Recarregue a página.','error');
-    if(btn){btn.disabled=false;btn.textContent='💾 Salvar Permissões';}
+  const perms={viewer:_permissionDraft.viewer.slice(),editor:_permissionDraft.editor.slice(),admin:_permissionDraft.admin.slice(),_schemaVersion:2};
+  if(!perms.viewer||!perms.editor||!perms.admin){
+    toast('Erro: permissões incompletas. Recarregue a página.','error');
+    if(btn){btn.disabled=false;btn.textContent='Salvar alterações';}
     return;
   }
-  cbs.forEach(function(cb){
-    if(cb.checked && cb.dataset.role && cb.dataset.tab)
-      perms[cb.dataset.role].push(cb.dataset.tab);
-  });
   // Always include consolidado
   ['viewer','editor','admin'].forEach(function(r){
     if(!perms[r].includes('consolidado'))perms[r].push('consolidado');
@@ -9918,17 +10025,31 @@ async function saveTabPermissions(){
         headers:{'Content-Type':'application/json'},body:JSON.stringify(window._matrixTabOrder)});
       window._tabOrder=window._matrixTabOrder.slice();
     }
+    _permissionDraft={viewer:(window._tabPermissions.viewer||[]).slice(),editor:(window._tabPermissions.editor||[]).slice(),admin:(window._tabPermissions.admin||[]).slice()};
+    _permissionSavedSnapshot=permissionStateSnapshot();
     applyRoleUI(session.role);
     const myPerms = window._tabPermissions;
     const total = (myPerms[session.role]||[]).length;
     toast('✅ Permissões salvas! '+total+' aba(s) ativas para seu perfil.');
     // Re-render matrix with confirmed data
     const matrixEl = document.getElementById('perms-matrix');
-    if(matrixEl) renderPermsMatrix(myPerms, matrixEl);
+    if(matrixEl) renderPermsMatrix(_permissionDraft, matrixEl);
+    updatePermissionSaveState();
   }catch(e){
     toast('Erro ao salvar: '+(e.message||JSON.stringify(e)),'error');
   }
-  if(btn){btn.disabled=false;btn.textContent='💾 Salvar Permissões';}
+  if(btn){btn.disabled=false;btn.textContent='Salvar alterações';}
+}
+
+function discardTabPermissionChanges(){
+  if(!_permissionSavedSnapshot)return;
+  try{
+    const saved=JSON.parse(_permissionSavedSnapshot);
+    _permissionDraft=saved.perms;
+    window._matrixTabOrder=saved.order;
+    renderPermsMatrix(_permissionDraft,document.getElementById('perms-matrix'));
+    updatePermissionSaveState();
+  }catch(e){toast('Não foi possível restaurar as alterações. Recarregue as permissões.','error');}
 }
 
 // ── Permissão de pagamentos Monteiro ────────────────────────────────────────
