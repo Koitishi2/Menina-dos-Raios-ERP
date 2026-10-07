@@ -7348,14 +7348,23 @@ async function deleteOrcQuote(id){
   if(!confirm('Remover esta proposta salva?'))return;
   await api('/api/orcamentos/'+id,{method:'DELETE'});await loadOrcQuotes();toast('Proposta removida.');
 }
-async function printOrcQuote(id){const d=await api('/api/orcamentos/'+id);openOrcPrint(d);}
-async function printOrcPreview(){
-  let d;
-  if(orcCurrentId)d=await api('/api/orcamentos/'+orcCurrentId);
-  else d={company:getOrcCompany(),quote:collectOrcQuote(),items:collectOrcQuote().items};
-  openOrcPrint(d);
+async function printOrcQuote(id){
+  const w=window.open('','_blank');
+  if(!w){toast('Permita janelas pop-up para imprimir o orçamento.','error');return;}
+  try{const d=await api('/api/orcamentos/'+id);openOrcPrint(d,w);}
+  catch(e){w.close();toast('Erro ao carregar o orçamento para impressão: '+e.message,'error');}
 }
-function openOrcPrint(data){
+async function printOrcPreview(){
+  const w=window.open('','_blank');
+  if(!w){toast('Permita janelas pop-up para imprimir o orçamento.','error');return;}
+  let d;
+  try{
+    if(orcCurrentId)d=await api('/api/orcamentos/'+orcCurrentId);
+    else d={company:getOrcCompany(),quote:collectOrcQuote(),items:collectOrcQuote().items};
+    openOrcPrint(d,w);
+  }catch(e){w.close();toast('Erro ao preparar o orçamento para impressão: '+e.message,'error');}
+}
+function openOrcPrint(data,targetWindow){
   const q=data.quote||{}, items=data.items||[];
   const baseCompany=ORC_COMPANIES[q.company_key]||getOrcCompany();
   const c=Object.assign({},baseCompany,data.company||{});
@@ -7377,7 +7386,8 @@ function openOrcPrint(data){
   const clientFileName=String(q.client_name||'cliente').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').toUpperCase()||'CLIENTE';
   const quoteFileNumber=String(q.quote_number||'previa').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').toUpperCase()||'PREVIA';
   const printFileName='orçamento_'+clientFileName+'_'+quoteFileNumber+'.pdf';
-  const w=window.open('','_blank');
+  const w=targetWindow||window.open('','_blank');
+  if(!w){toast('Permita janelas pop-up para imprimir o orçamento.','error');return;}
   w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(printFileName)+'</title><style>'
     +'@page{size:A4 portrait;margin:10mm}'
     +'*{box-sizing:border-box}'
@@ -16244,6 +16254,16 @@ async function loadAppVales(){
 function renderAppVales(){
   var wrap=document.getElementById('app-vales-wrap'),kpis=document.getElementById('app-vales-kpis');
   if(!wrap)return;
+  if(!wrap.dataset.signatureClickBound){
+    wrap.addEventListener('click',function(ev){
+      var btn=ev.target&&ev.target.closest?ev.target.closest('[data-app-vale-action="signature"][data-app-vale-id]'):null;
+      if(!btn||!wrap.contains(btn))return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      showAppValeSignature(btn.getAttribute('data-app-vale-id'));
+    });
+    wrap.dataset.signatureClickBound='1';
+  }
   var items=_appVales||[];
   var total=items.reduce(function(s,x){return s+Number(x.amount||0);},0);
   var solicitantes={}; items.forEach(function(x){solicitantes[String(x.solicitante_nome||'').trim().toLowerCase()]=1;});
@@ -16465,16 +16485,21 @@ function promptUploadPaladarInvoice(groupId){
 }
 
 async function openPaladarInvoice(groupId){
+  var viewer=window.open('about:blank','_blank');
+  if(!viewer){ toast('O navegador bloqueou a aba da nota. Permita pop-ups para este sistema e tente novamente.','error'); return; }
+  try{ viewer.document.title='Carregando nota fiscal'; viewer.document.body.textContent='Carregando nota fiscal…'; }catch(_e){}
+  var objectUrl=null;
   try{
     var r=await fetch('/api/monteiro/sales/group/'+encodeURIComponent(groupId)+'/invoice',{
       headers:{'x-token':(typeof session !== 'undefined' ? session.token : '') || ''}
     });
     if(!r.ok){ var err=await r.json().catch(function(){return {detail:r.statusText};}); throw new Error(err.detail || 'Nota fiscal não encontrada'); }
     var blob=await r.blob();
-    var url=URL.createObjectURL(blob);
-    window.open(url,'_blank');
-    setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
-  }catch(e){ toast('Erro: '+e.message,'error'); }
+    objectUrl=URL.createObjectURL(blob);
+    if(viewer.closed){ URL.revokeObjectURL(objectUrl); return; }
+    viewer.location.href=objectUrl;
+    setTimeout(function(){ if(objectUrl)URL.revokeObjectURL(objectUrl); }, 300000);
+  }catch(e){ if(!viewer.closed)viewer.close(); toast('Erro ao carregar a nota fiscal: '+e.message,'error'); }
 }
 
 // Baixa em ZIP as notas fiscais marcadas; se nenhuma marcada, baixa todas as
@@ -18428,7 +18453,7 @@ function renderAvariaRanking(){
         +'<td data-label="Avariado" class="r mono" style="font-weight:800;color:#b91c1c">'+fmt(r.avTotal)+'</td>'
         +'<td data-label="Ocorr." class="r mono">'+r.avCount+'</td>'
         +'<td data-label="Severidade"><div class="risk-bar"><span style="width:'+Math.max(6,Math.round((barVal/(max||1))*100))+'%"></span></div><div style="margin-top:5px">'+badge+'</div><div style="font-size:10px;color:var(--muted);margin-top:4px">Risco: taxa '+Number(r.rate||0).toFixed(1).replace('.',',')+'% · '+fmt(r.avTotal)+'</div></td>'
-        +'<td data-label="Ações"><div class="risk-actions"><button type="button" class="btn btn-secondary btn-sm" title="Ver entregue e retornado do mês" data-avaria-action="client-month" data-client="'+clientAttr+'"></button><button type="button" class="btn btn-secondary btn-sm" title="Filtrar calendário por cliente" data-avaria-action="filter-client" data-client="'+clientAttr+'">📅</button><button type="button" class="btn btn-secondary btn-sm" title="Abrir Clientes" data-avaria-action="open-clientes">👤</button></div></td>'
+        +'<td data-label="Ações"><div class="risk-actions"><button type="button" class="btn btn-secondary btn-sm" title="Ver entregue e retornado do mês" aria-label="Ver entregue e retornado do mês" data-avaria-action="client-month" data-client="'+clientAttr+'">↗</button><button type="button" class="btn btn-secondary btn-sm" title="Filtrar calendário por cliente" aria-label="Filtrar calendário por cliente" data-avaria-action="filter-client" data-client="'+clientAttr+'">📅</button><button type="button" class="btn btn-secondary btn-sm" title="Abrir Clientes" aria-label="Abrir Clientes" data-avaria-action="open-clientes">👤</button></div></td>'
       +'</tr>';
     }).join('')+'</tbody></table></div>';
 }
@@ -18447,6 +18472,7 @@ function mobileNormalizeText(txt){
 }
 function isMobileReadOnlyAllowed(el){
   if(!el)return false;
+  if(el.closest('#app-vales-wrap [data-app-vale-action="signature"]'))return true;
   var deliveryPanel=document.getElementById('panel-entregas');
   if(el.closest('#delivery-date-modal')&&document.getElementById('delivery-date-modal')?.style.display!=='none')return true;
   if(el.closest('#panel-entregas .delivery-confirm')&&deliveryPanel?.classList.contains('active'))return true;
