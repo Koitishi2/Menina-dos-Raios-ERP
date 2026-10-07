@@ -946,9 +946,9 @@ def role_has_tab_permission(role:str, permission_key:str)->bool:
     try:
         row=conn.execute("SELECT value FROM settings WHERE key='tab_permissions'").fetchone()
         defaults={
-            "viewer":["consolidado","nf","pr","avulso","avaria","projecao","grafico","clientes","produtividade","boletos","pendentes","produtos"],
-            "editor":["consolidado","nf","pr","avulso","avaria","projecao","grafico","clientes","produtividade","boletos","pendentes","produtos","config","cfg_precos"],
-            "admin":["consolidado","nf","pr","avulso","avaria","projecao","grafico","clientes","produtividade","boletos","pendentes","produtos","config","cfg_precos","cfg_registro","cfg_importar","cfg_whatsapp","cfg_sebrae"],
+            "viewer":["consolidado","entregas","nf","pr","avulso","avaria","projecao","grafico","clientes","produtividade","boletos","pendentes","produtos"],
+            "editor":["consolidado","entregas","nf","pr","avulso","avaria","projecao","grafico","clientes","produtividade","boletos","pendentes","produtos","config","cfg_precos"],
+            "admin":["consolidado","entregas","nf","pr","avulso","avaria","projecao","grafico","clientes","produtividade","boletos","pendentes","produtos","config","cfg_precos","cfg_registro","cfg_importar","cfg_whatsapp","cfg_sebrae"],
         }
         perms=json.loads(row["value"]) if row and row["value"] else defaults
         allowed=perms.get(role,[]) if isinstance(perms,dict) else []
@@ -1942,7 +1942,7 @@ def mark_admin_message_seen(message_id:str,x_token:str=Header("")):
 def list_sales(sale_type:Optional[str]=None,month:Optional[int]=None,
                year:Optional[int]=None,search:Optional[str]=None,
                driver:Optional[str]=None,limit:Optional[int]=None,x_token:str=Header("")):
-    sess=require_any_tab_access(x_token,["consolidado","nf","pr","avulso","avaria","grafico","produtividade","clientes","pendentes"])
+    sess=require_any_tab_access(x_token,["consolidado","entregas","nf","pr","avulso","avaria","grafico","produtividade","clientes","pendentes"])
     conn=get_db(); sql="SELECT * FROM sales WHERE 1=1"; args=[]
     if sale_type: sql+=" AND sale_type=?"; args.append(sale_type)
     if year: sql+=" AND strftime('%Y',sale_date)=?"; args.append(str(year))
@@ -2004,7 +2004,13 @@ def create_sale(sale:SaleIn,x_token:str=Header("")):
 @app.put("/api/sales/bulk-delivered")
 def bulk_delivery_status(body:dict,x_token:str=Header("")):
     """Marca mÃºltiplas notas como entregues de uma vez."""
-    sess=require_editor_tab_access(x_token,["nf","pendentes","consolidado"]); conn=get_db()
+    sess=require_editor_tab_access(x_token,["nf","pendentes","consolidado","entregas"]); conn=get_db()
+    context=_rbac_context_for_session(sess)
+    if context.get("managed") and sess.get("role")!="admin":
+        area=_current_area_key()
+        if not any(role_has_permission(context,area,key,"edit") for key in ("nf","pendentes","consolidado","entregas")):
+            conn.close()
+            raise HTTPException(403,"Sem permissao para alterar o status de entrega.")
     ids=body.get("ids",[])
     status=body.get("delivered","sim")
     delivered_at=body.get("delivered_at")
@@ -2072,7 +2078,13 @@ def update_sale(sale_id:str,body:dict,x_token:str=Header("")):
 @app.put("/api/sales/{sale_id}/delivered")
 def update_delivery_status(sale_id:str,body:dict,x_token:str=Header("")):
     """Marca/desmarca nota como entregue."""
-    sess=require_editor_tab_access(x_token,["nf","pendentes","consolidado"]); conn=get_db()
+    sess=require_editor_tab_access(x_token,["nf","pendentes","consolidado","entregas"]); conn=get_db()
+    context=_rbac_context_for_session(sess)
+    if context.get("managed") and sess.get("role")!="admin":
+        area=_current_area_key()
+        if not any(role_has_permission(context,area,key,"edit") for key in ("nf","pendentes","consolidado","entregas")):
+            conn.close()
+            raise HTTPException(403,"Sem permissao para alterar o status de entrega.")
     status=body.get("delivered")  # 'sim', 'nao', ou None
     delivered_at=body.get("delivered_at")
     if status is None or status=='':
@@ -3333,9 +3345,9 @@ def get_tab_permissions(x_token:str=Header("")):
     row=conn.execute("SELECT value FROM settings WHERE key='tab_permissions'").fetchone()
     conn.close()
     defaults={
-        "viewer":["consolidado","nf","pr","avulso","avaria","projecao","grafico","clientes","produtividade","boletos","pendentes","produtos"],
-        "editor":["consolidado","nf","pr","avulso","avaria","projecao","grafico","clientes","produtividade","boletos","pendentes","produtos","config"],
-        "admin": ["consolidado","nf","pr","avulso","avaria","projecao","grafico","clientes","produtividade","boletos","pendentes","produtos","config"]
+        "viewer":["consolidado","entregas","nf","pr","avulso","avaria","projecao","grafico","clientes","produtividade","boletos","pendentes","produtos"],
+        "editor":["consolidado","entregas","nf","pr","avulso","avaria","projecao","grafico","clientes","produtividade","boletos","pendentes","produtos","config"],
+        "admin": ["consolidado","entregas","nf","pr","avulso","avaria","projecao","grafico","clientes","produtividade","boletos","pendentes","produtos","config"]
     }
     if row:
         import json as _j

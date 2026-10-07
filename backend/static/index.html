@@ -3060,6 +3060,27 @@ body.paladar-active #notif-restore{display:none!important}
   #cv-pedidos .client-orders-filters{display:grid;grid-template-columns:1fr 1fr}
   #cv-pedidos .client-orders-tabs{overflow-x:auto;white-space:nowrap}
 }
+/* Painel operacional de entregas */
+.delivery-page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin:2px 0 16px}
+.delivery-page-head h2{margin:0;color:var(--ink);font-size:24px;line-height:1.2}
+.delivery-page-head p,.delivery-section-head p{margin:4px 0 0;color:var(--muted);font-size:12px}
+.delivery-date-control{display:flex;align-items:center;gap:8px;padding:8px 11px;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--muted);font-size:11px;font-weight:700}
+.delivery-date-control input{border:0;background:transparent;color:var(--ink);font:600 12px 'DM Sans',sans-serif}
+.delivery-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:16px;border:1px solid var(--border);border-radius:8px;background:var(--card);overflow:hidden}
+.delivery-kpi{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:76px;padding:13px 16px;border-right:1px solid var(--border)}
+.delivery-kpi:last-child{border-right:0}.delivery-kpi-label{font-size:11px;color:var(--muted)}.delivery-kpi strong{display:block;margin-top:3px;color:var(--ink);font-size:21px;line-height:1.1}.delivery-kpi small{display:block;margin-top:4px;color:var(--muted);font-size:10px}.delivery-kpi-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:7px;background:var(--g50);color:var(--g800);font-weight:800}
+.delivery-layout{display:grid;grid-template-columns:minmax(0,1fr) 292px;align-items:start;gap:18px}
+.delivery-main,.delivery-progress-panel,.delivery-quick-panel{min-width:0}
+.delivery-section-head{margin:2px 0 12px}.delivery-section-head h3,.delivery-progress-panel h3,.delivery-quick-panel h3{margin:0;color:var(--ink);font-size:14px}
+.delivery-filters{display:grid;grid-template-columns:minmax(180px,1fr) minmax(140px,190px) minmax(160px,210px);gap:8px;margin-bottom:10px}
+.delivery-filters input,.delivery-filters select{width:100%;min-width:0;min-height:38px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--ink);font:500 12px 'DM Sans',sans-serif}
+.delivery-table-wrap{border:1px solid var(--border);border-radius:8px;background:var(--card);overflow:auto}
+.delivery-table{width:100%;border-collapse:collapse;font-size:11px}.delivery-table th{padding:10px 11px;border-bottom:1px solid var(--border);background:var(--g50);color:var(--muted);font-size:9px;text-align:left;text-transform:uppercase;white-space:nowrap}.delivery-table td{padding:11px;border-bottom:1px solid var(--border);color:var(--ink);vertical-align:middle}.delivery-table tbody tr:last-child td{border-bottom:0}.delivery-table .delivery-client{font-weight:750}.delivery-table .delivery-meta{display:block;margin-top:3px;color:var(--muted);font-size:10px;font-weight:400}.delivery-products{max-width:300px;color:var(--muted)}
+.delivery-state{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border-radius:99px;background:#fff4e5;color:#945500;font-size:10px;font-weight:750;white-space:nowrap}.delivery-state:before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}.delivery-state.done{background:#e8f3ec;color:#236342}.delivery-state.no{background:#fdebec;color:#a52b32}
+.delivery-confirm{min-height:30px;padding:5px 9px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--g800);font:700 10px 'DM Sans',sans-serif;cursor:pointer;white-space:nowrap}.delivery-confirm:hover{background:var(--g50)}
+.delivery-progress-panel,.delivery-quick-panel{padding:15px;border:1px solid var(--border);border-radius:8px;background:var(--card)}.delivery-quick-panel{margin-top:12px}.delivery-progress-value{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:16px 0 10px}.delivery-progress-value strong{font-size:21px;color:var(--ink)}.delivery-progress-value span{font-size:10px;color:var(--muted)}.delivery-progress-track{height:6px;border-radius:8px;background:var(--g100);overflow:hidden}.delivery-progress-track span{display:block;width:0;height:100%;border-radius:inherit;background:#31845b;transition:width .2s}.delivery-progress-panel>p{margin:10px 0;color:var(--muted);font-size:10px}.delivery-progress-panel dl{margin:10px 0 0}.delivery-progress-panel dl div{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid var(--border);font-size:11px}.delivery-progress-panel dt{color:var(--muted)}.delivery-progress-panel dd{margin:0;color:var(--ink);font-weight:750}.delivery-quick-panel button{display:block;width:100%;min-height:39px;margin-top:7px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--ink);font:650 11px 'DM Sans',sans-serif;text-align:left;cursor:pointer}.delivery-quick-panel button:hover{background:var(--g50)}.delivery-quick-panel button.delivery-launch{background:var(--g800);color:#fff;border-color:var(--g800)}.delivery-empty{padding:22px;text-align:center;color:var(--muted);font-size:12px}
+@media(max-width:900px){.delivery-layout{grid-template-columns:minmax(0,1fr) 250px;gap:12px}.delivery-filters{grid-template-columns:1fr 1fr}.delivery-filters input{grid-column:1/-1}}
+@media(max-width:640px){.delivery-page-head{align-items:flex-start;flex-direction:column}.delivery-page-head h2{font-size:20px}.delivery-date-control{width:100%;box-sizing:border-box;justify-content:space-between}.delivery-date-control input{font-size:12px}.delivery-kpis{grid-template-columns:1fr}.delivery-kpi{min-height:60px;border-right:0;border-bottom:1px solid var(--border);padding:10px 12px}.delivery-kpi:last-child{border-bottom:0}.delivery-layout{grid-template-columns:1fr}.delivery-aside{display:grid;grid-template-columns:1fr 1fr;gap:8px}.delivery-quick-panel{margin-top:0}.delivery-table-wrap{overflow:visible;border:0;background:transparent}.delivery-table,.delivery-table tbody,.delivery-table tr,.delivery-table td{display:block;width:auto}.delivery-table thead{display:none}.delivery-table tbody{display:grid;gap:8px}.delivery-table tr{position:relative;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--card)}.delivery-table td{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;border:0;text-align:right}.delivery-table td:before{content:attr(data-label);flex:0 0 auto;color:var(--muted);font-size:9px;font-weight:750;text-align:left;text-transform:uppercase}.delivery-table td.delivery-products-cell{align-items:flex-start}.delivery-table td.delivery-products-cell .delivery-products{max-width:68%;text-align:right}}
 /* Menina 2.0: mesma aplicação e abas, com navegação lateral no desktop. */
 html[data-layout-skin="menina2"] body{background:#f4f7f5}
 html[data-layout-skin="menina2"] .sc,
@@ -3380,6 +3401,7 @@ html[data-layout-skin="menina2"] .tabs-wrap{scrollbar-width:thin}
       </div>
     </div>
     <button class="tab active" onclick="switchTab(this,'consolidado')">📊 Consolidado</button>
+    <button class="tab" onclick="switchTab(this,'entregas')">🚚 Entregas</button>
     <button class="tab" onclick="switchTab(this,'nf')">🧾 NF-e</button>
     <button class="tab" onclick="switchTab(this,'pr')">🌱 Prod. Rural</button>
     <button class="tab" onclick="switchTab(this,'avulso')">💵 Avulso</button>
@@ -3392,6 +3414,31 @@ html[data-layout-skin="menina2"] .tabs-wrap{scrollbar-width:thin}
     <button class="tab" onclick="switchTab(this,'pendentes')">📋 Notas <span id="tab-pendentes-badge" style="background:#B71C1C;color:#fff;border-radius:10px;padding:0 6px;font-size:10px;font-weight:700;margin-left:2px;display:none">0</span></button>
     <button class="tab" onclick="switchTab(this,'produtos')">📦 Produtos</button>
     <button class="tab" onclick="switchTab(this,'config')">⚙ Configurações</button>
+  </div>
+
+  <!-- ENTREGAS -->
+  <div class="panel" id="panel-entregas">
+    <div class="delivery-page-head">
+      <div><h2>Operação de hoje</h2><p>Entregas e confirmações da equipe em um só lugar.</p></div>
+      <label class="delivery-date-control">Data <input type="date" id="delivery-board-date"></label>
+    </div>
+    <div class="delivery-kpis" id="delivery-board-kpis" aria-live="polite"></div>
+    <div class="delivery-layout">
+      <section class="delivery-main">
+        <div class="delivery-section-head"><div><h3>Entregas</h3><p id="delivery-board-subtitle">Pedidos do dia organizados por horário</p></div></div>
+        <div class="delivery-filters">
+          <input id="delivery-board-search" type="search" placeholder="Buscar cliente, bairro ou nota" aria-label="Buscar entregas">
+          <select id="delivery-board-driver" aria-label="Filtrar por entregador"><option value="">Todos os entregadores</option></select>
+          <select id="delivery-board-status" aria-label="Filtrar por situação"><option value="">Todas as situações</option><option value="pending">Aguardando confirmação</option><option value="no">Não entregue</option><option value="done">Concluída</option></select>
+        </div>
+        <div class="delivery-table-wrap"><table class="delivery-table"><thead><tr><th>Horário</th><th>Cliente</th><th>Pedido</th><th>Entregador</th><th>Situação</th><th></th></tr></thead><tbody id="delivery-board-rows"></tbody></table></div>
+        <div class="delivery-empty" id="delivery-board-empty" hidden>Nenhuma entrega encontrada para esta data e filtros.</div>
+      </section>
+      <aside class="delivery-aside">
+        <section class="delivery-progress-panel"><h3>Ritmo das entregas</h3><div class="delivery-progress-value"><strong id="delivery-progress-count">0 / 0</strong><span id="delivery-progress-percent">0% concluído</span></div><div class="delivery-progress-track"><span id="delivery-progress-bar"></span></div><p id="delivery-progress-pending">Nenhuma entrega aguardando confirmação.</p><dl><div><dt>Concluídas</dt><dd id="delivery-count-done">0</dd></div><div><dt>Aguardando confirmação</dt><dd id="delivery-count-pending">0</dd></div><div><dt>Não entregues</dt><dd id="delivery-count-no">0</dd></div></dl></section>
+        <section class="delivery-quick-panel"><h3>Acesso rápido</h3><button type="button" onclick="deliveryOpenTab('pendentes')">📋 Conferir notas pendentes</button><button type="button" onclick="deliveryOpenTab('clientes')">👥 Ver clientes</button><button type="button" id="delivery-launch-btn" class="delivery-launch" onclick="openModal()">＋ Lançar uma venda</button></section>
+      </aside>
+    </div>
   </div>
 
   <!-- CONSOLIDADO -->
@@ -4993,6 +5040,7 @@ html[data-layout-skin="menina2"] .tabs-wrap{scrollbar-width:thin}
   </div>
   </div>
   <div class="mobile-more-grid">
+    <button type="button" data-more-tab="entregas" onclick="mobileSwitchTab('entregas')">🚚 Entregas</button>
     <button type="button" data-more-tab="consolidado" onclick="mobileSwitchTab('consolidado')">📊 Consolidado</button>
     <button type="button" data-more-tab="nf" onclick="mobileSwitchTab('nf')">🧾 NF-e</button>
     <button type="button" data-more-tab="pr" onclick="mobileSwitchTab('pr')">🌱 Prod. Rural</button>
@@ -5682,8 +5730,8 @@ async function closeUserAdminMessage(){
 // ── ROLE UI ────────────────────────────────────────────────────────────────────
 function applyRoleUI(role){
   const defaults={viewer:[],
-    editor:['consolidado','nf','pr','avulso','avaria','projecao','grafico','clientes','produtividade','boletos','pendentes','produtos','config'],
-    admin:['consolidado','nf','pr','avulso','avaria','projecao','grafico','clientes','produtividade','boletos','pendentes','produtos','config']};
+    editor:['consolidado','entregas','nf','pr','avulso','avaria','projecao','grafico','clientes','produtividade','boletos','pendentes','produtos','config'],
+    admin:['consolidado','entregas','nf','pr','avulso','avaria','projecao','grafico','clientes','produtividade','boletos','pendentes','produtos','config']};
   // Garante que window._tabPermissions, se vier do banco antigo, seja migrado
   if(window._tabPermissions && typeof migratePerms==='function'){
     window._tabPermissions = migratePerms(window._tabPermissions);
@@ -5799,6 +5847,7 @@ function switchTab(btn,name){
   document.getElementById('panel-'+name).classList.add('active');
   if(typeof updateSmartContext === 'function') updateSmartContext(name);
   if(name==='clientes')loadClientsPanel();
+  if(name==='entregas')renderDeliveryBoard();
   if(name==='produtividade'){_prodTypes=new Set(activeCompany==='estrada'?['NF','AVULSO','AVARIA']:['NF','PR','AVULSO','AVARIA']);_updateProdBtns();loadProdutividade();}
   if(name==='boletos'){initBolClientConfig().then(function(){loadBoletos();});}
   if(name==='grafico')loadConsolidado();
@@ -5812,6 +5861,87 @@ function switchTab(btn,name){
   if(name==='pendentes'){ updateNotasCounts(); switchNotasView(_notasView || 'pendentes'); } else { if(typeof _bulkSelection !== 'undefined' && _bulkSelection.size > 0){ _bulkSelection.clear(); updateBulkBar(); } }
   if(['nf','pr','avulso','avaria'].includes(name))renderTypePanel(name.toUpperCase());
 }
+
+function deliveryBoardDateToday(){
+  var now=new Date();
+  return now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+}
+function deliveryBoardCanEdit(){
+  if(session&&session.role==='admin')return true;
+  if(window._authz&&window._authz.managed)return managedModulePermission('entregas','edit');
+  return !!(session&&session.role==='editor');
+}
+function deliveryBoardCanCreateSale(){
+  if(session&&session.role==='admin')return true;
+  if(window._authz&&window._authz.managed)return ['consolidado','nf','pr','avulso'].some(function(key){return managedModulePermission(key,'create');});
+  return !!(session&&session.role==='editor');
+}
+function deliveryOpenTab(name){
+  var tab=Array.from(document.querySelectorAll('.tabs-wrap .tab')).find(function(item){return String(item.getAttribute('onclick')||'').indexOf("'"+name+"'")>=0;});
+  if(tab)switchTab(tab,name);
+}
+function renderDeliveryBoard(){
+  var dateEl=document.getElementById('delivery-board-date');
+  var rowsEl=document.getElementById('delivery-board-rows');
+  if(!dateEl||!rowsEl)return;
+  if(!dateEl.value)dateEl.value=deliveryBoardDateToday();
+  var date=dateEl.value, search=(document.getElementById('delivery-board-search')?.value||'').trim().toLocaleLowerCase('pt-BR');
+  var driverEl=document.getElementById('delivery-board-driver'), statusEl=document.getElementById('delivery-board-status');
+  var chosenDriver=driverEl?.value||'', chosenStatus=statusEl?.value||'';
+  var dayRows=(Array.isArray(allSales)?allSales:[]).filter(function(s){return s&&s.sale_type!=='AVARIA'&&s.sale_date===date;});
+  var groups=groupNotasRows(dayRows);
+  var drivers=Array.from(new Set(dayRows.map(function(s){return (s.delivery_person||'').trim();}).filter(Boolean))).sort(function(a,b){return a.localeCompare(b,'pt-BR');});
+  if(driverEl){var previous=chosenDriver;driverEl.innerHTML='<option value="">Todos os entregadores</option>'+drivers.map(function(d){return '<option value="'+admEsc(d)+'">'+admEsc(d)+'</option>';}).join('');if(drivers.indexOf(previous)>=0)driverEl.value=previous;}
+  groups.forEach(function(g){
+    var items=(g.note_ids||[]).map(function(id){return (allSales||[]).find(function(s){return String(s.id)===String(id);});}).filter(Boolean);
+    var states=items.map(function(item){return item.delivered||null;});
+    g.total=items.reduce(function(sum,item){return sum+(Number(item.total)||0);},0);
+    g.delivery_state=states.length&&states.every(function(state){return state==='sim';})?'sim':(states.some(function(state){return state==='nao';})?'nao':null);
+    g.delivered_at=items.find(function(item){return item.delivered_at;})?.delivered_at||null;
+  });
+  var totalValue=groups.reduce(function(sum,g){return sum+(Number(g.total)||0);},0);
+  var done=groups.filter(function(g){return g.delivery_state==='sim';}).length;
+  var no=groups.filter(function(g){return g.delivery_state==='nao';}).length;
+  var pending=groups.length-done-no;
+  var kpi=document.getElementById('delivery-board-kpis');
+  if(kpi)kpi.innerHTML='<div class="delivery-kpi"><div><span class="delivery-kpi-label">Entregas do dia</span><strong>'+groups.length+'</strong><small>'+groups.reduce(function(n,g){return n+(g.note_ids||[]).length;},0)+' item(ns) registrados</small></div><span class="delivery-kpi-icon">E</span></div>'
+    +'<div class="delivery-kpi"><div><span class="delivery-kpi-label">Aguardando confirmação</span><strong>'+pending+'</strong><small>'+no+' não entregue(s)</small></div><span class="delivery-kpi-icon" style="background:#fff4e5;color:#945500">!</span></div>'
+    +'<div class="delivery-kpi"><div><span class="delivery-kpi-label">Valor dos pedidos</span><strong>'+fmt(totalValue)+'</strong><small>'+done+' entrega(s) concluída(s)</small></div><span class="delivery-kpi-icon" style="background:#e8f3ec;color:#236342">R$</span></div>';
+  var pct=groups.length?Math.round(done/groups.length*100):0;
+  var setText=function(id,value){var el=document.getElementById(id);if(el)el.textContent=value;};
+  setText('delivery-progress-count',done+' / '+groups.length);setText('delivery-progress-percent',pct+'% concluído');
+  setText('delivery-progress-pending',pending?pending+' pedido(s) ainda precisam de confirmação.':'Nenhuma entrega aguardando confirmação.');
+  setText('delivery-count-done',String(done));setText('delivery-count-pending',String(pending));setText('delivery-count-no',String(no));
+  var bar=document.getElementById('delivery-progress-bar');if(bar)bar.style.width=pct+'%';
+  var subtitle=document.getElementById('delivery-board-subtitle');if(subtitle)subtitle.textContent='Pedidos de '+fmtDate(date)+' organizados por horário';
+  var filtered=groups.filter(function(g){
+    var state=g.delivery_state==='sim'?'done':(g.delivery_state==='nao'?'no':'pending');
+    if(chosenDriver&&(g.delivery_person||'')!==chosenDriver)return false;
+    if(chosenStatus&&state!==chosenStatus)return false;
+    var hay=[g.client,g.nf_number,g.delivery_person,g.plate,(g.products||[]).join(' '),g.product].join(' ').toLocaleLowerCase('pt-BR');
+    return !search||hay.indexOf(search)>=0;
+  }).sort(function(a,b){return String(a.sale_time||'').localeCompare(String(b.sale_time||''),'pt-BR')||String(a.client||'').localeCompare(String(b.client||''),'pt-BR');});
+  var canEdit=deliveryBoardCanEdit();
+  var launchButton=document.getElementById('delivery-launch-btn');if(launchButton)launchButton.style.display=deliveryBoardCanCreateSale()?'':'none';
+  rowsEl.innerHTML=filtered.map(function(g){
+    var state=g.delivery_state==='sim'?'done':(g.delivery_state==='nao'?'no':'pending');
+    var label=state==='done'?'Concluída':(state==='no'?'Não entregue':'Aguardando');
+    var productText=(g.products&&g.products.length?g.products:[g.product||'Pedido']).join(', ');
+    var itemCount=(g.note_ids||[]).length;
+    return '<tr><td data-label="Horário">'+admEsc((g.sale_time||'—').slice(0,5))+'</td>'
+      +'<td data-label="Cliente" class="delivery-client">'+admEsc(g.client||'—')+'<span class="delivery-meta">'+(g.nf_number?'NF '+admEsc(g.nf_number):'Sem número de NF')+'</span></td>'
+      +'<td data-label="Pedido" class="delivery-products-cell"><span class="delivery-products">'+admEsc(productText)+(itemCount>1?' · '+itemCount+' itens':'')+'</span><span class="delivery-meta">'+fmt(g.total||0)+'</span></td>'
+      +'<td data-label="Entregador">'+admEsc(g.delivery_person||'—')+'</td>'
+      +'<td data-label="Situação"><span class="delivery-state '+state+'">'+label+'</span></td>'
+      +'<td data-label="Ação">'+(state==='done'?'<span class="delivery-meta">'+(g.delivered_at?'Em '+fmtDate(g.delivered_at):'Confirmada')+'</span>':(canEdit?'<button type="button" class="delivery-confirm" onclick="openDeliveryDateModal(\''+admEsc(g.id)+'\')">Confirmar entrega</button>':'—'))+'</td></tr>';
+  }).join('');
+  var empty=document.getElementById('delivery-board-empty');if(empty)empty.hidden=filtered.length>0;
+  var table=document.querySelector('.delivery-table-wrap');if(table)table.style.display=filtered.length?'':'none';
+}
+document.addEventListener('input',function(ev){if(ev.target&&ev.target.id==='delivery-board-search')renderDeliveryBoard();});
+document.addEventListener('change',function(ev){if(ev.target&&['delivery-board-date','delivery-board-driver','delivery-board-status'].indexOf(ev.target.id)>=0)renderDeliveryBoard();});
+window.addEventListener('salesLoaded',function(){if(document.getElementById('panel-entregas')?.classList.contains('active'))renderDeliveryBoard();});
+window.addEventListener('notasUpdated',function(){if(document.getElementById('panel-entregas')?.classList.contains('active'))setTimeout(renderDeliveryBoard,0);});
 
 // ── DATA ───────────────────────────────────────────────────────────────────────
 async function loadAll(){
@@ -9564,7 +9694,7 @@ function renderAnOpportunity(type){
 
 //  PERMISSÕES DE ABAS 
 const ALL_TABS_DEF=[
-  ['consolidado','Consolidado'],['nf','NF-e'],['pr','Prod. Rural'],
+  ['consolidado','Consolidado'],['entregas','Entregas'],['nf','NF-e'],['pr','Prod. Rural'],
   ['avulso','Avulso'],['avaria','Avarias'],['projecao','Projeção'],
   ['grafico','Gráfico'],
   ['produtividade','Produtividade'],['clientes','Clientes'],
@@ -9584,7 +9714,11 @@ function migrateTabOrder(order){
   const all=ALL_TABS_DEF.map(function(t){return t[0];});
   if(!Array.isArray(order)||!order.length)return order;
   const clean=order.filter(function(k){return all.indexOf(k)>=0;});
-  all.forEach(function(k){if(clean.indexOf(k)<0)clean.push(k);});
+  all.forEach(function(k){
+    if(clean.indexOf(k)>=0)return;
+    if(k==='entregas'&&clean.indexOf('consolidado')>=0)clean.splice(clean.indexOf('consolidado')+1,0,k);
+    else clean.push(k);
+  });
   return clean;
 }
 
@@ -9593,7 +9727,7 @@ function migratePerms(p){
   // Tambem garante que abas novas existam em permissoes salvas
   if(!p) return p;
   const OLD=['precos','registro','mesclar','importar'];
-  const NEW_TABS=['pendentes','produtos','projecao'];
+  const NEW_TABS=['pendentes','produtos','projecao','entregas'];
   const CFG_KEYS=(typeof CFG_SUB_KEYS!=='undefined')?CFG_SUB_KEYS:['cfg_precos','cfg_registro','cfg_importar','cfg_whatsapp','cfg_sebrae'];
   ['viewer','editor','admin'].forEach(function(role){
     if(Array.isArray(p[role])){
@@ -18717,6 +18851,7 @@ setTimeout(installMobileReadOnlyGuards,0);
   <div class="nav-drawer-body">
     <div class="nav-drawer-section-title">Principal</div>
     <button class="nav-drawer-item" data-tab="consolidado" onclick="closeNavAndSwitch(this,'consolidado')"><span class="nd-icon">📊</span>Consolidado</button>
+    <button class="nav-drawer-item" data-tab="entregas" onclick="closeNavAndSwitch(this,'entregas')"><span class="nd-icon">🚚</span>Entregas</button>
     <button class="nav-drawer-item" data-tab="nf" onclick="closeNavAndSwitch(this,'nf')"><span class="nd-icon">🧾</span>NF-e</button>
     <button class="nav-drawer-item" data-tab="pr" onclick="closeNavAndSwitch(this,'pr')"><span class="nd-icon">🌱</span>Prod. Rural</button>
     <button class="nav-drawer-item" data-tab="avulso" onclick="closeNavAndSwitch(this,'avulso')"><span class="nd-icon">💵</span>Avulso</button>
