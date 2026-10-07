@@ -3257,6 +3257,49 @@ body.company-estrada .notif-bell.has-pending::after{animation-name:notif-halo-es
   body.company-estrada .notif-bell{box-shadow:0 8px 22px rgba(215,71,107,.3),0 0 0 3px rgba(240,106,86,.1)!important}
   body.company-estrada .notif-bell.has-pending{box-shadow:0 8px 22px rgba(215,71,107,.34),0 0 0 4px rgba(240,106,86,.15)!important}
 }
+/* Adapt the dense desktop controls to the available CSS viewport width. */
+@media (min-width:769px) and (max-width:1500px){
+  #app>header{height:auto;min-height:58px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;padding:8px 14px}
+  #app>header .logo{grid-column:1;grid-row:1;min-width:0}
+  #app>header .logo>div{min-width:0}
+  #app>header .logo h1{overflow:hidden;text-overflow:ellipsis}
+  #app>header .header-right{grid-column:2;grid-row:1;justify-self:end;min-width:0}
+  #app>header .header-center{grid-column:1/-1;grid-row:2;justify-content:flex-start;flex-wrap:wrap;min-width:0}
+  #app>header .header-center button{min-height:36px;padding:7px 12px}
+  #app>header .header-right .btn-launch,#app>header .header-right .btn-nfe{padding:7px 10px}
+}
+@media (min-width:769px) and (max-width:1200px){
+  #app>header .header-right .h-badge{display:none!important}
+  #app>header .user-chip{max-width:150px}
+  #app>header #user-display{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
+@media (min-width:769px) and (max-width:1024px){
+  #app>header{height:auto!important}
+  #panel-consolidado .toolbar{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  #panel-consolidado .toolbar .search-box,
+  #panel-consolidado .toolbar .search-box input,
+  #panel-consolidado .toolbar select.filt{width:100%;min-width:0}
+  #panel-consolidado .toolbar .period-pills{min-width:0;overflow-x:auto}
+}
+@media (min-width:1024px) and (max-width:1500px){
+  html[data-layout-skin="menina2"] #app>main{padding:16px 18px 24px}
+  html[data-layout-skin="menina2"] .sum-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr))}
+  html[data-layout-skin="menina2"] .sc.total{grid-column:auto}
+  html[data-layout-skin="menina2"] .delivery-layout{grid-template-columns:minmax(0,1fr)}
+  html[data-layout-skin="menina2"] .delivery-aside{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  html[data-layout-skin="menina2"] .delivery-quick-panel{margin-top:0}
+}
+@media (min-width:1181px) and (max-width:1500px){
+  #paladar-app>div:first-child{grid-template-columns:minmax(0,1fr) auto!important}
+  #paladar-app>div:first-child>div:nth-child(2){grid-column:1/-1;grid-row:2;justify-content:flex-start;flex-wrap:wrap}
+  #paladar-app>div:first-child>div:last-child{grid-column:2;grid-row:1}
+}
+@media (min-width:821px) and (max-width:1500px){
+  #paladar-app>div:nth-child(2){flex-wrap:wrap;align-items:center;gap:6px!important}
+  #paladar-app>div:nth-child(2)>button{flex:0 0 auto;white-space:nowrap}
+  #paladar-app>div:nth-child(2)>div{flex:1 1 100%;margin-left:0!important;display:flex;flex-wrap:wrap;justify-content:flex-start;gap:6px;min-width:0}
+  #paladar-app>div:nth-child(2) select{min-width:0!important;max-width:190px}
+}
 @media (prefers-reduced-motion:reduce){.notif-bell,.notif-bell.has-pending,.notif-bell.has-pending::after,.notif-bell.is-updated{animation:none!important;transition:none!important}}
 </style>
 </head>
