@@ -5939,11 +5939,20 @@ function renderDeliveryBoard(){
       +'<td data-label="Pedido" class="delivery-products-cell"><span class="delivery-products">'+admEsc(productText)+(itemCount>1?' · '+itemCount+' itens':'')+'</span><span class="delivery-meta">'+fmt(g.total||0)+'</span></td>'
       +'<td data-label="Entregador">'+admEsc(g.delivery_person||'—')+'</td>'
       +'<td data-label="Situação"><span class="delivery-state '+state+'">'+label+'</span></td>'
-      +'<td data-label="Ação">'+(state==='done'?'<span class="delivery-meta">'+(g.delivered_at?'Em '+fmtDate(g.delivered_at):'Confirmada')+'</span>':(canEdit?'<button type="button" class="delivery-confirm" onclick="openDeliveryDateModal(\''+admEsc(g.id)+'\')">Confirmar entrega</button>':'—'))+'</td></tr>';
+      +'<td data-label="Ação">'+(state==='done'?'<span class="delivery-meta">'+(g.delivered_at?'Em '+fmtDate(g.delivered_at):'Confirmada')+'</span>':(canEdit?'<button type="button" class="delivery-confirm" data-delivery-confirm-id="'+admEsc(g.id)+'">Confirmar entrega</button>':'—'))+'</td></tr>';
   }).join('');
   var empty=document.getElementById('delivery-board-empty');if(empty)empty.hidden=filtered.length>0;
   var table=document.querySelector('.delivery-table-wrap');if(table)table.style.display=filtered.length?'':'none';
 }
+document.addEventListener('click',function(ev){
+  var btn=ev.target&&ev.target.closest?ev.target.closest('[data-delivery-confirm-id]'):null;
+  if(!btn)return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  var panel=document.getElementById('panel-entregas');
+  if(!panel||!panel.contains(btn))return;
+  openDeliveryDateModal(btn.getAttribute('data-delivery-confirm-id'));
+});
 document.addEventListener('input',function(ev){if(ev.target&&ev.target.id==='delivery-board-search')renderDeliveryBoard();});
 document.addEventListener('change',function(ev){if(ev.target&&['delivery-board-date','delivery-board-driver','delivery-board-status'].indexOf(ev.target.id)>=0)renderDeliveryBoard();});
 window.addEventListener('salesLoaded',function(){if(document.getElementById('panel-entregas')?.classList.contains('active'))renderDeliveryBoard();});
