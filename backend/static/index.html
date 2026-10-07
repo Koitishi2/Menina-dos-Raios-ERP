@@ -7878,6 +7878,25 @@ async function duplicateRbacRole(key){const newKey=prompt('Chave técnica do nov
 async function deleteRbacRole(key){if(!confirm('Excluir definitivamente este cargo? Esta ação só será aceita se não houver usuários vinculados.'))return;try{await api('/api/admin/roles/'+encodeURIComponent(key),{method:'DELETE'});toast('Cargo excluído.');_rbacCurrent=null;document.getElementById('rbac-role-editor').innerHTML='<div class="empty">Selecione um cargo para configurar.</div>';loadRbacRoles();}catch(e){toast(e.message,'error');}}
 
 let _allUsers=[];
+document.addEventListener('click',function(event){
+  const profile=event.target&&event.target.closest?event.target.closest('[data-permission-role]'):null;
+  if(profile){
+    event.preventDefault();
+    selectPermissionRole(profile.dataset.permissionRole);
+    return;
+  }
+  const edit=event.target&&event.target.closest?event.target.closest('[data-edit-user-id]'):null;
+  if(edit){
+    event.preventDefault();
+    openEditUser(edit.dataset.editUserId);
+    return;
+  }
+  const remove=event.target&&event.target.closest?event.target.closest('[data-delete-user-id]'):null;
+  if(!remove)return;
+  event.preventDefault();
+  deleteUser(remove.dataset.deleteUserId,remove.dataset.deleteUserName||'usuário');
+});
+
 async function loadUsers(){
   try{
     _allUsers=await api('/api/users');const el=document.getElementById('users-list');
@@ -7892,7 +7911,7 @@ async function loadUsers(){
         <td style="padding:6px 7px"><div style="font-weight:600">${admEsc(u.username)}</div><div style="font-size:10px;color:var(--muted)">${admEsc(u.full_name||'')}</div></td>
         <td style="padding:6px 7px"><span class="role-badge role-${admEsc(u.role)}">${admEsc(u.role)}</span></td>
         <td style="padding:6px 7px;text-align:center"><input type="checkbox" ${u.active?'checked':''} onchange="toggleUser('${u.id}',this.checked)" ${u.username==='admin'?'disabled':''}></td>
-        <td style="padding:4px 5px;white-space:nowrap">${u.username!=='admin'?`<button class="del-btn" onclick="openEditUser('${admEsc(u.id)}')" title="Editar usuário">✎</button><button class="del-btn" data-delete-user-id="${admEsc(u.id)}" data-delete-user-name="${admEsc(u.username)}" title="Excluir usuário">✕</button>`:''}</td>
+        <td style="padding:4px 5px;white-space:nowrap">${u.username!=='admin'?`<button type="button" class="del-btn" data-edit-user-id="${admEsc(u.id)}" title="Editar usuário" aria-label="Editar usuário ${admEsc(u.username)}">✎</button><button type="button" class="del-btn" data-delete-user-id="${admEsc(u.id)}" data-delete-user-name="${admEsc(u.username)}" title="Excluir usuário" aria-label="Excluir usuário ${admEsc(u.username)}">✕</button>`:''}</td>
       </tr>`).join('')}</tbody></table>`;
   }catch(e){toast(e.message,'error');}
 }
@@ -7974,14 +7993,8 @@ async function deleteUser(id,name){
     await loadAdminMessages();
   }catch(e){toast('Não foi possível remover: '+e.message,'error');}
 }
-document.addEventListener('click',function(event){
-  const button=event.target&&event.target.closest?event.target.closest('[data-delete-user-id]'):null;
-  if(!button)return;
-  event.preventDefault();
-  deleteUser(button.dataset.deleteUserId,button.dataset.deleteUserName||'usuário');
-});
 function openEditUser(userId){
-  var u=_allUsers.find(function(x){return x.id===userId});
+  var u=_allUsers.find(function(x){return String(x.id)===String(userId)});
   if(!u)return;
   document.getElementById('eu-userid').value=userId;
   document.getElementById('eu-fullname').value=u.full_name||'';
@@ -9951,7 +9964,7 @@ function renderPermsMatrix(perms,el){
   const role=_permissionActiveRole;
   const defs=ALL_TABS_DEF.concat(getCompanyConfigSubDefs().map(function(sub){return ['cfg_'+sub[0],sub[1]];}));
   let html='<div class="perm-profile-tabs" role="tablist" aria-label="Perfil de usuário">';
-  roles.forEach(function(r){html+='<button type="button" class="perm-profile-tab" role="tab" aria-selected="'+(role===r)+'" onclick="selectPermissionRole(\''+r+'\')">'+rl[r]+'</button>';});
+  roles.forEach(function(r){html+='<button type="button" class="perm-profile-tab" role="tab" data-permission-role="'+r+'" aria-selected="'+(role===r)+'">'+rl[r]+'</button>';});
   html+='</div><div class="perm-profile-summary"><strong style="display:block;color:var(--g800);font-size:12px;margin-bottom:3px">Perfil '+rl[role]+'</strong><span style="font-size:11px;color:var(--muted)">'+permissionRoleDescription(role)+'</span></div>';
   html+='<div class="perm-colhead" style="display:grid;grid-template-columns:minmax(0,1fr) 90px minmax(100px,auto);gap:12px;padding:0 13px 6px;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase"><span>Módulo</span><span style="text-align:center">Acessar</span><span style="text-align:right">Ordem</span></div>';
   const groups=Object.keys(PERMISSION_GROUPS).sort(function(a,b){
