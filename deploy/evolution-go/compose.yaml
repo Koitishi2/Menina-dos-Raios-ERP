@@ -17,10 +17,11 @@ services:
       retries: 10
       start_period: 15s
     networks:
-      - evolution_private
+      evolution_private:
+        ipv4_address: 10.89.0.2
 
   evolution-go:
-    image: evoapicloud/evolution-go:0.7.2
+    image: localhost/menina-evolution-go:0.7.2-login-preflight2
     container_name: menina-evolution-go
     restart: unless-stopped
     depends_on:
@@ -32,8 +33,8 @@ services:
       SERVER_PORT: "4000"
       CLIENT_NAME: "menina-dos-raios"
       GLOBAL_API_KEY: ${GLOBAL_API_KEY}
-      POSTGRES_AUTH_DB: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/evogo_auth?sslmode=disable
-      POSTGRES_USERS_DB: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/evogo_users?sslmode=disable
+      POSTGRES_AUTH_DB: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@10.89.0.2:5432/evogo_auth?sslmode=disable
+      POSTGRES_USERS_DB: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@10.89.0.2:5432/evogo_users?sslmode=disable
       DATABASE_SAVE_MESSAGES: "false"
       EVOLUTION_OPERATOR_EMAIL: ${EVOLUTION_OPERATOR_EMAIL:-}
       WADEBUG: "INFO"
@@ -44,6 +45,7 @@ services:
     volumes:
       - evolution_data:/app/dbdata
       - evolution_logs:/app/logs
+      - ./resolv.conf:/etc/resolv.conf:ro
     networks:
       - evolution_private
 
@@ -58,4 +60,4 @@ volumes:
 networks:
   evolution_private:
     name: menina_evolution_go_private
-    driver: bridge
+    external: true

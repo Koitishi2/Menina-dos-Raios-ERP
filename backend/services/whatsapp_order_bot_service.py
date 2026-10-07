@@ -81,8 +81,8 @@ def order_bot_runtime_reason(config, outbound, phone_e164, at_time, jid=None):
         return "producao_nao_aprovada"
     if outbound.get("mode") == "sandbox" and phone_e164 not in outbound.get("sandbox_numbers", set()) and not str(jid or "").endswith("@lid"):
         return "numero_fora_da_sandbox"
-    if config.get("provider") != "baileys":
-        return "provedor_baileys_obrigatorio"
+    if config.get("provider") not in {"baileys", "evolution_go"}:
+        return "provedor_whatsapp_incompativel"
     start = str(config.get("auto_reply_from") or "00:00")
     end = str(config.get("auto_reply_to") or "23:59")
     current = at_time.strftime("%H:%M")

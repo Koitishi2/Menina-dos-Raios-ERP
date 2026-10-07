@@ -2,7 +2,7 @@
 Menina dos Raios Ltda â€” Backend v15
 Multi-usuÃ¡rio Â· SessÃµes Â· HistÃ³rico por conta Â· Placa Â· Hora Â· PreÃ§o por data
 """
-import os, sys, re, uuid, sqlite3, webbrowser, threading, io, json, hashlib, socket, hmac, logging, shutil, base64
+import os, sys, re, uuid, sqlite3, webbrowser, threading, io, json, hashlib, socket, hmac, logging, shutil, base64, secrets
 from urllib.parse import urlparse
 from contextvars import ContextVar
 from contextlib import contextmanager
@@ -35,6 +35,7 @@ try:
     from .security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from .security_request import _client_ip, _is_trusted_proxy_host
     from .services.sellers_service import require_active_seller
+    from .services import evolution_go as evolution_go_service
     from .schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
     from .utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
 except ImportError:
@@ -56,6 +57,7 @@ except ImportError:
     from security_auth import LOGIN_RATE_BLOCK_SECS, LOGIN_RATE_MAX_FAILS, LOGIN_RATE_WINDOW, _LOGIN_ATTEMPTS, _check_login_rate, _record_login, _time_mod
     from security_request import _client_ip, _is_trusted_proxy_host
     from services.sellers_service import require_active_seller
+    import services.evolution_go as evolution_go_service
     from schemas import AdminMessageIn, ClientIn, LoginIn, PriceUpdate, SaleIn, UserIn
     from utils import _add_months, _calendar_event_dict, _normalize_client, _normalize_name, _safe_txt, _wa_failure_hint, _wa_log_response
 
@@ -5828,6 +5830,11 @@ def wa_send(phone: str, message: str, cfg: dict) -> dict:
             url = f"{api_url}/send"
             r = _post(url, json={"phone": phone, "message": message},
                       headers={"x-api-key": token, "Content-Type": "application/json"}, timeout=15)
+        elif provider == "evolution_go":
+            result = evolution_go_service.send_text(phone, message, cfg)
+            text = json.dumps(result, ensure_ascii=False)
+            ok = not (isinstance(result, dict) and (result.get("error") or result.get("err")))
+            return {"ok": ok, "response": text[:300]}
         else:
             return {"ok": False, "response": "Provider desconhecido."}
         # HTTP 2xx Ã© necessÃ¡rio, mas nÃ£o suficiente: UltraMsg/Z-API/Evolution
@@ -6009,7 +6016,7 @@ def get_wa_config(x_token: str = Header(...)):
     conn = get_db()
     rows = conn.execute("SELECT key, value FROM whatsapp_config").fetchall()
     conn.close()
-    return {r["key"]: r["value"] for r in rows}
+    return {r["key"]: r["value"] for r in rows if r["key"] != "evolution_go_webhook_secret"}
 
 @app.put("/api/whatsapp/config")
 def save_wa_config(body: dict, x_token: str = Header(...)):
@@ -6032,6 +6039,82 @@ def save_wa_config(body: dict, x_token: str = Header(...)):
     finally:
         conn.close()
     return {"ok": True}
+
+def _evolution_go_config():
+    conn = get_db()
+    try:
+        return {r["key"]: r["value"] for r in conn.execute("SELECT key,value FROM whatsapp_config").fetchall()}
+    finally:
+        conn.close()
+
+@app.get("/api/whatsapp/evolution-go/status")
+def evolution_go_status(x_token: str = Header(...)):
+    require_admin(x_token)
+    cfg = _evolution_go_config()
+    try:
+        base, instance = evolution_go_service.get_instance(cfg)
+        status_error = None
+        try:
+            status_payload = evolution_go_service.instance_request(cfg, "GET", "/instance/status", timeout=8)
+        except Exception as exc:
+            # Some GO releases return HTTP 400 after the phone disconnects; still try to obtain a fresh QR.
+            status_error = type(exc).__name__
+            status_payload = {}
+        data = status_payload.get("data", {}) if isinstance(status_payload, dict) else {}
+        connected = bool(data.get("connected") or data.get("Connected"))
+        logged_in = bool(data.get("loggedIn") or data.get("LoggedIn"))
+        qr = None
+        if not connected or not logged_in:
+            qr_payload = evolution_go_service.instance_request(cfg, "GET", "/instance/qr", timeout=15)
+            qr_data = qr_payload.get("data", {}) if isinstance(qr_payload, dict) else {}
+            qr = qr_data.get("code") or qr_data.get("qrcode") or None
+            if qr:
+                if not str(qr).startswith("data:image/"):
+                    try:
+                        import qrcode
+                        from qrcode.image.svg import SvgPathImage
+                        from io import BytesIO
+                        output = BytesIO()
+                        qrcode.make(qr, image_factory=SvgPathImage, border=2).save(output)
+                        qr = "data:image/svg+xml;base64," + base64.b64encode(output.getvalue()).decode("ascii")
+                    except ImportError:
+                        qr = None
+        return {"ok": True, "connected": connected and logged_in, "qr": qr,
+                "name": instance.get("name"), "jid": instance.get("jid"),
+                "webhook_configured": bool(cfg.get("evolution_go_webhook_secret")),
+                "message": ("Status indisponível; QR atualizado." if qr and status_error else None)}
+    except Exception as exc:
+        logger.warning("Evolution GO status check failed (%s)", type(exc).__name__)
+        return {"ok": False, "connected": False, "qr": None,
+                "message": str(exc)[:240]}
+
+@app.post("/api/whatsapp/evolution-go/connection/{action}")
+def evolution_go_connection(action: str, x_token: str = Header(...)):
+    require_admin(x_token)
+    if action not in ("connect", "reconnect", "disconnect"):
+        raise HTTPException(400, "Ação de conexão inválida.")
+    cfg = _evolution_go_config()
+    if cfg.get("provider") != "evolution_go":
+        raise HTTPException(400, "Selecione Evolution GO e salve a configuração antes de conectar.")
+    try:
+        if action == "connect":
+            secret = cfg.get("evolution_go_webhook_secret") or secrets.token_urlsafe(36)
+            conn = get_db()
+            try:
+                conn.execute("INSERT OR REPLACE INTO whatsapp_config(key,value) VALUES('evolution_go_webhook_secret',?)", (secret,))
+                conn.commit()
+            finally:
+                conn.close()
+            webhook_url = f"https://sistema.meninadosraios.com.br/api/whatsapp/evolution-go/webhook/{secret}"
+            result = evolution_go_service.instance_request(cfg, "POST", "/instance/connect", json={
+                "webhookUrl": webhook_url, "subscribe": ["MESSAGE"], "immediate": True,
+            })
+        else:
+            result = evolution_go_service.instance_request(cfg, "POST", f"/instance/{action}")
+        return result if isinstance(result, dict) else {"ok": True}
+    except Exception as exc:
+        logger.warning("Evolution GO connection action failed (%s)", type(exc).__name__)
+        raise HTTPException(503, f"Falha no Evolution GO: {str(exc)[:240]}") from exc
 
 @app.post("/api/whatsapp/check-triggers")
 def check_wa_triggers(body: dict, x_token: str = Header(...)):

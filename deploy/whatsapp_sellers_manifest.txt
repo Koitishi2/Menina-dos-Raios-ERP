@@ -32,6 +32,7 @@ backend/routers/whatsapp_clients.py
 backend/routers/whatsapp_inbound.py
 backend/services/__init__.py
 backend/services/sellers_service.py
+backend/services/evolution_go.py
 backend/services/whatsapp_calculation_service.py
 backend/services/whatsapp_campaign_service.py
 backend/services/whatsapp_inbound_service.py

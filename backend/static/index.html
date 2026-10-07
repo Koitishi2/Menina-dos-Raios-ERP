@@ -202,6 +202,10 @@ body.company-estrada #table-area tbody tr:nth-child(odd){
 .skin-swatch{width:26px;height:26px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;transition:transform .12s,box-shadow .12s;flex-shrink:0}
 .skin-swatch:hover{transform:scale(1.12)}
 .skin-swatch.active{box-shadow:0 0 0 2px var(--card),0 0 0 4px var(--ink)}
+.layout-skin-choice{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.layout-skin-choice button{min-height:38px;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--ink);font:700 12px 'DM Sans',sans-serif;cursor:pointer}
+.layout-skin-choice button[aria-pressed="true"]{background:var(--g800);border-color:var(--g800);color:#fff;box-shadow:0 2px 8px rgba(21,92,42,.18)}
+.user-menu:has(.layout-skin-choice){min-width:244px}
 /* Sub-navegação do painel de Administração (registro) */
 .reg-nav-btn{padding:6px 14px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);font-family:inherit;transition:background .15s,color .15s}
 .reg-nav-btn.active{background:var(--g800);color:#fff}
@@ -3018,6 +3022,89 @@ body.paladar-active #notif-restore{display:none!important}
 @media (min-width:769px){
   .mobile-period-switcher,.mobile-fab,.mobile-sheet-overlay,.mobile-bottom-sheet,#mobile-production-summary{display:none!important}
 }
+.workspace-intro{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;padding:2px 0 10px;border-bottom:1px solid var(--border)}
+.workspace-intro h2{margin:0;color:var(--g800);font-size:16px;font-weight:800}
+.workspace-intro p{margin:3px 0 0;color:var(--muted);font-size:11px;line-height:1.4}
+#cfg-nav>div:first-child,#clients-nav>div:first-child{max-width:100%;overflow-x:auto;scrollbar-width:thin;white-space:nowrap}
+#cfg-nav button[id^="cfg-btn-"],#clients-nav button[id^="cv-btn-"]{min-height:38px;padding:7px 12px!important;border-radius:8px!important;white-space:nowrap}
+#cfg-nav button[id^="cfg-btn-"]:hover,#clients-nav button[id^="cv-btn-"]:hover{background:var(--card)!important;color:var(--g800)!important}
+#panel-config .card,#cfg-sebrae .card,#cfg-importar .card{border-radius:8px;box-shadow:none}
+#cfg-precos [style*="grid-template-columns:1fr 1fr"]{min-width:0}
+#cfg-precos input,#cfg-precos select,#cfg-sebrae select,#cfg-sebrae button{min-height:38px}
+#cfg-sebrae table th,#cfg-sebrae table td{border-bottom:1px solid var(--border)}
+#wa-evolution-go-panel img{object-fit:contain;max-width:100%;height:auto}
+#cv-whatsapp .client-foundation-banner,#cv-pedidos .client-foundation-banner{border-radius:8px}
+#cv-whatsapp .client-wa-toolbar{align-items:center}
+#cv-whatsapp .client-wa-composer{position:sticky;bottom:8px;z-index:4;background:var(--card);box-shadow:0 8px 26px rgba(15,23,42,.12)}
+@media(max-width:760px){
+  #cfg-intro{margin-bottom:8px}
+  #cfg-nav{display:block!important;position:sticky;top:0;z-index:8;padding:6px 0;background:var(--bg)}
+  #cfg-nav>div:first-child,#clients-nav>div:first-child{display:flex;overflow-x:auto;max-width:100%;}
+  #cfg-nav>div:first-child button,#clients-nav>div:first-child button{flex:0 0 auto}
+  #cfg-precos>div[style*="grid-template-columns:1fr 1fr"]{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:10px!important}
+  #cfg-precos [style*="grid-template-columns:1fr 1fr"],#cfg-precos [style*="grid-template-columns:1fr 1fr 1fr"]{grid-template-columns:minmax(0,1fr)!important}
+  #panel-config,#cfg-whatsapp,.wa-section,.wa-card{min-width:0;max-width:100%}
+  #cfg-whatsapp .wa-provider-grid{grid-template-columns:minmax(0,1fr)!important}
+  #cfg-whatsapp .wa-provider-grid>*{grid-column:1!important;min-width:0}
+  #cfg-whatsapp .wa-provider-grid input,#cfg-whatsapp .wa-provider-grid select{width:100%;max-width:100%;min-width:0}
+  #cfg-sebrae>div:first-child{margin-bottom:10px!important}
+  #cfg-sebrae>div:nth-child(2){display:grid!important;grid-template-columns:1fr!important}
+  #cfg-sebrae>div:nth-child(2)>*{width:100%;min-width:0}
+  #cv-cadastro{grid-template-columns:minmax(0,1fr)!important}
+  #cv-whatsapp .client-wa-toolbar,#cv-whatsapp .client-wa-composer-actions{align-items:stretch;flex-direction:column}
+  #cv-whatsapp .client-wa-composer{position:static}
+  #cv-whatsapp .client-wa-composer-actions button{width:100%;min-height:42px}
+  #cv-whatsapp .client-wa-filters{display:grid;grid-template-columns:1fr 1fr}
+  #cv-whatsapp .client-wa-filters>*{min-width:0}
+  #cv-whatsapp .client-wa-filters button{min-height:40px}
+  #cv-pedidos .client-orders-filters{display:grid;grid-template-columns:1fr 1fr}
+  #cv-pedidos .client-orders-tabs{overflow-x:auto;white-space:nowrap}
+}
+/* Menina 2.0: mesma aplicação e abas, com navegação lateral no desktop. */
+html[data-layout-skin="menina2"] body{background:#f4f7f5}
+html[data-layout-skin="menina2"] .sc,
+html[data-layout-skin="menina2"] .chart-card,
+html[data-layout-skin="menina2"] .kpi,
+html[data-layout-skin="menina2"] .panel>.card{border-radius:8px;box-shadow:0 2px 8px rgba(16,54,29,.045)}
+html[data-layout-skin="menina2"] .toolbar{border-radius:8px;box-shadow:none}
+html[data-layout-skin="menina2"] .tabs-wrap{scrollbar-width:thin}
+.layout-module-picker,.layout-module-menu{display:none}
+@media (min-width:1024px){
+  html[data-layout-skin="menina2"] #app>header{width:calc(100% - 244px);margin-left:244px}
+  html[data-layout-skin="menina2"] #app>main{width:calc(100% - 244px);max-width:none;margin:0 0 0 244px;padding:20px 24px 28px}
+  html[data-layout-skin="menina2"] .tabs-wrap{position:fixed;inset:0 auto 0 0;z-index:120;width:244px;min-height:0;height:100dvh;box-sizing:border-box;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:4px;padding:12px 10px 18px;border:0;border-right:1px solid #e2e9e4;border-radius:0;background:#fff;box-shadow:4px 0 18px rgba(16,54,29,.045);overflow-x:hidden;overflow-y:auto;scroll-snap-type:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+  html[data-layout-skin="menina2"] .tabs-wrap .layout-module-picker{display:block;position:relative;flex:0 0 auto;margin:0 0 12px;padding:0 0 12px;border-bottom:1px solid #e8eee9}
+  html[data-layout-skin="menina2"] .layout-brand-switch{width:100%;min-height:60px;display:flex;align-items:center;gap:9px;padding:7px 5px;border:0;background:transparent;color:#174c2b;text-align:left;cursor:pointer}
+  html[data-layout-skin="menina2"] .layout-brand-switch img{flex:0 0 40px;border-radius:7px;object-fit:contain}
+  html[data-layout-skin="menina2"] .layout-brand-switch>span:nth-child(2){min-width:0;display:grid;gap:3px}
+  html[data-layout-skin="menina2"] .layout-brand-switch strong{font-size:12px;line-height:1.25}
+  html[data-layout-skin="menina2"] .layout-brand-switch small{font-size:10px;color:#728078}
+  html[data-layout-skin="menina2"] .layout-brand-chevron{margin-left:auto;color:#718078;font-size:16px}
+  html[data-layout-skin="menina2"] .layout-module-menu{position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:230;padding:5px;border:1px solid #e2e9e4;border-radius:8px;background:#fff;box-shadow:0 12px 28px rgba(16,54,29,.15)}
+  html[data-layout-skin="menina2"] .layout-module-menu.open{display:grid;gap:2px}
+  html[data-layout-skin="menina2"] .layout-module-menu button{display:grid;grid-template-columns:22px 1fr 16px;align-items:center;gap:6px;width:100%;min-height:40px;padding:7px;border:0;border-radius:6px;background:transparent;color:#35433a;text-align:left;font:600 12px 'DM Sans',sans-serif;cursor:pointer}
+  html[data-layout-skin="menina2"] .layout-module-menu button:hover{background:#f1f6f2;color:#155c2a}
+  html[data-layout-skin="menina2"] .layout-module-menu button[aria-current="true"]{background:#eaf3ec;color:#155c2a;font-weight:800}
+  html[data-layout-skin="menina2"] .layout-module-menu button b{color:#155c2a}
+  html[data-layout-skin="menina2"] .tabs-wrap::before,
+  html[data-layout-skin="menina2"] .tabs-wrap::after{display:none}
+  html[data-layout-skin="menina2"] .tabs-wrap .tab{width:100%;min-height:42px;flex:0 0 auto;justify-content:flex-start;padding:9px 12px;border-radius:7px;color:#58675e;font-size:13px;font-weight:650;white-space:normal;box-shadow:none}
+  html[data-layout-skin="menina2"] .tabs-wrap .tab:hover{background:#f1f6f2;color:#155c2a}
+  html[data-layout-skin="menina2"] .tabs-wrap .tab.active{background:#eaf3ec;color:#155c2a;box-shadow:inset 3px 0 #1b5e20;font-weight:800}
+  html[data-layout-skin="menina2"] .tabs-wrap .tab.active::after{display:none}
+  html[data-layout-skin="menina2"] .sum-grid{grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px}
+  html[data-layout-skin="menina2"] .sc{padding:12px 14px}
+  html[data-layout-skin="menina2"] .panel.active{min-width:0}
+}
+@media (max-width:1023px){
+  html[data-layout-skin="menina2"] .tabs-wrap{border-radius:8px}
+}
+@media (max-width:768px){
+  html[data-layout-skin="menina2"] body{background:var(--bg)}
+  html[data-layout-skin="menina2"] .sc,
+  html[data-layout-skin="menina2"] .chart-card,
+  html[data-layout-skin="menina2"] .kpi{border-radius:8px}
+}
 </style>
 </head>
 <body>
@@ -3086,12 +3173,17 @@ body.paladar-active #notif-restore{display:none!important}
         </div>
         <button class="user-menu-item" onclick="toggleTheme();toggleUserMenu()"><span id="theme-menu-icon">🌙</span><span id="theme-menu-label">Tema Escuro</span></button>
         <div style="padding:9px 14px;border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
-          <div style="font-size:10px;color:var(--muted);margin-bottom:7px;font-weight:700;letter-spacing:.02em">🎨 APARÊNCIA (SKIN)</div>
+          <div style="font-size:10px;color:var(--muted);margin-bottom:7px;font-weight:700;letter-spacing:.02em">LAYOUT</div>
+          <div class="layout-skin-choice" role="group" aria-label="Selecionar layout">
+            <button type="button" data-layout-skin-choice="menina" aria-pressed="true" onclick="applyLayoutSkin('menina')">Menina</button>
+            <button type="button" data-layout-skin-choice="menina2" aria-pressed="false" onclick="applyLayoutSkin('menina2')">Menina 2.0</button>
+          </div>
+          <div style="font-size:10px;color:var(--muted);margin:10px 0 7px;font-weight:700;letter-spacing:.02em">🎨 PALETA DE CORES</div>
           <div style="display:flex;gap:9px">
-            <button class="skin-swatch" data-skin="verde"   onclick="applySkin('verde')"   title="Verde (padrão)" style="background:#1B5E20"></button>
-            <button class="skin-swatch" data-skin="oceano"  onclick="applySkin('oceano')"  title="Oceano"         style="background:#0E5A8A"></button>
-            <button class="skin-swatch" data-skin="vinho"   onclick="applySkin('vinho')"   title="Vinho"          style="background:#7B1030"></button>
-            <button class="skin-swatch" data-skin="grafite" onclick="applySkin('grafite')" title="Grafite"        style="background:#334155"></button>
+            <button class="skin-swatch" data-skin="verde" aria-label="Paleta Menina verde" aria-pressed="true" onclick="applySkin('verde')" title="Verde (Menina)" style="background:#1B5E20"></button>
+            <button class="skin-swatch" data-skin="oceano" aria-label="Paleta Oceano" aria-pressed="false" onclick="applySkin('oceano')" title="Oceano" style="background:#0E5A8A"></button>
+            <button class="skin-swatch" data-skin="vinho" aria-label="Paleta Vinho" aria-pressed="false" onclick="applySkin('vinho')" title="Vinho" style="background:#7B1030"></button>
+            <button class="skin-swatch" data-skin="grafite" aria-label="Paleta Grafite" aria-pressed="false" onclick="applySkin('grafite')" title="Grafite" style="background:#334155"></button>
           </div>
         </div>
         <button class="user-menu-item" onclick="enterTVMode();toggleUserMenu()">📺 Modo TV</button>
@@ -3274,6 +3366,19 @@ body.paladar-active #notif-restore{display:none!important}
 
   <!-- TABS -->
   <div class="tabs-wrap">
+    <div class="layout-module-picker" id="layout-module-picker">
+      <button type="button" class="layout-brand-switch" onclick="toggleLayoutModuleMenu(event)" aria-haspopup="true" aria-expanded="false" aria-controls="layout-module-menu">
+        <img src="/logo.png" alt="" width="40" height="40">
+        <span><strong>Menina dos Raios</strong><small id="layout-module-current">Módulo atual</small></span>
+        <span class="layout-brand-chevron" aria-hidden="true">⌄</span>
+      </button>
+      <div class="layout-module-menu" id="layout-module-menu" role="menu" aria-label="Selecionar módulo">
+        <button type="button" role="menuitem" data-layout-module="raios" onclick="selectLayoutModule('raios')"><span>⚡</span><span>Menina dos Raios</span><b id="layout-module-check-raios">✓</b></button>
+        <button type="button" role="menuitem" data-layout-module="estrada" onclick="selectLayoutModule('estrada')"><span>🚚</span><span>Menina da Estrada</span><b id="layout-module-check-estrada"></b></button>
+        <button type="button" role="menuitem" onclick="selectLayoutModule('monteiro')"><span>📊</span><span>Monteiro</span><b></b></button>
+        <button type="button" role="menuitem" onclick="selectLayoutModule('orcamentos')"><span>🧾</span><span>Orçamentos</span><b></b></button>
+      </div>
+    </div>
     <button class="tab active" onclick="switchTab(this,'consolidado')">📊 Consolidado</button>
     <button class="tab" onclick="switchTab(this,'nf')">🧾 NF-e</button>
     <button class="tab" onclick="switchTab(this,'pr')">🌱 Prod. Rural</button>
@@ -3625,7 +3730,7 @@ body.paladar-active #notif-restore{display:none!important}
 
   <!-- CLIENTES -->
   <div class="panel" id="panel-clientes">
-    <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center;flex-wrap:wrap;border-bottom:2px solid var(--border);padding-bottom:12px">
+    <div id="clients-nav" style="display:flex;gap:8px;margin-bottom:16px;align-items:center;flex-wrap:wrap;border-bottom:2px solid var(--border);padding-bottom:12px">
       <div style="display:flex;gap:2px;background:var(--g50);border-radius:12px;padding:4px">
         <button id="cv-btn-cadastro" onclick="switchClientView('cadastro')"
           style="padding:6px 16px;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;background:var(--g800);color:#fff;display:flex;align-items:center;gap:5px">
@@ -3780,6 +3885,7 @@ body.paladar-active #notif-restore{display:none!important}
     </div>
 
     <div id="cv-whatsapp" style="display:none">
+      <div class="workspace-intro"><div><h2>WhatsApp de clientes</h2><p>Conversa recebida, campanhas revisadas e histórico de atendimento em um só lugar.</p></div></div>
       <div class="client-foundation-banner">
         <div><strong id="client-whatsapp-mode">Recebimento WhatsApp desativado</strong><br><span>Nenhuma resposta ou campanha é executada automaticamente.</span></div>
         <span id="client-whatsapp-integration">Consultando integração...</span>
@@ -3822,6 +3928,7 @@ body.paladar-active #notif-restore{display:none!important}
     </div>
 
     <div id="cv-pedidos" style="display:none">
+      <div class="workspace-intro"><div><h2>Pedidos recebidos</h2><p>Revise cada pedido antes de qualquer aprovação ou lançamento.</p></div></div>
       <div class="client-foundation-banner">
         <div><strong>Pedidos em modo de preparação</strong><br><span>Nenhum pedido será enviado, aprovado ou convertido em venda nesta etapa.</span></div>
         <div class="client-orders-notifications" id="mdr-orders-notifications">
@@ -4095,32 +4202,33 @@ body.paladar-active #notif-restore{display:none!important}
   </div>
 
   <div class="panel" id="panel-config">
+    <div id="cfg-intro" class="workspace-intro"><div><h2 id="cfg-intro-title">Configurações</h2><p id="cfg-intro-copy">Escolha uma área para ajustar o sistema.</p></div></div>
     <!-- Sub-navegação Configurações -->
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+    <div id="cfg-nav" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
       <div style="display:flex;gap:2px;background:var(--g50);border-radius:12px;padding:4px">
         <button id="cfg-btn-precos" onclick="switchConfigView('precos')"
           style="padding:6px 16px;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;background:var(--g800);color:#fff;display:flex;align-items:center;gap:5px">
-          ⚙ Preços
+          Preços e produtos
         </button>
         <button id="cfg-btn-registro" onclick="switchConfigView('registro')"
           style="padding:6px 16px;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);display:flex;align-items:center;gap:5px">
-          📋 Registro
+          Usuários e auditoria
         </button>
         <button id="cfg-btn-cargos" onclick="switchConfigView('cargos')"
           style="padding:6px 16px;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);display:flex;align-items:center;gap:5px">
-          Cargos e permissões
+          Cargos e acessos
         </button>
         <button id="cfg-btn-importar" onclick="switchConfigView('importar')"
           style="padding:6px 16px;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);display:flex;align-items:center;gap:5px">
-          📂 Backup
+          Backup e dados
         </button>
         <button id="cfg-btn-whatsapp" onclick="switchConfigView('whatsapp')"
           style="padding:6px 16px;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);display:flex;align-items:center;gap:5px">
-          📱 WhatsApp
+          WhatsApp
         </button>
         <button id="cfg-btn-sebrae" onclick="switchConfigView('sebrae')"
           style="padding:6px 16px;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);display:flex;align-items:center;gap:5px">
-          📋 Verificar NF
+          Conferir NF
         </button>
       </div>
     </div>
@@ -4503,15 +4611,19 @@ body.paladar-active #notif-restore{display:none!important}
             <option value="ultramsg">UltraMsg</option>
             <option value="zapi">Z-API</option>
             <option value="evolution">Evolution API</option>
+            <option value="evolution_go">Evolution GO (integrado)</option>
             <option value="baileys">Baileys (local / gratuito)</option>
           </select>
         </div>
-        <div><label>URL da API</label><input id="wa-api-url" type="url" placeholder="https://api.ultramsg.com"></div>
-        <div><label>Token / API Key</label><input id="wa-api-token" type="password" placeholder="••••••••••••"></div>
-        <div><label>Instance ID</label><input id="wa-instance-id" type="text" placeholder="Ex: 180318 (só o número)"></div>
+        <div><label id="wa-api-url-label">URL da API</label><input id="wa-api-url" type="url" placeholder="https://api.ultramsg.com"></div>
+        <div><label id="wa-api-token-label">Token / API Key</label><input id="wa-api-token" type="password" placeholder="••••••••••••"></div>
+        <div><label id="wa-instance-id-label">Instance ID</label><input id="wa-instance-id" type="text" placeholder="Ex: 180318 (só o número)"></div>
         <div style="display:flex;align-items:flex-end"><button class="btn btn-primary" style="width:100%" onclick="saveWaConfig()">💾 Salvar configuração</button></div>
       </div>
       <div id="wa-provider-hint" style="margin-top:10px;font-size:11px;color:var(--muted);padding:8px;background:var(--card2);border-radius:6px;display:none"></div>
+      <div role="note" style="margin-top:8px;padding:9px 10px;border-left:3px solid #e5a11a;background:var(--card2);color:var(--text);font-size:11px;line-height:1.45">
+        Ao salvar outro provedor, os próximos envios do sistema passam a usar essa conexão. A sessão Baileys permanece guardada; para trocar o número do Evolution, conecte a instância desejada pelo QR Code.
+      </div>
       <!-- Painel QR Baileys — visível apenas quando provider = baileys -->
       <div id="wa-baileys-panel" style="display:none;margin-top:12px;padding:14px;background:var(--card2);border-radius:8px;border:1px solid var(--border)">
         <div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:8px">📱 Conexão Baileys</div>
@@ -4523,6 +4635,19 @@ body.paladar-active #notif-restore{display:none!important}
           <button id="wa-baileys-disconnect" class="btn btn-danger btn-sm" onclick="waBaileysConnection('disconnect')">Desconectar e gerar novo QR</button>
         </div>
         <div style="font-size:10px;color:var(--muted);margin-top:8px">Use Reconectar para preservar a sessao. Use Desconectar somente quando precisar vincular a conta novamente pelo QR Code.</div>
+      </div>
+      <div id="wa-evolution-go-panel" style="display:none;margin-top:12px;padding:14px;background:var(--card2);border-radius:8px;border:1px solid var(--border)">
+        <div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:8px">Evolution GO · conexão</div>
+        <div id="wa-evolution-go-status" role="status" style="font-size:12px;color:var(--muted);margin-bottom:8px">Salve a configuração para verificar.</div>
+        <div id="wa-evolution-go-qr" style="text-align:center;display:none;margin:12px 0"></div>
+        <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px">
+          <a class="btn btn-secondary btn-sm" href="http://127.0.0.1:18766/manager/login" target="_blank" rel="noopener noreferrer" title="Abre o painel local do Evolution GO; requer túnel SSH ativo">Abrir painel Evolution GO</a>
+          <button class="btn btn-secondary btn-sm" onclick="waLoadEvolutionGoStatus(false)">Verificar</button>
+          <button id="wa-evolution-go-connect" class="btn btn-primary btn-sm" onclick="waEvolutionGoConnection('connect')">Conectar / gerar QR</button>
+          <button id="wa-evolution-go-reconnect" class="btn btn-secondary btn-sm" onclick="waEvolutionGoConnection('reconnect')">Reconectar</button>
+          <button id="wa-evolution-go-disconnect" class="btn btn-danger btn-sm" onclick="waEvolutionGoConnection('disconnect')">Desconectar</button>
+        </div>
+        <div id="wa-evolution-go-webhook" style="font-size:10px;color:var(--muted);margin-top:8px"></div>
       </div>
     </div>
 
@@ -4858,6 +4983,15 @@ body.paladar-active #notif-restore{display:none!important}
     <h3>Mais abas</h3>
     <button type="button" class="mobile-sheet-close" onclick="closeMobileMoreSheet()" aria-label="Fechar">×</button>
   </div>
+  <div id="mobile-module-choices">
+  <div class="mobile-screen-prefs-title" style="margin-bottom:8px">Módulos</div>
+  <div class="mobile-more-grid" style="margin-bottom:14px">
+    <button type="button" data-layout-module="raios" onclick="selectLayoutModule('raios')">⚡ Menina dos Raios</button>
+    <button type="button" data-layout-module="estrada" onclick="selectLayoutModule('estrada')">🚚 Menina da Estrada</button>
+    <button type="button" onclick="selectLayoutModule('monteiro')">📊 Monteiro</button>
+    <button type="button" onclick="selectLayoutModule('orcamentos')">🧾 Orçamentos</button>
+  </div>
+  </div>
   <div class="mobile-more-grid">
     <button type="button" data-more-tab="consolidado" onclick="mobileSwitchTab('consolidado')">📊 Consolidado</button>
     <button type="button" data-more-tab="nf" onclick="mobileSwitchTab('nf')">🧾 NF-e</button>
@@ -5146,6 +5280,14 @@ function updateCompanyChrome(){
   if(title) title.textContent=meta.title;
   if(logo){ logo.src=meta.logo; logo.alt=meta.title; }
   if(btn) btn.textContent=meta.switchLabel;
+  var layoutCurrent=document.getElementById('layout-module-current');
+  if(layoutCurrent)layoutCurrent.textContent=activeCompany==='estrada'?'Módulo atual · Menina da Estrada':'Módulo atual · Menina dos Raios';
+  document.querySelectorAll('[data-layout-module="raios"],[data-layout-module="estrada"]').forEach(function(item){
+    var current=item.getAttribute('data-layout-module')===activeCompany;
+    item.setAttribute('aria-current',current?'true':'false');
+    var check=document.getElementById('layout-module-check-'+item.getAttribute('data-layout-module'));
+    if(check)check.textContent=current?'✓':'';
+  });
   document.body.classList.toggle('company-estrada', activeCompany==='estrada');
   document.querySelectorAll('[data-pal-company]').forEach(function(b){
     b.classList.toggle('active', b.getAttribute('data-pal-company')===activeCompany);
@@ -5260,13 +5402,52 @@ function applySkin(id){
   if(id==='verde') html.removeAttribute('data-skin'); else html.setAttribute('data-skin',id);
   try{ localStorage.setItem('skin',id); }catch(e){}
   document.querySelectorAll('.skin-swatch').forEach(function(s){
-    s.classList.toggle('active', s.getAttribute('data-skin')===id);
+    var active=s.getAttribute('data-skin')===id;
+    s.classList.toggle('active', active);
+    s.setAttribute('aria-pressed',active?'true':'false');
   });
   if(typeof chartInstances!=='undefined' && chartInstances.main){ try{ loadConsolidado(); }catch(e){} }
 }
 function initSkin(){
   var saved='verde'; try{ saved=localStorage.getItem('skin')||'verde'; }catch(e){}
   applySkin(saved);
+}
+function applyLayoutSkin(id){
+  id=id==='menina2'?'menina2':'menina';
+  var html=document.documentElement;
+  if(id==='menina2')html.setAttribute('data-layout-skin','menina2');
+  else html.removeAttribute('data-layout-skin');
+  document.querySelectorAll('[data-layout-skin-choice]').forEach(function(button){
+    button.setAttribute('aria-pressed',button.getAttribute('data-layout-skin-choice')===id?'true':'false');
+  });
+  var username=String(session&&session.username||'').trim().toLowerCase();
+  if(username){try{localStorage.setItem('layoutSkin:'+username,id);}catch(e){}}
+}
+function loadLayoutSkinForUser(username){
+  var saved='menina';
+  if(username){try{saved=localStorage.getItem('layoutSkin:'+String(username).trim().toLowerCase())||'menina';}catch(e){}}
+  applyLayoutSkin(saved);
+}
+function toggleLayoutModuleMenu(event){
+  if(event)event.stopPropagation();
+  var menu=document.getElementById('layout-module-menu');
+  var trigger=document.querySelector('.layout-brand-switch');
+  if(!menu)return;
+  var open=!menu.classList.contains('open');
+  menu.classList.toggle('open',open);
+  if(trigger)trigger.setAttribute('aria-expanded',open?'true':'false');
+}
+async function selectLayoutModule(module){
+  var menu=document.getElementById('layout-module-menu');
+  var trigger=document.querySelector('.layout-brand-switch');
+  if(menu)menu.classList.remove('open');
+  if(trigger)trigger.setAttribute('aria-expanded','false');
+  var mobileSheet=document.getElementById('mobile-more-sheet');
+  if(mobileSheet&&mobileSheet.classList.contains('open'))closeMobileMoreSheet();
+  if(module==='raios')return switchCompanyUI('raios');
+  if(module==='estrada')return switchCompanyUI('estrada');
+  if(module==='monteiro')return openPaladarApp();
+  if(module==='orcamentos')return openOrcamentoShortcut();
 }
 
 // ── AUTH ───────────────────────────────────────────────────────────────────────
@@ -5302,6 +5483,7 @@ function doLogout(){
   applyLoginPersonality();
 }
 function showApp(){
+  loadLayoutSkinForUser(session.username);
   updateCompanyChrome();
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app').classList.add('visible');
@@ -5565,6 +5747,10 @@ function hasAnyManagedPermission(module,action){
 
 function applyManagedActionUI(){
   const restricted=isManagedRestrictedRole();
+  var modulePicker=document.getElementById('layout-module-picker');
+  var mobileModuleChoices=document.getElementById('mobile-module-choices');
+  if(modulePicker)modulePicker.style.display=restricted?'none':'';
+  if(mobileModuleChoices)mobileModuleChoices.style.display=restricted?'none':'';
   document.querySelectorAll('.btn-paladar-header,.btn-orcamento-header,.btn-nfe').forEach(function(el){el.style.display=restricted?'none':'';});
   document.querySelectorAll('[onclick*="openPaladarApp"],[onclick*="openOrcamentoShortcut"]').forEach(function(el){el.style.display=restricted?'none':'';});
   if(!restricted)return;
@@ -9034,6 +9220,18 @@ function switchConfigView(view){
     if(allowed.indexOf(view)<0) view=allowed[0];
   }
   window._cfgActive=view;
+  var cfgIntro={
+    precos:['Preços e operação','Produtos, entregadores, veículos e cálculo de avarias.'],
+    registro:['Usuários e auditoria','Contas, acessos individuais e histórico administrativo.'],
+    cargos:['Cargos e acessos','Defina o que cada função pode consultar e alterar.'],
+    importar:['Backup e dados','Proteja o banco, confira cópias e exporte relatórios.'],
+    whatsapp:['WhatsApp','Conexão, notificações, respostas automáticas e campanhas.'],
+    sebrae:['Conferir NF','Compare um relatório PDF com as notas lançadas.']
+  }[view]||['Configurações','Ajustes do sistema.'];
+  var cfgTitle=document.getElementById('cfg-intro-title');
+  var cfgCopy=document.getElementById('cfg-intro-copy');
+  if(cfgTitle)cfgTitle.textContent=cfgIntro[0];
+  if(cfgCopy)cfgCopy.textContent=cfgIntro[1];
   if(view==='sebrae'){
     var source=document.getElementById('sebrae-source');
     var defaultSource=activeCompany==='estrada'?'produtor_rural':'sebrae';
@@ -9375,10 +9573,10 @@ const ALL_TABS_DEF=[
 ];
 // Sub-abas dentro de Configurações — permissionáveis por perfil (chave cfg_<id>).
 const CONFIG_SUBTABS_DEF=[
-  ['precos','⚙ Preços'],['registro','📋 Registro / Admin'],
-  ['cargos','Cargos e permissões'],
-  ['importar','📂 Backup'],['whatsapp','📱 WhatsApp'],
-  ['sebrae','📋 Verificar NF']
+  ['precos','Preços e produtos'],['registro','Usuários e auditoria'],
+  ['cargos','Cargos e acessos'],
+  ['importar','Backup e dados'],['whatsapp','WhatsApp'],
+  ['sebrae','Conferir NF']
 ];
 const CFG_SUB_KEYS=CONFIG_SUBTABS_DEF.map(function(t){return 'cfg_'+t[0];});
 
@@ -9669,6 +9867,7 @@ function switchClientView(view){
   if(panel)panel.style.display=view==='cadastro'?'grid':'block';
   const btn=document.getElementById(btns[view]);
   if(btn){btn.style.background='var(--g800)';btn.style.color='#fff';}
+  Object.values(btns).forEach(function(id){var b=document.getElementById(id);if(b)b.setAttribute('aria-current',b.id===btns[view]?'page':'false');});
   if(act)act.style.display=view==='cadastro'?'flex':'none';
   // Load data
   if(view==='analise')loadClientAnalytics();
@@ -14344,6 +14543,8 @@ let waConfig  = {};
 let waToggles = { boleto: true, avaria: true, inativo: true };
 let waSectionLoaded = false;
 let waBaileysPoll = null;
+let waEvolutionGoPoll = null;
+let waEvolutionGoBusy = false;
 
 async function loadWaSection() {
   if (!session || session.role !== 'admin') return;
@@ -14401,11 +14602,24 @@ function waProviderHint() {
   const p = document.getElementById('wa-provider')?.value;
   const h = document.getElementById('wa-provider-hint');
   const baileyPanel = document.getElementById('wa-baileys-panel');
+  const evolutionPanel = document.getElementById('wa-evolution-go-panel');
   if (!h) return;
+  const urlInput=document.getElementById('wa-api-url');
+  const instanceInput=document.getElementById('wa-instance-id');
+  const urlLabel=document.getElementById('wa-api-url-label');
+  const tokenLabel=document.getElementById('wa-api-token-label');
+  const instanceLabel=document.getElementById('wa-instance-id-label');
+  if(p==='evolution_go'&&urlInput&&(!urlInput.value||urlInput.value==='http://127.0.0.1:3001'))urlInput.value='http://127.0.0.1:8766';
+  if(p==='evolution_go'&&instanceInput)instanceInput.placeholder='Nome exato da instância (ex.: menina-teste)';
+  if(p==='baileys'&&instanceInput)instanceInput.placeholder='Baileys não usa Instance ID';
+  if(urlLabel)urlLabel.textContent='URL da API';
+  if(tokenLabel)tokenLabel.textContent=p==='evolution_go'?'Chave global (GLOBAL_API_KEY)':'Token / API Key';
+  if(instanceLabel)instanceLabel.textContent=p==='evolution_go'?'Nome da instância':'Instance ID';
   const hints = {
     ultramsg:  '🔗 URL: https://api.ultramsg.com (apenas o domínio, SEM /instanceXXX no final)  |  Instance ID: somente o número, ex: 180318  |  Token: a chave longa do painel UltraMsg.',
     zapi:      '🔗 URL: https://api.z-api.io  |  Instance ID e Token gerados na conta Z-API.',
     evolution: '🔗 URL: seu servidor Evolution API  |  API Key configurada no painel Evolution.',
+    evolution_go: 'Evolution GO: informe a URL e a GLOBAL_API_KEY, depois o nome exato da instância. Salve e use “Conectar / gerar QR”; o sistema vincula webhook e bot automaticamente. A chave interna da instância permanece no servidor.',
     baileys:   '🔗 URL: http://127.0.0.1:3001 (serviço local — não altere)  |  Token: chave API_KEY do arquivo baileys-api/.env  |  Instance ID: deixe em branco.'
   };
   h.style.display = 'block';
@@ -14419,7 +14633,60 @@ function waProviderHint() {
       waStopBaileysPoll();
     }
   }
+  if (evolutionPanel) {
+    if (p === 'evolution_go') {
+      evolutionPanel.style.display = 'block';
+      const url = document.getElementById('wa-api-url');
+      if (url && !url.value) url.value = 'http://127.0.0.1:8766';
+      waLoadEvolutionGoStatus(false);
+    } else {
+      evolutionPanel.style.display = 'none';
+      waStopEvolutionGoPoll();
+    }
+  }
 }
+
+async function waLoadEvolutionGoStatus(silent){
+  const status=document.getElementById('wa-evolution-go-status');
+  const qr=document.getElementById('wa-evolution-go-qr');
+  const webhook=document.getElementById('wa-evolution-go-webhook');
+  if(!status||waEvolutionGoBusy)return;
+  waEvolutionGoBusy=true;
+  if(!silent)status.textContent='Consultando Evolution GO...';
+  try{
+    const r=await api('/api/whatsapp/evolution-go/status');
+    if(r.connected){
+      status.innerHTML='<span style="color:#16a34a;font-weight:700">Conectado · pronto para enviar e receber mensagens</span>';
+      if(qr){qr.style.display='none';qr.innerHTML='';}
+      if(webhook)webhook.textContent=r.webhook_configured?'Recebimento de mensagens e respostas automáticas habilitado.':'Clique em Conectar para habilitar o recebimento.';
+      waStopEvolutionGoPoll();
+    }else if(r.qr){
+      status.textContent='Aguardando leitura do QR Code no WhatsApp.';
+      if(qr){if(qr.dataset.qr!==r.qr){qr.dataset.qr=r.qr;qr.innerHTML='<img src="'+r.qr+'" width="220" height="220" alt="QR de conexão do WhatsApp" style="background:white;padding:8px;border-radius:6px">';}qr.style.display='block';}
+      if(webhook)webhook.textContent=r.webhook_configured?'Webhook de mensagens configurado.':'Conecte para configurar o recebimento seguro.';
+    }else{
+      status.textContent=r.message||'Instância desconectada. Use Conectar / gerar QR.';
+      if(qr){qr.style.display='none';qr.innerHTML='';}
+    }
+  }catch(e){if(!silent)status.textContent='Evolution GO indisponível: '+e.message;}
+  finally{waEvolutionGoBusy=false;}
+}
+
+async function waEvolutionGoConnection(action){
+  if(action==='disconnect'&&!confirm('Desconectar o WhatsApp Evolution GO? A sessão vinculada será mantida para reconectar.'))return;
+  const status=document.getElementById('wa-evolution-go-status');
+  document.querySelectorAll('#wa-evolution-go-panel button').forEach(b=>b.disabled=true);
+  if(status)status.textContent=action==='connect'?'Configurando webhook e iniciando conexão...':'Enviando comando ao Evolution GO...';
+  try{
+    const r=await api('/api/whatsapp/evolution-go/connection/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    toast(r.message||'Comando enviado ao Evolution GO.');
+    waStopEvolutionGoPoll();let attempts=0;
+    await waLoadEvolutionGoStatus(false);
+    waEvolutionGoPoll=setInterval(()=>{if(++attempts>30){waStopEvolutionGoPoll();return;}waLoadEvolutionGoStatus(true);},3000);
+  }catch(e){if(status)status.textContent='Falha: '+e.message;toast(e.message,'error');}
+  finally{document.querySelectorAll('#wa-evolution-go-panel button').forEach(b=>b.disabled=false);}
+}
+function waStopEvolutionGoPoll(){if(waEvolutionGoPoll){clearInterval(waEvolutionGoPoll);waEvolutionGoPoll=null;}}
 
 let _waLastQr = null;      // último QR renderizado (evita re-render/piscar)
 let _waStatusBusy = false; // evita chamadas concorrentes
@@ -15063,6 +15330,7 @@ function waInboundModeLabel(mode){
 
 function renderWaInboundModeCard(state,loading){
   state=state||{};
+  if(state.mode==='evolution_go')return '<div><div class="wa-inbound-mode-title">Recebimento Evolution GO</div><div class="wa-inbound-mode-desc">As mensagens recebidas chegam ao mesmo bot. Ele só responde quando Auto respostas estiver ativado e respeita o modo sandbox, horário e limites definidos abaixo.</div></div><div class="wa-inbound-mode-actions"><span class="wa-inbound-badge production">Webhook integrado</span><button class="btn btn-secondary btn-sm" onclick="waLoadEvolutionGoStatus(false)">Verificar conexão</button></div>';
   var resolvedMode=state.mode||state.runtime_mode||state.configured_mode;
   var mode=(resolvedMode==='production'||resolvedMode==='sandbox')?resolvedMode:'unknown';
   var nextMode=mode==='production'?'sandbox':'production';
@@ -15145,7 +15413,9 @@ async function loadWaBotSettings(){
   if(!el) return;
   try{
     var s=await api('/api/whatsapp/bot-settings');
-    _waInboundModeState=await api('/api/whatsapp/inbound-mode').catch(function(){return {mode:'unknown',requires_restart_service:'menina-baileys.service'};});
+    _waInboundModeState=waConfig.provider==='evolution_go'
+      ?{mode:'evolution_go',webhook_configured:true}
+      :await api('/api/whatsapp/inbound-mode').catch(function(){return {mode:'unknown',requires_restart_service:'menina-baileys.service'};});
     el.innerHTML='<div class="wa-bot-grid">'
       +'<div class="wa-bot-item"><label>🤖 Bot ativo</label><div class="wa-toggle-wrap"><input type="checkbox" id="wbs-bot-active"'+(s.bot_active==='1'?' checked':'')+'></div></div>'
       +'<div class="wa-bot-item"><label>💬 Auto respostas</label><div class="wa-toggle-wrap"><input type="checkbox" id="wbs-auto-reply-enabled"'+(s.auto_reply_enabled==='1'?' checked':'')+'></div></div>'

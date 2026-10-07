@@ -600,3 +600,8 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 
 
 
+
+## [2.0.21] - 05/10/2026 07:22
+
+- Reformulacao mobile de Clientes, Produtividade e Consolidado; indicadores reais e resultado liquido destacado.
+

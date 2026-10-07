@@ -23,7 +23,9 @@ try {
     New-Item -ItemType Directory -Path (Join-Path $bootstrap 'deploy\evolution-go') -Force | Out-Null
     Copy-Item (Join-Path $sourceDir 'compose.yaml') (Join-Path $bootstrap 'deploy\evolution-go\compose.yaml')
     Copy-Item (Join-Path $sourceDir 'init-users-db.sql') (Join-Path $bootstrap 'deploy\evolution-go\init-users-db.sql')
+    Copy-Item (Join-Path $sourceDir 'resolv.conf') (Join-Path $bootstrap 'deploy\evolution-go\resolv.conf')
     Copy-Item (Join-Path $sourceDir 'install.sh') (Join-Path $bootstrap 'deploy\evolution-go\install.sh')
+    Copy-Item (Join-Path $sourceDir 'manager-login-license-gate.patch') (Join-Path $bootstrap 'deploy\evolution-go\manager-login-license-gate.patch')
 
     & tar.exe -cf $archive -C $bootstrap deploy
     if ($LASTEXITCODE -ne 0) { throw 'Falha ao empacotar arquivos da instalação.' }

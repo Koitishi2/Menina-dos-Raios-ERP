@@ -1,14 +1,38 @@
 # Evolution Go bootstrap
 
 This stack is isolated from the business backend and the existing Baileys service.
-It pins Evolution Go `0.7.2`, keeps PostgreSQL private on its compose network, and
-publishes the Manager/API only on `127.0.0.1:8766`. WhatsApp auto-connect is off.
+It builds upstream Evolution Go `0.7.2` at pinned commit
+`9337afc47e10b86cc896a6f432240e40fee95dd1` with a minimal Manager-login fix,
+keeps PostgreSQL private on its compose network, and publishes the Manager/API
+only on `127.0.0.1:8766`. The existing Podman network is treated as external to
+avoid Compose attempting to recreate it. WhatsApp auto-connect is off.
+
+The upstream `0.7.2` Manager login preflights credentials with `GET /instance/all`,
+but its global license gate returned `503` before the route's admin-key middleware
+could validate the key. The patch lets only that preflight reach the existing
+`AuthAdmin` check; all other unlicensed business routes remain gated.
+
+The Evolution Go container mounts a dedicated `/etc/resolv.conf` with the tested
+resolvers `1.1.1.1` and `8.8.8.8`. This bypasses the Podman network's non-responsive
+DNS proxy for external lookups. PostgreSQL uses a fixed private IP, so the service
+does not depend on container-name DNS. The installer verifies licensing-domain
+resolution inside the container before reporting success.
 
 Install from the repository root in PowerShell:
 
 ```powershell
 & .\scripts\install_evolution_go.ps1
 ```
+
+For routine access, double-click `scripts/ABRIR_EVOLUTION_GO.bat`. It creates a
+local run log under `logs_evolution_go`, starts the SSH connection through the
+`EVOLUTION_GO_CONEXAO.bat` helper (or `EVOLUTION_GO_MONITOR.bat` if the tunnel
+already exists), waits up to 90 seconds for the health endpoint, and then opens
+the Manager. The SSH window streams the Evolution Go container logs without
+filtering so connection, container, and HTTP errors remain visible. The stream is appended to
+`/root/evolution-go-manager.log` with root-only permissions. API keys and request
+headers are not logged by this script. Keep the SSH window open while testing;
+use `Ctrl+C` there to stop the stream after the login attempt.
 
 The script uploads only these bootstrap files and runs the idempotent installer as
 root over SSH. It creates `/opt/menina/evolution-go/.env` with mode `0600`; secrets

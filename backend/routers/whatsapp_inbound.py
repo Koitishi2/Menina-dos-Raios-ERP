@@ -2,6 +2,8 @@ import hmac
 import json
 import logging
 import os
+import hashlib
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -80,6 +82,57 @@ async def _read_limited_json(request, max_bytes):
     return value
 
 
+def _evo_value(obj, *paths):
+    for path in paths:
+        value = obj
+        for key in path.split("."):
+            value = value.get(key) if isinstance(value, dict) else None
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def _normalize_evolution_go(raw):
+    if raw.get("event") not in ("Message", "messages.upsert", "MESSAGE"):
+        return None
+    data = raw.get("data") if isinstance(raw.get("data"), dict) else {}
+    info = data.get("Info") or data.get("info") or {}
+    key = data.get("key") if isinstance(data.get("key"), dict) else {}
+    message = data.get("Message") or data.get("message") or {}
+    jid = _evo_value(info, "Chat", "chat", "MessageSource.Chat", "messageSource.chat") or _evo_value(key, "remoteJid", "remoteJID")
+    message_id = _evo_value(info, "ID", "id") or _evo_value(key, "id")
+    if not jid or not message_id:
+        return None
+    text = _evo_value(message, "conversation", "extendedTextMessage.text", "imageMessage.caption",
+                      "videoMessage.caption", "documentMessage.caption", "buttonsResponseMessage.selectedDisplayText",
+                      "listResponseMessage.title") or ""
+    stamp = _evo_value(info, "Timestamp", "timestamp") or data.get("messageTimestamp")
+    if isinstance(stamp, (int, float)):
+        stamp = datetime.fromtimestamp(stamp, timezone.utc).isoformat()
+    elif isinstance(stamp, str) and stamp.isdigit():
+        stamp = datetime.fromtimestamp(int(stamp), timezone.utc).isoformat()
+    elif not isinstance(stamp, str):
+        stamp = datetime.now(timezone.utc).isoformat()
+    instance = str(raw.get("instanceName") or raw.get("instanceId") or raw.get("instance") or "")
+    if not instance:
+        return None
+    from_me = _evo_value(info, "IsFromMe", "isFromMe", "MessageSource.IsFromMe", "messageSource.isFromMe")
+    if from_me is None:
+        from_me = key.get("fromMe", False)
+    message_type = _evo_value(info, "Type", "type") or data.get("messageType") or "text"
+    return {
+        "provider": "evolution_go", "instance": instance,
+        "event_id": hashlib.sha256(f"{instance}:{message_id}".encode()).hexdigest(),
+        "message_id": str(message_id), "remote_jid": str(jid),
+        "remote_jid_alt": _evo_value(info, "SenderAlt", "senderAlt") or _evo_value(key, "remoteJidAlt"),
+        "participant_alt": _evo_value(info, "ParticipantAlt", "participantAlt") or _evo_value(key, "participant"),
+        "from_me": bool(from_me),
+        "message_type": str(message_type),
+        "text": str(text)[:10000], "timestamp": stamp,
+        "raw_type": str(message_type),
+    }
+
+
 def create_whatsapp_inbound_router(get_db, company_key, valid_companies, require_permission, sender=None):
     router = APIRouter()
 
@@ -121,6 +174,45 @@ def create_whatsapp_inbound_router(get_db, company_key, valid_companies, require
             conn.close()
         status_code = 200 if result["status"] == "processado" or result["duplicate"] else 202
         return JSONResponse(status_code=status_code, content=result)
+
+    @router.post("/api/whatsapp/evolution-go/webhook/{secret}")
+    async def receive_evolution_go_event(secret: str, request: Request):
+        if len(secret) < 32:
+            raise HTTPException(404, "Webhook não encontrado.")
+        raw = await _read_limited_json(request, 262144)
+        match = None
+        for company in valid_companies:
+            conn = get_db(company)
+            try:
+                cfg = {row["key"]: row["value"] for row in conn.execute(
+                    "SELECT key,value FROM whatsapp_config WHERE key IN ('provider','instance_id','evolution_go_webhook_secret')"
+                ).fetchall()}
+            finally:
+                conn.close()
+            expected = cfg.get("evolution_go_webhook_secret", "")
+            if cfg.get("provider") == "evolution_go" and expected and hmac.compare_digest(secret, expected):
+                match = (company, cfg.get("instance_id", ""))
+                break
+        if not match:
+            logger.warning("Evolution GO webhook recusado: segredo não reconhecido.")
+            raise HTTPException(401, "Webhook não autorizado.")
+        event = _normalize_evolution_go(raw)
+        if event is None:
+            return {"ok": True, "ignored": True}
+        company, configured_instance = match
+        if configured_instance and event["instance"] != configured_instance:
+            raise HTTPException(403, "Instância Evolution GO não autorizada.")
+        conn = get_db(company)
+        try:
+            result = process_inbound_event(conn, company, event, sender=sender, outbound=outbound_settings())
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        except Exception:
+            logger.exception("Falha ao processar webhook Evolution GO.")
+            raise
+        finally:
+            conn.close()
+        return JSONResponse(status_code=200 if result["status"] == "processado" or result["duplicate"] else 202, content=result)
 
     @router.get("/api/whatsapp/inbound-events")
     def inbound_events(limit: int = 100, x_token: str = Header("")):

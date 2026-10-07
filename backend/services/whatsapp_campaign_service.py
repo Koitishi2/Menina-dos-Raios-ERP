@@ -268,8 +268,8 @@ def send_manual_batch(conn, company_key, batch_id, username, settings, config, s
         raise PermissionError("envio_desativado")
     if settings["mode"] == "production" and not settings["production_approved"]:
         raise PermissionError("modo_producao_nao_autorizado")
-    if config.get("provider") != "baileys":
-        raise ValueError("provedor_baileys_obrigatorio")
+    if config.get("provider") not in {"baileys", "evolution_go"}:
+        raise ValueError("provedor_whatsapp_incompativel")
 
     conn.execute("UPDATE whatsapp_manual_batches SET status='processando',updated_at=? WHERE id=?", (now.isoformat(), batch_id))
     conn.commit()
