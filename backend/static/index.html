@@ -536,6 +536,20 @@ header{background:var(--g800);color:#fff;padding:0 16px;height:56px;display:flex
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center}
 .modal-overlay.open{display:flex}
 .modal{background:var(--card);border-radius:14px;padding:22px;width:540px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.pal-invoice-viewer{position:fixed;inset:0;z-index:10020;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(11,22,37,.72)}
+.pal-invoice-viewer.open{display:flex}
+.pal-invoice-viewer-panel{display:flex;flex-direction:column;width:min(1000px,100%);height:min(850px,100%);min-height:260px;background:var(--card);color:var(--text);border-radius:8px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.3)}
+.pal-invoice-viewer-head{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border)}
+.pal-invoice-viewer-title{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:800}
+.pal-invoice-viewer-head a,.pal-invoice-viewer-head button{min-height:36px;padding:7px 11px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--g800);font:inherit;font-size:12px;font-weight:700;text-decoration:none;cursor:pointer}
+.pal-invoice-viewer-head a[hidden]{display:none}
+.pal-invoice-viewer-body{flex:1;min-height:0;overflow:auto;display:flex;align-items:center;justify-content:center;background:var(--card2)}
+.pal-invoice-viewer-body iframe{width:100%;height:100%;border:0;background:#fff}
+.pal-invoice-viewer-body img{display:block;max-width:100%;max-height:100%;object-fit:contain}
+.pal-invoice-viewer-body pre{align-self:stretch;width:100%;margin:0;padding:18px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
+.pal-invoice-viewer-status{padding:24px;text-align:center;color:var(--muted);font-size:13px}
+.pal-invoice-viewer-status.error{color:#B42318}
+@media(max-width:768px){.pal-invoice-viewer{padding:0}.pal-invoice-viewer-panel{width:100%;height:100dvh;border-radius:0}.pal-invoice-viewer-head{padding:10px}}
 .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
 .modal-title{font-size:15px;font-weight:700;color:var(--g800)}
 .modal-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);line-height:1}
@@ -16668,22 +16682,104 @@ function promptUploadPaladarInvoice(groupId){
   inp.click();
 }
 
+var _palInvoiceViewerUrl=null;
+var _palInvoiceViewerRequest=null;
+var _palInvoiceViewerFocus=null;
+var _palInvoiceViewerOverflow=null;
+function closePaladarInvoiceViewer(){
+  var viewer=document.getElementById('pal-invoice-viewer');
+  if(_palInvoiceViewerRequest){_palInvoiceViewerRequest.abort();_palInvoiceViewerRequest=null;}
+  if(viewer){
+    viewer.classList.remove('open');
+    viewer.querySelector('.pal-invoice-viewer-body').replaceChildren();
+  }
+  if(_palInvoiceViewerUrl){URL.revokeObjectURL(_palInvoiceViewerUrl);_palInvoiceViewerUrl=null;}
+  if(_palInvoiceViewerOverflow!==null){document.body.style.overflow=_palInvoiceViewerOverflow;_palInvoiceViewerOverflow=null;}
+  if(_palInvoiceViewerFocus&&_palInvoiceViewerFocus.isConnected)_palInvoiceViewerFocus.focus();
+  _palInvoiceViewerFocus=null;
+}
+function getPaladarInvoiceViewer(){
+  var viewer=document.getElementById('pal-invoice-viewer');
+  if(viewer)return viewer;
+  viewer=document.createElement('div');
+  viewer.id='pal-invoice-viewer';
+  viewer.className='pal-invoice-viewer';
+  viewer.setAttribute('role','dialog');
+  viewer.setAttribute('aria-modal','true');
+  viewer.setAttribute('aria-labelledby','pal-invoice-viewer-title');
+  viewer.innerHTML='<div class="pal-invoice-viewer-panel"><div class="pal-invoice-viewer-head">'
+    +'<div class="pal-invoice-viewer-title" id="pal-invoice-viewer-title">Nota fiscal</div>'
+    +'<a class="pal-invoice-viewer-download" hidden>Baixar</a>'
+    +'<button type="button" class="pal-invoice-viewer-close" aria-label="Fechar nota fiscal">Fechar</button>'
+    +'</div><div class="pal-invoice-viewer-body" aria-live="polite"></div></div>';
+  viewer.addEventListener('click',function(ev){if(ev.target===viewer)closePaladarInvoiceViewer();});
+  viewer.querySelector('.pal-invoice-viewer-close').addEventListener('click',closePaladarInvoiceViewer);
+  document.addEventListener('keydown',function(ev){if(ev.key==='Escape'&&viewer.classList.contains('open'))closePaladarInvoiceViewer();});
+  document.body.appendChild(viewer);
+  return viewer;
+}
 async function openPaladarInvoice(groupId){
-  var viewer=window.open('about:blank','_blank');
-  if(!viewer){ toast('O navegador bloqueou a aba da nota. Permita pop-ups para este sistema e tente novamente.','error'); return; }
-  try{ viewer.document.title='Carregando nota fiscal'; viewer.document.body.textContent='Carregando nota fiscal…'; }catch(_e){}
-  var objectUrl=null;
+  closePaladarInvoiceViewer();
+  var viewer=getPaladarInvoiceViewer();
+  var body=viewer.querySelector('.pal-invoice-viewer-body');
+  var download=viewer.querySelector('.pal-invoice-viewer-download');
+  var record=(window._palSaleGroupsById||{})[String(groupId)]||{};
+  var filename=record.invoice_original_name||'nota-fiscal';
+  _palInvoiceViewerFocus=document.activeElement;
+  _palInvoiceViewerOverflow=document.body.style.overflow;
+  document.body.style.overflow='hidden';
+  viewer.querySelector('.pal-invoice-viewer-title').textContent=filename;
+  download.hidden=true;
+  body.innerHTML='<div class="pal-invoice-viewer-status" role="status">Carregando nota fiscal...</div>';
+  viewer.classList.add('open');
+  viewer.querySelector('.pal-invoice-viewer-close').focus();
+  var request=new AbortController();
+  _palInvoiceViewerRequest=request;
   try{
-    var r=await fetch('/api/monteiro/sales/group/'+encodeURIComponent(groupId)+'/invoice',{
-      headers:{'x-token':(typeof session !== 'undefined' ? session.token : '') || ''}
+    var response=await fetch('/api/monteiro/sales/group/'+encodeURIComponent(groupId)+'/invoice',{
+      headers:{'x-token':(typeof session !== 'undefined' ? session.token : '') || ''},signal:request.signal
     });
-    if(!r.ok){ var err=await r.json().catch(function(){return {detail:r.statusText};}); throw new Error(err.detail || 'Nota fiscal não encontrada'); }
-    var blob=await r.blob();
-    objectUrl=URL.createObjectURL(blob);
-    if(viewer.closed){ URL.revokeObjectURL(objectUrl); return; }
-    viewer.location.href=objectUrl;
-    setTimeout(function(){ if(objectUrl)URL.revokeObjectURL(objectUrl); }, 300000);
-  }catch(e){ if(!viewer.closed)viewer.close(); toast('Erro ao carregar a nota fiscal: '+e.message,'error'); }
+    if(!response.ok){
+      var error=await response.json().catch(function(){return {};});
+      throw new Error(typeof error.detail==='string'?error.detail:'HTTP '+response.status);
+    }
+    var blob=await response.blob();
+    if(_palInvoiceViewerRequest!==request)return;
+    var name=String(filename).toLowerCase();
+    var mime=/\.pdf$/.test(name)?'application/pdf':/\.xml$/.test(name)?'application/xml':/\.png$/.test(name)?'image/png':/\.webp$/.test(name)?'image/webp':/\.jpe?g$/.test(name)?'image/jpeg':blob.type;
+    var previewBlob=blob.type===mime?blob:new Blob([blob],{type:mime});
+    _palInvoiceViewerUrl=URL.createObjectURL(previewBlob);
+    download.href=_palInvoiceViewerUrl;
+    download.download=filename;
+    download.hidden=false;
+    var preview;
+    if(mime==='application/pdf'){
+      preview=document.createElement('iframe');
+      preview.title='Visualização da nota fiscal';
+      preview.src=_palInvoiceViewerUrl;
+    }else if(mime.startsWith('image/')){
+      preview=document.createElement('img');
+      preview.alt='Nota fiscal '+filename;
+      preview.src=_palInvoiceViewerUrl;
+    }else if(mime==='application/xml'||mime==='text/xml'){
+      preview=document.createElement('pre');
+      preview.textContent=await previewBlob.text();
+    }else{
+      preview=document.createElement('div');
+      preview.className='pal-invoice-viewer-status';
+      preview.textContent='Prévia indisponível para este formato. Use Baixar.';
+    }
+    if(_palInvoiceViewerRequest===request)body.replaceChildren(preview);
+  }catch(e){
+    if(e.name!=='AbortError'&&_palInvoiceViewerRequest===request){
+      body.replaceChildren();
+      var message=document.createElement('div');
+      message.className='pal-invoice-viewer-status error';
+      message.setAttribute('role','alert');
+      message.textContent='Não foi possível abrir a nota fiscal: '+e.message;
+      body.appendChild(message);
+    }
+  }finally{if(_palInvoiceViewerRequest===request)_palInvoiceViewerRequest=null;}
 }
 
 // Baixa em ZIP as notas fiscais marcadas; se nenhuma marcada, baixa todas as
@@ -17079,6 +17175,16 @@ async function loadPaladarSales(){
   var vpl   = document.getElementById('pal-filter-vehicle')?.value.trim() || '';
   var wrap  = document.getElementById('pal-lanc-table-wrap');
   if(!wrap) return;
+  if(!wrap.dataset.invoiceViewBound){
+    wrap.addEventListener('click',function(ev){
+      var button=ev.target&&ev.target.closest?ev.target.closest('[data-pal-invoice-view]'):null;
+      if(!button||!wrap.contains(button))return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      openPaladarInvoice(button.getAttribute('data-pal-invoice-view'));
+    });
+    wrap.dataset.invoiceViewBound='1';
+  }
   var params = '?period='+period+'&month='+month+'&year='+year;
   if(prod) params += '&product='+encodeURIComponent(prod);
   if(cli)  params += '&client='+encodeURIComponent(cli);
@@ -17110,7 +17216,7 @@ async function loadPaladarSales(){
       var rowBg = idx%2===0 ? 'var(--card)' : 'var(--g50)';
       var hasInvoice = !!g.invoice_file_path;
       var invoiceCell = hasInvoice
-        ? '<input type="checkbox" class="pal-inv-check" data-sg="'+String(sg).replace(/"/g,'&quot;')+'" onclick="event.stopPropagation()" title="Selecionar para download" style="margin-right:6px;vertical-align:middle;cursor:pointer;width:15px;height:15px">'+'<button class="btn btn-sm" style="background:#DCFCE7;color:#166534;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px;margin-right:4px" onclick="openPaladarInvoice(\''+sg+'\')" title="'+((g.invoice_original_name||'Ver nota fiscal').replace(/"/g,'&quot;'))+'"> Ver</button><button class="btn btn-sm" style="background:#EEF2FF;color:#4F46E5;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px" onclick="promptUploadPaladarInvoice(\''+sg+'\')" title="Trocar nota fiscal">↻ Trocar</button>'
+        ? '<input type="checkbox" class="pal-inv-check" data-sg="'+String(sg).replace(/"/g,'&quot;')+'" onclick="event.stopPropagation()" title="Selecionar para download" style="margin-right:6px;vertical-align:middle;cursor:pointer;width:15px;height:15px">'+'<button type="button" class="btn btn-sm" data-pal-invoice-view="'+String(sg).replace(/"/g,'&quot;')+'" style="background:#DCFCE7;color:#166534;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px;margin-right:4px" title="Ver nota fiscal">Ver</button><button class="btn btn-sm" style="background:#EEF2FF;color:#4F46E5;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px" onclick="promptUploadPaladarInvoice(\''+sg+'\')" title="Trocar nota fiscal">↻ Trocar</button>'
         : '<button class="btn btn-sm" style="background:#FEF3C7;color:#92400E;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px" onclick="promptUploadPaladarInvoice(\''+sg+'\')" title="Enviar nota fiscal">⬆ Anexar</button>';
       html += '<tr style="border-bottom:1px solid var(--border);background:'+rowBg+'">'
         +'<td style="padding:8px 6px;text-align:center"><span onclick="togglePalGroup(\''+sg+'\')" style="cursor:pointer;font-size:13px;user-select:none">'+(isExp?'▼':'▶')+'</span></td>'
