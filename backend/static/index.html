@@ -550,6 +550,14 @@ header{background:var(--g800);color:#fff;padding:0 16px;height:56px;display:flex
 .pal-invoice-viewer-status{padding:24px;text-align:center;color:var(--muted);font-size:13px}
 .pal-invoice-viewer-status.error{color:#B42318}
 @media(max-width:768px){.pal-invoice-viewer{padding:0}.pal-invoice-viewer-panel{width:100%;height:100dvh;border-radius:0}.pal-invoice-viewer-head{padding:10px}}
+.pal-invoice-upload{position:relative;display:inline-flex;align-items:center;justify-content:center;min-height:32px;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;vertical-align:middle}
+.pal-invoice-upload input[type="file"]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.pal-invoice-upload:focus-within{outline:2px solid #4F46E5;outline-offset:2px}
+.pal-invoice-upload.is-uploading{opacity:.65;cursor:progress}
+.pal-invoice-upload-status{display:block;max-width:180px;margin:4px auto 0;white-space:normal;font-size:10px;color:var(--muted)}
+.pal-invoice-upload-status.error{color:#B42318}
+.pal-invoice-upload-status[hidden]{display:none!important}
+@media(max-width:768px){.pal-invoice-upload{min-height:44px}}
 .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
 .modal-title{font-size:15px;font-weight:700;color:var(--g800)}
 .modal-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);line-height:1}
@@ -16666,22 +16674,6 @@ async function uploadPaladarInvoice(groupId,file){
   return await r.json();
 }
 
-function promptUploadPaladarInvoice(groupId){
-  var inp=document.createElement('input');
-  inp.type='file';
-  inp.accept='.pdf,.xml,.jpg,.jpeg,.png,.webp,application/pdf,text/xml,application/xml,image/*';
-  inp.onchange=async function(){
-    var file=inp.files&&inp.files[0];
-    if(!file)return;
-    try{
-      await uploadPaladarInvoice(groupId,file);
-      toast('Nota fiscal anexada!');
-      await loadPaladarSales();
-    }catch(e){ toast('Erro: '+e.message,'error'); }
-  };
-  inp.click();
-}
-
 var _palInvoiceViewerUrl=null;
 var _palInvoiceViewerRequest=null;
 var _palInvoiceViewerFocus=null;
@@ -17185,6 +17177,34 @@ async function loadPaladarSales(){
     });
     wrap.dataset.invoiceViewBound='1';
   }
+  if(!wrap.dataset.invoiceUploadBound){
+    wrap.addEventListener('change',async function(ev){
+      var input=ev.target&&ev.target.closest?ev.target.closest('input[data-pal-invoice-upload]'):null;
+      if(!input||!wrap.contains(input)||!input.files||!input.files[0])return;
+      var file=input.files[0];
+      var label=input.closest('.pal-invoice-upload');
+      var status=input.parentElement.parentElement.querySelector('.pal-invoice-upload-status');
+      input.disabled=true;
+      label.classList.add('is-uploading');
+      status.hidden=false;
+      status.classList.remove('error');
+      status.textContent='Enviando nota fiscal...';
+      try{
+        await uploadPaladarInvoice(input.getAttribute('data-pal-invoice-upload'),file);
+        status.textContent='Nota anexada.';
+        toast('Nota fiscal anexada!');
+        await loadPaladarSales();
+      }catch(e){
+        status.classList.add('error');
+        status.textContent='Falha ao anexar: '+e.message;
+      }finally{
+        input.value='';
+        input.disabled=false;
+        label.classList.remove('is-uploading');
+      }
+    });
+    wrap.dataset.invoiceUploadBound='1';
+  }
   var params = '?period='+period+'&month='+month+'&year='+year;
   if(prod) params += '&product='+encodeURIComponent(prod);
   if(cli)  params += '&client='+encodeURIComponent(cli);
@@ -17215,9 +17235,11 @@ async function loadPaladarSales(){
       var isExp = expanded[sg];
       var rowBg = idx%2===0 ? 'var(--card)' : 'var(--g50)';
       var hasInvoice = !!g.invoice_file_path;
+      var groupAttr=String(sg).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+      var uploadInput='<input type="file" accept=".pdf,.xml,.jpg,.jpeg,.png,.webp" data-pal-invoice-upload="'+groupAttr+'" aria-label="'+(hasInvoice?'Trocar':'Anexar')+' nota fiscal">';
       var invoiceCell = hasInvoice
-        ? '<input type="checkbox" class="pal-inv-check" data-sg="'+String(sg).replace(/"/g,'&quot;')+'" onclick="event.stopPropagation()" title="Selecionar para download" style="margin-right:6px;vertical-align:middle;cursor:pointer;width:15px;height:15px">'+'<button type="button" class="btn btn-sm" data-pal-invoice-view="'+String(sg).replace(/"/g,'&quot;')+'" style="background:#DCFCE7;color:#166534;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px;margin-right:4px" title="Ver nota fiscal">Ver</button><button class="btn btn-sm" style="background:#EEF2FF;color:#4F46E5;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px" onclick="promptUploadPaladarInvoice(\''+sg+'\')" title="Trocar nota fiscal">↻ Trocar</button>'
-        : '<button class="btn btn-sm" style="background:#FEF3C7;color:#92400E;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px" onclick="promptUploadPaladarInvoice(\''+sg+'\')" title="Enviar nota fiscal">⬆ Anexar</button>';
+        ? '<input type="checkbox" class="pal-inv-check" data-sg="'+groupAttr+'" onclick="event.stopPropagation()" title="Selecionar para download" style="margin-right:6px;vertical-align:middle;cursor:pointer;width:15px;height:15px">'+'<button type="button" class="btn btn-sm" data-pal-invoice-view="'+groupAttr+'" style="background:#DCFCE7;color:#166534;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px;margin-right:4px" title="Ver nota fiscal">Ver</button><label class="pal-invoice-upload" style="background:#EEF2FF;color:#4F46E5" title="Trocar nota fiscal">↻ Trocar'+uploadInput+'</label><span class="pal-invoice-upload-status" role="status" hidden></span>'
+        : '<label class="pal-invoice-upload" style="background:#FEF3C7;color:#92400E" title="Anexar nota fiscal">⬆ Anexar'+uploadInput+'</label><span class="pal-invoice-upload-status" role="status" hidden></span>';
       html += '<tr style="border-bottom:1px solid var(--border);background:'+rowBg+'">'
         +'<td style="padding:8px 6px;text-align:center"><span onclick="togglePalGroup(\''+sg+'\')" style="cursor:pointer;font-size:13px;user-select:none">'+(isExp?'▼':'▶')+'</span></td>'
         +'<td style="padding:8px 10px">'+(g.saledate||'—')+'</td>'
