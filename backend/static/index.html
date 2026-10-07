@@ -4669,7 +4669,7 @@ html[data-layout-skin="menina2"] .tabs-wrap{scrollbar-width:thin}
       </div>
       <div id="wa-provider-hint" style="margin-top:10px;font-size:11px;color:var(--muted);padding:8px;background:var(--card2);border-radius:6px;display:none"></div>
       <div role="note" style="margin-top:8px;padding:9px 10px;border-left:3px solid #e5a11a;background:var(--card2);color:var(--text);font-size:11px;line-height:1.45">
-        Ao salvar outro provedor, os próximos envios do sistema passam a usar essa conexão. A sessão Baileys permanece guardada; para trocar o número do Evolution, conecte a instância desejada pelo QR Code.
+        <b>Atenção:</b> salvar Evolution GO como provedor troca os próximos envios do sistema para essa conexão. Faça isso somente depois de conectar e verificar a instância com o número correto. A sessão Baileys permanece guardada.
       </div>
       <!-- Painel QR Baileys — visível apenas quando provider = baileys -->
       <div id="wa-baileys-panel" style="display:none;margin-top:12px;padding:14px;background:var(--card2);border-radius:8px;border:1px solid var(--border)">
@@ -4688,11 +4688,17 @@ html[data-layout-skin="menina2"] .tabs-wrap{scrollbar-width:thin}
         <div id="wa-evolution-go-status" role="status" style="font-size:12px;color:var(--muted);margin-bottom:8px">Salve a configuração para verificar.</div>
         <div id="wa-evolution-go-qr" style="text-align:center;display:none;margin:12px 0"></div>
         <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px">
-          <a class="btn btn-secondary btn-sm" href="http://127.0.0.1:18766/manager/login" target="_blank" rel="noopener noreferrer" title="Abre o painel local do Evolution GO; requer túnel SSH ativo">Abrir painel Evolution GO</a>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="waToggleEvolutionManagerHelp()" aria-expanded="false" aria-controls="wa-evolution-manager-help">Abrir painel Evolution GO</button>
           <button class="btn btn-secondary btn-sm" onclick="waLoadEvolutionGoStatus(false)">Verificar</button>
           <button id="wa-evolution-go-connect" class="btn btn-primary btn-sm" onclick="waEvolutionGoConnection('connect')">Conectar / gerar QR</button>
           <button id="wa-evolution-go-reconnect" class="btn btn-secondary btn-sm" onclick="waEvolutionGoConnection('reconnect')">Reconectar</button>
           <button id="wa-evolution-go-disconnect" class="btn btn-danger btn-sm" onclick="waEvolutionGoConnection('disconnect')">Desconectar</button>
+        </div>
+        <div id="wa-evolution-manager-help" hidden role="note" style="margin-top:10px;padding:11px 12px;border:1px solid var(--border);border-radius:7px;background:var(--card);font-size:11px;line-height:1.5;color:var(--ink)">
+          <b>O painel é protegido por túnel SSH</b>
+          <div style="margin-top:4px;color:var(--muted)">O Evolution GO não fica exposto publicamente. Na pasta do projeto <b>bm_app</b>, execute este arquivo no seu computador; ele pedirá a senha SSH, manterá o túnel aberto e abrirá o Manager quando a conexão estiver pronta:</div>
+          <code style="display:inline-block;margin:7px 0;padding:5px 7px;border-radius:5px;background:var(--card2)">scripts\ABRIR_EVOLUTION_GO.bat</code>
+          <div><a href="http://localhost:18766/manager/login" target="_blank" rel="noopener noreferrer">Já abriu o túnel? Abrir o Manager</a></div>
         </div>
         <div id="wa-evolution-go-webhook" style="font-size:10px;color:var(--muted);margin-top:8px"></div>
       </div>
@@ -14778,6 +14784,15 @@ function waProviderHint() {
       waStopEvolutionGoPoll();
     }
   }
+}
+
+function waToggleEvolutionManagerHelp(){
+  const panel=document.getElementById('wa-evolution-manager-help');
+  const button=document.querySelector('#wa-evolution-go-panel [aria-controls="wa-evolution-manager-help"]');
+  if(!panel||!button)return;
+  const open=panel.hidden;
+  panel.hidden=!open;
+  button.setAttribute('aria-expanded',String(open));
 }
 
 async function waLoadEvolutionGoStatus(silent){
