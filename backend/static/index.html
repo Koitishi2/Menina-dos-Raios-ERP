@@ -18438,6 +18438,9 @@ function mobileNormalizeText(txt){
 }
 function isMobileReadOnlyAllowed(el){
   if(!el)return false;
+  var deliveryPanel=document.getElementById('panel-entregas');
+  if(el.closest('#delivery-date-modal')&&document.getElementById('delivery-date-modal')?.style.display!=='none')return true;
+  if(el.closest('#panel-entregas .delivery-confirm')&&deliveryPanel?.classList.contains('active'))return true;
   if(el.closest('.mobile-bar,.mobile-period-switcher,#mobile-period-sheet,#mobile-more-sheet,#mobile-detail-sheet'))return true;
   if(el.closest('.notif-drawer-header'))return true;
   var oc=mobileNormalizeText(el.getAttribute('onclick')||'');
@@ -18454,6 +18457,14 @@ function isMobileMutatingElement(el){
   var hay=txt+' '+oc+' '+idc;
   return /(lancar|adicionar|novo|nova|editar|excluir|remover|salvar|importar|alterar|gerenciar|confirmar|concluir|marcar entregue|pagar|pagamento|delete|edit|save|submit|add|remove|bulk|openmodal|open.*modal|confirm)/.test(hay);
 }
+function mobileDeliveryActionAllowed(name){
+  if(!isMobileView())return false;
+  var panel=document.getElementById('panel-entregas');
+  var modal=document.getElementById('delivery-date-modal');
+  if(name==='openDeliveryDateModal')return !!(panel&&panel.classList.contains('active'));
+  if(name==='confirmDeliveryDate')return !!(modal&&modal.style.display!=='none');
+  return false;
+}
 function applyMobileReadOnlyUI(){
   var mobile=isMobileView();
   document.body.classList.toggle('mobile-readonly',mobile);
@@ -18462,13 +18473,14 @@ function applyMobileReadOnlyUI(){
     return 0;
   }
   document.querySelectorAll('button,a,input[type="button"],input[type="submit"]').forEach(function(el){
-    if(isMobileMutatingElement(el)&&!el.classList.contains('mobile-readonly-hidden'))el.classList.add('mobile-readonly-hidden');
+    if(isMobileReadOnlyAllowed(el))el.classList.remove('mobile-readonly-hidden');
+    else if(isMobileMutatingElement(el)&&!el.classList.contains('mobile-readonly-hidden'))el.classList.add('mobile-readonly-hidden');
   });
   document.querySelectorAll('input,select,textarea').forEach(function(el){
     if(el.closest('.mobile-period-switcher,#mobile-period-sheet')||el.type==='search'||el.type==='text'&&/buscar|cliente|produto/i.test(el.placeholder||''))return;
     if(el.closest('#login-screen'))return;
     if(/date|month|search|text|select-one/.test(el.type||'')&&el.closest('main'))return;
-    if(el.closest('.modal,.paladar-modal-box'))el.setAttribute('readonly','readonly');
+    if(el.closest('.modal,.paladar-modal-box')&&!el.closest('#delivery-date-modal'))el.setAttribute('readonly','readonly');
   });
 }
 function installMobileReadOnlyGuards(){
@@ -18489,7 +18501,7 @@ function installMobileReadOnlyGuards(){
     var fn=window[name];
     if(typeof fn!=='function'||fn.__mobileReadOnlyGuard)return;
     var wrapped=function(){
-      if(isMobileView()){
+      if(isMobileView()&&!mobileDeliveryActionAllowed(name)){
         showMobileReadOnlyNotice();
         return false;
       }
