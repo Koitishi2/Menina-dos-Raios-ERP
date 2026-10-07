@@ -1310,6 +1310,7 @@ body.tv-active #wa-section{display:none!important}
 #paladar-app>div:nth-child(2){padding-top:0!important;margin-top:0!important}
 #paladar-app.pal-pay-compact #pal-content-scroll,
 #paladar-app.pal-pay-compact>div:nth-child(3){padding-top:0!important}
+#pal-content-scroll,#paladar-app>div:nth-child(3){flex:1 1 auto;height:auto!important;max-height:none!important}
 #pal-view-pagamentos{padding-top:0!important}
 #paladar-app.pal-pay-compact #pal-view-pagamentos{padding:0 14px 14px!important}
 .pal-view-pagamentos{padding-top:0!important}
@@ -1340,8 +1341,47 @@ body.paladar-active .notif-bell{display:none!important}
 .pal-item-price{flex:0 0 85px;width:85px;text-align:right;padding:7px 6px;border:1px solid #ddd;border-radius:7px;font-size:13px;box-sizing:border-box;font-family:inherit}
 .pal-item-total{flex:0 0 90px;width:90px;text-align:right;font-weight:700;color:#4F46E5;font-size:13px;white-space:nowrap}
 .pal-item-remove{flex:0 0 22px;background:none;border:none;color:#ef4444;cursor:pointer;font-size:15px;padding:0;line-height:1}
+.pal-item-note{display:none;width:100%;padding:7px 9px;border:1px solid #ddd;border-radius:7px;font-size:12px;box-sizing:border-box;font-family:inherit}
+.pal-item-row.editing{flex-wrap:wrap}
+.pal-item-row.editing .pal-item-note{display:block}
 .paladar-modal-box{max-width:620px;width:95vw;box-sizing:border-box;overflow-x:hidden}
 .paladar-modal-body{overflow-x:hidden;box-sizing:border-box}
+#paladar-sale-modal .paladar-modal-box{display:flex;flex-direction:column;max-height:calc(100dvh - 24px)}
+#paladar-sale-modal .paladar-modal-body{overflow-y:auto;min-height:0}
+#app-notes-kpis{grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))!important}
+.app-note-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:1180px){
+  #paladar-app>div:first-child{grid-template-columns:minmax(0,1fr) auto!important}
+  #paladar-app>div:first-child>div:nth-child(2){grid-column:1/-1;grid-row:2;justify-content:flex-start;overflow-x:auto;max-width:100%}
+  #paladar-app>div:first-child>div:last-child{grid-column:2;grid-row:1}
+}
+@media(max-width:820px){
+  #paladar-app>div:first-child{grid-template-columns:minmax(0,1fr)!important}
+  #paladar-app>div:first-child>div:last-child{grid-column:1;grid-row:2}
+}
+@media(max-width:640px){
+  #pal-view-notasapp{padding:10px!important}
+  #app-notes-client{width:100%!important}
+  #app-note-modal{padding:0!important}
+  #app-note-modal>div{width:100vw!important;max-height:100dvh!important;border-radius:0!important;padding:14px!important;box-sizing:border-box}
+  .app-note-edit-fields{grid-template-columns:minmax(0,1fr)!important}
+  .app-note-head{gap:10px!important;padding:12px!important}
+  .app-note-head>div{min-width:0!important}
+  .app-note-head>div:last-child{flex:1 1 100%;width:100%}
+  .app-note-actions{justify-content:flex-start;width:100%}
+  .app-note-actions button{min-height:40px}
+  .app-note-items-table,.app-note-items-table tbody,.app-note-items-table tr,.app-note-items-table td{display:block;width:100%;min-width:0!important;box-sizing:border-box}
+  .app-note-items-table thead{display:none}
+  .app-note-items-table tr{padding:8px 10px;border-top:1px solid var(--border)}
+  .app-note-items-table td{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:5px 0!important;text-align:right!important;border:0!important;white-space:normal!important}
+  .app-note-items-table td::before{content:attr(data-label);font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;text-align:left;flex:0 0 auto}
+  .app-note-items-table td{overflow-wrap:anywhere}
+  #paladar-sale-modal .paladar-modal-box{width:100vw;max-height:100dvh;border-radius:0!important;padding:14px!important}
+  .pal-item-row{flex-wrap:wrap}
+  .pal-item-prod{flex:1 1 100%}
+  .pal-item-qty,.pal-item-price{flex:1 1 75px;width:auto}
+  .pal-item-total{flex:0 0 auto;margin-left:auto}
+}
 .pal-pay-summary{position:static;z-index:5;background:var(--card);padding-bottom:8px}
 .pal-pay-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(360px,.85fr);gap:12px;align-items:start}
 .pal-pay-panel{min-height:0}
@@ -16056,7 +16096,7 @@ function renderAppNotes(data){
     +'<div class="card" style="padding:12px"><div style="font-size:10px;color:var(--muted);text-transform:uppercase">👥 Clientes</div><div style="font-size:20px;font-weight:800;color:var(--g800);margin-top:3px">'+clients+'</div></div>'
     +'<div class="card" style="padding:12px;background:#4F46E5;color:#fff"><div style="font-size:10px;opacity:.75;text-transform:uppercase">💰 Total consolidado</div><div style="font-size:20px;font-weight:800;margin-top:3px">'+appNoteMoney(data.total||0)+'</div></div>';
   if(!_appNotes.length){wrap.innerHTML='<div class="wa-empty" style="padding:42px">Nenhuma nota '+(_appNotesStatus==='pending'?'pendente':'concluída')+' encontrada neste período.</div>';return;}
-  var canEdit=canUseMonteiroCalendar();
+  var canEdit=!!(session&&['admin','editor'].includes(session.role));
   var cards=_appNotes.map(function(n){
     var itemRows=(n.items||[]).map(function(i,index){
       var qty=Number(i.quantity_provided)!==0?appNoteQty(i.quantity):'<span style="color:var(--muted)">Não informado</span>';
@@ -16064,31 +16104,31 @@ function renderAppNotes(data){
       var price=appNoteHasPrice(i)?appNoteMoney(appNoteUnitPrice(i))+(i.price_from_catalog?'<div style="font-size:8px;color:#166534">Preço atual de Produtos</div>':''):'<span style="color:var(--muted)">Não informado</span>';
       var subtotal=appNoteHasPrice(i)?appNoteMoney(Number(i.weight||0)*appNoteUnitPrice(i)):'—';
       return '<tr style="border-top:1px solid var(--border);background:'+(index%2?'var(--card2)':'var(--card)')+'">'
-        +'<td style="padding:11px 12px;font-weight:800;color:var(--g800)">'+admEsc(i.product||'Sem produto')+'</td>'
-        +'<td style="padding:11px 12px;text-align:center">'+qty+'</td>'
-        +'<td style="padding:11px 12px;text-align:center"><span style="display:inline-block;background:#EEF2FF;color:#4338CA;border-radius:999px;padding:3px 9px;font-size:10px;font-weight:800">'+appNoteMeasureLabel(i.unit)+'</span></td>'
-        +'<td style="padding:11px 12px;text-align:center;font-weight:700;white-space:nowrap">'+measure+'</td>'
-        +'<td style="padding:11px 12px;text-align:right;white-space:nowrap">'+price+'</td>'
-        +'<td style="padding:11px 12px;text-align:right;font-weight:800;white-space:nowrap">'+subtotal+'</td></tr>';
+        +'<td data-label="Produto" style="padding:11px 12px;font-weight:800;color:var(--g800)">'+admEsc(i.product||'Sem produto')+'</td>'
+        +'<td data-label="Quantidade" style="padding:11px 12px;text-align:center">'+qty+'</td>'
+        +'<td data-label="Tipo" style="padding:11px 12px;text-align:center"><span style="display:inline-block;background:#EEF2FF;color:#4338CA;border-radius:999px;padding:3px 9px;font-size:10px;font-weight:800">'+appNoteMeasureLabel(i.unit)+'</span></td>'
+        +'<td data-label="Medida" style="padding:11px 12px;text-align:center;font-weight:700;white-space:nowrap">'+measure+'</td>'
+        +'<td data-label="Valor unitário" style="padding:11px 12px;text-align:right;white-space:nowrap">'+price+'</td>'
+        +'<td data-label="Subtotal" style="padding:11px 12px;text-align:right;font-weight:800;white-space:nowrap">'+subtotal+'</td></tr>';
     }).join('');
     if(!itemRows)itemRows='<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--muted)">Nenhum produto nesta nota.</td></tr>';
     var statusAction=_appNotesStatus==='pending'
       ? appNoteActionButton('status',n.id,'✅ Concluir','btn btn-primary btn-sm','', 'data-app-note-status="completed"')
       : appNoteActionButton('status',n.id,'↩ Voltar para pendente','btn btn-secondary btn-sm','', 'data-app-note-status="pending"');
-    var actions='<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">'
+    var actions='<div class="app-note-actions">'
       +appNoteActionButton('view',n.id,' Ver','btn btn-secondary btn-sm')
       +appNoteActionButton('receipt',n.id,'🧾 Recibo','btn btn-sm','background:#fef3c7;color:#92400e;border:1px solid #fcd34d')
       +(canEdit?appNoteActionButton('edit',n.id,' Editar','btn btn-secondary btn-sm')+statusAction+appNoteActionButton('delete',n.id,'🗑 Remover','btn btn-sm','background:#fee2e2;color:#b91c1c;border:1px solid #fecaca'):'')
       +'</div>';
     var statusBadge=_appNotesStatus==='pending'?'<span style="background:#FEF3C7;color:#92400E;border-radius:999px;padding:3px 9px;font-size:9px;font-weight:800"> Pendente</span>':'<span style="background:#DCFCE7;color:#166534;border-radius:999px;padding:3px 9px;font-size:9px;font-weight:800">✅ Concluída</span>';
     return '<section class="card" style="padding:0;overflow:hidden;margin-bottom:14px;border:1px solid var(--border)">'
-      +'<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:14px 16px;background:var(--card)">'
+      +'<div class="app-note-head" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:14px 16px;background:var(--card)">'
       +'<div style="min-width:110px"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;font-weight:700">Data</div><div style="font-size:14px;font-weight:800;color:var(--g800);margin-top:3px">'+admEsc(n.note_date||'—')+'</div></div>'
       +'<div style="flex:1;min-width:190px"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;font-weight:700">Cliente</div><button type="button" data-app-note-action="view" data-app-note-id="'+appNoteAttr(n.id)+'" style="display:block;background:none;border:none;padding:0;margin-top:3px;font:inherit;font-size:15px;font-weight:900;color:#4338CA;cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-align:left">'+admEsc(n.client||'Sem cliente')+'</button><div style="font-size:9px;color:var(--muted);margin-top:4px">'+statusBadge+' · Atualizada '+admDate(n.updated_at||n.created_at)+'</div><div style="font-size:10px;color:var(--muted);margin-top:5px">Envios: '+appNoteSubmissionSummary(n)+'</div></div>'
       +'<div style="min-width:100px"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;font-weight:700">Produtos</div><div style="font-size:16px;font-weight:900;color:var(--g800);margin-top:3px">'+(n.items||[]).length+'</div></div>'
       +'<div style="min-width:140px;text-align:right"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;font-weight:700">Total do dia</div><div style="font-size:18px;font-weight:900;color:#4F46E5;margin-top:3px">'+appNoteMoney(n.total)+'</div></div>'
       +'<div style="min-width:170px">'+actions+'</div></div>'
-      +'<div style="overflow-x:auto"><table style="width:100%;min-width:760px;border-collapse:collapse;font-size:11px"><thead><tr style="background:#F1F5F3;color:var(--muted);text-transform:uppercase;font-size:9px"><th style="padding:9px 12px;text-align:left">Produto</th><th style="padding:9px 12px;text-align:center">Quantidade</th><th style="padding:9px 12px;text-align:center">Tipo</th><th style="padding:9px 12px;text-align:center">Medida</th><th style="padding:9px 12px;text-align:right">Valor unitário</th><th style="padding:9px 12px;text-align:right">Subtotal</th></tr></thead><tbody>'+itemRows+'</tbody></table></div></section>';
+      +'<div style="overflow-x:auto"><table class="app-note-items-table" style="width:100%;min-width:760px;border-collapse:collapse;font-size:11px"><thead><tr style="background:#F1F5F3;color:var(--muted);text-transform:uppercase;font-size:9px"><th style="padding:9px 12px;text-align:left">Produto</th><th style="padding:9px 12px;text-align:center">Quantidade</th><th style="padding:9px 12px;text-align:center">Tipo</th><th style="padding:9px 12px;text-align:center">Medida</th><th style="padding:9px 12px;text-align:right">Valor unitário</th><th style="padding:9px 12px;text-align:right">Subtotal</th></tr></thead><tbody>'+itemRows+'</tbody></table></div></section>';
   }).join('');
   wrap.innerHTML=cards;
 }
@@ -16805,6 +16845,11 @@ async function downloadPaladarInvoicesZip(){
 }
 
 async function openPaladarSaleModal(){
+  window._palEditingGroup = null;
+  document.getElementById('pal-sale-modal-title').textContent = 'Lançar Venda Monteiro';
+  document.getElementById('pal-save-btn').textContent = 'Salvar Venda';
+  document.getElementById('pal-sale-notes-label').textContent = 'Observações';
+  document.getElementById('pal-sale-invoice-label').textContent = 'Nota fiscal (PDF, XML ou imagem)';
   // Limpar campos de cabeçalho
   document.getElementById('pal-sale-date').value = new Date().toISOString().slice(0,10);
   document.getElementById('pal-sale-client').value = '';
@@ -16875,23 +16920,74 @@ async function openPaladarSaleModal(){
 
 function closePaladarSaleModal(){
   document.getElementById('paladar-sale-modal').style.display = 'none';
+  window._palEditingGroup = null;
+}
+
+async function editPaladarGroup(groupId){
+  try{
+    var group=await api('/api/monteiro/sales/group/'+encodeURIComponent(groupId));
+    await openPaladarSaleModal();
+    window._palEditingGroup={id:groupId,originalItemIds:group.items.map(function(item){return item.id;})};
+    document.getElementById('pal-sale-modal-title').textContent='Editar Venda Monteiro';
+    document.getElementById('pal-save-btn').textContent='Salvar alterações';
+    document.getElementById('pal-sale-notes-label').textContent='Observação padrão para novos itens';
+    document.getElementById('pal-sale-invoice-label').textContent=group.invoice_original_name
+      ? 'Nota fiscal atual: '+group.invoice_original_name+' (selecione outra para substituir)'
+      : 'Nota fiscal (PDF, XML ou imagem)';
+    palSetVal('pal-sale-date',group.saledate);
+    palSetVal('pal-sale-client',group.client);
+    palSetVal('pal-sale-nf',group.nf_number);
+    palSetVal('pal-sale-driver',group.driver);
+    palSetVal('pal-sale-vehicle',group.vehicle);
+    palSetVal('pal-sale-plate',group.plate);
+    palSetVal('pal-sale-notes',group.notes);
+    fillSellerSelect('pal-sale-seller',group.seller_id,true);
+    if(group.seller_id && document.getElementById('pal-sale-seller').value!==String(group.seller_id)){
+      var oldSeller=document.createElement('option');
+      oldSeller.value=group.seller_id;
+      oldSeller.textContent=group.seller_name_snapshot||'Vendedor anterior';
+      oldSeller.selected=true;
+      document.getElementById('pal-sale-seller').appendChild(oldSeller);
+    }
+    if(group.plate)document.getElementById('pal-plate-manual-wrap').style.display='';
+    var body=document.getElementById('pal-items-body');
+    body.innerHTML='';
+    group.items.forEach(function(item){
+      var row=addPaladarItem();
+      row.dataset.itemId=item.id;
+      row.classList.add('editing');
+      row.querySelector('.pal-item-prod').value=item.product||'';
+      row.querySelector('.pal-item-qty').value=item.quantity;
+      row.querySelector('.pal-item-price').value=item.unitprice;
+      row.querySelector('.pal-item-note').value=item.notes||'';
+      row.querySelector('.pal-item-total').textContent=palFmt(Number(item.quantity||0)*Number(item.unitprice||0));
+    });
+    updateRemoveButtons();
+    recalcPaladarGrandTotal();
+  }catch(e){
+    closePaladarSaleModal();
+    toast('Erro ao carregar a venda: '+e.message,'error');
+  }
 }
 
 function addPaladarItem(){
   var c = document.getElementById('pal-items-body');
   var q = c.querySelectorAll('.pal-item-row');
-  if(q.length >= MAX_MONTEIRO_ITEMS){ toast('Máximo de '+MAX_MONTEIRO_ITEMS+' itens por venda.', 'error'); return; }
+  if(q.length >= MAX_MONTEIRO_ITEMS){ toast('Máximo de '+MAX_MONTEIRO_ITEMS+' itens por venda.', 'error'); return null; }
   var row = document.createElement('div');
-  row.className = 'pal-item-row';
+  row.className = 'pal-item-row'+(window._palEditingGroup?' editing':'');
   row.innerHTML =
     '<input type="text" class="pal-item-prod" list="pal-products-list" placeholder="Produto..." oninput="autoFillPrice(this)">'
     +'<input type="number" class="pal-item-qty" value="1" min="0.01" step="any">'
     +'<input type="number" class="pal-item-price" value="" min="0" step="0.01" placeholder="0,00">'
     +'<span class="pal-item-total">R$ 0,00</span>'
-    +'<button class="pal-item-remove" onclick="removePaladarItem(this)">&times;</button>';
+    +'<button class="pal-item-remove" type="button" onclick="removePaladarItem(this)" title="Remover item">&times;</button>'
+    +'<input type="text" class="pal-item-note" placeholder="Observacao deste item">';
   c.appendChild(row);
+  if(window._palEditingGroup)row.querySelector('.pal-item-note').value=document.getElementById('pal-sale-notes')?.value||'';
   row.querySelector('.pal-item-prod')?.focus();
   updateRemoveButtons();
+  return row;
 }
 
 function autoFillPrice(prodInput){
@@ -16944,6 +17040,7 @@ function recalcPaladarGrandTotal(){
 }
 
 async function savePaladarSale(){
+  var editing=window._palEditingGroup;
   var dateVal = document.getElementById('pal-sale-date')?.value;
   var client = document.getElementById('pal-sale-client')?.value?.trim() || '';
   var nf = document.getElementById('pal-sale-nf')?.value?.trim() || '';
@@ -16953,7 +17050,7 @@ async function savePaladarSale(){
   var plate = document.getElementById('pal-sale-plate')?.value?.trim().toUpperCase() || '';
   var notes = document.getElementById('pal-sale-notes')?.value || '';
   if(!dateVal){ toast('Informe a data da venda.', 'error'); return; }
-  if(!sellerId){ toast('Informe quem vendeu.', 'error'); return; }
+  if(!sellerId && !editing){ toast('Informe quem vendeu.', 'error'); return; }
   var rows = document.querySelectorAll('#pal-items-body .pal-item-row');
   var itens = [];
   rows.forEach(function(row){
@@ -16961,17 +17058,22 @@ async function savePaladarSale(){
     var qty = parseFloat(row.querySelector('.pal-item-qty')?.value) || 0;
     var price = parseFloat(row.querySelector('.pal-item-price')?.value) || 0;
     if(prod && qty > 0){
-      itens.push({product:prod, quantity:qty, unitprice:price, total:parseFloat((qty * price).toFixed(2)), notes:notes});
+      var item={product:prod, quantity:qty, unitprice:price, total:parseFloat((qty * price).toFixed(2)),
+        notes:editing?(row.querySelector('.pal-item-note')?.value||''):notes};
+      if(editing && row.dataset.itemId)item.id=Number(row.dataset.itemId);
+      itens.push(item);
     }
   });
+  if(editing && itens.length!==rows.length){ toast('Confira produto e quantidade de todos os itens antes de salvar.','error'); return; }
   if(itens.length === 0){ toast('Adicione ao menos 1 item válido (produto + quantidade).', 'error'); return; }
   var btn = document.getElementById('pal-save-btn');
   if(btn){ btn.disabled = true; btn.textContent = 'Salvando...'; }
   try{
-    var r = await fetch('/api/monteiro/sales', {
-      method:'POST',
+    var r = await fetch(editing?'/api/monteiro/sales/group/'+encodeURIComponent(editing.id)+'/full':'/api/monteiro/sales', {
+      method:editing?'PUT':'POST',
       headers:{'Content-Type':'application/json','x-token':(typeof session !== 'undefined' ? session.token : '') || ''},
-      body:JSON.stringify({saledate:dateVal, items:itens, client:client, nf_number:nf, driver:driver, vehicle:vehicle, plate:plate, notes:notes, seller_id:sellerId})
+      body:JSON.stringify({saledate:dateVal, items:itens, original_item_ids:editing?editing.originalItemIds:undefined,
+        client:client, nf_number:nf, driver:driver, vehicle:vehicle, plate:plate, notes:notes, seller_id:sellerId})
     });
     if(!r.ok){ var err = await r.json().catch(function(){ return {detail:r.statusText}; }); throw new Error(err.detail || 'Erro ao salvar'); }
     var result = await r.json();
@@ -16985,15 +17087,16 @@ async function savePaladarSale(){
         invoiceMsg = ' Venda salva, mas a nota não foi anexada: '+upErr.message;
       }
     }
-    toast(itens.length + ' item(ns) lançado(s) com sucesso! ✅'+invoiceMsg);
+    toast(editing?'Venda atualizada com sucesso!'+invoiceMsg:itens.length + ' item(ns) lançado(s) com sucesso! ✅'+invoiceMsg,invoiceMsg.indexOf('não foi anexada')>=0?'error':undefined);
     closePaladarSaleModal();
     loadPaladarSummary();
     loadPaladarSales();
     loadPaladarClients();
+    loadPaladarProducts();
   }catch(e){
     toast('Erro: '+e.message, 'error');
   }finally{
-    if(btn){ btn.disabled = false; btn.textContent = '✅ Salvar Venda'; }
+    if(btn){ btn.disabled = false; btn.textContent = editing?'Salvar alterações':'Salvar Venda'; }
   }
 }
 
@@ -17251,7 +17354,7 @@ async function loadPaladarSales(){
         +'<td style="padding:8px 10px;text-align:center;font-size:11px">'+(g.items?.length||0)+'</td>'
         +'<td style="padding:8px 10px;text-align:center;white-space:nowrap">'+invoiceCell+'</td>'
         +'<td style="padding:8px 10px;text-align:center;white-space:nowrap">'
-        +'<button class="btn btn-sm" style="background:#EEF2FF;color:#4F46E5;border:none;padding:4px 9px;border-radius:6px;cursor:pointer;font-size:11px;margin-right:4px" onclick="editPaladarGroupClient(\''+sg+'\')" title="Editar cliente">✎</button>'
+        +'<button class="btn btn-sm" style="background:#EEF2FF;color:#4F46E5;border:none;padding:4px 9px;border-radius:6px;cursor:pointer;font-size:11px;margin-right:4px" onclick="editPaladarGroup(\''+sg+'\')" title="Editar venda completa">✎</button>'
         +'<button class="btn btn-sm" style="background:var(--red-l);color:var(--red);border:none;padding:4px 9px;border-radius:6px;cursor:pointer;font-size:11px" onclick="deletePaladarGroup(\''+sg+'\')" title="Excluir NF">🗑</button></td>'
         +'</tr>';
       // Itens expandidos
@@ -18784,6 +18887,10 @@ function mobileNormalizeText(txt){
 }
 function isMobileReadOnlyAllowed(el){
   if(!el)return false;
+  var notesView=document.getElementById('pal-view-notasapp');
+  var notesVisible=notesView&&notesView.style.display!=='none';
+  var notesEditor=session&&['admin','editor'].includes(session.role);
+  if(notesEditor&&notesVisible&&(el.closest('#pal-view-notasapp [data-app-note-action]')||el.closest('#app-note-modal')))return true;
   if(el.closest('#app-vales-wrap [data-app-vale-action="signature"]'))return true;
   var deliveryPanel=document.getElementById('panel-entregas');
   if(el.closest('#delivery-date-modal')&&document.getElementById('delivery-date-modal')?.style.display!=='none')return true;
@@ -18812,6 +18919,12 @@ function mobileDeliveryActionAllowed(name){
   if(name==='confirmDeliveryDate')return !!(modal&&modal.style.display!=='none');
   return false;
 }
+function mobileAppNoteActionAllowed(name){
+  if(!isMobileView()||!session||!['admin','editor'].includes(session.role))return false;
+  var view=document.getElementById('pal-view-notasapp');
+  return ['openAppNoteModal','saveAppNote','deleteAppNote'].includes(name)
+    &&!!(view&&view.style.display!=='none');
+}
 function applyMobileReadOnlyUI(){
   var mobile=isMobileView();
   document.body.classList.toggle('mobile-readonly',mobile);
@@ -18824,6 +18937,10 @@ function applyMobileReadOnlyUI(){
     else if(isMobileMutatingElement(el)&&!el.classList.contains('mobile-readonly-hidden'))el.classList.add('mobile-readonly-hidden');
   });
   document.querySelectorAll('input,select,textarea').forEach(function(el){
+    if(el.closest('#app-note-modal')&&session&&['admin','editor'].includes(session.role)){
+      el.removeAttribute('readonly');
+      return;
+    }
     if(el.closest('.mobile-period-switcher,#mobile-period-sheet')||el.type==='search'||el.type==='text'&&/buscar|cliente|produto/i.test(el.placeholder||''))return;
     if(el.closest('#login-screen'))return;
     if(/date|month|search|text|select-one/.test(el.type||'')&&el.closest('main'))return;
@@ -18838,7 +18955,7 @@ function installMobileReadOnlyGuards(){
     'openDeliveryDateModal','confirmDeliveryDate','openBulkDeliveryModal','confirmBulkDelivery','openUndoModal','confirmUndoDelivery',
     'openBulkPayModal','confirmBulkPay','openPaymentModal','openEditPaymentModal','savePayment','deletePayment',
     'openAppNoteModal','saveAppNote','deleteAppNote','openAppCalendarModal','saveAppCalendarEvent','deleteAppCalendarEvent','deleteAppCalendarSeries',
-    'openPaladarSaleModal','savePaladarSale','addPaladarItem','editPaladarSaleItem','openPaladarItemEditModal','savePaladarItemEdit',
+    'openPaladarSaleModal','editPaladarGroup','savePaladarSale','addPaladarItem','editPaladarSaleItem','openPaladarItemEditModal','savePaladarItemEdit',
     'editPaladarGroupClient','savePaladarGroupEdit','deletePaladarSale','deletePaladarGroup',
     'openPaladarProductModal','editPaladarProduct','savePaladarProduct','deletePaladarProduct',
     'editOrcProduct','deleteOrcProduct','editOrcQuote','deleteOrcQuote','saveOrcProduct','saveOrcQuote','addOrcItem',
@@ -18848,7 +18965,7 @@ function installMobileReadOnlyGuards(){
     var fn=window[name];
     if(typeof fn!=='function'||fn.__mobileReadOnlyGuard)return;
     var wrapped=function(){
-      if(isMobileView()&&!mobileDeliveryActionAllowed(name)){
+      if(isMobileView()&&!mobileDeliveryActionAllowed(name)&&!mobileAppNoteActionAllowed(name)){
         showMobileReadOnlyNotice();
         return false;
       }
@@ -19636,7 +19753,7 @@ setTimeout(installMobileReadOnlyGuards,0);
         <button onclick="closeAppNoteModal()" style="background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer">&times;</button>
       </div>
       <input type="hidden" id="app-note-id">
-      <div style="display:grid;grid-template-columns:1fr 180px;gap:10px;margin-bottom:12px">
+      <div class="app-note-edit-fields" style="display:grid;grid-template-columns:1fr 180px;gap:10px;margin-bottom:12px">
         <label style="font-size:11px;font-weight:700;color:var(--muted)">Cliente
           <input id="app-note-edit-client" style="display:block;width:100%;margin-top:5px;padding:9px;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--ink);box-sizing:border-box">
         </label>
@@ -19663,7 +19780,7 @@ setTimeout(installMobileReadOnlyGuards,0);
   <div id="paladar-sale-modal" onclick="if(event.target===this)closePaladarSaleModal()" style="position:fixed;inset:0;z-index:9500;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.55)">
     <div class="paladar-modal-box" style="background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:24px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <div style="font-size:16px;font-weight:700;color:#4F46E5"> Lançar Venda Monteiro</div>
+        <div id="pal-sale-modal-title" style="font-size:16px;font-weight:700;color:#4F46E5"> Lançar Venda Monteiro</div>
         <button onclick="closePaladarSaleModal()" style="background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer;padding:0;line-height:1">&times;</button>
       </div>
       <div class="paladar-modal-body">
@@ -19704,10 +19821,10 @@ setTimeout(installMobileReadOnlyGuards,0);
           </div>
         </div>
         <div style="margin-bottom:8px">
-          <div><label style="font-size:11px;font-weight:600;color:var(--muted);display:block;margin-bottom:3px">Observações</label><input type="text" id="pal-sale-notes" placeholder="Obs..." style="width:100%;padding:7px 9px;border:1px solid #ddd;border-radius:7px;font-size:13px;font-family:inherit;box-sizing:border-box"></div>
+          <div><label id="pal-sale-notes-label" style="font-size:11px;font-weight:600;color:var(--muted);display:block;margin-bottom:3px">Observações</label><input type="text" id="pal-sale-notes" placeholder="Obs..." style="width:100%;padding:7px 9px;border:1px solid #ddd;border-radius:7px;font-size:13px;font-family:inherit;box-sizing:border-box"></div>
         </div>
         <div style="margin-bottom:8px">
-          <label style="font-size:11px;font-weight:600;color:var(--muted);display:block;margin-bottom:3px">Nota fiscal (PDF, XML ou imagem)</label>
+          <label id="pal-sale-invoice-label" style="font-size:11px;font-weight:600;color:var(--muted);display:block;margin-bottom:3px">Nota fiscal (PDF, XML ou imagem)</label>
           <input type="file" id="pal-sale-invoice" accept=".pdf,.xml,.jpg,.jpeg,.png,.webp,application/pdf,text/xml,application/xml,image/*" style="width:100%;padding:7px 9px;border:1px solid #ddd;border-radius:7px;font-size:12px;font-family:inherit;box-sizing:border-box;background:var(--card)">
         </div>
         <div style="font-size:12px;font-weight:700;color:#4F46E5;margin:10px 0 8px">Itens da Venda</div>

@@ -529,6 +529,60 @@ def test_monteiro_sales_grouping_filters_summary_clients_and_forced_scope(isolat
     ]
 
 
+def test_monteiro_full_edit_preserves_items_and_invoice(isolated_app):
+    token = _login(isolated_app.client)
+    created = _post_sale(isolated_app.client, token, nf_number="MON-EDIT-001")
+    group_id = created["group"]
+    ids = created["ids"]
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    conn.execute(
+        "UPDATE paladar_sales SET invoice_file_path=?, invoice_original_name=?, invoice_mime=? WHERE sale_group=?",
+        ("/safe/invoice.pdf", "invoice.pdf", "application/pdf", group_id),
+    )
+    conn.commit()
+    conn.close()
+
+    detail = isolated_app.client.get(f"/api/monteiro/sales/group/{group_id}", headers=_headers(token))
+    assert detail.status_code == 200
+    assert [item["id"] for item in detail.json()["items"]] == ids
+    assert detail.json()["invoice_original_name"] == "invoice.pdf"
+
+    edit = {
+        "saledate": "2026-06-07", "client": "Cliente Corrigido", "nf_number": "MON-EDIT-002",
+        "driver": "Maria", "vehicle": "Van", "plate": "MON-9999",
+        "seller_id": detail.json()["seller_id"], "original_item_ids": ids,
+        "items": [
+            {"id": ids[1], "product": "Produto Atualizado", "quantity": 3, "unitprice": 12, "notes": "observacao preservada"},
+            {"product": "Produto Novo", "quantity": 2, "unitprice": 5, "notes": "novo item"},
+        ],
+    }
+    updated = isolated_app.client.put(
+        f"/api/monteiro/sales/group/{group_id}/full", headers=_headers(token), json=edit,
+    )
+    assert updated.status_code == 200, updated.text
+    detail = isolated_app.client.get(f"/api/monteiro/sales/group/{group_id}", headers=_headers(token)).json()
+    assert detail["client"] == "Cliente Corrigido"
+    assert detail["nf_number"] == "MON-EDIT-002"
+    assert detail["saledate"] == "2026-06-07"
+    assert detail["driver"] == "Maria"
+    assert detail["vehicle"] == "Van"
+    assert detail["plate"] == "MON-9999"
+    assert len(detail["items"]) == 2
+    assert detail["items"][0]["id"] == ids[1]
+    assert detail["items"][0]["total"] == 36
+    assert detail["items"][0]["notes"] == "observacao preservada"
+    assert detail["items"][1]["product"] == "Produto Novo"
+    assert all(item["invoice_original_name"] == "invoice.pdf" for item in detail["items"])
+
+    stale = isolated_app.client.put(
+        f"/api/monteiro/sales/group/{group_id}/full", headers=_headers(token), json=edit,
+    )
+    assert stale.status_code == 409
+    assert len(isolated_app.client.get(
+        f"/api/monteiro/sales/group/{group_id}", headers=_headers(token),
+    ).json()["items"]) == 2
+
+
 def test_monteiro_payments_report_uses_paladar_sales_and_monteiro_payments(isolated_app):
     token = _login(isolated_app.client)
     client_name = "Cliente Monteiro Relatorio"

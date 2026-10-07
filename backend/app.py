@@ -8,6 +8,7 @@ from contextvars import ContextVar
 from contextlib import contextmanager
 from collections import defaultdict
 from datetime import datetime, timedelta, date
+import math
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 import uvicorn, bcrypt
@@ -4473,6 +4474,105 @@ def update_paladar_sale_group(group_id:str,body:dict,x_token:str=Header("")):
     conn.execute("UPDATE paladar_sales SET client=? WHERE sale_group=?",(client,group_id))
     conn.commit(); conn.close()
     return {"ok":True,"client":client}
+
+@app.get("/api/monteiro/sales/group/{group_id}")
+def get_monteiro_sale_group(group_id: str, x_token: str = Header("")):
+    require_auth(x_token)
+    conn = get_db()
+    try:
+        rows = conn.execute("SELECT * FROM paladar_sales WHERE sale_group=? ORDER BY id", (group_id,)).fetchall()
+        if not rows:
+            raise HTTPException(404, "Lancamento nao encontrado.")
+        group = dict(rows[0])
+        group["items"] = [dict(row) for row in rows]
+        return group
+    finally:
+        conn.close()
+
+@app.put("/api/monteiro/sales/group/{group_id}/full")
+def update_monteiro_sale_group_full(group_id: str, body: dict, x_token: str = Header("")):
+    require_editor_tab_access(x_token, ["consolidado", "nf", "avulso", "pendentes"])
+    conn = get_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        rows = conn.execute("SELECT * FROM paladar_sales WHERE sale_group=? ORDER BY id", (group_id,)).fetchall()
+        if not rows:
+            raise HTTPException(404, "Lancamento nao encontrado.")
+        items = body.get("items")
+        if not isinstance(items, list) or not 1 <= len(items) <= 20:
+            raise HTTPException(400, "Informe de 1 a 20 itens para a venda.")
+        saledate = body.get("saledate")
+        try:
+            datetime.strptime(saledate, "%Y-%m-%d")
+        except (TypeError, ValueError):
+            raise HTTPException(400, "Data da venda invalida.")
+        old_ids = {row["id"] for row in rows}
+        original_item_ids = body.get("original_item_ids")
+        if (not isinstance(original_item_ids, list)
+                or any(isinstance(item_id, bool) or not isinstance(item_id, int) for item_id in original_item_ids)
+                or len(original_item_ids) != len(set(original_item_ids))
+                or set(original_item_ids) != old_ids):
+            raise HTTPException(409, "Os itens desta venda mudaram. Reabra a edicao antes de salvar.")
+        kept_ids = set()
+        parsed = []
+        for item in items:
+            if not isinstance(item, dict):
+                raise HTTPException(400, "Item invalido.")
+            item_id = item.get("id")
+            if item_id is not None:
+                if isinstance(item_id, bool) or not isinstance(item_id, int) or item_id not in old_ids or item_id in kept_ids:
+                    raise HTTPException(409, "A lista de itens mudou. Atualize e tente novamente.")
+                kept_ids.add(item_id)
+            product = str(item.get("product") or "").strip()
+            try:
+                quantity = float(item.get("quantity"))
+                unitprice = float(item.get("unitprice"))
+            except (TypeError, ValueError):
+                raise HTTPException(400, "Quantidade ou preco invalido.")
+            if (not product or not math.isfinite(quantity) or not math.isfinite(unitprice)
+                    or not math.isfinite(quantity * unitprice) or quantity <= 0 or unitprice < 0):
+                raise HTTPException(400, "Confira produto, quantidade e preco dos itens.")
+            parsed.append((item_id, product, quantity, unitprice, round(quantity * unitprice, 2), str(item.get("notes") or "")))
+        old_seller_id = rows[0]["seller_id"]
+        seller_id = body.get("seller_id") or old_seller_id
+        seller_name = rows[0]["seller_name_snapshot"]
+        if seller_id and seller_id != old_seller_id:
+            require_sellers_action(x_token, action="view", company_key="raios", module_context="monteiro")
+            try:
+                seller = require_active_seller(conn, _company_key(CURRENT_COMPANY.get()), seller_id)
+            except ValueError as exc:
+                raise HTTPException(400, str(exc))
+            seller_id, seller_name = seller["id"], seller["name"]
+        client = str(body.get("client") or "").strip()
+        nf_number = str(body.get("nf_number") or "").strip()
+        driver = str(body.get("driver") or "").strip()
+        vehicle = str(body.get("vehicle") or "").strip()
+        plate = str(body.get("plate") or "").strip().upper()
+        invoice = next((row for row in rows if row["invoice_file_path"]), rows[0])
+        invoice_fields = (invoice["invoice_file_path"], invoice["invoice_original_name"],
+                          invoice["invoice_mime"], invoice["invoice_uploaded_at"])
+        for item_id, product, quantity, unitprice, total, notes in parsed:
+            fields = (saledate, client, nf_number, driver, vehicle, plate, seller_id, seller_name,
+                      product, quantity, unitprice, total, notes, *invoice_fields)
+            if item_id is None:
+                conn.execute("""INSERT INTO paladar_sales
+                    (sale_group,saledate,client,nf_number,driver,vehicle,plate,seller_id,seller_name_snapshot,
+                     product,quantity,unitprice,total,notes,invoice_file_path,invoice_original_name,invoice_mime,invoice_uploaded_at)
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (group_id, *fields))
+            else:
+                conn.execute("""UPDATE paladar_sales SET saledate=?,client=?,nf_number=?,driver=?,vehicle=?,plate=?,
+                    seller_id=?,seller_name_snapshot=?,product=?,quantity=?,unitprice=?,total=?,notes=?,
+                    invoice_file_path=?,invoice_original_name=?,invoice_mime=?,invoice_uploaded_at=? WHERE id=?""",
+                    (*fields, item_id))
+        for item_id in old_ids - kept_ids:
+            conn.execute("DELETE FROM paladar_sales WHERE id=?", (item_id,))
+        conn.commit()
+        return {"ok": True, "group": group_id}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 @app.delete("/api/monteiro/sales/{pid}")
 @app.delete("/api/paladar/sales/{pid}")
