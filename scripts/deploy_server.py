@@ -4,6 +4,7 @@ import hashlib
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import uuid
@@ -40,6 +41,24 @@ class RunLog:
 
     def close(self):
         self.file.close()
+
+
+def ensure_git_on_path():
+    if shutil.which("git"):
+        return
+    candidates = [
+        Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Git" / "cmd",
+        Path(os.environ.get("ProgramFiles(x86)", "C:/Program Files (x86)")) / "Git" / "cmd",
+        Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData/Local")) / "Programs" / "Git" / "cmd",
+    ]
+    runtime_root = Path.home() / ".cache" / "codex-runtimes"
+    if runtime_root.is_dir():
+        candidates.extend(runtime_root.glob("*/dependencies/native/git/cmd"))
+    for candidate in candidates:
+        if (candidate / "git.exe").is_file():
+            os.environ["PATH"] = str(candidate) + os.pathsep + os.environ.get("PATH", "")
+            return
+    raise DeployError("GIT", "Git nao encontrado no PATH nem nas instalacoes locais conhecidas")
 
 
 def run_command(command, log, stage, cwd=ROOT, env=None, check=True):
@@ -157,6 +176,7 @@ def main(argv=None):
     remote_stage_created = False
 
     try:
+        ensure_git_on_path()
         commit = subprocess.run(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, check=True,
             capture_output=True, text=True,
