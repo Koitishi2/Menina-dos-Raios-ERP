@@ -3301,6 +3301,32 @@ body.company-estrada .notif-bell.has-pending::after{animation-name:notif-halo-es
   #paladar-app>div:nth-child(2) select{min-width:0!important;max-width:190px}
 }
 @media (prefers-reduced-motion:reduce){.notif-bell,.notif-bell.has-pending,.notif-bell.has-pending::after,.notif-bell.is-updated{animation:none!important;transition:none!important}}
+body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:none!important}
+.today-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin:0 0 18px}
+.today-head h2{font-size:25px;margin:0 0 4px;color:var(--text)}
+.today-head p{margin:0;color:var(--muted);font-size:13px}
+.today-refresh{border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:6px;padding:9px 13px;cursor:pointer}
+.today-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:22px}
+.today-kpi{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:15px;min-width:0}
+.today-kpi small{display:block;color:var(--muted);font-size:11px;margin-bottom:7px}
+.today-kpi strong{display:block;color:var(--text);font-size:24px;line-height:1.1}
+.today-kpi span{display:block;color:var(--muted);font-size:11px;margin-top:7px}
+.today-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(260px,1fr);gap:22px}
+.today-section{min-width:0;margin-bottom:22px}
+.today-section-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:9px}
+.today-section h3{margin:0;font-size:15px;color:var(--text)}
+.today-section-head button,.today-row button{border:1px solid var(--border);background:var(--card);color:var(--g800);border-radius:6px;padding:7px 10px;cursor:pointer;font-size:12px;font-weight:700}
+.today-list{border:1px solid var(--border);border-radius:6px;background:var(--card);overflow:hidden}
+.today-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border)}
+.today-row:last-child{border-bottom:0}
+.today-row strong{display:block;font-size:13px;color:var(--text);overflow-wrap:anywhere}
+.today-row small{display:block;margin-top:3px;font-size:11px;color:var(--muted);overflow-wrap:anywhere}
+.today-empty{padding:15px;color:var(--muted);font-size:12px}
+.today-progress{height:7px;border-radius:7px;background:var(--border);overflow:hidden;margin:13px 0 8px}
+.today-progress span{display:block;height:100%;background:#2b8b56;transition:width .25s}
+.today-note{color:var(--muted);font-size:12px;margin:0}
+@media(max-width:1000px){.today-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.today-grid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:520px){.today-head{align-items:center}.today-head h2{font-size:21px}.today-kpi{padding:12px}.today-kpi strong{font-size:20px}.today-row{padding:11px}.today-row button{white-space:nowrap}}
 </style>
 </head>
 <body>
@@ -3575,7 +3601,8 @@ body.company-estrada .notif-bell.has-pending::after{animation-name:notif-halo-es
         <button type="button" role="menuitem" onclick="selectLayoutModule('orcamentos')"><span>🧾</span><span>Orçamentos</span><b></b></button>
       </div>
     </div>
-    <button class="tab active" onclick="switchTab(this,'consolidado')">📊 Consolidado</button>
+    <button class="tab active" onclick="switchTab(this,'hoje')">Hoje</button>
+    <button class="tab" onclick="switchTab(this,'consolidado')">📊 Consolidado</button>
     <button class="tab" onclick="switchTab(this,'entregas')">🚚 Entregas</button>
     <button class="tab" onclick="switchTab(this,'nf')">🧾 NF-e</button>
     <button class="tab" onclick="switchTab(this,'pr')">🌱 Prod. Rural</button>
@@ -3589,6 +3616,23 @@ body.company-estrada .notif-bell.has-pending::after{animation-name:notif-halo-es
     <button class="tab" onclick="switchTab(this,'pendentes')">📋 Notas <span id="tab-pendentes-badge" style="background:#B71C1C;color:#fff;border-radius:10px;padding:0 6px;font-size:10px;font-weight:700;margin-left:2px;display:none">0</span></button>
     <button class="tab" onclick="switchTab(this,'produtos')">📦 Produtos</button>
     <button class="tab" onclick="switchTab(this,'config')">⚙ Configurações</button>
+  </div>
+
+  <div class="panel active" id="panel-hoje">
+    <div class="today-head"><div><h2>Visão de hoje</h2><p id="today-date"></p></div><button type="button" class="today-refresh" onclick="refreshToday(true)">Atualizar</button></div>
+    <div class="today-kpis" id="today-kpis" aria-live="polite"></div>
+    <div class="today-grid">
+      <div>
+        <section class="today-section" id="today-deliveries-section"><div class="today-section-head"><h3>Entregas aguardando confirmação</h3><button type="button" onclick="todayOpen('entregas')">Ver entregas</button></div><div class="today-list" id="today-deliveries"></div></section>
+        <section class="today-section" id="today-inactive-section"><div class="today-section-head"><h3>Clientes sem compra há mais de 20 dias</h3><button type="button" onclick="todayOpen('inactive')">Ver oportunidades</button></div><div class="today-list" id="today-inactive"></div></section>
+      </div>
+      <div>
+        <section class="today-section" id="today-progress-section"><div class="today-section-head"><h3>Ritmo das entregas</h3></div><div class="today-list"><div class="today-row"><div><strong id="today-progress-count">—</strong><small id="today-progress-label">Entregas concluídas hoje</small><div class="today-progress"><span id="today-progress-bar"></span></div><p class="today-note" id="today-progress-note"></p></div></div></div></section>
+        <section class="today-section" id="today-boletos-section"><div class="today-section-head"><h3>Boletos vencidos</h3><button type="button" onclick="todayOpen('boletos')">Ver boletos</button></div><div class="today-list" id="today-boletos"></div></section>
+        <section class="today-section" id="today-whatsapp-section"><div class="today-section-head"><h3>Conversas aguardando resposta</h3><button type="button" onclick="todayOpen('whatsapp')">Ver WhatsApp</button></div><div class="today-list" id="today-whatsapp"></div></section>
+        <section class="today-section" id="today-notes-section"><div class="today-section-head"><h3>Notas APP pendentes</h3><button type="button" onclick="todayOpen('notes')">Ver notas</button></div><div class="today-list" id="today-notes"></div></section>
+      </div>
+    </div>
   </div>
 
   <!-- ENTREGAS -->
@@ -3617,7 +3661,7 @@ body.company-estrada .notif-bell.has-pending::after{animation-name:notif-halo-es
   </div>
 
   <!-- CONSOLIDADO -->
-  <div class="panel active" id="panel-consolidado">
+  <div class="panel" id="panel-consolidado">
     <div class="toolbar" style="flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none">
       <div class="search-box" style="flex-shrink:0"><input type="text" placeholder="Buscar cliente, produto, NF, placa..." id="search-input"></div>
       <div class="period-pills" style="display:flex;gap:2px;flex-shrink:0">
@@ -5203,7 +5247,7 @@ body.company-estrada .notif-bell.has-pending::after{animation-name:notif-halo-es
 
 <!-- MOBILE APP NAV -->
 <div class="mobile-bar" id="mobile-bottom-nav" role="navigation" aria-label="Navegação principal mobile">
-  <button type="button" class="mob-btn" data-mobile-tab="consolidado" onclick="mobileSwitchTab('consolidado')"><span class="mob-ico">📊</span><span>Resumo</span></button>
+  <button type="button" class="mob-btn" data-mobile-tab="hoje" onclick="mobileSwitchTab('hoje')"><span class="mob-ico">●</span><span>Hoje</span></button>
   <button type="button" class="mob-btn" data-mobile-tab="produtividade" onclick="mobileSwitchTab('produtividade')"><span class="mob-ico"></span><span>Produção</span></button>
   <button type="button" class="mob-btn" data-mobile-tab="nf" onclick="mobileSwitchTab('nf')"><span class="mob-ico">🧾</span><span>Vendas</span></button>
   <button type="button" class="mob-btn" data-mobile-tab="grafico" onclick="mobileSwitchTab('grafico')"><span class="mob-ico">📈</span><span>Gráficos</span></button>
@@ -5310,7 +5354,7 @@ const APP_VERSION = '2.1.0';
     'filterDonut','loadConsolidado','editLabel','editPrice','updatePrice','deleteProduct','addProduct',
     'openClientReportModal','exportClientPDF',
     'previewClientMonthlyReport','generateClientMonthlyPDF',
-    'openClientModal','deleteClient','openClientOpportunity','filterBoletosPagos',
+    'openClientModal','deleteClient','openClientOpportunity','filterBoletosPagos','todayOpen','todayOpenConversation',
     'toggleMonthGroup','revertBoletoPayment','setBolClientEnabled','doMerge','ignoreDup',
     'sortProdBy','waTest','waToggleContact','waDeleteContact','toggleWaLogDetail',
     'deleteWaLog','deleteAllWaLogs','loadWaLog','setClientInactiveExclusion',
@@ -5745,6 +5789,7 @@ function showApp(){
   var ndAvatar=document.getElementById('nd-avatar');
   if(ndAvatar)ndAvatar.textContent=(session.full_name||session.username).charAt(0).toUpperCase();
   applyRoleUI(session.role);
+  if(todayCanView('hoje')) deliveryOpenTab('hoje');
   bindIdleTimer();
   resetIdleTimer();
   if(isManagedRestrictedRole()){
@@ -5845,6 +5890,8 @@ async function switchCompanyUI(target){
     if(!r.ok){var e=await r.json().catch(()=>({detail:r.statusText}));throw new Error(e.detail||'Erro ao trocar empresa');}
     var data=await r.json();
     activeCompany=target;
+    _todayRemote=null;
+    allSales=[];
     allPrices=[];
     allPricesCompany='';
     allSellers=[];
@@ -5932,6 +5979,7 @@ function applyRoleUI(role){
     });
   }
   if(role === 'viewer') ok = [];
+  if(role!=='viewer' && ok.length) ok.unshift('hoje');
   // Trava de segurança: admin nunca pode perder acesso a 'config' (ficaria sem
   // como reabrir o painel de permissões pela UI). Para viewer/editor o que está
   // salvo manda — desmarcar Configurações na matriz agora tem efeito real.
@@ -6016,7 +6064,8 @@ function applyTabOrder(){
 
 // ── TABS ───────────────────────────────────────────────────────────────────────
 function switchTab(btn,name){
-  if(window._authz&&window._authz.managed){
+  if(name==='hoje' && !todayCanView('hoje')){toast('Você não tem permissão para acessar esta aba.','error');return;}
+  if(name!=='hoje' && window._authz&&window._authz.managed){
     const area=activeCompany==='estrada'?'menina_da_estrada':'menina_dos_raios';
     const permission=window._authz.modules&&window._authz.modules[area]&&window._authz.modules[area][name];
     if(!permission||!permission.view){toast('Você não tem permissão para acessar esta aba.','error');return;}
@@ -6032,6 +6081,9 @@ function switchTab(btn,name){
   if(name!=='config' && typeof hideWhatsAppConfig === 'function') hideWhatsAppConfig();
   btn.classList.add('active');
   document.getElementById('panel-'+name).classList.add('active');
+  document.body.classList.toggle('today-active',name==='hoje');
+  if(typeof updateMobileNavState==='function')updateMobileNavState(name);
+  if(name==='hoje')refreshToday(false);
   if(typeof updateSmartContext === 'function') updateSmartContext(name);
   if(name==='clientes')loadClientsPanel();
   if(name==='entregas')renderDeliveryBoard();
@@ -6067,6 +6119,81 @@ function deliveryOpenTab(name){
   var tab=Array.from(document.querySelectorAll('.tabs-wrap .tab')).find(function(item){return String(item.getAttribute('onclick')||'').indexOf("'"+name+"'")>=0;});
   if(tab)switchTab(tab,name);
 }
+var _todayRemote=null;
+function todayCanView(name){
+  if(!session||session.role==='viewer')return false;
+  if(name==='hoje')return ['entregas','clientes','boletos','pendentes','consolidado','nf','pr','avulso'].some(todayCanView);
+  if(window._authz&&window._authz.managed)return managedModulePermission(name,'view');
+  var allowed=window._tabPermissions&&window._tabPermissions[session.role];
+  return !allowed||allowed.indexOf(name)>=0;
+}
+function todayRow(title,detail,action,label){
+  return '<div class="today-row"><div><strong>'+admEsc(title)+'</strong><small>'+admEsc(detail)+'</small></div>'+(action?'<button type="button" onclick="'+action+'">'+admEsc(label||'Abrir')+'</button>':'')+'</div>';
+}
+function todayFill(id,rows,empty){var el=document.getElementById(id);if(el)el.innerHTML=rows.length?rows.join(''):'<div class="today-empty">'+admEsc(empty)+'</div>';}
+function todayDeliverySummary(sales,date){
+  var day=(Array.isArray(sales)?sales:[]).filter(function(s){return s&&s.sale_type!=='AVARIA'&&s.sale_date===date;});
+  var groups=groupNotasRows(day);
+  groups.forEach(function(g){
+    var items=(g.note_ids||[]).map(function(id){return day.find(function(s){return String(s.id)===String(id);});}).filter(Boolean);
+    g.delivery_state=items.length&&items.every(function(s){return s.delivered==='sim';})?'sim':items.some(function(s){return s.delivered==='nao';})?'nao':null;
+  });
+  return {groups:groups,done:groups.filter(function(g){return g.delivery_state==='sim';}).length,pending:groups.filter(function(g){return g.delivery_state!== 'sim';})};
+}
+function renderToday(){
+  var panel=document.getElementById('panel-hoje');if(!panel||!panel.classList.contains('active'))return;
+  var date=deliveryBoardDateToday(),dateEl=document.getElementById('today-date');
+  if(dateEl)dateEl.textContent=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  var canDeliver=todayCanView('entregas'),canClients=todayCanView('clientes'),canBills=todayCanView('boletos'),canWa=canClients&&managedModulePermission('clientes_whatsapp','view');
+  var canNotes=!isManagedRestrictedRole()&&(session.role==='admin'||session.role==='editor');
+  [['today-deliveries-section',canDeliver],['today-progress-section',canDeliver],['today-inactive-section',canClients],['today-boletos-section',canBills],['today-whatsapp-section',canWa],['today-notes-section',canNotes]].forEach(function(item){var el=document.getElementById(item[0]);if(el)el.hidden=!item[1];});
+  var summary=canDeliver?todayDeliverySummary(allSales,date):{groups:[],done:0,pending:[]};
+  var remote=_todayRemote&&_todayRemote.company===activeCompany?_todayRemote:{};
+  var inactive=remote.inactive,overdue=remote.overdue,conversations=remote.conversations;
+  var notes=Array.isArray(_appNotesPendingNotif)?_appNotesPendingNotif:[];
+  var kpis=[];
+  if(canDeliver)kpis.push(['Aguardando confirmação',summary.pending.length,summary.groups.length+' entregas hoje']);
+  if(canBills)kpis.push(['Boletos vencidos',overdue?overdue.length:'—',remote.overdueError?'Indisponível':overdue?'Para acompanhar':'Carregando']);
+  if(canWa)kpis.push(['Conversas aguardando resposta',conversations?conversations.length:'—',remote.conversationsError?'Indisponível':conversations?'Última mensagem recebida':'Carregando']);
+  if(canClients)kpis.push(['Clientes inativos +20 dias',inactive?inactive.length:'—',remote.inactiveError?'Indisponível':inactive?'Oportunidades de contato':'Carregando']);
+  var kpiEl=document.getElementById('today-kpis');if(kpiEl)kpiEl.innerHTML=kpis.map(function(k){return '<div class="today-kpi"><small>'+admEsc(k[0])+'</small><strong>'+admEsc(k[1])+'</strong><span>'+admEsc(k[2])+'</span></div>';}).join('');
+  if(canDeliver){
+    var pending=summary.pending.slice().sort(function(a,b){return String(a.sale_time||'').localeCompare(String(b.sale_time||''));});
+    todayFill('today-deliveries',pending.slice(0,5).map(function(g){return todayRow(g.client||'Cliente',[(g.sale_time||'').slice(0,5),g.nf_number?'NF '+g.nf_number:'Sem NF',g.delivery_person||'Sem entregador'].filter(Boolean).join(' · '),"todayOpen('entregas')",'Abrir');}), 'Nenhuma entrega aguardando confirmação hoje.');
+    var pct=summary.groups.length?Math.round(summary.done/summary.groups.length*100):0;
+    document.getElementById('today-progress-count').textContent=summary.done+' / '+summary.groups.length;
+    document.getElementById('today-progress-bar').style.width=pct+'%';
+    document.getElementById('today-progress-note').textContent=summary.pending.length+' aguardando ou não entregue(s) · '+pct+'% concluído';
+  }
+  if(canClients)todayFill('today-inactive',inactive?inactive.slice(0,5).map(function(c){return todayRow(c.client||'Cliente','Última compra: '+(c.last_purchase?fmtDate(c.last_purchase):'—'),"todayOpen('inactive')",'Ver');}):[],remote.inactiveError?'Não foi possível carregar clientes inativos.':inactive?'Nenhum cliente inativo há mais de 20 dias.':'Carregando clientes inativos...');
+  if(canBills)todayFill('today-boletos',overdue?overdue.slice(0,4).map(function(b){return todayRow(b.client||'Cliente','Venceu em '+fmtDate(b.due_date)+' · '+fmt(b.total_val||0),"todayOpen('boletos')",'Ver');}):[],remote.overdueError?'Não foi possível carregar boletos.':overdue?'Nenhum boleto vencido.':'Carregando boletos...');
+  if(canWa)todayFill('today-whatsapp',conversations?conversations.slice(0,4).map(function(c){return todayRow(c.client_name||'Cliente',c.last_message_preview||'Mensagem recebida',"todayOpenConversation('"+String(c.id).replace(/[^a-zA-Z0-9_-]/g,'')+"','"+String(c.client_id).replace(/[^a-zA-Z0-9_-]/g,'')+"')",'Abrir');}):[],remote.conversationsError?'Não foi possível carregar as conversas.':conversations?'Nenhuma conversa aguardando resposta.':'Carregando conversas...');
+  if(canNotes)todayFill('today-notes',notes.slice(0,3).map(function(n){return todayRow(n.client||n.customer||'Nota APP','Aguardando revisão',"todayOpen('notes')",'Abrir');}), 'Nenhuma nota APP pendente.');
+}
+async function refreshToday(force){
+  if(!document.getElementById('panel-hoje')?.classList.contains('active'))return;
+  renderToday();
+  var token=session&&session.token,company=activeCompany,now=Date.now();
+  if(!force&&_todayRemote&&_todayRemote.company===company&&now-_todayRemote.at<120000)return;
+  var remote={company:company,at:now};_todayRemote=remote;
+  var requests=[];
+  if(todayCanView('clientes'))requests.push(api('/api/analytics/clients?days_inactive=20').then(function(data){remote.inactive=data.inactive||[];}).catch(function(e){remote.inactiveError=e.message;}));
+  if(todayCanView('boletos'))requests.push(api('/api/boletos?status=pendente').then(function(data){remote.overdue=(Array.isArray(data)?data:[]).filter(function(b){return b.is_overdue;});}).catch(function(e){remote.overdueError=e.message;}));
+  if(todayCanView('clientes')&&managedModulePermission('clientes_whatsapp','view'))requests.push(api('/api/whatsapp/conversations').then(function(data){remote.conversations=(Array.isArray(data)?data:(data.conversations||[])).filter(function(c){return c.last_message_direction==='recebida';});}).catch(function(e){remote.conversationsError=e.message;}));
+  await Promise.all(requests);
+  if(session&&session.token===token&&activeCompany===company&&_todayRemote===remote)renderToday();
+}
+function todayOpen(name){
+  if(name==='inactive'){if(!todayCanView('clientes'))return;var days=document.getElementById('opp-inactive-days');if(days)days.value='20';deliveryOpenTab('clientes');switchClientView('oportunidades');return;}
+  if(name==='whatsapp'){if(!todayCanView('clientes')||!managedModulePermission('clientes_whatsapp','view'))return;deliveryOpenTab('clientes');switchClientView('whatsapp');return;}
+  if(name==='notes'){if(isManagedRestrictedRole()||!['admin','editor'].includes(session.role))return;openPaladarApp();switchPaladarTab('notasapp');return;}
+  if(!todayCanView(name))return;
+  if(name==='boletos'){var status=document.getElementById('bol-status');if(status)status.value='vencidos';}
+  deliveryOpenTab(name);
+}
+function todayOpenConversation(id,clientId){todayOpen('whatsapp');if(window.ClientWhatsAppFoundation)window.ClientWhatsAppFoundation.openConversation(id,clientId);}
+window.addEventListener('salesLoaded',renderToday);
+window.addEventListener('notasUpdated',renderToday);
 function renderDeliveryBoard(){
   var dateEl=document.getElementById('delivery-board-date');
   var rowsEl=document.getElementById('delivery-board-rows');
@@ -6150,6 +6277,7 @@ async function loadAll(){
     filterTable();
     await loadPricesForForm();
     await refreshAppNotesNotifications();
+    renderToday();
   }catch(e){document.getElementById('table-area').innerHTML=`<div class="empty"> ${e.message}</div>`;}
 }
 
@@ -6170,7 +6298,8 @@ async function loadRestrictedApp(){
     const btn=Array.from(document.querySelectorAll('.tab')).find(function(tab){
       return String(tab.getAttribute('onclick')||'').indexOf("'"+first+"'")>=0;
     });
-    if(btn&&first)switchTab(btn,first);
+    if(todayCanView('hoje'))deliveryOpenTab('hoje');
+    else if(btn&&first)switchTab(btn,first);
   }catch(e){document.getElementById('table-area').innerHTML='<div class="empty">'+e.message+'</div>';}
 }
 
@@ -12997,6 +13126,7 @@ function updateAppNotesNotificationUI(){
   if(tabBadge){tabBadge.textContent=n>99?'99+':String(n);tabBadge.style.display=n?'inline-block':'none';}
   if(pendingCount)pendingCount.textContent=String(n);
   updateNotifBadge();
+  renderToday();
 }
 async function openAppNoteFromNotification(id){
   toggleNotificationDrawer();
@@ -19384,6 +19514,7 @@ setTimeout(installMobileReadOnlyGuards,0);
   </div>
   <div class="nav-drawer-body">
     <div class="nav-drawer-section-title">Principal</div>
+    <button class="nav-drawer-item" data-tab="hoje" onclick="closeNavAndSwitch(this,'hoje')"><span class="nd-icon">●</span>Hoje</button>
     <button class="nav-drawer-item" data-tab="consolidado" onclick="closeNavAndSwitch(this,'consolidado')"><span class="nd-icon">📊</span>Consolidado</button>
     <button class="nav-drawer-item" data-tab="entregas" onclick="closeNavAndSwitch(this,'entregas')"><span class="nd-icon">🚚</span>Entregas</button>
     <button class="nav-drawer-item" data-tab="nf" onclick="closeNavAndSwitch(this,'nf')"><span class="nd-icon">🧾</span>NF-e</button>
