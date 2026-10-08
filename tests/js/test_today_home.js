@@ -38,5 +38,24 @@ assert.strictEqual(noToday.pending.length, 3, "older unconfirmed and not-deliver
 const whitelist = html.match(/const safeInlineNames = (\[[\s\S]*?\]);/);
 assert(whitelist);
 const allowed = vm.runInNewContext(whitelist[1]);
-assert(allowed.includes("todayOpen") && allowed.includes("todayOpenConversation") && allowed.includes("todayOpenDelivery") && allowed.includes("todayToggleDeliveries"));
+assert(allowed.includes("todayOpen") && allowed.includes("todayOpenConversation") && allowed.includes("todayOpenDelivery") && allowed.includes("todayToggleDeliveries") && allowed.includes("todayJumpToDeliveries"));
+assert(html.includes("kpis.push(['Entregas não concluídas',summary.pending.length,'Acumuladas até a confirmação','todayJumpToDeliveries()'])"));
+for (const destination of ["boletos", "whatsapp", "inactive"]) {
+  assert(html.includes(`"todayOpen('${destination}')"`), `${destination} KPI has a destination`);
+}
+assert(html.includes('<button type="button" class="today-kpi" onclick="'));
+
+const jumpStart = html.indexOf("function todayJumpToDeliveries(){");
+const jumpEnd = html.indexOf("function todayOpenConversation(", jumpStart);
+assert(jumpStart >= 0 && jumpEnd > jumpStart);
+let scrolled = false;
+const jumpContext = vm.createContext({
+  todayCanView: () => true,
+  renderToday: () => {},
+  document: { getElementById: () => ({ scrollIntoView: () => { scrolled = true; } }) },
+  _todayShowAllDeliveries: false
+});
+vm.runInContext(html.slice(jumpStart, jumpEnd), jumpContext);
+jumpContext.todayJumpToDeliveries();
+assert(jumpContext._todayShowAllDeliveries && scrolled);
 console.log("Today home data and navigation: OK");

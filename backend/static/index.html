@@ -3307,12 +3307,15 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
 .today-head p{margin:0;color:var(--muted);font-size:13px}
 .today-refresh{border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:6px;padding:9px 13px;cursor:pointer}
 .today-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:22px}
-.today-kpi{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:15px;min-width:0}
+.today-kpi{display:block;width:100%;height:100%;text-align:left;font:inherit;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:15px;min-width:0;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.today-kpi:hover{border-color:#39865b;box-shadow:0 2px 10px rgba(23,79,46,.09)}
+.today-kpi:focus-visible{outline:2px solid #155c2a;outline-offset:2px}
 .today-kpi small{display:block;color:var(--muted);font-size:11px;margin-bottom:7px}
 .today-kpi strong{display:block;color:var(--text);font-size:24px;line-height:1.1}
 .today-kpi span{display:block;color:var(--muted);font-size:11px;margin-top:7px}
 .today-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(260px,1fr);gap:22px}
 .today-section{min-width:0;margin-bottom:22px}
+.today-section{scroll-margin-top:88px}
 .today-section-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:9px}
 .today-section h3{margin:0;font-size:15px;color:var(--text)}
 .today-section-head button,.today-row button{border:1px solid var(--border);background:var(--card);color:var(--g800);border-radius:6px;padding:7px 10px;cursor:pointer;font-size:12px;font-weight:700}
@@ -5354,7 +5357,7 @@ const APP_VERSION = '2.1.0';
     'filterDonut','loadConsolidado','editLabel','editPrice','updatePrice','deleteProduct','addProduct',
     'openClientReportModal','exportClientPDF',
     'previewClientMonthlyReport','generateClientMonthlyPDF',
-    'openClientModal','deleteClient','openClientOpportunity','filterBoletosPagos','todayOpen','todayOpenConversation','todayOpenDelivery','todayToggleDeliveries',
+    'openClientModal','deleteClient','openClientOpportunity','filterBoletosPagos','todayOpen','todayOpenConversation','todayOpenDelivery','todayToggleDeliveries','todayJumpToDeliveries',
     'toggleMonthGroup','revertBoletoPayment','setBolClientEnabled','doMerge','ignoreDup',
     'sortProdBy','waTest','waToggleContact','waDeleteContact','toggleWaLogDetail',
     'deleteWaLog','deleteAllWaLogs','loadWaLog','setClientInactiveExclusion',
@@ -6159,11 +6162,11 @@ function renderToday(){
   var inactive=remote.inactive,overdue=remote.overdue,conversations=remote.conversations;
   var notes=Array.isArray(_appNotesPendingNotif)?_appNotesPendingNotif:[];
   var kpis=[];
-  if(canDeliver)kpis.push(['Entregas não concluídas',summary.pending.length,'Acumuladas até a confirmação']);
-  if(canBills)kpis.push(['Boletos vencidos',overdue?overdue.length:'—',remote.overdueError?'Indisponível':overdue?'Para acompanhar':'Carregando']);
-  if(canWa)kpis.push(['Conversas aguardando resposta',conversations?conversations.length:'—',remote.conversationsError?'Indisponível':conversations?'Última mensagem recebida':'Carregando']);
-  if(canClients)kpis.push(['Clientes inativos +20 dias',inactive?inactive.length:'—',remote.inactiveError?'Indisponível':inactive?'Oportunidades de contato':'Carregando']);
-  var kpiEl=document.getElementById('today-kpis');if(kpiEl)kpiEl.innerHTML=kpis.map(function(k){return '<div class="today-kpi"><small>'+admEsc(k[0])+'</small><strong>'+admEsc(k[1])+'</strong><span>'+admEsc(k[2])+'</span></div>';}).join('');
+  if(canDeliver)kpis.push(['Entregas não concluídas',summary.pending.length,'Acumuladas até a confirmação','todayJumpToDeliveries()']);
+  if(canBills)kpis.push(['Boletos vencidos',overdue?overdue.length:'—',remote.overdueError?'Indisponível':overdue?'Para acompanhar':'Carregando',"todayOpen('boletos')"]);
+  if(canWa)kpis.push(['Conversas aguardando resposta',conversations?conversations.length:'—',remote.conversationsError?'Indisponível':conversations?'Última mensagem recebida':'Carregando',"todayOpen('whatsapp')"]);
+  if(canClients)kpis.push(['Clientes inativos +20 dias',inactive?inactive.length:'—',remote.inactiveError?'Indisponível':inactive?'Oportunidades de contato':'Carregando',"todayOpen('inactive')"]);
+  var kpiEl=document.getElementById('today-kpis');if(kpiEl)kpiEl.innerHTML=kpis.map(function(k){return '<button type="button" class="today-kpi" onclick="'+k[3]+'"><small>'+admEsc(k[0])+'</small><strong>'+admEsc(k[1])+'</strong><span>'+admEsc(k[2])+'</span></button>';}).join('');
   if(canDeliver){
     var pending=summary.pending.slice().sort(function(a,b){return String(a.sale_date||'').localeCompare(String(b.sale_date||''))||String(a.sale_time||'').localeCompare(String(b.sale_time||''));});
     var more=document.getElementById('today-deliveries-more');
@@ -6209,6 +6212,12 @@ function todayOpenDelivery(date){
   deliveryOpenTab('entregas');
 }
 function todayToggleDeliveries(){_todayShowAllDeliveries=!_todayShowAllDeliveries;renderToday();}
+function todayJumpToDeliveries(){
+  if(!todayCanView('entregas'))return;
+  _todayShowAllDeliveries=true;
+  renderToday();
+  document.getElementById('today-deliveries-section')?.scrollIntoView({behavior:'smooth',block:'start'});
+}
 function todayOpenConversation(id,clientId){todayOpen('whatsapp');if(window.ClientWhatsAppFoundation)window.ClientWhatsAppFoundation.openConversation(id,clientId);}
 window.addEventListener('salesLoaded',renderToday);
 window.addEventListener('notasUpdated',renderToday);
