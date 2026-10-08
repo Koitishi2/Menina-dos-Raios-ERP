@@ -22,16 +22,21 @@ const sales = [
   { id: 2, sale_date: "2026-10-08", sale_type: "NF", client: "Cliente A", nf_number: "100", delivered: null },
   { id: 3, sale_date: "2026-10-08", sale_type: "AVARIA", client: "Cliente B" },
   { id: 4, sale_date: "2026-10-07", sale_type: "NF", client: "Cliente C" },
-  { id: 5, sale_date: "2026-10-08", sale_type: "NF", client: "Cliente D", delivered: "sim" }
+  { id: 5, sale_date: "2026-10-08", sale_type: "NF", client: "Cliente D", delivered: "sim" },
+  { id: 6, sale_date: "2026-10-06", sale_type: "NF", client: "Cliente E", delivered: "nao" }
 ];
 const result = context.todayDeliverySummary(sales, "2026-10-08");
 assert.strictEqual(result.groups.length, 2);
 assert.strictEqual(result.done, 1);
-assert.strictEqual(result.pending.length, 1);
-assert.strictEqual(result.pending[0].client, "Cliente A");
+assert.strictEqual(result.pending.length, 3);
+assert.deepStrictEqual(Array.from(result.pending, row => row.client), ["Cliente A", "Cliente C", "Cliente E"]);
+assert.strictEqual(result.pending[2].delivery_state, "nao");
+const noToday = context.todayDeliverySummary(sales, "2026-10-09");
+assert.strictEqual(noToday.groups.length, 0);
+assert.strictEqual(noToday.pending.length, 3, "older unconfirmed and not-delivered orders remain visible");
 
 const whitelist = html.match(/const safeInlineNames = (\[[\s\S]*?\]);/);
 assert(whitelist);
 const allowed = vm.runInNewContext(whitelist[1]);
-assert(allowed.includes("todayOpen") && allowed.includes("todayOpenConversation"));
+assert(allowed.includes("todayOpen") && allowed.includes("todayOpenConversation") && allowed.includes("todayOpenDelivery") && allowed.includes("todayToggleDeliveries"));
 console.log("Today home data and navigation: OK");

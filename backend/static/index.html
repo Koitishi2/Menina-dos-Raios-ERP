@@ -3623,11 +3623,11 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
     <div class="today-kpis" id="today-kpis" aria-live="polite"></div>
     <div class="today-grid">
       <div>
-        <section class="today-section" id="today-deliveries-section"><div class="today-section-head"><h3>Entregas aguardando confirmação</h3><button type="button" onclick="todayOpen('entregas')">Ver entregas</button></div><div class="today-list" id="today-deliveries"></div></section>
+        <section class="today-section" id="today-deliveries-section"><div class="today-section-head"><h3>Entregas não concluídas</h3><button type="button" id="today-deliveries-more" onclick="todayToggleDeliveries()" hidden>Ver todas</button></div><div class="today-list" id="today-deliveries"></div></section>
         <section class="today-section" id="today-inactive-section"><div class="today-section-head"><h3>Clientes sem compra há mais de 20 dias</h3><button type="button" onclick="todayOpen('inactive')">Ver oportunidades</button></div><div class="today-list" id="today-inactive"></div></section>
       </div>
       <div>
-        <section class="today-section" id="today-progress-section"><div class="today-section-head"><h3>Ritmo das entregas</h3></div><div class="today-list"><div class="today-row"><div><strong id="today-progress-count">—</strong><small id="today-progress-label">Entregas concluídas hoje</small><div class="today-progress"><span id="today-progress-bar"></span></div><p class="today-note" id="today-progress-note"></p></div></div></div></section>
+        <section class="today-section" id="today-progress-section"><div class="today-section-head"><h3>Ritmo de hoje</h3></div><div class="today-list"><div class="today-row"><div><strong id="today-progress-count">—</strong><small id="today-progress-label">Entregas registradas hoje</small><div class="today-progress"><span id="today-progress-bar"></span></div><p class="today-note" id="today-progress-note"></p></div></div></div></section>
         <section class="today-section" id="today-boletos-section"><div class="today-section-head"><h3>Boletos vencidos</h3><button type="button" onclick="todayOpen('boletos')">Ver boletos</button></div><div class="today-list" id="today-boletos"></div></section>
         <section class="today-section" id="today-whatsapp-section"><div class="today-section-head"><h3>Conversas aguardando resposta</h3><button type="button" onclick="todayOpen('whatsapp')">Ver WhatsApp</button></div><div class="today-list" id="today-whatsapp"></div></section>
         <section class="today-section" id="today-notes-section"><div class="today-section-head"><h3>Notas APP pendentes</h3><button type="button" onclick="todayOpen('notes')">Ver notas</button></div><div class="today-list" id="today-notes"></div></section>
@@ -5354,7 +5354,7 @@ const APP_VERSION = '2.1.0';
     'filterDonut','loadConsolidado','editLabel','editPrice','updatePrice','deleteProduct','addProduct',
     'openClientReportModal','exportClientPDF',
     'previewClientMonthlyReport','generateClientMonthlyPDF',
-    'openClientModal','deleteClient','openClientOpportunity','filterBoletosPagos','todayOpen','todayOpenConversation',
+    'openClientModal','deleteClient','openClientOpportunity','filterBoletosPagos','todayOpen','todayOpenConversation','todayOpenDelivery','todayToggleDeliveries',
     'toggleMonthGroup','revertBoletoPayment','setBolClientEnabled','doMerge','ignoreDup',
     'sortProdBy','waTest','waToggleContact','waDeleteContact','toggleWaLogDetail',
     'deleteWaLog','deleteAllWaLogs','loadWaLog','setClientInactiveExclusion',
@@ -6120,6 +6120,7 @@ function deliveryOpenTab(name){
   if(tab)switchTab(tab,name);
 }
 var _todayRemote=null;
+var _todayShowAllDeliveries=false;
 function todayCanView(name){
   if(!session||session.role==='viewer')return false;
   if(name==='hoje')return ['entregas','clientes','boletos','pendentes','consolidado','nf','pr','avulso'].some(todayCanView);
@@ -6132,13 +6133,19 @@ function todayRow(title,detail,action,label){
 }
 function todayFill(id,rows,empty){var el=document.getElementById(id);if(el)el.innerHTML=rows.length?rows.join(''):'<div class="today-empty">'+admEsc(empty)+'</div>';}
 function todayDeliverySummary(sales,date){
-  var day=(Array.isArray(sales)?sales:[]).filter(function(s){return s&&s.sale_type!=='AVARIA'&&s.sale_date===date;});
+  var eligible=(Array.isArray(sales)?sales:[]).filter(function(s){return s&&s.id&&s.sale_type!=='AVARIA';});
+  var day=eligible.filter(function(s){return s.sale_date===date;});
   var groups=groupNotasRows(day);
   groups.forEach(function(g){
     var items=(g.note_ids||[]).map(function(id){return day.find(function(s){return String(s.id)===String(id);});}).filter(Boolean);
     g.delivery_state=items.length&&items.every(function(s){return s.delivered==='sim';})?'sim':items.some(function(s){return s.delivered==='nao';})?'nao':null;
   });
-  return {groups:groups,done:groups.filter(function(g){return g.delivery_state==='sim';}).length,pending:groups.filter(function(g){return g.delivery_state!== 'sim';})};
+  var pending=groupNotasRows(eligible.filter(function(s){return s.delivered!=='sim';}));
+  pending.forEach(function(g){
+    var items=(g.note_ids||[]).map(function(id){return eligible.find(function(s){return String(s.id)===String(id);});}).filter(Boolean);
+    g.delivery_state=items.some(function(s){return s.delivered==='nao';})?'nao':null;
+  });
+  return {groups:groups,done:groups.filter(function(g){return g.delivery_state==='sim';}).length,pending:pending};
 }
 function renderToday(){
   var panel=document.getElementById('panel-hoje');if(!panel||!panel.classList.contains('active'))return;
@@ -6152,18 +6159,20 @@ function renderToday(){
   var inactive=remote.inactive,overdue=remote.overdue,conversations=remote.conversations;
   var notes=Array.isArray(_appNotesPendingNotif)?_appNotesPendingNotif:[];
   var kpis=[];
-  if(canDeliver)kpis.push(['Aguardando confirmação',summary.pending.length,summary.groups.length+' entregas hoje']);
+  if(canDeliver)kpis.push(['Entregas não concluídas',summary.pending.length,'Acumuladas até a confirmação']);
   if(canBills)kpis.push(['Boletos vencidos',overdue?overdue.length:'—',remote.overdueError?'Indisponível':overdue?'Para acompanhar':'Carregando']);
   if(canWa)kpis.push(['Conversas aguardando resposta',conversations?conversations.length:'—',remote.conversationsError?'Indisponível':conversations?'Última mensagem recebida':'Carregando']);
   if(canClients)kpis.push(['Clientes inativos +20 dias',inactive?inactive.length:'—',remote.inactiveError?'Indisponível':inactive?'Oportunidades de contato':'Carregando']);
   var kpiEl=document.getElementById('today-kpis');if(kpiEl)kpiEl.innerHTML=kpis.map(function(k){return '<div class="today-kpi"><small>'+admEsc(k[0])+'</small><strong>'+admEsc(k[1])+'</strong><span>'+admEsc(k[2])+'</span></div>';}).join('');
   if(canDeliver){
-    var pending=summary.pending.slice().sort(function(a,b){return String(a.sale_time||'').localeCompare(String(b.sale_time||''));});
-    todayFill('today-deliveries',pending.slice(0,5).map(function(g){return todayRow(g.client||'Cliente',[(g.sale_time||'').slice(0,5),g.nf_number?'NF '+g.nf_number:'Sem NF',g.delivery_person||'Sem entregador'].filter(Boolean).join(' · '),"todayOpen('entregas')",'Abrir');}), 'Nenhuma entrega aguardando confirmação hoje.');
+    var pending=summary.pending.slice().sort(function(a,b){return String(a.sale_date||'').localeCompare(String(b.sale_date||''))||String(a.sale_time||'').localeCompare(String(b.sale_time||''));});
+    var more=document.getElementById('today-deliveries-more');
+    if(more){more.hidden=pending.length<=5;more.textContent=_todayShowAllDeliveries?'Mostrar menos':'Ver todas ('+pending.length+')';}
+    todayFill('today-deliveries',(_todayShowAllDeliveries?pending:pending.slice(0,5)).map(function(g){return todayRow(g.client||'Cliente',[g.delivery_state==='nao'?'Não entregue':'Aguardando confirmação',g.sale_date?fmtDate(g.sale_date):'',(g.sale_time||'').slice(0,5),g.nf_number?'NF '+g.nf_number:'Sem NF',g.delivery_person||'Sem entregador'].filter(Boolean).join(' · '),"todayOpenDelivery('"+String(g.sale_date||'').replace(/[^0-9-]/g,'')+"')",'Abrir');}), 'Nenhuma entrega não concluída.');
     var pct=summary.groups.length?Math.round(summary.done/summary.groups.length*100):0;
     document.getElementById('today-progress-count').textContent=summary.done+' / '+summary.groups.length;
     document.getElementById('today-progress-bar').style.width=pct+'%';
-    document.getElementById('today-progress-note').textContent=summary.pending.length+' aguardando ou não entregue(s) · '+pct+'% concluído';
+    document.getElementById('today-progress-note').textContent=summary.groups.length?pct+'% concluído nas entregas registradas hoje':'Nenhuma entrega registrada hoje.';
   }
   if(canClients)todayFill('today-inactive',inactive?inactive.slice(0,5).map(function(c){return todayRow(c.client||'Cliente','Última compra: '+(c.last_purchase?fmtDate(c.last_purchase):'—'),"todayOpen('inactive')",'Ver');}):[],remote.inactiveError?'Não foi possível carregar clientes inativos.':inactive?'Nenhum cliente inativo há mais de 20 dias.':'Carregando clientes inativos...');
   if(canBills)todayFill('today-boletos',overdue?overdue.slice(0,4).map(function(b){return todayRow(b.client||'Cliente','Venceu em '+fmtDate(b.due_date)+' · '+fmt(b.total_val||0),"todayOpen('boletos')",'Ver');}):[],remote.overdueError?'Não foi possível carregar boletos.':overdue?'Nenhum boleto vencido.':'Carregando boletos...');
@@ -6191,6 +6200,15 @@ function todayOpen(name){
   if(name==='boletos'){var status=document.getElementById('bol-status');if(status)status.value='vencidos';}
   deliveryOpenTab(name);
 }
+function todayOpenDelivery(date){
+  if(!todayCanView('entregas'))return;
+  var dateInput=document.getElementById('delivery-board-date');
+  if(dateInput&&/^\d{4}-\d{2}-\d{2}$/.test(date))dateInput.value=date;
+  var status=document.getElementById('delivery-board-status'),driver=document.getElementById('delivery-board-driver'),search=document.getElementById('delivery-board-search');
+  if(status)status.value='';if(driver)driver.value='';if(search)search.value='';
+  deliveryOpenTab('entregas');
+}
+function todayToggleDeliveries(){_todayShowAllDeliveries=!_todayShowAllDeliveries;renderToday();}
 function todayOpenConversation(id,clientId){todayOpen('whatsapp');if(window.ClientWhatsAppFoundation)window.ClientWhatsAppFoundation.openConversation(id,clientId);}
 window.addEventListener('salesLoaded',renderToday);
 window.addEventListener('notasUpdated',renderToday);
