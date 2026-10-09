@@ -3483,7 +3483,7 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
       </div>
       <div style="margin-bottom:10px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-          <label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted)">Produtos (até 20 itens)</label>
+          <label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted)">Produtos (até 50 itens)</label>
           <button type="button" onclick="addSaleLine()" id="btn-add-line" class="btn btn-secondary btn-sm">+ Adicionar item</button>
         </div>
         <div style="display:grid;grid-template-columns:2fr 75px 85px 75px 24px;gap:4px;padding:0 2px;margin-bottom:4px">
@@ -8626,8 +8626,8 @@ async function restoreBackupFromFile(input){
 
 // ── Multi-product sale ────────────────────────────────────────────────────────
 let _saleLineCount=0;
-const MAX_SALE_ITEMS=20;
-const MAX_MONTEIRO_ITEMS=20;
+const MAX_SALE_ITEMS=50;
+const MAX_MONTEIRO_ITEMS=50;
 
 function addSaleLine(prod,qty,price){
   prod=prod||''; qty=parseFloat(qty)||1; price=parseFloat(price)||0;

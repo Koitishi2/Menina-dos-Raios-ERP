@@ -4060,6 +4060,8 @@ def boletos_paid(x_token:str=Header("")):
 
 # â”€â”€ Paladar (mÃ³dulo independente) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+MAX_MONTEIRO_SALE_ITEMS = 50
+
 @app.get("/api/monteiro/products")
 @app.get("/api/paladar/products")
 def paladar_products(active:Optional[str]=None,search:Optional[str]=None,x_token:str=Header("")):
@@ -4231,8 +4233,8 @@ def create_paladar_sale(body:dict,x_token:str=Header("")):
             items=[{"product":body.get("product"),"quantity":body.get("quantity",1),
                     "unitprice":body.get("unitprice",0),"total":body.get("total",0),
                     "notes":body.get("notes","")}]
-        if len(items) > 20:
-            raise HTTPException(400, "MÃ¡ximo de 20 itens por venda.")
+        if len(items) > MAX_MONTEIRO_SALE_ITEMS:
+            raise HTTPException(400, "Máximo de 50 itens por venda.")
         import uuid
         # Agrupar por NF: se jÃ¡ existir grupo com mesma NF+data+cliente, reaproveitar
         group=None
@@ -4244,6 +4246,9 @@ def create_paladar_sale(body:dict,x_token:str=Header("")):
                 existing_seller=conn.execute("SELECT seller_id FROM paladar_sales WHERE sale_group=? AND seller_id IS NOT NULL LIMIT 1",(group,)).fetchone()
                 if existing_seller and existing_seller["seller_id"] != seller["id"]:
                     raise HTTPException(409,"Esta NF ja possui outro vendedor no grupo.")
+                existing_count=conn.execute("SELECT COUNT(*) FROM paladar_sales WHERE sale_group=?",(group,)).fetchone()[0]
+                if existing_count + len(items) > MAX_MONTEIRO_SALE_ITEMS:
+                    raise HTTPException(400, "Máximo de 50 itens por venda.")
                 # Atualizar campos de cabeÃ§alho no grupo existente
                 conn.execute("UPDATE paladar_sales SET driver=?,vehicle=?,plate=?,notes=? WHERE sale_group=? AND id=(SELECT MIN(id) FROM paladar_sales WHERE sale_group=?)",
                              (driver,vehicle,plate,notes,group,group))
@@ -4499,8 +4504,8 @@ def update_monteiro_sale_group_full(group_id: str, body: dict, x_token: str = He
         if not rows:
             raise HTTPException(404, "Lancamento nao encontrado.")
         items = body.get("items")
-        if not isinstance(items, list) or not 1 <= len(items) <= 20:
-            raise HTTPException(400, "Informe de 1 a 20 itens para a venda.")
+        if not isinstance(items, list) or not 1 <= len(items) <= MAX_MONTEIRO_SALE_ITEMS:
+            raise HTTPException(400, "Informe de 1 a 50 itens para a venda.")
         saledate = body.get("saledate")
         try:
             datetime.strptime(saledate, "%Y-%m-%d")

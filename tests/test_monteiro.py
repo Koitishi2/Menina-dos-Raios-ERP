@@ -355,6 +355,57 @@ def test_paladar_sales_route_uses_same_multi_item_flow_as_monteiro(isolated_app)
     assert sum(row["total"] for row in rows) == 70
 
 
+def test_monteiro_sale_accepts_50_items_and_rejects_51_on_create_and_edit(isolated_app):
+    token = _login(isolated_app.client)
+    seller_id = _seller_id(isolated_app.client, token)
+    items = [
+        {"product": f"Produto {i:02d}", "quantity": 1, "unitprice": 2, "total": 2}
+        for i in range(50)
+    ]
+    payload = _sale_payload(nf_number="MON-LIMIT-50", seller_id=seller_id, items=items)
+
+    rejected_create = isolated_app.client.post(
+        "/api/monteiro/sales", headers=_headers(token),
+        json={**payload, "nf_number": "MON-LIMIT-51", "items": items + [items[0]]},
+    )
+    assert rejected_create.status_code == 400
+    assert "50 itens" in rejected_create.json()["detail"]
+
+    created = isolated_app.client.post("/api/monteiro/sales", headers=_headers(token), json=payload)
+    assert created.status_code == 200, created.text
+    group_id = created.json()["group"]
+    detail = isolated_app.client.get(f"/api/monteiro/sales/group/{group_id}", headers=_headers(token))
+    assert detail.status_code == 200
+    assert len(detail.json()["items"]) == 50
+
+    rejected_append = isolated_app.client.post(
+        "/api/monteiro/sales", headers=_headers(token),
+        json={**payload, "items": [items[0]]},
+    )
+    assert rejected_append.status_code == 400
+    assert "50 itens" in rejected_append.json()["detail"]
+
+    edit_items = [
+        {"id": item["id"], "product": item["product"], "quantity": 1, "unitprice": 3}
+        for item in detail.json()["items"]
+    ]
+    edit = {**payload, "original_item_ids": created.json()["ids"], "items": edit_items}
+    rejected_edit = isolated_app.client.put(
+        f"/api/monteiro/sales/group/{group_id}/full", headers=_headers(token),
+        json={**edit, "items": edit_items + [{"product": "Extra", "quantity": 1, "unitprice": 3}]},
+    )
+    assert rejected_edit.status_code == 400
+    assert "50 itens" in rejected_edit.json()["detail"]
+
+    updated = isolated_app.client.put(
+        f"/api/monteiro/sales/group/{group_id}/full", headers=_headers(token), json=edit,
+    )
+    assert updated.status_code == 200, updated.text
+    final = isolated_app.client.get(f"/api/monteiro/sales/group/{group_id}", headers=_headers(token)).json()
+    assert len(final["items"]) == 50
+    assert sum(item["total"] for item in final["items"]) == 150
+
+
 def test_monteiro_sale_invalid_later_item_rolls_back_and_allows_next_write(isolated_app):
     token = _login(isolated_app.client)
     payload = _sale_payload(
