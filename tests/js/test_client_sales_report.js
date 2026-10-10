@@ -15,6 +15,8 @@ for (const id of ["cv-btn-relatorio", "cv-relatorio", "csr-start", "csr-end", "c
 }
 assert(html.includes("selectVisibleClientSalesReportProducts()"));
 assert(html.includes("downloadClientSalesPortfolioPDF(d)"));
+assert(html.includes('.client-sales-report-picker label input[type="checkbox"]{flex:0 0 16px;width:16px!important'));
+assert(html.includes("<span>'+esc(value)+'</span></label>"));
 
 const reportStart = html.indexOf("const clientSalesReportState=");
 const reportEnd = html.indexOf("function switchClientView(view){", reportStart);

@@ -3341,8 +3341,10 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
 .client-sales-report-picker{position:absolute;z-index:30;top:100%;left:0;width:min(320px,85vw);max-height:300px;overflow:auto;background:var(--card);border:1px solid var(--border);box-shadow:0 10px 24px #0002;padding:9px}
 .client-sales-report-picker[hidden]{display:none}
 .client-sales-report-picker>input{width:100%;padding:8px;margin-bottom:5px;border:1px solid var(--border);background:var(--card);color:var(--ink)}
-.client-sales-report-picker label{display:flex;align-items:center;gap:7px;padding:5px;font-size:12px;cursor:pointer}
+.client-sales-report-picker label{display:flex;align-items:center;gap:9px;width:100%;min-height:32px;padding:6px 7px;font-size:12px;font-weight:500;line-height:1.35;letter-spacing:0;text-transform:none;color:var(--ink);cursor:pointer}
 .client-sales-report-picker label[hidden]{display:none}
+.client-sales-report-picker label input[type="checkbox"]{flex:0 0 16px;width:16px!important;min-width:16px!important;height:16px!important;min-height:16px!important;margin:0;padding:0!important;border-radius:3px;box-shadow:none;accent-color:var(--g800);cursor:pointer}
+.client-sales-report-picker label span{min-width:0;overflow-wrap:anywhere}
 .client-sales-report-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:18px}
 .client-sales-report-kpis>div{border:1px solid var(--border);background:var(--card);padding:12px;min-width:0}
 .client-sales-report-kpis small{display:block;color:var(--muted);font-size:10px}.client-sales-report-kpis strong{display:block;margin-top:5px;font-size:18px;overflow-wrap:anywhere}
@@ -4066,8 +4068,8 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
         <div class="client-sales-report-mode" role="group" aria-label="Tipo de relatório"><button type="button" id="csr-mode-portfolio" class="active" onclick="setClientSalesReportMode('portfolio')">Portfólio</button><button type="button" id="csr-mode-internal" onclick="setClientSalesReportMode('internal')">Detalhado</button></div>
         <label>De<input id="csr-start" type="month" class="filt" onchange="loadClientSalesReportOptions()"></label>
         <label>Até<input id="csr-end" type="month" class="filt" onchange="loadClientSalesReportOptions()"></label>
-        <div class="client-sales-report-pick"><strong>Clientes</strong><button type="button" id="csr-clients-toggle" class="btn btn-secondary btn-sm" onclick="toggleClientSalesReportPicker('clients')">Todos</button><div id="csr-clients-picker" class="client-sales-report-picker" hidden><input type="search" placeholder="Buscar cliente" oninput="filterClientSalesReportPicker('clients',this.value)"><label><input type="checkbox" id="csr-clients-all" checked onchange="selectAllClientSalesReport('clients',this.checked)"> Todos os clientes</label><div id="csr-clients-options"></div></div></div>
-        <div class="client-sales-report-pick"><strong>Produtos</strong><button type="button" id="csr-products-toggle" class="btn btn-secondary btn-sm" onclick="toggleClientSalesReportPicker('products')">Todos</button><div id="csr-products-picker" class="client-sales-report-picker" hidden><input type="search" placeholder="Buscar produto" oninput="filterClientSalesReportPicker('products',this.value)"><button type="button" class="btn btn-secondary btn-sm" onclick="selectVisibleClientSalesReportProducts()">Selecionar resultados</button><label><input type="checkbox" id="csr-products-all" checked onchange="selectAllClientSalesReport('products',this.checked)"> Todos os produtos</label><div id="csr-products-options"></div></div></div>
+        <div class="client-sales-report-pick"><strong>Clientes</strong><button type="button" id="csr-clients-toggle" class="btn btn-secondary btn-sm" onclick="toggleClientSalesReportPicker('clients')">Todos</button><div id="csr-clients-picker" class="client-sales-report-picker" hidden><input type="search" placeholder="Buscar cliente" oninput="filterClientSalesReportPicker('clients',this.value)"><label><input type="checkbox" id="csr-clients-all" checked onchange="selectAllClientSalesReport('clients',this.checked)"><span>Todos os clientes</span></label><div id="csr-clients-options"></div></div></div>
+        <div class="client-sales-report-pick"><strong>Produtos</strong><button type="button" id="csr-products-toggle" class="btn btn-secondary btn-sm" onclick="toggleClientSalesReportPicker('products')">Todos</button><div id="csr-products-picker" class="client-sales-report-picker" hidden><input type="search" placeholder="Buscar produto" oninput="filterClientSalesReportPicker('products',this.value)"><button type="button" class="btn btn-secondary btn-sm" onclick="selectVisibleClientSalesReportProducts()">Selecionar resultados</button><label><input type="checkbox" id="csr-products-all" checked onchange="selectAllClientSalesReport('products',this.checked)"><span>Todos os produtos</span></label><div id="csr-products-options"></div></div></div>
         <button type="button" class="btn btn-primary" onclick="loadClientSalesReport()">Gerar relatório</button>
         <button type="button" id="csr-pdf" class="btn btn-secondary" onclick="downloadClientSalesReportPDF()" disabled>PDF</button>
       </div>
@@ -10547,7 +10549,7 @@ function renderClientSalesReportPicker(kind){
   const state=clientSalesReportState,values=state.options[kind],selected=state.selected[kind];
   document.getElementById('csr-'+kind+'-all').checked=selected===null;
   const list=document.getElementById('csr-'+kind+'-options');
-  list.innerHTML=values.map((value,index)=>'<label><input type="checkbox" data-index="'+index+'" '+(selected===null||selected.has(value)?'checked':'')+'> '+esc(value)+'</label>').join('')||'<span style="padding:8px;display:block;color:var(--muted)">Nenhum item no periodo.</span>';
+  list.innerHTML=values.map((value,index)=>'<label><input type="checkbox" data-index="'+index+'" '+(selected===null||selected.has(value)?'checked':'')+'><span>'+esc(value)+'</span></label>').join('')||'<span style="padding:8px;display:block;color:var(--muted)">Nenhum item no periodo.</span>';
   list.onchange=function(e){
     const index=Number(e.target.dataset.index);if(!Number.isInteger(index)||!values[index])return;
     let choice=state.selected[kind];if(choice===null)choice=new Set(values);
