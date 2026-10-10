@@ -560,3 +560,43 @@ def test_client_sales_report_filters_and_company_isolation(isolated_app):
     assert client.post("/api/clients/sales-report", json=payload).status_code == 401
     assert client.post("/api/clients/sales-report", headers=_headers(token, "estrada"), json=payload).json()["summary"]["records"] == 0
     isolated_app.assert_real_unchanged()
+
+
+def test_client_sales_report_vacuum_unit_and_client_scope(isolated_app):
+    client = isolated_app.client
+    token = _login(client)
+    headers = _headers(token)
+    vacuum_name = "Macaxeira a V\u00e1cuo"
+    assert isolated_app.module.norm_p(vacuum_name + " (KG)") == vacuum_name
+    assert isolated_app.module.norm_p("Macaxeira a V\u00c3\u00a1cuo") == vacuum_name
+    assert isolated_app.module.norm_p("Macaxeira a V\u00c3\u0192\u00c2\u00a1cuo") == vacuum_name
+    assert isolated_app.module.norm_p("Macaxeira Sem V\u00e1cuo (KG)") == "Macaxeira Sem V\u00e1cuo"
+    assert isolated_app.module.norm_p("Macaxeira com Casca (KG)") == "Macaxeira com Casca (KG)"
+
+    vacuum = _create_sale(client, token, client="Cliente Beta", product=vacuum_name + " (KG)",
+                          quantity=5, unit_price=8)
+    assert vacuum["product"] == vacuum_name
+    with sqlite3.connect(isolated_app.db_paths["raios"]) as conn:
+        conn.execute("UPDATE sales SET product=? WHERE id=?",
+                     ("Macaxeira a V\u00c3\u0192\u00c2\u00a1cuo", vacuum["id"]))
+    _create_sale(client, token, client="Cliente Alfa", product="Alho 250g", quantity=2, unit_price=10)
+
+    options = client.get("/api/clients/sales-report/options?start_month=2026-01&end_month=2026-01",
+                         headers=headers).json()
+    assert vacuum_name in options["products"]
+    assert "Macaxeira com Casca (KG)" not in options["products"]
+
+    payload = {"start_month": "2026-01", "end_month": "2026-01",
+               "clients": ["Cliente Alfa"], "products": [vacuum_name]}
+    filtered = client.post("/api/clients/sales-report", headers=headers, json=payload).json()
+    assert filtered["summary"]["records"] == 0
+    assert filtered["products_without_sales"] == [vacuum_name]
+    assert filtered["products_outside_clients"] == [
+        {"name": vacuum_name, "records": 1, "total": 40}]
+
+    all_clients = client.post("/api/clients/sales-report", headers=headers,
+                              json={**payload, "clients": None}).json()
+    assert all_clients["summary"]["records"] == 1
+    assert all_clients["summary"]["total_value"] == 40
+    assert all_clients["products_without_sales"] == []
+    isolated_app.assert_real_unchanged()

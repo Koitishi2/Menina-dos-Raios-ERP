@@ -3363,6 +3363,7 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
 .client-sales-report-month-item span:nth-child(2),.client-sales-report-month-item strong{text-align:right;white-space:nowrap}
 .client-sales-report-note{font-size:11px;color:var(--muted);line-height:1.5;margin:0 0 12px}
 .client-sales-report-empty-products{padding:9px 11px;border-left:3px solid #d98c18;background:#fff8ec;color:#573c13;font-size:11px;margin-bottom:14px}
+.client-sales-report-empty-products>div+div{margin-top:5px}.client-sales-report-empty-products button{margin-top:8px}
 .client-sales-report-table{overflow:auto;max-height:420px;border:1px solid var(--border);margin-bottom:20px;background:var(--card)}
 .client-sales-report-table table{border-collapse:collapse;width:100%;min-width:620px;font-size:12px}
 .client-sales-report-table th,.client-sales-report-table td{padding:9px;border-bottom:1px solid var(--border);text-align:left}
@@ -10578,6 +10579,7 @@ function clientSalesReportPayload(){
 }
 async function loadClientSalesReport(){
   const state=clientSalesReportState,result=document.getElementById('csr-result');
+  for(const kind of ['clients','products'])document.getElementById('csr-'+kind+'-picker').hidden=true;
   state.data=null;document.getElementById('csr-pdf').disabled=true;result.textContent='Gerando relatorio...';
   const request=state.reportRequest=(state.reportRequest||0)+1;
   try{
@@ -10585,6 +10587,11 @@ async function loadClientSalesReport(){
     if(request!==state.reportRequest)return;
     state.data=data;renderClientSalesReport(data);document.getElementById('csr-pdf').disabled=!data.sales.length;
   }catch(e){if(request===state.reportRequest){result.textContent=e.message;toast(e.message,'error');}}
+}
+function showAllClientSalesReportClients(){
+  clientSalesReportState.selected.clients=null;
+  renderClientSalesReportPicker('clients');
+  loadClientSalesReport();
 }
 function clientSalesReportTable(headers,rows){
   return '<div class="client-sales-report-table"><table><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody></table></div>';
@@ -10619,8 +10626,17 @@ function renderClientSalesReport(d){
     }).join('');
     return '<div class="client-sales-report-month"><div class="client-sales-report-month-head"><strong>'+esc(m.month)+'</strong><span>'+money(m.total)+(change?' · '+esc(change):'')+'</span></div><div class="client-sales-report-month-track"><i style="width:'+Math.max(0,Math.min(100,100*Number(m.total||0)/maxMonth))+'%"></i></div>'+details+'</div>';
   }).join('');
-  const noSales=d.products_without_sales?.length?'<div class="client-sales-report-empty-products">Sem vendas no período selecionado: '+d.products_without_sales.map(esc).join(', ')+'</div>':'';
-  document.getElementById('csr-result').innerHTML='<div class="client-sales-report-kpis">'+kpis.map(k=>'<div><small>'+k[0]+'</small><strong>'+k[1]+'</strong></div>').join('')+'</div>'
+  const outside=new Map((d.products_outside_clients||[]).map(item=>[item.name,item]));
+  const excluded=d.products_without_sales||[];
+  const excludedWithSales=excluded.filter(name=>Number(outside.get(name)?.records||0)>0);
+  const noSales=excluded.length?'<div class="client-sales-report-empty-products">'+excluded.map(name=>{
+    const other=outside.get(name);
+    return other?.records?'<div><strong>'+esc(name)+'</strong>: '+other.records+' venda(s), '+money(other.total)+', para outros clientes no período. Nenhuma para os clientes selecionados.</div>'
+      :'<div><strong>'+esc(name)+'</strong>: nenhuma venda encontrada no período, considerando todos os clientes.</div>';
+  }).join('')+(excludedWithSales.length?'<button type="button" class="btn btn-secondary btn-sm" onclick="showAllClientSalesReportClients()">Incluir todos os clientes</button>':'')+'</div>':'';
+  const selectedClients=clientSalesReportState.selected.clients;
+  const scope='<p class="client-sales-report-note">Recorte: '+(selectedClients===null?'todos os clientes':selectedClients.size+' de '+clientSalesReportState.options.clients.length+' clientes')+' · '+(clientSalesReportState.selected.products===null?'todos os produtos':clientSalesReportState.selected.products.size+' produto(s)')+'.</p>';
+  document.getElementById('csr-result').innerHTML=scope+'<div class="client-sales-report-kpis">'+kpis.map(k=>'<div><small>'+k[0]+'</small><strong>'+k[1]+'</strong></div>').join('')+'</div>'
     +noSales
     +'<div class="client-sales-report-layout"><div>'
     +(monthly?'<section class="client-sales-report-section"><h3>Evolução mensal por produto</h3><p class="client-sales-report-note">Valores reais das vendas filtradas. Quantidades de produtos diferentes não são somadas; o mês atual pode estar incompleto.</p>'+monthly+'</section>':'')
@@ -10702,7 +10718,12 @@ async function downloadClientSalesPDF(d,detailed){
     txt(card[1],x+4,y+18,index===0?11:12,index===0?'#FFFFFF':primary,true);
   });y+=34;
   if(d.products_without_sales?.length){
-    paragraph('Sem vendas no periodo selecionado: '+d.products_without_sales.join(', '),8,'#9A5A10');
+    const outside=new Map((d.products_outside_clients||[]).map(item=>[item.name,item]));
+    d.products_without_sales.forEach(name=>{
+      const other=outside.get(name);
+      paragraph(other?.records?name+': '+other.records+' venda(s) para outros clientes no periodo; nenhuma para os clientes selecionados.'
+        :name+': nenhuma venda no periodo entre todos os clientes.',8,'#9A5A10');
+    });
   }
   paragraph('Receita bruta registrada, nao lucro. Quantidades de produtos diferentes nao sao somadas. O mes atual pode estar incompleto.',7);
   heading('Evolucao mensal por produto','Cada mes mostra a receita real, a quantidade e a participacao de cada produto. A variacao compara somente meses consecutivos.');

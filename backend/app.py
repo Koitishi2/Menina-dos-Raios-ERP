@@ -240,12 +240,17 @@ def norm_p(p, sale_type="NF"):
     folded = re.sub(r"[^A-Z0-9]+", " ", folded).strip()
     # Macaxeira sem especificaÃ§Ã£o: PR = com casca, NF/outros = a vÃ¡cuo
     if folded == "MACAXEIRA":
-        return "Macaxeira com Casca (KG)" if sale_type == "PR" else "Macaxeira a VÃ¡cuo"
+        return "Macaxeira com Casca (KG)" if sale_type == "PR" else "Macaxeira a V\u00e1cuo"
     if "MACAXEIRA" in folded:
-        if "CASCA" in folded or "KG" in folded or "KILO" in folded or "QUILO" in folded or "PCT" in folded or "PACOTE" in folded:
+        folded = folded.replace("VAACUO", "VACUO")
+        if "SEM VACUO" in folded:
+            return "Macaxeira Sem V\u00e1cuo"
+        if "CASCA" in folded:
             return "Macaxeira com Casca (KG)"
-        if "VACUO" in folded and "SEM VACUO" not in folded:
-            return "Macaxeira a VÃ¡cuo"
+        if "VACUO" in folded:
+            return "Macaxeira a V\u00e1cuo"
+        if any(unit in folded for unit in ("KG", "KILO", "QUILO", "PCT", "PACOTE")):
+            return "Macaxeira com Casca (KG)"
     if pu in PRODUCT_CANONICAL:
         return PRODUCT_CANONICAL[pu]
     for k, v in PRODUCT_CANONICAL.items():
@@ -3203,13 +3208,16 @@ def client_sales_report(body: dict, x_token: str = Header("")):
             raise HTTPException(400, "Filtro de clientes ou produtos invalido.")
     client_filter = set(clients) if clients is not None else None
     product_filter = set(products) if products is not None else None
-    sales, by_product, by_client, by_month = [], {}, {}, {}
+    sales, by_product, by_client, by_month, outside_clients = [], {}, {}, {}, {}
     for row in _client_sales_report_rows(start_month, end_month):
         client = (row["client"] or "").strip()
         product = norm_p(row["product"], row["sale_type"]) if (row["product"] or "").strip() else "Sem produto"
-        if client_filter is not None and client not in client_filter:
-            continue
         if product_filter is not None and product not in product_filter:
+            continue
+        if client_filter is not None and client not in client_filter:
+            item = outside_clients.setdefault(product, {"name": product, "records": 0, "total": 0})
+            item["records"] += 1
+            item["total"] += float(row["total"] or 0)
             continue
         row["product"] = product
         sales.append(row)
@@ -3245,6 +3253,7 @@ def client_sales_report(body: dict, x_token: str = Header("")):
             "clients": sorted(by_client.values(), key=lambda r: (-r["total"], r["name"])),
             "monthly": monthly_rows,
             "products_without_sales": sorted(product_filter - by_product.keys()) if product_filter is not None else [],
+            "products_outside_clients": sorted(outside_clients.values(), key=lambda r: r["name"]),
             "sales": sales}
 
 
