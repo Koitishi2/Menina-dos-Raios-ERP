@@ -3152,6 +3152,86 @@ def client_monthly_report(client_id:str,start_month:str,end_month:str,x_token:st
             "sales":[dict(r) for r in rows]}
 
 
+def _client_sales_report_range(start_month, end_month):
+    from datetime import datetime
+    try:
+        start = datetime.strptime(str(start_month), "%Y-%m")
+        end = datetime.strptime(str(end_month), "%Y-%m")
+        if start.strftime("%Y-%m") != start_month or end.strftime("%Y-%m") != end_month:
+            raise ValueError()
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Informe os meses no formato AAAA-MM.")
+    months = (end.year - start.year) * 12 + end.month - start.month
+    if months < 0 or months > 35:
+        raise HTTPException(400, "Selecione um periodo de ate 36 meses, em ordem cronologica.")
+    next_year, next_month = (end.year + 1, 1) if end.month == 12 else (end.year, end.month + 1)
+    return start.strftime("%Y-%m-01"), f"{next_year}-{next_month:02d}-01"
+
+
+def _client_sales_report_rows(start_month, end_month):
+    start_date, next_month = _client_sales_report_range(start_month, end_month)
+    conn = get_db()
+    try:
+        rows = conn.execute("""SELECT id, sale_date, sale_time, sale_type, client, product,
+            quantity, unit_price, total
+            FROM sales WHERE sale_type!='AVARIA' AND sale_date>=? AND sale_date<?
+            ORDER BY sale_date DESC, sale_time DESC, id DESC LIMIT 20001""",
+            (start_date, next_month)).fetchall()
+        if len(rows) > 20000:
+            raise HTTPException(400, "Periodo com mais de 20.000 itens. Reduza o intervalo de meses.")
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+@app.get("/api/clients/sales-report/options")
+def client_sales_report_options(start_month: str, end_month: str, x_token: str = Header("")):
+    require_auth(x_token)
+    rows = _client_sales_report_rows(start_month, end_month)
+    return {"clients": sorted({(r["client"] or "").strip() for r in rows if (r["client"] or "").strip()}),
+            "products": sorted({norm_p(r["product"], r["sale_type"]) for r in rows if (r["product"] or "").strip()})}
+
+
+@app.post("/api/clients/sales-report")
+def client_sales_report(body: dict, x_token: str = Header("")):
+    require_auth(x_token)
+    start_month, end_month = body.get("start_month"), body.get("end_month")
+    clients, products = body.get("clients"), body.get("products")
+    for selected in (clients, products):
+        if selected is not None and (not isinstance(selected, list) or len(selected) > 2000 or
+                                     any(not isinstance(value, str) or len(value) > 200 for value in selected)):
+            raise HTTPException(400, "Filtro de clientes ou produtos invalido.")
+    client_filter = set(clients) if clients is not None else None
+    product_filter = set(products) if products is not None else None
+    sales, by_product, by_client, by_month = [], {}, {}, {}
+    for row in _client_sales_report_rows(start_month, end_month):
+        client = (row["client"] or "").strip()
+        product = norm_p(row["product"], row["sale_type"]) if (row["product"] or "").strip() else "Sem produto"
+        if client_filter is not None and client not in client_filter:
+            continue
+        if product_filter is not None and product not in product_filter:
+            continue
+        row["product"] = product
+        sales.append(row)
+        month = row["sale_date"][:7]
+        monthly = by_month.setdefault(month, {"month": month, "total": 0, "records": 0})
+        monthly["total"] += float(row["total"] or 0)
+        monthly["records"] += 1
+        for bucket, key in ((by_product, product), (by_client, client or "Sem cliente")):
+            item = bucket.setdefault(key, {"name": key, "quantity": 0, "total": 0, "records": 0})
+            item["quantity"] += float(row["quantity"] or 0)
+            item["total"] += float(row["total"] or 0)
+            item["records"] += 1
+    return {"start_month": start_month, "end_month": end_month,
+            "summary": {"total_value": sum(float(r["total"] or 0) for r in sales),
+                        "quantity": sum(float(r["quantity"] or 0) for r in sales),
+                        "records": len(sales), "clients": len(by_client), "products": len(by_product)},
+            "products": sorted(by_product.values(), key=lambda r: (-r["total"], r["name"])),
+            "clients": sorted(by_client.values(), key=lambda r: (-r["total"], r["name"])),
+            "monthly": sorted(by_month.values(), key=lambda r: r["month"]),
+            "sales": sales}
+
+
 @app.post("/api/admin/migrate-products")
 def migrate_products(x_token:str=Header("")):
     """Aplica norm_p a TODAS as vendas â€” unifica capitalizaÃ§Ã£o, acentos e

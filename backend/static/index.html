@@ -3330,6 +3330,34 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
 .today-note{color:var(--muted);font-size:12px;margin:0}
 @media(max-width:1000px){.today-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.today-grid{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:520px){.today-head{align-items:center}.today-head h2{font-size:21px}.today-kpi{padding:12px}.today-kpi strong{font-size:20px}.today-row{padding:11px}.today-row button{white-space:nowrap}}
+.client-sales-report-filters{display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin:14px 0 20px}
+.client-sales-report-mode{display:flex;border:1px solid var(--border);padding:3px;gap:3px;align-self:end}
+.client-sales-report-mode button{border:0;background:transparent;color:var(--muted);padding:8px 12px;cursor:pointer;font:inherit;font-size:12px;font-weight:700}
+.client-sales-report-mode button.active{background:var(--g800);color:white}
+.client-sales-report-filters>label{display:grid;gap:5px;font-size:11px;font-weight:700;color:var(--muted)}
+.client-sales-report-filters>label input{min-width:150px}
+.client-sales-report-pick{position:relative;display:grid;gap:5px;min-width:170px;font-size:11px}
+.client-sales-report-pick>button{text-align:left}
+.client-sales-report-picker{position:absolute;z-index:30;top:100%;left:0;width:min(320px,85vw);max-height:300px;overflow:auto;background:var(--card);border:1px solid var(--border);box-shadow:0 10px 24px #0002;padding:9px}
+.client-sales-report-picker[hidden]{display:none}
+.client-sales-report-picker>input{width:100%;padding:8px;margin-bottom:5px;border:1px solid var(--border);background:var(--card);color:var(--ink)}
+.client-sales-report-picker label{display:flex;align-items:center;gap:7px;padding:5px;font-size:12px;cursor:pointer}
+.client-sales-report-picker label[hidden]{display:none}
+.client-sales-report-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:18px}
+.client-sales-report-kpis>div{border:1px solid var(--border);background:var(--card);padding:12px;min-width:0}
+.client-sales-report-kpis small{display:block;color:var(--muted);font-size:10px}.client-sales-report-kpis strong{display:block;margin-top:5px;font-size:18px;overflow-wrap:anywhere}
+.client-sales-report-layout{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(280px,.8fr);gap:16px;align-items:start}
+.client-sales-report-section{border:1px solid var(--border);background:var(--card);padding:16px;margin-bottom:16px;min-width:0}
+.client-sales-report-section h3{font-size:14px;margin:0 0 14px}
+.client-sales-report-bar{display:grid;grid-template-columns:70px minmax(0,1fr) 110px;gap:10px;align-items:center;margin:10px 0;font-size:11px}
+.client-sales-report-bar>div{height:9px;background:var(--g50)}.client-sales-report-bar i{display:block;height:100%;background:var(--g800)}.client-sales-report-bar strong{text-align:right}
+.client-sales-report-table{overflow:auto;max-height:420px;border:1px solid var(--border);margin-bottom:20px;background:var(--card)}
+.client-sales-report-table table{border-collapse:collapse;width:100%;min-width:620px;font-size:12px}
+.client-sales-report-table th,.client-sales-report-table td{padding:9px;border-bottom:1px solid var(--border);text-align:left}
+.client-sales-report-table th{position:sticky;top:0;background:var(--g50)}
+.client-sales-report-table .num{text-align:right;white-space:nowrap}
+@media(max-width:900px){.client-sales-report-layout{grid-template-columns:1fr}}
+@media(max-width:700px){.client-sales-report-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.client-sales-report-filters>label{flex:1 1 130px}.client-sales-report-pick{flex:1 1 130px}}
 </style>
 </head>
 <body>
@@ -4009,6 +4037,10 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
           style="padding:6px 16px;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);display:flex;align-items:center;gap:5px">
           📊 Análise
         </button>
+        <button id="cv-btn-relatorio" onclick="switchClientView('relatorio')"
+          style="padding:6px 16px;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);display:flex;align-items:center;gap:5px">
+          Relatório
+        </button>
         <button id="cv-btn-oportunidades" onclick="switchClientView('oportunidades')"
           style="padding:6px 16px;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);display:flex;align-items:center;gap:5px">
           🎯 Oportunidades
@@ -4027,6 +4059,19 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
         <div class="search-box"><input type="text" id="client-search" placeholder="Buscar cliente..." oninput="searchClients(event)"></div>
         <button class="btn btn-primary btn-sm" onclick="openClientModal()">+ Novo</button>
       </div>
+    </div>
+    <div id="cv-relatorio" style="display:none">
+      <div class="workspace-intro"><div><h2>Relatório de vendas</h2><p>Resultados comerciais no período selecionado.</p></div></div>
+      <div class="client-sales-report-filters">
+        <div class="client-sales-report-mode" role="group" aria-label="Tipo de relatório"><button type="button" id="csr-mode-portfolio" class="active" onclick="setClientSalesReportMode('portfolio')">Portfólio</button><button type="button" id="csr-mode-internal" onclick="setClientSalesReportMode('internal')">Detalhado</button></div>
+        <label>De<input id="csr-start" type="month" class="filt" onchange="loadClientSalesReportOptions()"></label>
+        <label>Até<input id="csr-end" type="month" class="filt" onchange="loadClientSalesReportOptions()"></label>
+        <div class="client-sales-report-pick"><strong>Clientes</strong><button type="button" id="csr-clients-toggle" class="btn btn-secondary btn-sm" onclick="toggleClientSalesReportPicker('clients')">Todos</button><div id="csr-clients-picker" class="client-sales-report-picker" hidden><input type="search" placeholder="Buscar cliente" oninput="filterClientSalesReportPicker('clients',this.value)"><label><input type="checkbox" id="csr-clients-all" checked onchange="selectAllClientSalesReport('clients',this.checked)"> Todos os clientes</label><div id="csr-clients-options"></div></div></div>
+        <div class="client-sales-report-pick"><strong>Produtos</strong><button type="button" id="csr-products-toggle" class="btn btn-secondary btn-sm" onclick="toggleClientSalesReportPicker('products')">Todos</button><div id="csr-products-picker" class="client-sales-report-picker" hidden><input type="search" placeholder="Buscar produto" oninput="filterClientSalesReportPicker('products',this.value)"><button type="button" class="btn btn-secondary btn-sm" onclick="selectVisibleClientSalesReportProducts()">Selecionar resultados</button><label><input type="checkbox" id="csr-products-all" checked onchange="selectAllClientSalesReport('products',this.checked)"> Todos os produtos</label><div id="csr-products-options"></div></div></div>
+        <button type="button" class="btn btn-primary" onclick="loadClientSalesReport()">Gerar relatório</button>
+        <button type="button" id="csr-pdf" class="btn btn-secondary" onclick="downloadClientSalesReportPDF()" disabled>PDF</button>
+      </div>
+      <div id="csr-result" aria-live="polite"></div>
     </div>
     <!-- Analytics view (hidden by default) -->
     <div id="cv-analise" style="display:none">
@@ -10441,11 +10486,184 @@ function applyMonteiroCalendarPermUI(){
   if(view && view.style.display!=='none' && !canUseMonteiroCalendar()) switchPaladarTab('painel');
 }
 
+const clientSalesReportState={options:{clients:[],products:[]},selected:{clients:null,products:null},data:null,request:0,mode:'portfolio'};
+function setClientSalesReportMode(mode){
+  clientSalesReportState.mode=mode;
+  for(const name of ['portfolio','internal'])document.getElementById('csr-mode-'+name).classList.toggle('active',name===mode);
+  if(clientSalesReportState.data)renderClientSalesReport(clientSalesReportState.data);
+}
+function initClientSalesReport(){
+  const start=document.getElementById('csr-start'),end=document.getElementById('csr-end');
+  if(!start.value){const now=new Date();start.value=now.getFullYear()+'-01';end.value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');}
+  loadClientSalesReportOptions();
+}
+function clientSalesReportRange(){
+  const start=document.getElementById('csr-start').value,end=document.getElementById('csr-end').value;
+  if(!start||!end||start>end)throw new Error('Selecione um periodo valido.');
+  return {start_month:start,end_month:end};
+}
+async function loadClientSalesReportOptions(){
+  const state=clientSalesReportState,request=++state.request;
+  state.reportRequest=(state.reportRequest||0)+1;
+  state.data=null;document.getElementById('csr-pdf').disabled=true;
+  const result=document.getElementById('csr-result');result.textContent='Carregando filtros...';
+  try{
+    const range=clientSalesReportRange();
+    const data=await api('/api/clients/sales-report/options?start_month='+encodeURIComponent(range.start_month)+'&end_month='+encodeURIComponent(range.end_month));
+    if(request!==state.request)return;
+    state.options=data;
+    for(const kind of ['clients','products']){
+      if(state.selected[kind]!==null)state.selected[kind]=new Set([...state.selected[kind]].filter(value=>data[kind].includes(value)));
+      renderClientSalesReportPicker(kind);
+    }
+    result.textContent='Selecione os filtros e gere o relatorio.';
+  }catch(e){if(request===state.request)result.textContent=e.message;}
+}
+function toggleClientSalesReportPicker(kind){
+  const picker=document.getElementById('csr-'+kind+'-picker');
+  picker.hidden=!picker.hidden;
+}
+function filterClientSalesReportPicker(kind,query){
+  document.querySelectorAll('#csr-'+kind+'-options label').forEach(label=>{label.hidden=!label.textContent.toLocaleLowerCase('pt-BR').includes(query.toLocaleLowerCase('pt-BR'));});
+}
+function selectVisibleClientSalesReportProducts(){
+  const list=document.getElementById('csr-products-options');
+  const values=clientSalesReportState.options.products;
+  clientSalesReportState.selected.products=new Set([...list.querySelectorAll('label:not([hidden]) input')].map(input=>values[Number(input.dataset.index)]));
+  invalidateClientSalesReport();renderClientSalesReportPicker('products');
+}
+function selectAllClientSalesReport(kind,checked){
+  clientSalesReportState.selected[kind]=checked?null:new Set();
+  invalidateClientSalesReport();
+  renderClientSalesReportPicker(kind);
+}
+function invalidateClientSalesReport(){
+  clientSalesReportState.data=null;
+  clientSalesReportState.reportRequest=(clientSalesReportState.reportRequest||0)+1;
+  document.getElementById('csr-pdf').disabled=true;
+  document.getElementById('csr-result').textContent='Filtros alterados. Gere o relatorio novamente.';
+}
+function renderClientSalesReportPicker(kind){
+  const state=clientSalesReportState,values=state.options[kind],selected=state.selected[kind];
+  document.getElementById('csr-'+kind+'-all').checked=selected===null;
+  const list=document.getElementById('csr-'+kind+'-options');
+  list.innerHTML=values.map((value,index)=>'<label><input type="checkbox" data-index="'+index+'" '+(selected===null||selected.has(value)?'checked':'')+'> '+esc(value)+'</label>').join('')||'<span style="padding:8px;display:block;color:var(--muted)">Nenhum item no periodo.</span>';
+  list.onchange=function(e){
+    const index=Number(e.target.dataset.index);if(!Number.isInteger(index)||!values[index])return;
+    let choice=state.selected[kind];if(choice===null)choice=new Set(values);
+    if(e.target.checked)choice.add(values[index]);else choice.delete(values[index]);
+    state.selected[kind]=choice;
+    invalidateClientSalesReport();
+    renderClientSalesReportPicker(kind);
+  };
+  document.getElementById('csr-'+kind+'-toggle').textContent=selected===null?'Todos':selected.size+' de '+values.length;
+  const search=document.querySelector('#csr-'+kind+'-picker input[type="search"]');
+  if(search&&search.value)filterClientSalesReportPicker(kind,search.value);
+}
+function clientSalesReportPayload(){
+  const state=clientSalesReportState,range=clientSalesReportRange();
+  return {...range,clients:state.selected.clients===null?null:[...state.selected.clients],products:state.selected.products===null?null:[...state.selected.products]};
+}
+async function loadClientSalesReport(){
+  const state=clientSalesReportState,result=document.getElementById('csr-result');
+  state.data=null;document.getElementById('csr-pdf').disabled=true;result.textContent='Gerando relatorio...';
+  const request=state.reportRequest=(state.reportRequest||0)+1;
+  try{
+    const data=await api('/api/clients/sales-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(clientSalesReportPayload())});
+    if(request!==state.reportRequest)return;
+    state.data=data;renderClientSalesReport(data);document.getElementById('csr-pdf').disabled=!data.sales.length;
+  }catch(e){if(request===state.reportRequest){result.textContent=e.message;toast(e.message,'error');}}
+}
+function clientSalesReportTable(headers,rows){
+  return '<div class="client-sales-report-table"><table><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody></table></div>';
+}
+function renderClientSalesReport(d){
+  const money=v=>fmt(Number(v||0)),qty=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:2});
+  const kpis=[['Receita no período',money(d.summary.total_value)],['Produtos vendidos',d.summary.products],['Vendas',d.summary.records],['Clientes atendidos',d.summary.clients]];
+  const products=d.products.map(p=>'<tr><td>'+esc(p.name)+'</td><td class="num">'+qty(p.quantity)+'</td><td class="num">'+money(p.total)+'</td></tr>');
+  const clients=d.clients.map(c=>'<tr><td>'+esc(c.name)+'</td><td class="num">'+money(c.total)+'</td></tr>');
+  const sales=d.sales.map(s=>'<tr><td>'+esc(fmtDate(s.sale_date))+'</td><td>'+esc(s.client||'Sem cliente')+'</td><td>'+esc(s.product)+'</td><td class="num">'+qty(s.quantity)+'</td><td class="num">'+money(s.total)+'</td></tr>');
+  const isInternal=clientSalesReportState.mode==='internal';
+  const maxMonth=Math.max(1,...d.monthly.map(m=>Number(m.total||0)));
+  const monthly=d.monthly.map(m=>'<div class="client-sales-report-bar"><span>'+esc(m.month)+'</span><div><i style="width:'+Math.max(0,Math.min(100,100*Number(m.total||0)/maxMonth))+'%"></i></div><strong>'+money(m.total)+'</strong></div>').join('');
+  document.getElementById('csr-result').innerHTML='<div class="client-sales-report-kpis">'+kpis.map(k=>'<div><small>'+k[0]+'</small><strong>'+k[1]+'</strong></div>').join('')+'</div>'
+    +'<div class="client-sales-report-layout"><div>'
+    +(monthly?'<section class="client-sales-report-section"><h3>Evolução mensal</h3>'+monthly+'</section>':'')
+    +'<section class="client-sales-report-section"><h3>Produtos mais vendidos</h3>'+(products.length?clientSalesReportTable(['Produto','Quantidade','Receita'],products):'<p>Nenhuma venda encontrada para esses filtros.</p>')+'</section></div>'
+    +(clients.length?'<section class="client-sales-report-section"><h3>Clientes atendidos</h3>'+clientSalesReportTable(['Cliente','Receita'],clients)+'</section>':'')+'</div>'
+    +(isInternal&&sales.length?'<section class="client-sales-report-section"><h3>Vendas incluídas ('+sales.length+')</h3>'+clientSalesReportTable(['Data','Cliente','Produto','Quantidade','Total'],sales)+'</section>':'');
+}
+async function downloadClientSalesPortfolioPDF(d){
+  const pdf=new window.jspdf.jsPDF({unit:'mm',format:'a4'}),W=210,M=16,primary=brandPrimary();
+  const company=ORC_COMPANIES[activeCompany]||ORC_COMPANIES.raios;
+  const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const qty=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:2});
+  const logo=await loadReportLogoDataUrl(company.logo_print||company.logo);
+  let y=0;
+  const txt=(value,x,top,size=9,color='#172033',bold=false,align='left')=>{pdf.setFont('helvetica',bold?'bold':'normal');pdf.setFontSize(size);pdf.setTextColor(color);pdf.text(String(value),x,top,{align});};
+  const block=(color,x,top,w,h)=>{pdf.setFillColor(color);pdf.rect(x,top,w,h,'F');};
+  const newPage=()=>{if(y)pdf.addPage();block('#FFFFFF',0,0,W,297);block(primary,0,0,W,9);txt(company.nome_fantasia,M,23,10,primary,true);if(logo)pdf.addImage(logo,'JPEG',W-M-21,12,20,20,'','FAST');y=34;};
+  const ensure=h=>{if(y+h>277)newPage();};
+  const heading=title=>{ensure(15);txt(title,M,y,12,primary,true);y+=9;pdf.setDrawColor(215,225,220);pdf.line(M,y,W-M,y);y+=6;};
+  const row=(left,right,shade=false)=>{const lines=pdf.splitTextToSize(String(left),130);const h=Math.max(9,lines.length*4+4);ensure(h);if(shade)block('#F2F6F4',M,y-5,W-M*2,h);pdf.setFont('helvetica','normal');pdf.setFontSize(8);pdf.setTextColor('#172033');pdf.text(lines,M+3,y);txt(right,W-M-3,y,8,primary,true,'right');y+=h;};
+  newPage();
+  y=49;txt('RESULTADOS COMERCIAIS',M,y,18,primary,true);y+=9;
+  txt(d.start_month+' a '+d.end_month,M,y,10,'#52645B');y+=14;
+  const selectedProducts=clientSalesReportState.selected.products,selectedClients=clientSalesReportState.selected.clients;
+  const scope='Produtos: '+(selectedProducts===null?'todos':selectedProducts.size<=5?[...selectedProducts].join(', '):selectedProducts.size+' selecionados')
+    +'  |  Clientes: '+(selectedClients===null?'todos':selectedClients.size+' selecionados');
+  pdf.setFont('helvetica','normal');pdf.setFontSize(8);pdf.setTextColor('#52645B');
+  const scopeLines=pdf.splitTextToSize(scope,W-M*2);pdf.text(scopeLines,M,y);y+=scopeLines.length*4+7;
+  const cards=[['Receita bruta',money(d.summary.total_value)],['Registros de venda',String(d.summary.records)],['Clientes atendidos',String(d.summary.clients)]];
+  cards.forEach((card,index)=>{const x=M+index*61;block(index===0?primary:'#EDF4EF',x,y,58,25);txt(card[0],x+4,y+8,7,index===0?'#FFFFFF':'#52645B');txt(card[1],x+4,y+18,index===0?11:12,index===0?'#FFFFFF':primary,true);});y+=37;
+  txt('Dados consolidados de vendas realizadas no periodo.',M,y,8,'#52645B');y+=15;
+  heading('Evolucao mensal');
+  const maxMonth=Math.max(1,...d.monthly.map(m=>Number(m.total||0)));
+  d.monthly.forEach(m=>{ensure(12);txt(m.month,M,y,8,'#172033',true);block('#E9F1EC',M+34,y-5,95,6);block(primary,M+34,y-5,95*Number(m.total||0)/maxMonth,6);txt(money(m.total),W-M,y,8,primary,true,'right');y+=11;});
+  y+=6;heading('Produtos mais vendidos');
+  txt('Quantidade registrada por produto; unidades podem variar entre produtos.',M,y,7,'#52645B');y+=8;
+  d.products.forEach((p,index)=>row((index+1)+'. '+p.name+'  |  '+qty(p.quantity)+' de quantidade',money(p.total),index%2===0));
+  y+=5;heading('Clientes atendidos');
+  d.clients.forEach((c,index)=>row((index+1)+'. '+c.name,money(c.total),index%2===0));
+  const pages=pdf.internal.getNumberOfPages();for(let page=1;page<=pages;page++){pdf.setPage(page);pdf.setDrawColor(215,225,220);pdf.line(M,283,W-M,283);txt('Fonte: vendas registradas no sistema | Receita bruta, nao lucro',M,289,7,'#52645B');txt(page+'/'+pages,W-M,289,7,'#52645B',false,'right');}
+  pdf.save('Portfolio_vendas_'+d.start_month+'_a_'+d.end_month+'.pdf');
+}
+async function downloadClientSalesReportPDF(){
+  const d=clientSalesReportState.data;
+  if(!d||!d.sales.length)return;
+  if(!window.jspdf||!window.jspdf.jsPDF){toast('Biblioteca PDF nao carregada.','error');return;}
+  const btn=document.getElementById('csr-pdf');btn.disabled=true;
+  try{
+    if(clientSalesReportState.mode==='portfolio'){
+      await downloadClientSalesPortfolioPDF(d);
+      return;
+    }
+    const pdf=new window.jspdf.jsPDF({unit:'mm',format:'a4'}),margin=13,width=184;
+    const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+    const qty=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:2});
+    let y=17;
+    function line(text,size=9,bold=false){pdf.setFont('helvetica',bold?'bold':'normal');pdf.setFontSize(size);const parts=pdf.splitTextToSize(String(text),width);for(const part of parts){if(y>270){pdf.addPage();y=16;}pdf.text(part,margin,y);y+=size*.43+1;}y+=2;}
+    const company=ORC_COMPANIES[activeCompany]||ORC_COMPANIES.raios;
+    line(company.nome_fantasia,15,true);line('Relatorio de vendas | '+d.start_month+' a '+d.end_month,10,true);
+    line('Clientes: '+(clientSalesReportState.selected.clients===null?'Todos':clientSalesReportState.selected.clients.size+' selecionados'),8);
+    line('Produtos: '+(clientSalesReportState.selected.products===null?'Todos':clientSalesReportState.selected.products.size+' selecionados'),8);
+    y+=3;line('Total vendido: '+money(d.summary.total_value)+' | Quantidade: '+qty(d.summary.quantity)+' | Registros: '+d.summary.records,9,true);
+    y+=4;line('Vendas por produto',11,true);
+    d.products.forEach(p=>line(p.name+' | '+qty(p.quantity)+' un. | '+p.records+' registros | '+money(p.total),8));
+    y+=4;line('Vendas por cliente',11,true);
+    d.clients.forEach(c=>line(c.name+' | '+qty(c.quantity)+' un. | '+money(c.total),8));
+    y+=4;line('Vendas incluidas',11,true);
+    d.sales.forEach(s=>line(fmtDate(s.sale_date)+' | '+(s.client||'Sem cliente')+' | '+s.product+' | '+qty(s.quantity)+' | '+money(s.total),8));
+    const pages=pdf.internal.getNumberOfPages();for(let page=1;page<=pages;page++){pdf.setPage(page);pdf.setFontSize(7);pdf.text('Pagina '+page+'/'+pages,197,290,{align:'right'});}
+    pdf.save('Relatorio_vendas_'+d.start_month+'_a_'+d.end_month+'.pdf');
+  }catch(e){toast(e.message,'error');}finally{btn.disabled=false;}
+}
+
 function switchClientView(view){
   if(view==='whatsapp'&&!managedModulePermission('clientes_whatsapp','view')){toast('Você não tem permissão para acessar esta sub-aba.','error');return;}
   if(view==='pedidos'&&!managedModulePermission('clientes_pedidos','view')){toast('Você não tem permissão para acessar esta sub-aba.','error');return;}
-  const panels={cadastro:'cv-cadastro',analise:'cv-analise',oportunidades:'cv-oportunidades',whatsapp:'cv-whatsapp',pedidos:'cv-pedidos'};
-  const btns={cadastro:'cv-btn-cadastro',analise:'cv-btn-analise',oportunidades:'cv-btn-oportunidades',whatsapp:'cv-btn-whatsapp',pedidos:'cv-btn-pedidos'};
+  const panels={cadastro:'cv-cadastro',analise:'cv-analise',relatorio:'cv-relatorio',oportunidades:'cv-oportunidades',whatsapp:'cv-whatsapp',pedidos:'cv-pedidos'};
+  const btns={cadastro:'cv-btn-cadastro',analise:'cv-btn-analise',relatorio:'cv-btn-relatorio',oportunidades:'cv-btn-oportunidades',whatsapp:'cv-btn-whatsapp',pedidos:'cv-btn-pedidos'};
   const act=document.getElementById('cv-cadastro-actions');
   // Hide all panels, deactivate all buttons
   Object.values(panels).forEach(function(id){const e=document.getElementById(id);if(e)e.style.display='none';});
@@ -10462,6 +10680,7 @@ function switchClientView(view){
   if(act)act.style.display=view==='cadastro'?'flex':'none';
   // Load data
   if(view==='analise')loadClientAnalytics();
+  if(view==='relatorio')initClientSalesReport();
   if(view==='oportunidades')loadOportunidades();
   if(view==='whatsapp' && window.ClientWhatsAppFoundation)window.ClientWhatsAppFoundation.load(_clients);
   if(view==='pedidos' && window.ClientOrdersFoundation)window.ClientOrdersFoundation.load();

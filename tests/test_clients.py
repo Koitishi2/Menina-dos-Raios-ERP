@@ -492,3 +492,47 @@ def test_client_can_be_ignored_and_restored_in_inactivity_alerts(isolated_app):
         headers=_headers(token),
     )
     assert client_name in [row["client"] for row in after.json()["inactive"]]
+
+
+def test_client_sales_report_filters_and_company_isolation(isolated_app):
+    client = isolated_app.client
+    token = _login(client)
+    headers = _headers(token)
+    _create_sale(client, token, client="Cliente Alfa", product="Produto Norte", quantity=10, unit_price=7)
+    _create_sale(client, token, client="Cliente Alfa", product="Produto Sul", sale_date="2026-02-10", quantity=4, unit_price=5)
+    _create_sale(client, token, client="Cliente Beta", product="Produto Norte", sale_date="2026-02-12", quantity=3, unit_price=7)
+    _create_sale(client, token, client="Cliente Beta", product="Produto Norte", sale_type="AVARIA", quantity=2, unit_price=7)
+
+    options = client.get("/api/clients/sales-report/options?start_month=2026-01&end_month=2026-02", headers=headers)
+    assert options.status_code == 200
+    assert options.json()["clients"] == ["Cliente Alfa", "Cliente Beta"]
+    assert options.json()["products"] == ["Produto Norte", "Produto Sul"]
+
+    payload = {"start_month": "2026-01", "end_month": "2026-02", "clients": ["Cliente Alfa"], "products": ["Produto Norte"]}
+    report = client.post("/api/clients/sales-report", headers=headers, json=payload)
+    assert report.status_code == 200
+    body = report.json()
+    assert body["summary"] == {"total_value": 70, "quantity": 10, "records": 1, "clients": 1, "products": 1}
+    assert body["products"][0]["name"] == "Produto Norte"
+    assert len(body["sales"]) == 1
+    assert "nf_number" not in body["sales"][0]
+    assert body["monthly"] == [{"month": "2026-01", "total": 70, "records": 1}]
+
+    multiple_products = client.post(
+        "/api/clients/sales-report", headers=headers,
+        json={**payload, "products": ["Produto Norte", "Produto Sul"]},
+    )
+    assert multiple_products.status_code == 200
+    assert multiple_products.json()["summary"]["records"] == 2
+    assert multiple_products.json()["summary"]["total_value"] == 90
+
+    all_report = client.post("/api/clients/sales-report", headers=headers, json={"start_month": "2026-01", "end_month": "2026-02", "clients": None, "products": None})
+    assert all_report.status_code == 200
+    assert all_report.json()["summary"]["records"] == 3
+    assert all_report.json()["summary"]["total_value"] == 111
+    assert client.post("/api/clients/sales-report", headers=headers, json={**payload, "clients": []}).json()["summary"]["records"] == 0
+    assert client.post("/api/clients/sales-report", headers=headers, json={**payload, "start_month": "2026-13"}).status_code == 400
+    assert client.post("/api/clients/sales-report", headers=headers, json={**payload, "end_month": "2026-01", "start_month": "2026-02"}).status_code == 400
+    assert client.post("/api/clients/sales-report", json=payload).status_code == 401
+    assert client.post("/api/clients/sales-report", headers=_headers(token, "estrada"), json=payload).json()["summary"]["records"] == 0
+    isolated_app.assert_real_unchanged()
