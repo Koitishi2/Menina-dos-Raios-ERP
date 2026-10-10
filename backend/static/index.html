@@ -3353,6 +3353,16 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
 .client-sales-report-section h3{font-size:14px;margin:0 0 14px}
 .client-sales-report-bar{display:grid;grid-template-columns:70px minmax(0,1fr) 110px;gap:10px;align-items:center;margin:10px 0;font-size:11px}
 .client-sales-report-bar>div{height:9px;background:var(--g50)}.client-sales-report-bar i{display:block;height:100%;background:var(--g800)}.client-sales-report-bar strong{text-align:right}
+.client-sales-report-month{border-top:1px solid var(--border);padding:12px 0}.client-sales-report-month:first-of-type{border-top:0;padding-top:0}
+.client-sales-report-month-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:8px}
+.client-sales-report-month-head strong{font-size:13px}.client-sales-report-month-head span{font-size:11px;color:var(--muted)}
+.client-sales-report-month-track{height:6px;background:var(--g50);margin-bottom:9px}.client-sales-report-month-track i{display:block;height:100%;background:var(--g800)}
+.client-sales-report-month-item{display:grid;grid-template-columns:minmax(0,1fr) 82px 108px;gap:8px;align-items:baseline;padding:5px 0;font-size:11px}
+.client-sales-report-month-item:not(:last-child){border-bottom:1px solid var(--border)}
+.client-sales-report-month-item span:first-child{min-width:0;overflow-wrap:anywhere}.client-sales-report-month-item small{display:block;color:var(--muted);font-size:10px}
+.client-sales-report-month-item span:nth-child(2),.client-sales-report-month-item strong{text-align:right;white-space:nowrap}
+.client-sales-report-note{font-size:11px;color:var(--muted);line-height:1.5;margin:0 0 12px}
+.client-sales-report-empty-products{padding:9px 11px;border-left:3px solid #d98c18;background:#fff8ec;color:#573c13;font-size:11px;margin-bottom:14px}
 .client-sales-report-table{overflow:auto;max-height:420px;border:1px solid var(--border);margin-bottom:20px;background:var(--card)}
 .client-sales-report-table table{border-collapse:collapse;width:100%;min-width:620px;font-size:12px}
 .client-sales-report-table th,.client-sales-report-table td{padding:9px;border-bottom:1px solid var(--border);text-align:left}
@@ -10579,6 +10589,17 @@ async function loadClientSalesReport(){
 function clientSalesReportTable(headers,rows){
   return '<div class="client-sales-report-table"><table><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody></table></div>';
 }
+function clientSalesReportMonthIsNext(previous,current){
+  if(!previous)return false;
+  const [year,month]=previous.split('-').map(Number);
+  return current===(month===12?(year+1)+'-01':year+'-'+String(month+1).padStart(2,'0'));
+}
+function clientSalesReportChange(current,previous){
+  if(previous===null)return '';
+  if(previous<=0)return current>0?'Sem venda no mês anterior':'Sem vendas';
+  const percent=100*(current-previous)/previous;
+  return (percent>=0?'+':'')+percent.toLocaleString('pt-BR',{maximumFractionDigits:1})+'% vs mês anterior';
+}
 function renderClientSalesReport(d){
   const money=v=>fmt(Number(v||0)),qty=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:2});
   const kpis=[['Receita no período',money(d.summary.total_value)],['Produtos vendidos',d.summary.products],['Vendas',d.summary.records],['Clientes atendidos',d.summary.clients]];
@@ -10587,48 +10608,144 @@ function renderClientSalesReport(d){
   const sales=d.sales.map(s=>'<tr><td>'+esc(fmtDate(s.sale_date))+'</td><td>'+esc(s.client||'Sem cliente')+'</td><td>'+esc(s.product)+'</td><td class="num">'+qty(s.quantity)+'</td><td class="num">'+money(s.total)+'</td></tr>');
   const isInternal=clientSalesReportState.mode==='internal';
   const maxMonth=Math.max(1,...d.monthly.map(m=>Number(m.total||0)));
-  const monthly=d.monthly.map(m=>'<div class="client-sales-report-bar"><span>'+esc(m.month)+'</span><div><i style="width:'+Math.max(0,Math.min(100,100*Number(m.total||0)/maxMonth))+'%"></i></div><strong>'+money(m.total)+'</strong></div>').join('');
+  const monthly=d.monthly.map((m,index)=>{
+    const previous=clientSalesReportMonthIsNext(d.monthly[index-1]?.month,m.month)?d.monthly[index-1]:null;
+    const change=previous?clientSalesReportChange(Number(m.total),Number(previous.total)):'';
+    const details=m.products.map(p=>{
+      const prior=previous?.products.find(item=>item.name===p.name);
+      const trend=previous?clientSalesReportChange(Number(p.total),Number(prior?.total||0)):'';
+      const share=m.total?Math.round(100*Number(p.total)/Number(m.total)):0;
+      return '<div class="client-sales-report-month-item"><span>'+esc(p.name)+'<small>'+share+'% do mês'+(trend?' · '+esc(trend):'')+'</small></span><span>'+qty(p.quantity)+' qtd.</span><strong>'+money(p.total)+'</strong></div>';
+    }).join('');
+    return '<div class="client-sales-report-month"><div class="client-sales-report-month-head"><strong>'+esc(m.month)+'</strong><span>'+money(m.total)+(change?' · '+esc(change):'')+'</span></div><div class="client-sales-report-month-track"><i style="width:'+Math.max(0,Math.min(100,100*Number(m.total||0)/maxMonth))+'%"></i></div>'+details+'</div>';
+  }).join('');
+  const noSales=d.products_without_sales?.length?'<div class="client-sales-report-empty-products">Sem vendas no período selecionado: '+d.products_without_sales.map(esc).join(', ')+'</div>':'';
   document.getElementById('csr-result').innerHTML='<div class="client-sales-report-kpis">'+kpis.map(k=>'<div><small>'+k[0]+'</small><strong>'+k[1]+'</strong></div>').join('')+'</div>'
+    +noSales
     +'<div class="client-sales-report-layout"><div>'
-    +(monthly?'<section class="client-sales-report-section"><h3>Evolução mensal</h3>'+monthly+'</section>':'')
+    +(monthly?'<section class="client-sales-report-section"><h3>Evolução mensal por produto</h3><p class="client-sales-report-note">Valores reais das vendas filtradas. Quantidades de produtos diferentes não são somadas; o mês atual pode estar incompleto.</p>'+monthly+'</section>':'')
     +'<section class="client-sales-report-section"><h3>Produtos mais vendidos</h3>'+(products.length?clientSalesReportTable(['Produto','Quantidade','Receita'],products):'<p>Nenhuma venda encontrada para esses filtros.</p>')+'</section></div>'
     +(clients.length?'<section class="client-sales-report-section"><h3>Clientes atendidos</h3>'+clientSalesReportTable(['Cliente','Receita'],clients)+'</section>':'')+'</div>'
     +(isInternal&&sales.length?'<section class="client-sales-report-section"><h3>Vendas incluídas ('+sales.length+')</h3>'+clientSalesReportTable(['Data','Cliente','Produto','Quantidade','Total'],sales)+'</section>':'');
 }
-async function downloadClientSalesPortfolioPDF(d){
-  const pdf=new window.jspdf.jsPDF({unit:'mm',format:'a4'}),W=210,M=16,primary=brandPrimary();
+async function downloadClientSalesPDF(d,detailed){
+  const pdf=new window.jspdf.jsPDF({unit:'mm',format:'a4'}),W=210,M=16,U=W-2*M,primary=brandPrimary();
   const company=ORC_COMPANIES[activeCompany]||ORC_COMPANIES.raios;
   const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
   const qty=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:2});
   const logo=await loadReportLogoDataUrl(company.logo_print||company.logo);
   let y=0;
-  const txt=(value,x,top,size=9,color='#172033',bold=false,align='left')=>{pdf.setFont('helvetica',bold?'bold':'normal');pdf.setFontSize(size);pdf.setTextColor(color);pdf.text(String(value),x,top,{align});};
+  const txt=(value,x,top,size=8,color='#172033',bold=false,align='left')=>{
+    pdf.setFont('helvetica',bold?'bold':'normal');pdf.setFontSize(size);pdf.setTextColor(color);
+    pdf.text(String(value),x,top,{align});
+  };
   const block=(color,x,top,w,h)=>{pdf.setFillColor(color);pdf.rect(x,top,w,h,'F');};
-  const newPage=()=>{if(y)pdf.addPage();block('#FFFFFF',0,0,W,297);block(primary,0,0,W,9);txt(company.nome_fantasia,M,23,10,primary,true);if(logo)pdf.addImage(logo,'JPEG',W-M-21,12,20,20,'','FAST');y=34;};
+  const newPage=()=>{
+    if(y)pdf.addPage();
+    block('#FFFFFF',0,0,W,297);block(primary,0,0,W,8);
+    txt(company.nome_fantasia,M,21,10,primary,true);
+    if(logo)pdf.addImage(logo,'JPEG',W-M-21,11,20,20,'','FAST');
+    y=36;
+  };
   const ensure=h=>{if(y+h>277)newPage();};
-  const heading=title=>{ensure(15);txt(title,M,y,12,primary,true);y+=9;pdf.setDrawColor(215,225,220);pdf.line(M,y,W-M,y);y+=6;};
-  const row=(left,right,shade=false)=>{const lines=pdf.splitTextToSize(String(left),130);const h=Math.max(9,lines.length*4+4);ensure(h);if(shade)block('#F2F6F4',M,y-5,W-M*2,h);pdf.setFont('helvetica','normal');pdf.setFontSize(8);pdf.setTextColor('#172033');pdf.text(lines,M+3,y);txt(right,W-M-3,y,8,primary,true,'right');y+=h;};
+  const paragraph=(value,size=8,color='#52645B')=>{
+    pdf.setFont('helvetica','normal');pdf.setFontSize(size);
+    const lines=pdf.splitTextToSize(String(value),U);
+    ensure(lines.length*4+5);pdf.setTextColor(color);pdf.text(lines,M,y);y+=lines.length*4+5;
+  };
+  const heading=(title,note='')=>{
+    ensure(note?24:16);txt(title,M,y,12,primary,true);y+=7;
+    pdf.setDrawColor(215,225,220);pdf.line(M,y,W-M,y);y+=6;
+    if(note)paragraph(note,7);
+  };
+  const table=(headers,rows,widths,continuationLabel='')=>{
+    const drawHeader=()=>{
+      ensure(10);block('#EAF2ED',M,y,U,9);
+      let x=M;headers.forEach((label,index)=>{txt(label,x+2,y+6,7,primary,true);x+=widths[index];});y+=9;
+    };
+    drawHeader();
+    rows.forEach((cells,index)=>{
+      pdf.setFont('helvetica','normal');pdf.setFontSize(7.5);
+      const lines=cells.map((cell,col)=>pdf.splitTextToSize(String(cell),widths[col]-4));
+      const height=Math.max(8,...lines.map(part=>part.length*3.7+3));
+      if(y+height>277){
+        newPage();
+        if(continuationLabel){
+          block(primary,M,y,U,9);txt(continuationLabel+' (cont.)',M+3,y+6,8,'#FFFFFF',true);y+=9;
+        }
+        drawHeader();
+      }
+      if(index%2===0)block('#F5F8F6',M,y,U,height);
+      let x=M;
+      lines.forEach((part,col)=>{pdf.setTextColor('#172033');pdf.text(part,x+2,y+5);x+=widths[col];});
+      y+=height;
+    });
+    y+=6;
+  };
+  const monthlyChange=(current,previous)=>{
+    if(previous===null)return '-';
+    if(previous<=0)return current>0?'Sem base':'-';
+    const percent=100*(current-previous)/previous;
+    return (percent>=0?'+':'')+percent.toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
+  };
   newPage();
-  y=49;txt('RESULTADOS COMERCIAIS',M,y,18,primary,true);y+=9;
-  txt(d.start_month+' a '+d.end_month,M,y,10,'#52645B');y+=14;
+  y=49;txt(detailed?'RELATORIO DETALHADO DE VENDAS':'RESULTADOS COMERCIAIS',M,y,17,primary,true);y+=8;
+  txt(d.start_month+' a '+d.end_month,M,y,10,'#52645B');y+=10;
   const selectedProducts=clientSalesReportState.selected.products,selectedClients=clientSalesReportState.selected.clients;
-  const scope='Produtos: '+(selectedProducts===null?'todos':selectedProducts.size<=5?[...selectedProducts].join(', '):selectedProducts.size+' selecionados')
-    +'  |  Clientes: '+(selectedClients===null?'todos':selectedClients.size+' selecionados');
-  pdf.setFont('helvetica','normal');pdf.setFontSize(8);pdf.setTextColor('#52645B');
-  const scopeLines=pdf.splitTextToSize(scope,W-M*2);pdf.text(scopeLines,M,y);y+=scopeLines.length*4+7;
-  const cards=[['Receita bruta',money(d.summary.total_value)],['Registros de venda',String(d.summary.records)],['Clientes atendidos',String(d.summary.clients)]];
-  cards.forEach((card,index)=>{const x=M+index*61;block(index===0?primary:'#EDF4EF',x,y,58,25);txt(card[0],x+4,y+8,7,index===0?'#FFFFFF':'#52645B');txt(card[1],x+4,y+18,index===0?11:12,index===0?'#FFFFFF':primary,true);});y+=37;
-  txt('Dados consolidados de vendas realizadas no periodo.',M,y,8,'#52645B');y+=15;
-  heading('Evolucao mensal');
-  const maxMonth=Math.max(1,...d.monthly.map(m=>Number(m.total||0)));
-  d.monthly.forEach(m=>{ensure(12);txt(m.month,M,y,8,'#172033',true);block('#E9F1EC',M+34,y-5,95,6);block(primary,M+34,y-5,95*Number(m.total||0)/maxMonth,6);txt(money(m.total),W-M,y,8,primary,true,'right');y+=11;});
-  y+=6;heading('Produtos mais vendidos');
-  txt('Quantidade registrada por produto; unidades podem variar entre produtos.',M,y,7,'#52645B');y+=8;
-  d.products.forEach((p,index)=>row((index+1)+'. '+p.name+'  |  '+qty(p.quantity)+' de quantidade',money(p.total),index%2===0));
-  y+=5;heading('Clientes atendidos');
-  d.clients.forEach((c,index)=>row((index+1)+'. '+c.name,money(c.total),index%2===0));
-  const pages=pdf.internal.getNumberOfPages();for(let page=1;page<=pages;page++){pdf.setPage(page);pdf.setDrawColor(215,225,220);pdf.line(M,283,W-M,283);txt('Fonte: vendas registradas no sistema | Receita bruta, nao lucro',M,289,7,'#52645B');txt(page+'/'+pages,W-M,289,7,'#52645B',false,'right');}
-  pdf.save('Portfolio_vendas_'+d.start_month+'_a_'+d.end_month+'.pdf');
+  paragraph('Produtos: '+(selectedProducts===null?'todos':[...selectedProducts].join(', ')||'nenhum')+
+    '  |  Clientes: '+(selectedClients===null?'todos':selectedClients.size+' selecionados'),8);
+  ensure(32);
+  const cards=[['Receita bruta',money(d.summary.total_value)],['Vendas',String(d.summary.records)],['Clientes',String(d.summary.clients)]];
+  cards.forEach((card,index)=>{
+    const x=M+index*60;block(index===0?primary:'#EDF4EF',x,y,57,25);
+    txt(card[0],x+4,y+8,7,index===0?'#FFFFFF':'#52645B');
+    txt(card[1],x+4,y+18,index===0?11:12,index===0?'#FFFFFF':primary,true);
+  });y+=34;
+  if(d.products_without_sales?.length){
+    paragraph('Sem vendas no periodo selecionado: '+d.products_without_sales.join(', '),8,'#9A5A10');
+  }
+  paragraph('Receita bruta registrada, nao lucro. Quantidades de produtos diferentes nao sao somadas. O mes atual pode estar incompleto.',7);
+  heading('Evolucao mensal por produto','Cada mes mostra a receita real, a quantidade e a participacao de cada produto. A variacao compara somente meses consecutivos.');
+  d.monthly.forEach((month,index)=>{
+    const prior=clientSalesReportMonthIsNext(d.monthly[index-1]?.month,month.month)?d.monthly[index-1]:null;
+    ensure(Math.min(240,25+month.products.length*12));
+    block(primary,M,y,U,10);
+    txt(month.month,M+3,y+7,9,'#FFFFFF',true);
+    txt(money(month.total)+'  |  '+monthlyChange(Number(month.total),prior?Number(prior.total):null),W-M-3,y+7,8,'#FFFFFF',true,'right');
+    y+=10;
+    const rows=month.products.map(product=>{
+      const previous=prior?.products.find(item=>item.name===product.name);
+      return [product.name,qty(product.quantity),money(product.total),
+        month.total?Math.round(100*Number(product.total)/Number(month.total))+'%':'0%',
+        monthlyChange(Number(product.total),prior?Number(previous?.total||0):null)];
+    });
+    table(['Produto','Qtd.','Receita','Parte','Vs. mes'],rows,[67,20,43,20,28],month.month);
+  });
+  heading('Produtos no periodo','Receita e quantidade de cada produto dentro dos filtros escolhidos.');
+  table(['Produto','Qtd.','Vendas','Receita','Parte'],d.products.map(p=>[
+    p.name,qty(p.quantity),String(p.records),money(p.total),
+    d.summary.total_value?Math.round(100*Number(p.total)/Number(d.summary.total_value))+'%':'0%'
+  ]),[74,24,20,42,18]);
+  heading('Clientes atendidos');
+  table(['Cliente','Vendas','Receita'],d.clients.map(c=>[c.name,String(c.records),money(c.total)]),[109,25,44]);
+  if(detailed){
+    heading('Lancamentos incluidos','Consulta dos registros que formam os totais acima, agrupados por mes.');
+    d.monthly.forEach(month=>{
+      ensure(20);block(primary,M,y,U,9);txt(month.month,M+3,y+6,8,'#FFFFFF',true);y+=9;
+      const rows=d.sales.filter(s=>s.sale_date?.startsWith(month.month)).map(s=>[
+        s.sale_date?.slice(8,10)+'/'+s.sale_date?.slice(5,7),s.client||'Sem cliente',s.product,
+        qty(s.quantity),money(s.total)
+      ]);
+      table(['Data','Cliente','Produto','Qtd.','Total'],rows,[20,52,53,19,34],month.month);
+    });
+  }
+  const pages=pdf.internal.getNumberOfPages();
+  for(let page=1;page<=pages;page++){
+    pdf.setPage(page);pdf.setDrawColor(215,225,220);pdf.line(M,283,W-M,283);
+    txt('Fonte: vendas registradas no sistema | Sem numeros de NF',M,289,7,'#52645B');
+    txt(page+'/'+pages,W-M,289,7,'#52645B',false,'right');
+  }
+  pdf.save((detailed?'Relatorio_vendas_':'Portfolio_vendas_')+d.start_month+'_a_'+d.end_month+'.pdf');
 }
 async function downloadClientSalesReportPDF(){
   const d=clientSalesReportState.data;
@@ -10636,28 +10753,7 @@ async function downloadClientSalesReportPDF(){
   if(!window.jspdf||!window.jspdf.jsPDF){toast('Biblioteca PDF nao carregada.','error');return;}
   const btn=document.getElementById('csr-pdf');btn.disabled=true;
   try{
-    if(clientSalesReportState.mode==='portfolio'){
-      await downloadClientSalesPortfolioPDF(d);
-      return;
-    }
-    const pdf=new window.jspdf.jsPDF({unit:'mm',format:'a4'}),margin=13,width=184;
-    const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-    const qty=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:2});
-    let y=17;
-    function line(text,size=9,bold=false){pdf.setFont('helvetica',bold?'bold':'normal');pdf.setFontSize(size);const parts=pdf.splitTextToSize(String(text),width);for(const part of parts){if(y>270){pdf.addPage();y=16;}pdf.text(part,margin,y);y+=size*.43+1;}y+=2;}
-    const company=ORC_COMPANIES[activeCompany]||ORC_COMPANIES.raios;
-    line(company.nome_fantasia,15,true);line('Relatorio de vendas | '+d.start_month+' a '+d.end_month,10,true);
-    line('Clientes: '+(clientSalesReportState.selected.clients===null?'Todos':clientSalesReportState.selected.clients.size+' selecionados'),8);
-    line('Produtos: '+(clientSalesReportState.selected.products===null?'Todos':clientSalesReportState.selected.products.size+' selecionados'),8);
-    y+=3;line('Total vendido: '+money(d.summary.total_value)+' | Quantidade: '+qty(d.summary.quantity)+' | Registros: '+d.summary.records,9,true);
-    y+=4;line('Vendas por produto',11,true);
-    d.products.forEach(p=>line(p.name+' | '+qty(p.quantity)+' un. | '+p.records+' registros | '+money(p.total),8));
-    y+=4;line('Vendas por cliente',11,true);
-    d.clients.forEach(c=>line(c.name+' | '+qty(c.quantity)+' un. | '+money(c.total),8));
-    y+=4;line('Vendas incluidas',11,true);
-    d.sales.forEach(s=>line(fmtDate(s.sale_date)+' | '+(s.client||'Sem cliente')+' | '+s.product+' | '+qty(s.quantity)+' | '+money(s.total),8));
-    const pages=pdf.internal.getNumberOfPages();for(let page=1;page<=pages;page++){pdf.setPage(page);pdf.setFontSize(7);pdf.text('Pagina '+page+'/'+pages,197,290,{align:'right'});}
-    pdf.save('Relatorio_vendas_'+d.start_month+'_a_'+d.end_month+'.pdf');
+    await downloadClientSalesPDF(d,clientSalesReportState.mode==='internal');
   }catch(e){toast(e.message,'error');}finally{btn.disabled=false;}
 }
 

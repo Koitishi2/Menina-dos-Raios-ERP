@@ -516,7 +516,9 @@ def test_client_sales_report_filters_and_company_isolation(isolated_app):
     assert body["products"][0]["name"] == "Produto Norte"
     assert len(body["sales"]) == 1
     assert "nf_number" not in body["sales"][0]
-    assert body["monthly"] == [{"month": "2026-01", "total": 70, "records": 1}]
+    assert body["monthly"] == [{"month": "2026-01", "total": 70, "records": 1,
+                                "products": [{"name": "Produto Norte", "quantity": 10,
+                                              "total": 70, "records": 1}]}]
 
     multiple_products = client.post(
         "/api/clients/sales-report", headers=headers,
@@ -525,11 +527,33 @@ def test_client_sales_report_filters_and_company_isolation(isolated_app):
     assert multiple_products.status_code == 200
     assert multiple_products.json()["summary"]["records"] == 2
     assert multiple_products.json()["summary"]["total_value"] == 90
+    assert multiple_products.json()["monthly"][0]["products"][1] == {
+        "name": "Produto Sul", "quantity": 0, "total": 0, "records": 0}
+    assert multiple_products.json()["monthly"][1]["products"] == [
+        {"name": "Produto Sul", "quantity": 4, "total": 20, "records": 1},
+        {"name": "Produto Norte", "quantity": 0, "total": 0, "records": 0},
+    ]
+
+    no_sales = client.post(
+        "/api/clients/sales-report", headers=headers,
+        json={**payload, "products": ["Produto Norte", "Produto Sul"]},
+    ).json()
+    assert no_sales["products_without_sales"] == []
+    missing_product = client.post(
+        "/api/clients/sales-report", headers=headers,
+        json={**payload, "products": ["Produto Norte", "Produto Sem Venda"]},
+    ).json()
+    assert missing_product["products_without_sales"] == ["Produto Sem Venda"]
 
     all_report = client.post("/api/clients/sales-report", headers=headers, json={"start_month": "2026-01", "end_month": "2026-02", "clients": None, "products": None})
     assert all_report.status_code == 200
     assert all_report.json()["summary"]["records"] == 3
     assert all_report.json()["summary"]["total_value"] == 111
+    assert all_report.json()["monthly"][1]["products"] == [
+        {"name": "Produto Norte", "quantity": 3, "total": 21, "records": 1},
+        {"name": "Produto Sul", "quantity": 4, "total": 20, "records": 1},
+    ]
+    assert sum(month["total"] for month in all_report.json()["monthly"]) == all_report.json()["summary"]["total_value"]
     assert client.post("/api/clients/sales-report", headers=headers, json={**payload, "clients": []}).json()["summary"]["records"] == 0
     assert client.post("/api/clients/sales-report", headers=headers, json={**payload, "start_month": "2026-13"}).status_code == 400
     assert client.post("/api/clients/sales-report", headers=headers, json={**payload, "end_month": "2026-01", "start_month": "2026-02"}).status_code == 400

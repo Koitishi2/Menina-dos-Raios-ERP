@@ -3214,21 +3214,37 @@ def client_sales_report(body: dict, x_token: str = Header("")):
         row["product"] = product
         sales.append(row)
         month = row["sale_date"][:7]
-        monthly = by_month.setdefault(month, {"month": month, "total": 0, "records": 0})
+        monthly = by_month.setdefault(month, {"month": month, "total": 0, "records": 0, "products": {}})
         monthly["total"] += float(row["total"] or 0)
         monthly["records"] += 1
+        monthly_product = monthly["products"].setdefault(
+            product, {"name": product, "quantity": 0, "total": 0, "records": 0})
+        monthly_product["quantity"] += float(row["quantity"] or 0)
+        monthly_product["total"] += float(row["total"] or 0)
+        monthly_product["records"] += 1
         for bucket, key in ((by_product, product), (by_client, client or "Sem cliente")):
             item = bucket.setdefault(key, {"name": key, "quantity": 0, "total": 0, "records": 0})
             item["quantity"] += float(row["quantity"] or 0)
             item["total"] += float(row["total"] or 0)
             item["records"] += 1
+    monthly_rows = []
+    for month in sorted(by_month):
+        item = by_month[month]
+        if product_filter is not None and len(product_filter) <= 20:
+            for product in product_filter:
+                item["products"].setdefault(
+                    product, {"name": product, "quantity": 0, "total": 0, "records": 0})
+        monthly_rows.append({"month": month, "total": item["total"], "records": item["records"],
+                             "products": sorted(item["products"].values(),
+                                                key=lambda r: (-r["total"], r["name"]))})
     return {"start_month": start_month, "end_month": end_month,
             "summary": {"total_value": sum(float(r["total"] or 0) for r in sales),
                         "quantity": sum(float(r["quantity"] or 0) for r in sales),
                         "records": len(sales), "clients": len(by_client), "products": len(by_product)},
             "products": sorted(by_product.values(), key=lambda r: (-r["total"], r["name"])),
             "clients": sorted(by_client.values(), key=lambda r: (-r["total"], r["name"])),
-            "monthly": sorted(by_month.values(), key=lambda r: r["month"]),
+            "monthly": monthly_rows,
+            "products_without_sales": sorted(product_filter - by_product.keys()) if product_filter is not None else [],
             "sales": sales}
 
 

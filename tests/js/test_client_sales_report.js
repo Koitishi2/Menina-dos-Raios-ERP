@@ -14,7 +14,11 @@ for (const id of ["cv-btn-relatorio", "cv-relatorio", "csr-start", "csr-end", "c
   assert(html.includes(`id="${id}"`), `${id} is present`);
 }
 assert(html.includes("selectVisibleClientSalesReportProducts()"));
-assert(html.includes("downloadClientSalesPortfolioPDF(d)"));
+assert(html.includes("downloadClientSalesPDF(d,clientSalesReportState.mode==='internal')"));
+assert(html.includes("Evolução mensal por produto"));
+assert(html.includes("products_without_sales"));
+assert(html.includes("['Produto','Qtd.','Receita','Parte','Vs. mes']"));
+assert(html.includes("['Data','Cliente','Produto','Qtd.','Total']"));
 assert(html.includes('.client-sales-report-picker label input[type="checkbox"]{flex:0 0 16px;width:16px!important'));
 assert(html.includes("<span>'+esc(value)+'</span></label>"));
 
