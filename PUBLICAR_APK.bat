@@ -6,9 +6,6 @@ echo ============================================================
 echo  Menina dos Raios - Publicar APK Oficial
 echo ============================================================
 echo.
-echo APK fixo:
-echo C:\Users\adria\OneDrive\Documentos\vendas APK\Menina-dos-Raios-Vendas-OFICIAL.apk
-echo.
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0PUBLICAR_APK.ps1" %*
 if errorlevel 1 (
   echo.

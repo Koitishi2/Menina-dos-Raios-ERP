@@ -29,7 +29,7 @@ def tab_permissions_map_from_db(get_control_db_func)->dict:
 
 
 def permissions_configured_from_map(perms:dict)->bool:
-    return any(bool(v) for v in perms.values())
+    return any(bool(perms.get(role)) for role in ("viewer", "editor", "admin"))
 
 
 def session_has_any_tab_from_map(sess:dict, keys:list, perms:dict)->bool:

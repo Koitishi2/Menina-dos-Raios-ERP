@@ -1,12 +1,12 @@
-﻿{
-    "versionName":  "2.0.17",
-    "versionCode":  45,
+{
+    "versionName":  "2.0.21",
+    "versionCode":  49,
     "packageName":  "br.com.meninadosraios.vendas",
-    "sha256":  "fcf4a953d241b8646947264de9f96445ac45424a65c80aebbcc5208e19b9f801",
-    "releaseNotes":  "Corrige sincronizacao do Vale com client_id, backend passa a aceitar POST /api/mobile/vales e site ganha Monteiro \u003e Dados para vales.",
-    "notes":  "Corrige sincronizacao do Vale com client_id, backend passa a aceitar POST /api/mobile/vales e site ganha Monteiro \u003e Dados para vales.",
+    "sha256":  "270ce402d3c00f1ea802114e317a183984756c0a5e229f17cd9d50d5178d6b62",
+    "releaseNotes":  "n",
+    "notes":  "n",
     "apkFile":  "Menina-dos-Raios-Vendas-OFICIAL.apk",
     "apkUrl":  "https://sistema.meninadosraios.com.br/app-updates/Menina-dos-Raios-Vendas-OFICIAL.apk",
-    "sizeBytes":  2707259,
-    "publishedAt":  "2026-08-14T22:21:43-04:00"
+    "sizeBytes":  2716757,
+    "publishedAt":  "2026-10-05T07:22:43-03:00"
 }

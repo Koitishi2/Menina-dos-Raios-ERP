@@ -30,6 +30,16 @@ def _create_user(client, token, username, role="Cliente"):
     return response.json()["id"]
 
 
+def _seller_id(client, admin_token, company="raios", name="Vendedor RBAC"):
+    response = client.post(
+        "/api/sellers",
+        headers=_headers(admin_token, company),
+        json={"name": name},
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["seller"]["id"]
+
+
 def _insert_sales(db_path):
     rows = [
         ("uva-1", "NF", "2026-08-20", "Cliente A", "Uva Vitória", 2, 10, 20),
@@ -267,6 +277,7 @@ def test_custom_role_actions_are_enforced_per_product(isolated_app):
         "modules": {
             "menina_da_estrada": {
                 "consolidado": {"create": True},
+                "vendedores": {"view": True},
             }
         },
         "products": [{"product_id": uva["id"], "create": True}],
@@ -276,6 +287,7 @@ def test_custom_role_actions_are_enforced_per_product(isolated_app):
     _create_user(client, admin["token"], "operador_uva", role="operador_uva")
     login = _login(client, "operador_uva", "SenhaTeste123!", company="estrada")
     headers = _headers(login["token"], "estrada")
+    seller_id = _seller_id(client, admin["token"], "estrada")
 
     allowed = client.post(
         "/api/sales",
@@ -286,6 +298,7 @@ def test_custom_role_actions_are_enforced_per_product(isolated_app):
             "product": "Uva Vitória",
             "quantity": 1,
             "unit_price": 12,
+            "seller_id": seller_id,
         },
     )
     assert allowed.status_code == 200, allowed.text
@@ -298,6 +311,7 @@ def test_custom_role_actions_are_enforced_per_product(isolated_app):
             "product": "Macaxeira Chips",
             "quantity": 1,
             "unit_price": 12,
+            "seller_id": seller_id,
         },
     )
     assert denied.status_code == 404
@@ -350,3 +364,93 @@ def test_admin_can_switch_to_estrada_without_losing_area_access(isolated_app):
     assert permissions.status_code == 200
     assert permissions.json()["areas"]["menina_dos_raios"] is True
     assert permissions.json()["areas"]["menina_da_estrada"] is True
+
+
+def test_sellers_rbac_does_not_leak_monteiro_permission_to_main_context(isolated_app):
+    client = isolated_app.client
+    admin = _login(client)
+    admin_headers = _headers(admin["token"])
+    role_body = {
+        "key": "somente_monteiro_vendedor",
+        "name": "Somente Monteiro Vendedor",
+        "active": True,
+        "product_scope_mode": "all",
+        "areas": {"monteiro": True},
+        "modules": {"monteiro": {"vendedores": {"view": True, "create": True}}},
+        "products": [],
+    }
+    assert client.post("/api/admin/roles", headers=admin_headers, json=role_body).status_code == 200
+    _create_user(client, admin["token"], "monteiro_vendedor", role="somente_monteiro_vendedor")
+    login = _login(client, "monteiro_vendedor", "SenhaTeste123!", company="raios")
+
+    main_context = client.get("/api/sellers", headers=_headers(login["token"], "raios"))
+    monteiro_context = client.get(
+        "/api/sellers?module_context=monteiro",
+        headers=_headers(login["token"], "raios"),
+    )
+    estrada_context = client.get(
+        "/api/sellers?module_context=monteiro",
+        headers=_headers(login["token"], "estrada"),
+    )
+
+    assert main_context.status_code == 403
+    assert monteiro_context.status_code == 200
+    assert estrada_context.status_code == 403
+
+
+def test_sellers_rbac_is_scoped_by_company_area(isolated_app):
+    client = isolated_app.client
+    admin = _login(client)
+    admin_headers = _headers(admin["token"])
+    role_body = {
+        "key": "vendedor_raios_apenas",
+        "name": "Vendedor Raios Apenas",
+        "active": True,
+        "product_scope_mode": "all",
+        "areas": {"menina_dos_raios": True},
+        "modules": {"menina_dos_raios": {"vendedores": {"view": True, "create": True, "edit": True}}},
+        "products": [],
+    }
+    assert client.post("/api/admin/roles", headers=admin_headers, json=role_body).status_code == 200
+    _create_user(client, admin["token"], "vendedor_raios_user", role="vendedor_raios_apenas")
+    login = _login(client, "vendedor_raios_user", "SenhaTeste123!", company="raios")
+
+    assert client.get("/api/sellers", headers=_headers(login["token"], "raios")).status_code == 200
+    created = client.post(
+        "/api/sellers",
+        headers=_headers(login["token"], "raios"),
+        json={"name": "Vendedor Escopo Raios"},
+    )
+    assert created.status_code == 200
+    seller_id = created.json()["seller"]["id"]
+    assert client.post(
+        f"/api/sellers/{seller_id}/deactivate",
+        headers=_headers(login["token"], "raios"),
+    ).status_code == 200
+    assert client.get(
+        f"/api/sellers/{seller_id}/history",
+        headers=_headers(login["token"], "raios"),
+    ).status_code == 200
+    assert client.get("/api/sellers", headers=_headers(login["token"], "estrada")).status_code == 403
+
+
+def test_sale_rejects_seller_from_another_company(isolated_app):
+    client = isolated_app.client
+    admin = _login(client)
+    seller_id = _seller_id(client, admin["token"], "raios", name="Vendedor So Raios")
+
+    response = client.post(
+        "/api/sales",
+        headers=_headers(admin["token"], "estrada"),
+        json={
+            "sale_type": "NF",
+            "sale_date": "2026-08-26",
+            "product": "Uva Vitória",
+            "quantity": 1,
+            "unit_price": 12,
+            "seller_id": seller_id,
+        },
+    )
+
+    assert response.status_code == 400
+    assert "Vendedor nao encontrado" in response.json()["detail"]

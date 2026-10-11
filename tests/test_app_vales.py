@@ -173,6 +173,8 @@ def test_app_vale_actions_use_safe_delegated_handlers(isolated_app):
     assert 'data-app-vale-action="signature"' in html
     assert 'data-app-vale-action="delete"' in html
     assert "closest('[data-app-vale-action][data-app-vale-id]')" in html
+    assert 'closest(\'[data-app-vale-action="signature"][data-app-vale-id]\')' in html
+    assert "wrap.dataset.signatureClickBound='1'" in html
     assert 'onclick="showAppValeSignature(' not in html
     assert 'onclick="deleteAppVale(' not in html
     assert html.count("async function showAppValeSignature(id)") == 1

@@ -297,6 +297,9 @@ def test_permissions_tabs_module_permissions_configured_from_map_current_contrac
     assert permissions_tabs.permissions_configured_from_map(
         {"viewer": "", "editor": "clientes", "admin": []},
     ) is True
+    assert permissions_tabs.permissions_configured_from_map(
+        {"viewer": [], "editor": [], "admin": [], "_schemaVersion": 2},
+    ) is False
 
 
 def test_permissions_tabs_module_session_has_any_tab_from_map_current_contract():

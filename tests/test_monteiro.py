@@ -157,6 +157,16 @@ def _sale_payload(client="Cliente Monteiro Padrao", nf_number=None, **overrides)
     return payload
 
 
+def _seller_id(test_client, token, company="raios", name="Vendedor Monteiro"):
+    response = test_client.post(
+        "/api/sellers",
+        headers=_headers(token, company),
+        json={"name": name},
+    )
+    assert response.status_code == 200
+    return response.json()["seller"]["id"]
+
+
 def _payment_payload(client="Cliente Monteiro Padrao", amount=100, **overrides):
     payload = {
         "client": client,
@@ -182,20 +192,26 @@ def _post_product(test_client, token, company="raios", **overrides):
 
 
 def _post_sale(test_client, token, company="raios", **overrides):
+    payload = _sale_payload(**overrides)
+    if not payload.get("seller_id"):
+        payload["seller_id"] = _seller_id(test_client, token, "raios")
     response = test_client.post(
         "/api/monteiro/sales",
         headers=_headers(token, company),
-        json=_sale_payload(**overrides),
+        json=payload,
     )
     assert response.status_code == 200
     return response.json()
 
 
 def _post_paladar_sale(test_client, token, company="raios", **overrides):
+    payload = _sale_payload(**overrides)
+    if not payload.get("seller_id"):
+        payload["seller_id"] = _seller_id(test_client, token, "raios")
     response = test_client.post(
         "/api/paladar/sales",
         headers=_headers(token, company),
-        json=_sale_payload(**overrides),
+        json=payload,
     )
     assert response.status_code == 200
     return response.json()
@@ -339,11 +355,63 @@ def test_paladar_sales_route_uses_same_multi_item_flow_as_monteiro(isolated_app)
     assert sum(row["total"] for row in rows) == 70
 
 
+def test_monteiro_sale_accepts_50_items_and_rejects_51_on_create_and_edit(isolated_app):
+    token = _login(isolated_app.client)
+    seller_id = _seller_id(isolated_app.client, token)
+    items = [
+        {"product": f"Produto {i:02d}", "quantity": 1, "unitprice": 2, "total": 2}
+        for i in range(50)
+    ]
+    payload = _sale_payload(nf_number="MON-LIMIT-50", seller_id=seller_id, items=items)
+
+    rejected_create = isolated_app.client.post(
+        "/api/monteiro/sales", headers=_headers(token),
+        json={**payload, "nf_number": "MON-LIMIT-51", "items": items + [items[0]]},
+    )
+    assert rejected_create.status_code == 400
+    assert "50 itens" in rejected_create.json()["detail"]
+
+    created = isolated_app.client.post("/api/monteiro/sales", headers=_headers(token), json=payload)
+    assert created.status_code == 200, created.text
+    group_id = created.json()["group"]
+    detail = isolated_app.client.get(f"/api/monteiro/sales/group/{group_id}", headers=_headers(token))
+    assert detail.status_code == 200
+    assert len(detail.json()["items"]) == 50
+
+    rejected_append = isolated_app.client.post(
+        "/api/monteiro/sales", headers=_headers(token),
+        json={**payload, "items": [items[0]]},
+    )
+    assert rejected_append.status_code == 400
+    assert "50 itens" in rejected_append.json()["detail"]
+
+    edit_items = [
+        {"id": item["id"], "product": item["product"], "quantity": 1, "unitprice": 3}
+        for item in detail.json()["items"]
+    ]
+    edit = {**payload, "original_item_ids": created.json()["ids"], "items": edit_items}
+    rejected_edit = isolated_app.client.put(
+        f"/api/monteiro/sales/group/{group_id}/full", headers=_headers(token),
+        json={**edit, "items": edit_items + [{"product": "Extra", "quantity": 1, "unitprice": 3}]},
+    )
+    assert rejected_edit.status_code == 400
+    assert "50 itens" in rejected_edit.json()["detail"]
+
+    updated = isolated_app.client.put(
+        f"/api/monteiro/sales/group/{group_id}/full", headers=_headers(token), json=edit,
+    )
+    assert updated.status_code == 200, updated.text
+    final = isolated_app.client.get(f"/api/monteiro/sales/group/{group_id}", headers=_headers(token)).json()
+    assert len(final["items"]) == 50
+    assert sum(item["total"] for item in final["items"]) == 150
+
+
 def test_monteiro_sale_invalid_later_item_rolls_back_and_allows_next_write(isolated_app):
     token = _login(isolated_app.client)
     payload = _sale_payload(
         client="Cliente Monteiro Falha Item",
         nf_number="MON-FALHA-ITEM",
+        seller_id=_seller_id(isolated_app.client, token),
         items=[
             {
                 "product": "Produto Valido Antes Da Falha",
@@ -512,6 +580,60 @@ def test_monteiro_sales_grouping_filters_summary_clients_and_forced_scope(isolat
     ]
 
 
+def test_monteiro_full_edit_preserves_items_and_invoice(isolated_app):
+    token = _login(isolated_app.client)
+    created = _post_sale(isolated_app.client, token, nf_number="MON-EDIT-001")
+    group_id = created["group"]
+    ids = created["ids"]
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    conn.execute(
+        "UPDATE paladar_sales SET invoice_file_path=?, invoice_original_name=?, invoice_mime=? WHERE sale_group=?",
+        ("/safe/invoice.pdf", "invoice.pdf", "application/pdf", group_id),
+    )
+    conn.commit()
+    conn.close()
+
+    detail = isolated_app.client.get(f"/api/monteiro/sales/group/{group_id}", headers=_headers(token))
+    assert detail.status_code == 200
+    assert [item["id"] for item in detail.json()["items"]] == ids
+    assert detail.json()["invoice_original_name"] == "invoice.pdf"
+
+    edit = {
+        "saledate": "2026-06-07", "client": "Cliente Corrigido", "nf_number": "MON-EDIT-002",
+        "driver": "Maria", "vehicle": "Van", "plate": "MON-9999",
+        "seller_id": detail.json()["seller_id"], "original_item_ids": ids,
+        "items": [
+            {"id": ids[1], "product": "Produto Atualizado", "quantity": 3, "unitprice": 12, "notes": "observacao preservada"},
+            {"product": "Produto Novo", "quantity": 2, "unitprice": 5, "notes": "novo item"},
+        ],
+    }
+    updated = isolated_app.client.put(
+        f"/api/monteiro/sales/group/{group_id}/full", headers=_headers(token), json=edit,
+    )
+    assert updated.status_code == 200, updated.text
+    detail = isolated_app.client.get(f"/api/monteiro/sales/group/{group_id}", headers=_headers(token)).json()
+    assert detail["client"] == "Cliente Corrigido"
+    assert detail["nf_number"] == "MON-EDIT-002"
+    assert detail["saledate"] == "2026-06-07"
+    assert detail["driver"] == "Maria"
+    assert detail["vehicle"] == "Van"
+    assert detail["plate"] == "MON-9999"
+    assert len(detail["items"]) == 2
+    assert detail["items"][0]["id"] == ids[1]
+    assert detail["items"][0]["total"] == 36
+    assert detail["items"][0]["notes"] == "observacao preservada"
+    assert detail["items"][1]["product"] == "Produto Novo"
+    assert all(item["invoice_original_name"] == "invoice.pdf" for item in detail["items"])
+
+    stale = isolated_app.client.put(
+        f"/api/monteiro/sales/group/{group_id}/full", headers=_headers(token), json=edit,
+    )
+    assert stale.status_code == 409
+    assert len(isolated_app.client.get(
+        f"/api/monteiro/sales/group/{group_id}", headers=_headers(token),
+    ).json()["items"]) == 2
+
+
 def test_monteiro_payments_report_uses_paladar_sales_and_monteiro_payments(isolated_app):
     token = _login(isolated_app.client)
     client_name = "Cliente Monteiro Relatorio"
@@ -644,7 +766,11 @@ def test_monteiro_auth_permissions_and_current_role_behavior(isolated_app):
     editor_create_sale = isolated_app.client.post(
         "/api/monteiro/sales",
         headers=_headers(editor_token),
-        json=_sale_payload(client="Cliente Editor Permitido", nf_number="MON-EDIT-001"),
+        json=_sale_payload(
+            client="Cliente Editor Permitido",
+            nf_number="MON-EDIT-001",
+            seller_id=_seller_id(isolated_app.client, admin_token),
+        ),
     )
     editor_create_payment_default = isolated_app.client.post(
         "/api/monteiro/payments",

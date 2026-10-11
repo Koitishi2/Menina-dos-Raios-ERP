@@ -399,6 +399,34 @@ def test_whatsapp_config_save_success_preserves_response_and_values(isolated_app
     assert "ignored" not in cfg
 
 
+def test_whatsapp_bot_order_messages_can_be_read_and_updated(isolated_app):
+    token = _login(isolated_app.client)
+    headers = _headers(token)
+
+    initial = isolated_app.client.get("/api/whatsapp/bot-settings", headers=headers)
+    assert initial.status_code == 200
+    assert "atendimento automatizado" in initial.json()["order_bot_disclosure_message"]
+    assert "{cliente}" in initial.json()["order_bot_welcome_message"]
+    assert "KG ou UN" in initial.json()["order_bot_quantity_message"]
+
+    messages = {
+        "order_bot_disclosure_message": "Atendimento automatizado e registrado.",
+        "order_bot_welcome_message": "Ola, {cliente}! Escolha um produto.",
+        "order_bot_quantity_message": "Qual quantidade em KG ou UN?",
+        "order_bot_damage_message": "Existe avaria?",
+        "order_bot_confirm_message": "Posso salvar?",
+        "order_bot_done_message": "Pedido registrado.",
+    }
+    saved = isolated_app.client.put("/api/whatsapp/bot-settings", headers=headers, json=messages)
+    assert saved.status_code == 200
+    assert saved.json() == {"ok": True}
+
+    current = isolated_app.client.get("/api/whatsapp/bot-settings", headers=headers)
+    assert current.status_code == 200
+    for key, value in messages.items():
+        assert current.json()[key] == value
+
+
 def test_whatsapp_config_save_commits_and_closes_on_success(isolated_app, monkeypatch):
     monkeypatch.setattr(isolated_app.module, "require_admin", lambda token: {"username": "admin", "role": "admin"})
     state = _install_tracked_db(monkeypatch, isolated_app)
@@ -1241,6 +1269,25 @@ def test_whatsapp_triggers_preview_does_not_send_or_log(isolated_app, monkeypatc
     assert sent == []
     assert _fetch_logs(db_path) == []
     assert state["open"] == 0
+
+
+def test_whatsapp_boleto_trigger_includes_overdue_beyond_configured_period(isolated_app):
+    token = _login(isolated_app.client)
+    db_path = isolated_app.db_paths["raios"]
+    old_due_date = (date.today() - timedelta(days=60)).isoformat()
+    _add_overdue_boleto(db_path, client="Cliente Boleto Antigo", due_date=old_due_date)
+    _set_config(db_path, "notify_avaria", "0")
+    _set_config(db_path, "notify_inativo", "0")
+    _set_config(db_path, "auto_period", "7")
+
+    response = isolated_app.client.post(
+        "/api/whatsapp/check-triggers", headers=_headers(token), json={"send": False},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["details"]["boleto"]["found"] == 1
+    assert "Cliente Boleto Antigo" in payload["messages"][0]["preview"]
 
 
 def test_whatsapp_triggers_send_true_sends_without_open_sqlite_and_persists_logs(isolated_app, monkeypatch):
