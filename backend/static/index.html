@@ -16734,13 +16734,67 @@ function openAppNoteModal(id){
   document.getElementById('app-note-id').value=n.id;
   document.getElementById('app-note-edit-client').value=n.client||'';
   document.getElementById('app-note-edit-date').value=n.note_date||'';
-  document.getElementById('app-note-edit-items').value=(n.items||[]).map(function(i){var q=Number(i.quantity_provided)!==0?appNoteQty(i.quantity):'';var p=Number(i.price_provided)!==0?Number(i.unit_price||0).toFixed(2).replace('.',','):'';return [i.product||'',q,appNoteQty(i.weight==null?i.quantity:i.weight),i.unit||'',p].join(' | ');}).join('\n');
+  document.getElementById('app-note-edit-items').value=(n.items||[]).map(function(i){var q=Number(i.quantity_provided)!==0?appNoteQty(i.quantity):'';var p=appNoteHasPrice(i)?appNoteUnitPrice(i).toFixed(2).replace('.',','):'';return [i.product||'',q,appNoteQty(i.weight==null?i.quantity:i.weight),i.unit||'',p].join(' | ');}).join('\n');
+  renderAppNotePriceInputs();
   document.getElementById('app-note-modal').style.display='flex';
 }
 function closeAppNoteModal(){ document.getElementById('app-note-modal').style.display='none'; }
+function renderAppNotePriceInputs(){
+  var list=document.getElementById('app-note-edit-price-list');
+  var textarea=document.getElementById('app-note-edit-items');
+  if(!list||!textarea)return;
+  var lines=textarea.value.split(/\r?\n/).filter(function(line){return line.trim();});
+  if(!lines.length){list.innerHTML='<div style="padding:10px;color:var(--muted);font-size:12px">Adicione um produto na lista acima para definir o preço.</div>';return;}
+  list.innerHTML=lines.map(function(line,index){
+    var fields=line.split('|').map(function(value){return value.trim();});
+    var product=fields[0]||('Produto '+(index+1));
+    var measure=[fields[2]||'',fields[3]||''].filter(Boolean).join(' ');
+    var price=fields[4]||'';
+    return '<label style="display:grid;grid-template-columns:minmax(0,1fr) minmax(130px,190px);align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--border)">'
+      +'<span style="min-width:0"><strong style="display:block;overflow-wrap:anywhere;color:var(--ink)">'+appNoteAttr(product)+'</strong><small style="display:block;margin-top:3px;color:var(--muted)">'+appNoteAttr(measure||'Medida não informada')+'</small></span>'
+      +'<span><small style="display:block;margin-bottom:4px;color:var(--muted);font-weight:700">Valor unitário (R$)</small><input type="text" inputmode="decimal" autocomplete="off" data-app-note-price-index="'+index+'" value="'+appNoteAttr(price)+'" placeholder="Ex.: 12,50" aria-label="Valor unitário de '+appNoteAttr(product)+'" style="width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--ink);font:inherit;font-weight:700;box-sizing:border-box" oninput="updateAppNotePrice('+index+',this.value)"></span>'
+      +'</label>';
+  }).join('');
+  updateAppNoteTotalPreview();
+}
+function updateAppNotePrice(index,value){
+  var textarea=document.getElementById('app-note-edit-items');
+  var lines=textarea.value.split(/\r?\n/);
+  var itemLineIndexes=[];
+  lines.forEach(function(line,lineIndex){if(line.trim())itemLineIndexes.push(lineIndex);});
+  if(index>=itemLineIndexes.length)return;
+  var lineIndex=itemLineIndexes[index],fields=lines[lineIndex].split('|');
+  while(fields.length<5)fields.push('');
+  fields[4]=' '+value+' ';
+  lines[lineIndex]=fields.join('|');
+  textarea.value=lines.join('\n');
+  updateAppNoteTotalPreview();
+}
+function appNoteEditNumber(value,localized){
+  var text=String(value==null?'':value).trim();
+  if(text.indexOf(',')>=0)return Number(text.replace(/\./g,'').replace(',','.'));
+  return Number(localized?text.replace(/\./g,''):text);
+}
+function updateAppNoteTotalPreview(){
+  var preview=document.getElementById('app-note-edit-total');
+  var textarea=document.getElementById('app-note-edit-items');
+  if(!preview||!textarea)return;
+  var total=0,hasPrice=false;
+  textarea.value.split(/\r?\n/).filter(function(line){return line.trim();}).forEach(function(line){
+    var fields=line.split('|').map(function(value){return value.trim();});
+    var weight=appNoteEditNumber(fields[2]||'',true);
+    var priceText=fields[4]||'';
+    var price=appNoteEditNumber(priceText,false);
+    if(priceText!==''&&Number.isFinite(weight)&&Number.isFinite(price)){total+=weight*price;hasPrice=true;}
+  });
+  preview.textContent=hasPrice?'Total calculado: '+appNoteMoney(total):'Informe os valores unitários para calcular o total.';
+}
+document.addEventListener('input',function(event){
+  if(event.target&&event.target.id==='app-note-edit-items')renderAppNotePriceInputs();
+});
 function parseAppNoteItems(){
   var lines=document.getElementById('app-note-edit-items').value.split(/\r?\n/).filter(function(x){return x.trim();});
-  return lines.map(function(line,idx){var p=line.split('|').map(function(x){return x.trim();});if(p.length<5)throw new Error('Linha '+(idx+1)+' inválida. Use Produto | Quantidade | Medida | Unidade | Valor.');var qty=p[1]===''?null:Number(p[1].replace(',','.')),weight=Number(p[2].replace(',','.')),price=p[4]===''?null:Number(p[4].replace(',','.'));if((qty!==null&&!Number.isFinite(qty))||!Number.isFinite(weight)||(price!==null&&!Number.isFinite(price)))throw new Error('Quantidade, medida ou valor inválido na linha '+(idx+1)+'.');return {product:p[0],quantity:qty,weight:weight,unit:p[3].toUpperCase(),unit_price:price};});
+  return lines.map(function(line,idx){var p=line.split('|').map(function(x){return x.trim();});if(p.length<5)throw new Error('Linha '+(idx+1)+' inválida. Use Produto | Quantidade | Medida | Unidade | Valor.');var qty=p[1]===''?null:appNoteEditNumber(p[1],true),weight=appNoteEditNumber(p[2],true),price=p[4]===''?null:appNoteEditNumber(p[4],false);if((qty!==null&&!Number.isFinite(qty))||!Number.isFinite(weight)||(price!==null&&!Number.isFinite(price)))throw new Error('Quantidade, medida ou valor inválido na linha '+(idx+1)+'.');return {product:p[0],quantity:qty,weight:weight,unit:p[3].toUpperCase(),unit_price:price};});
 }
 async function saveAppNote(){
   try{
@@ -20300,9 +20354,14 @@ setTimeout(installMobileReadOnlyGuards,0);
           <input id="app-note-edit-date" placeholder="dd/mm/aaaa" style="display:block;width:100%;margin-top:5px;padding:9px;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--ink);box-sizing:border-box">
         </label>
       </div>
-      <label style="font-size:11px;font-weight:700;color:var(--muted)">Itens — uma linha por produto no formato: Produto | Quantidade | Peso/Medida | Unidade | Valor unitário
+      <label style="font-size:11px;font-weight:700;color:var(--muted)">Itens — Produto | Quantidade | Peso/Medida | Unidade | Valor unitário
         <textarea id="app-note-edit-items" rows="10" style="display:block;width:100%;margin-top:5px;padding:10px;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--ink);font:12px monospace;box-sizing:border-box;resize:vertical"></textarea>
       </label>
+      <section style="margin-top:14px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <div style="padding:10px 12px;background:var(--card2);font-size:12px;font-weight:800;color:var(--ink)">Preço por produto</div>
+        <div id="app-note-edit-price-list" style="max-height:240px;overflow:auto"></div>
+        <div id="app-note-edit-total" aria-live="polite" style="padding:10px 12px;text-align:right;font-size:13px;font-weight:800;color:var(--g800);background:var(--card2)"></div>
+      </section>
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:15px">
         <button class="btn btn-secondary" onclick="closeAppNoteModal()">Cancelar</button>
         <button class="btn btn-primary" onclick="saveAppNote()">💾 Salvar alterações</button>
