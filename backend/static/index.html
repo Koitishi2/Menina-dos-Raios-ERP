@@ -17293,10 +17293,12 @@ function switchPalLancView(view){
   loadPaladarSales();
 }
 
-async function uploadPaladarInvoice(groupId,file){
-  if(!groupId || !file) return;
+async function uploadPaladarInvoice(groupId,files){
+  if(!groupId || !files) return;
+  if(!Array.isArray(files))files=[files];
+  if(!files.length)return;
   var fd=new FormData();
-  fd.append('file', file);
+  files.forEach(function(file){fd.append('files',file,file.name);});
   var r=await fetch('/api/monteiro/sales/group/'+encodeURIComponent(groupId)+'/invoice',{
     method:'POST',
     headers:{'x-token':(typeof session !== 'undefined' ? session.token : '') || ''},
@@ -17338,6 +17340,13 @@ function getPaladarInvoiceViewer(){
     +'</div><div class="pal-invoice-viewer-body" aria-live="polite"></div></div>';
   viewer.addEventListener('click',function(ev){if(ev.target===viewer)closePaladarInvoiceViewer();});
   viewer.querySelector('.pal-invoice-viewer-close').addEventListener('click',closePaladarInvoiceViewer);
+  viewer.querySelector('.pal-invoice-viewer-body').addEventListener('click',function(ev){
+    var button=ev.target&&ev.target.closest?ev.target.closest('[data-pal-invoice-file]'):null;
+    if(!button)return;
+    var group=button.getAttribute('data-pal-invoice-group');
+    var attachment={id:button.getAttribute('data-pal-invoice-file'),name:button.getAttribute('data-pal-invoice-name')||'nota-fiscal'};
+    openPaladarInvoiceFile(group,attachment);
+  });
   document.addEventListener('keydown',function(ev){if(ev.key==='Escape'&&viewer.classList.contains('open'))closePaladarInvoiceViewer();});
   document.body.appendChild(viewer);
   return viewer;
@@ -17346,21 +17355,52 @@ async function openPaladarInvoice(groupId){
   closePaladarInvoiceViewer();
   var viewer=getPaladarInvoiceViewer();
   var body=viewer.querySelector('.pal-invoice-viewer-body');
-  var download=viewer.querySelector('.pal-invoice-viewer-download');
   var record=(window._palSaleGroupsById||{})[String(groupId)]||{};
-  var filename=record.invoice_original_name||'nota-fiscal';
   _palInvoiceViewerFocus=document.activeElement;
   _palInvoiceViewerOverflow=document.body.style.overflow;
   document.body.style.overflow='hidden';
-  viewer.querySelector('.pal-invoice-viewer-title').textContent=filename;
-  download.hidden=true;
-  body.innerHTML='<div class="pal-invoice-viewer-status" role="status">Carregando nota fiscal...</div>';
   viewer.classList.add('open');
   viewer.querySelector('.pal-invoice-viewer-close').focus();
+  var files=Array.isArray(record.invoices)?record.invoices.slice():[];
+  if(!files.length&&record.invoice_file_path)files=[{id:'',name:record.invoice_original_name||'nota-fiscal'}];
+  if(files.length>1){
+    viewer.querySelector('.pal-invoice-viewer-title').textContent='Arquivos anexados ('+files.length+'/5)';
+    body.replaceChildren();
+    files.forEach(function(file){
+      var button=document.createElement('button');
+      button.type='button';button.className='btn btn-secondary btn-sm';
+      button.setAttribute('data-pal-invoice-file',file.id||'');
+      button.setAttribute('data-pal-invoice-group',groupId);
+      button.setAttribute('data-pal-invoice-name',file.name||'nota-fiscal');
+      button.style.cssText='display:flex;width:100%;min-height:48px;align-items:center;justify-content:space-between;text-align:left;margin:0 0 8px;padding:10px 12px';
+      var name=document.createElement('span');name.textContent=file.name||'Arquivo anexado';
+      var action=document.createElement('span');action.textContent='Ver / baixar';action.style.color='#166534';
+      button.append(name,action);body.appendChild(button);
+    });
+    return;
+  }
+  if(files.length===1){await openPaladarInvoiceFile(groupId,files[0]);return;}
+  var legacy={id:'',name:record.invoice_original_name||'nota-fiscal'};
+  await openPaladarInvoiceFile(groupId,legacy);
+}
+
+async function openPaladarInvoiceFile(groupId,attachment){
+  var viewer=getPaladarInvoiceViewer();
+  var body=viewer.querySelector('.pal-invoice-viewer-body');
+  var download=viewer.querySelector('.pal-invoice-viewer-download');
+  if(_palInvoiceViewerRequest){_palInvoiceViewerRequest.abort();_palInvoiceViewerRequest=null;}
+  if(_palInvoiceViewerUrl){URL.revokeObjectURL(_palInvoiceViewerUrl);_palInvoiceViewerUrl=null;}
+  var filename=attachment&&attachment.name||'nota-fiscal';
+  viewer.querySelector('.pal-invoice-viewer-title').textContent=filename;
+  download.hidden=true;
+  body.innerHTML='<div class="pal-invoice-viewer-status" role="status">Carregando arquivo...</div>';
   var request=new AbortController();
   _palInvoiceViewerRequest=request;
   try{
-    var response=await fetch('/api/monteiro/sales/group/'+encodeURIComponent(groupId)+'/invoice',{
+    var attachmentId=attachment&&attachment.id;
+    var endpoint='/api/monteiro/sales/group/'+encodeURIComponent(groupId)
+      +(attachmentId?'/invoices/'+encodeURIComponent(attachmentId):'/invoice');
+    var response=await fetch(endpoint,{
       headers:{'x-token':(typeof session !== 'undefined' ? session.token : '') || ''},signal:request.signal
     });
     if(!response.ok){
@@ -17414,7 +17454,7 @@ async function downloadPaladarInvoicesZip(){
   var groups = checked;
   if(!groups.length){
     var all = window._palSaleGroupsById || {};
-    groups = Object.keys(all).filter(function(sg){ return all[sg] && all[sg].invoice_file_path; });
+    groups = Object.keys(all).filter(function(sg){ return all[sg] && ((all[sg].invoices||[]).length || all[sg].invoice_file_path); });
     if(!groups.length){ toast('Nenhuma nota fiscal anexada para baixar.','error'); return; }
     if(!confirm('Nenhuma nota marcada. Baixar TODAS as '+groups.length+' notas anexadas nesta tela?')) return;
   }
@@ -17441,7 +17481,7 @@ async function openPaladarSaleModal(){
   document.getElementById('pal-sale-modal-title').textContent = 'Lançar Venda Monteiro';
   document.getElementById('pal-save-btn').textContent = 'Salvar Venda';
   document.getElementById('pal-sale-notes-label').textContent = 'Observações';
-  document.getElementById('pal-sale-invoice-label').textContent = 'Nota fiscal (PDF, XML ou imagem)';
+  document.getElementById('pal-sale-invoice-label').textContent = 'Anexos da venda (até 5 arquivos; PDF, XML ou imagem)';
   // Limpar campos de cabeçalho
   document.getElementById('pal-sale-date').value = new Date().toISOString().slice(0,10);
   document.getElementById('pal-sale-client').value = '';
@@ -17519,13 +17559,13 @@ async function editPaladarGroup(groupId){
   try{
     var group=await api('/api/monteiro/sales/group/'+encodeURIComponent(groupId));
     await openPaladarSaleModal();
-    window._palEditingGroup={id:groupId,originalItemIds:group.items.map(function(item){return item.id;})};
+    window._palEditingGroup={id:groupId,originalItemIds:group.items.map(function(item){return item.id;}),invoiceCount:(group.invoices||[]).length};
     document.getElementById('pal-sale-modal-title').textContent='Editar Venda Monteiro';
     document.getElementById('pal-save-btn').textContent='Salvar alterações';
     document.getElementById('pal-sale-notes-label').textContent='Observação padrão para novos itens';
-    document.getElementById('pal-sale-invoice-label').textContent=group.invoice_original_name
-      ? 'Nota fiscal atual: '+group.invoice_original_name+' (selecione outra para substituir)'
-      : 'Nota fiscal (PDF, XML ou imagem)';
+    document.getElementById('pal-sale-invoice-label').textContent=(group.invoices||[]).length
+      ? (group.invoices.length)+' arquivo(s) anexado(s); selecione mais para adicionar (limite 5)'
+      : 'Anexos da venda (até 5 arquivos; PDF, XML ou imagem)';
     palSetVal('pal-sale-date',group.saledate);
     palSetVal('pal-sale-client',group.client);
     palSetVal('pal-sale-nf',group.nf_number);
@@ -17641,6 +17681,11 @@ async function savePaladarSale(){
   var vehicle = document.getElementById('pal-sale-vehicle')?.value?.trim() || '';
   var plate = document.getElementById('pal-sale-plate')?.value?.trim().toUpperCase() || '';
   var notes = document.getElementById('pal-sale-notes')?.value || '';
+  var selectedInvoiceFiles=Array.from(document.getElementById('pal-sale-invoice')?.files||[]);
+  var existingInvoiceCount=editing?Number(editing.invoiceCount||0):0;
+  if(existingInvoiceCount+selectedInvoiceFiles.length>5){
+    toast('O limite é 5 arquivos por venda. Já existem '+existingInvoiceCount+' anexado(s).','error');return;
+  }
   if(!dateVal){ toast('Informe a data da venda.', 'error'); return; }
   if(!sellerId && !editing){ toast('Informe quem vendeu.', 'error'); return; }
   var rows = document.querySelectorAll('#pal-items-body .pal-item-row');
@@ -17669,12 +17714,12 @@ async function savePaladarSale(){
     });
     if(!r.ok){ var err = await r.json().catch(function(){ return {detail:r.statusText}; }); throw new Error(err.detail || 'Erro ao salvar'); }
     var result = await r.json();
-    var invFile = document.getElementById('pal-sale-invoice')?.files?.[0];
+    var invFiles = selectedInvoiceFiles;
     var invoiceMsg = '';
-    if(invFile && result.group){
+    if(invFiles.length && result.group){
       try{
-        await uploadPaladarInvoice(result.group, invFile);
-        invoiceMsg = ' Nota fiscal anexada.';
+        await uploadPaladarInvoice(result.group, invFiles);
+        invoiceMsg = ' '+invFiles.length+' arquivo(s) anexado(s).';
       }catch(upErr){
         invoiceMsg = ' Venda salva, mas a nota não foi anexada: '+upErr.message;
       }
@@ -17875,19 +17920,25 @@ async function loadPaladarSales(){
   if(!wrap.dataset.invoiceUploadBound){
     wrap.addEventListener('change',async function(ev){
       var input=ev.target&&ev.target.closest?ev.target.closest('input[data-pal-invoice-upload]'):null;
-      if(!input||!wrap.contains(input)||!input.files||!input.files[0])return;
-      var file=input.files[0];
+      if(!input||!wrap.contains(input)||!input.files||!input.files.length)return;
+      var files=Array.from(input.files);
+      var currentCount=Number(input.getAttribute('data-current-count')||0);
       var label=input.closest('.pal-invoice-upload');
       var status=input.parentElement.parentElement.querySelector('.pal-invoice-upload-status');
+      if(currentCount+files.length>5){
+        status.hidden=false;status.classList.add('error');
+        status.textContent='Limite de 5 arquivos: já existem '+currentCount+' e você selecionou '+files.length+'.';
+        input.value='';return;
+      }
       input.disabled=true;
       label.classList.add('is-uploading');
       status.hidden=false;
       status.classList.remove('error');
-      status.textContent='Enviando nota fiscal...';
+      status.textContent='Enviando '+files.length+' arquivo(s)...';
       try{
-        await uploadPaladarInvoice(input.getAttribute('data-pal-invoice-upload'),file);
-        status.textContent='Nota anexada.';
-        toast('Nota fiscal anexada!');
+        await uploadPaladarInvoice(input.getAttribute('data-pal-invoice-upload'),files);
+        status.textContent=files.length+' arquivo(s) anexado(s).';
+        toast(files.length+' arquivo(s) anexado(s)!');
         await loadPaladarSales();
       }catch(e){
         status.classList.add('error');
@@ -17909,7 +17960,7 @@ async function loadPaladarSales(){
   try{
     var data = await api('/api/monteiro/sales'+params);
     if(_palLancView === 'notas'){
-      data = (data||[]).filter(function(g){ return !!g.invoice_file_path; });
+      data = (data||[]).filter(function(g){ return (g.invoices||[]).length>0 || !!g.invoice_file_path; });
     }
     if(!data.length){
       wrap.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">'+(_palLancView==='notas'?'Nenhuma nota fiscal enviada neste período. Use <b>Anexar nota</b> nos lançamentos antigos.':'Nenhum lançamento Monteiro encontrado.')+'</div>';
@@ -17929,12 +17980,13 @@ async function loadPaladarSales(){
       window._palSaleGroupsById[String(sg)] = g;
       var isExp = expanded[sg];
       var rowBg = idx%2===0 ? 'var(--card)' : 'var(--g50)';
-      var hasInvoice = !!g.invoice_file_path;
+      var invoiceCount = (g.invoices||[]).length || (g.invoice_file_path?1:0);
+      var hasInvoice = invoiceCount>0;
       var groupAttr=String(sg).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-      var uploadInput='<input type="file" accept=".pdf,.xml,.jpg,.jpeg,.png,.webp" data-pal-invoice-upload="'+groupAttr+'" aria-label="'+(hasInvoice?'Trocar':'Anexar')+' nota fiscal">';
+      var uploadInput=invoiceCount<5?'<input type="file" multiple accept=".pdf,.xml,.jpg,.jpeg,.png,.webp" data-current-count="'+invoiceCount+'" data-pal-invoice-upload="'+groupAttr+'" aria-label="Anexar arquivos; limite de 5">':'';
       var invoiceCell = hasInvoice
-        ? '<input type="checkbox" class="pal-inv-check" data-sg="'+groupAttr+'" onclick="event.stopPropagation()" title="Selecionar para download" style="margin-right:6px;vertical-align:middle;cursor:pointer;width:15px;height:15px">'+'<button type="button" class="btn btn-sm" data-pal-invoice-view="'+groupAttr+'" style="background:#DCFCE7;color:#166534;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px;margin-right:4px" title="Ver nota fiscal">Ver</button><label class="pal-invoice-upload" style="background:#EEF2FF;color:#4F46E5" title="Trocar nota fiscal">↻ Trocar'+uploadInput+'</label><span class="pal-invoice-upload-status" role="status" hidden></span>'
-        : '<label class="pal-invoice-upload" style="background:#FEF3C7;color:#92400E" title="Anexar nota fiscal">⬆ Anexar'+uploadInput+'</label><span class="pal-invoice-upload-status" role="status" hidden></span>';
+        ? '<input type="checkbox" class="pal-inv-check" data-sg="'+groupAttr+'" onclick="event.stopPropagation()" title="Selecionar para download" style="margin-right:6px;vertical-align:middle;cursor:pointer;width:15px;height:15px">'+'<button type="button" class="btn btn-sm" data-pal-invoice-view="'+groupAttr+'" style="background:#DCFCE7;color:#166534;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px;margin-right:4px" title="Ver arquivos anexados">Ver ('+invoiceCount+')</button>'+(invoiceCount<5?'<label class="pal-invoice-upload" style="background:#EEF2FF;color:#4F46E5" title="Adicionar arquivos, sem substituir os existentes">＋ Anexar ('+invoiceCount+'/5)'+uploadInput+'</label>':'<span style="font-size:10px;color:var(--muted)">Limite 5/5</span>')+'<span class="pal-invoice-upload-status" role="status" hidden></span>'
+        : '<label class="pal-invoice-upload" style="background:#FEF3C7;color:#92400E" title="Anexar até 5 arquivos">⬆ Anexar (0/5)'+uploadInput+'</label><span class="pal-invoice-upload-status" role="status" hidden></span>';
       html += '<tr style="border-bottom:1px solid var(--border);background:'+rowBg+'">'
         +'<td style="padding:8px 6px;text-align:center"><span onclick="togglePalGroup(\''+sg+'\')" style="cursor:pointer;font-size:13px;user-select:none">'+(isExp?'▼':'▶')+'</span></td>'
         +'<td style="padding:8px 10px">'+(g.saledate||'—')+'</td>'
@@ -20422,8 +20474,8 @@ setTimeout(installMobileReadOnlyGuards,0);
           <div><label id="pal-sale-notes-label" style="font-size:11px;font-weight:600;color:var(--muted);display:block;margin-bottom:3px">Observações</label><input type="text" id="pal-sale-notes" placeholder="Obs..." style="width:100%;padding:7px 9px;border:1px solid #ddd;border-radius:7px;font-size:13px;font-family:inherit;box-sizing:border-box"></div>
         </div>
         <div style="margin-bottom:8px">
-          <label id="pal-sale-invoice-label" style="font-size:11px;font-weight:600;color:var(--muted);display:block;margin-bottom:3px">Nota fiscal (PDF, XML ou imagem)</label>
-          <input type="file" id="pal-sale-invoice" accept=".pdf,.xml,.jpg,.jpeg,.png,.webp,application/pdf,text/xml,application/xml,image/*" style="width:100%;padding:7px 9px;border:1px solid #ddd;border-radius:7px;font-size:12px;font-family:inherit;box-sizing:border-box;background:var(--card)">
+          <label id="pal-sale-invoice-label" style="font-size:11px;font-weight:600;color:var(--muted);display:block;margin-bottom:3px">Anexos da venda (até 5 arquivos; PDF, XML ou imagem)</label>
+          <input type="file" id="pal-sale-invoice" multiple accept=".pdf,.xml,.jpg,.jpeg,.png,.webp,application/pdf,text/xml,application/xml,image/*" style="width:100%;padding:7px 9px;border:1px solid #ddd;border-radius:7px;font-size:12px;font-family:inherit;box-sizing:border-box;background:var(--card)">
         </div>
         <div style="font-size:12px;font-weight:700;color:#4F46E5;margin:10px 0 8px">Itens da Venda</div>
         <div id="pal-items-body" style="max-height:320px;overflow-y:auto"></div>

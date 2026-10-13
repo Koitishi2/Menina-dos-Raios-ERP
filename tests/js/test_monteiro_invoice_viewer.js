@@ -43,13 +43,20 @@ const context = vm.createContext({
     createObjectURL(blob) { previewType = blob.type; return "blob:invoice-test"; },
     revokeObjectURL() {}
   },
-  window: { _palSaleGroupsById: { group1: { invoice_original_name: "003988.pdf" } } },
+  window: { _palSaleGroupsById: {
+    group1: { invoice_original_name: "003988.pdf" },
+    group2: { invoices: [{ id: "one", name: "frente.pdf" }, { id: "two", name: "verso.pdf" }] },
+    group3: { invoices: [{ id: "three", name: "nota.png" }] }
+  } },
   session: { token: "test-token" },
   document: {
     activeElement: { isConnected: true, focus() {} },
     body: { style: { overflow: "" } },
     getElementById(id) { return id === "pal-invoice-viewer" ? viewer : null; },
-    createElement(tagName) { return { tagName, setAttribute() {} }; }
+    createElement(tagName) {
+      const attrs = {};
+      return { tagName, attrs, style: {}, setAttribute(name, value) { attrs[name] = value; }, append(...children) { this.children = children; } };
+    }
   },
   fetch() { return new Promise(resolve => { completeFetch = resolve; }); }
 });
@@ -69,5 +76,19 @@ vm.runInContext(html.slice(start, end), context);
   await context.openPaladarInvoice("group1");
   assert(classes.has("open"), "viewer remains open to show the error");
   assert(body.children[0].textContent.includes("Arquivo não encontrado"));
+
+  await context.openPaladarInvoice("group2");
+  assert.strictEqual(body.children.length, 2, "viewer lists all attached files");
+  assert.strictEqual(body.children[0].attrs["data-pal-invoice-file"], "one");
+  assert.strictEqual(body.children[1].attrs["data-pal-invoice-name"], "verso.pdf");
+
+  let viewedUrl = "";
+  context.fetch = async url => {
+    viewedUrl = url;
+    return { ok: true, blob: async () => new Blob(["png"], { type: "image/png" }) };
+  };
+  await context.openPaladarInvoice("group3");
+  assert(viewedUrl.endsWith("/group3/invoices/three"), "single attached file opens by its attachment ID");
+  assert.strictEqual(body.children[0].tagName, "img");
   console.log("Monteiro invoice viewer JS: OK");
 })().catch(error => { console.error(error); process.exitCode = 1; });

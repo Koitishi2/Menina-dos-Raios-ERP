@@ -21,7 +21,7 @@ let uploadCalls = 0;
 const toasts = [];
 const sale = {
   sale_group: "group1", saledate: "2026-10-07", client: "Cliente de teste",
-  nf_number: "123", total_group: 10, items: []
+  nf_number: "123", total_group: 10, items: [], invoices: []
 };
 const context = vm.createContext({
   document: { getElementById(id) { return id === "pal-lanc-table-wrap" ? wrap : null; } },
@@ -30,10 +30,10 @@ const context = vm.createContext({
   getPalPeriod() { return "monthly"; },
   getPalFilterMonth() { return "10"; },
   getPalFilterYear() { return "2026"; },
-  async api() { return [{ ...sale, invoice_file_path: uploaded ? "/notes/123.pdf" : null }]; },
-  async uploadPaladarInvoice(groupId, file) {
+  async api() { return [{ ...sale, invoices: uploaded ? [{ id: "one", name: "123.pdf" }, { id: "two", name: "456.pdf" }] : [] }]; },
+  async uploadPaladarInvoice(groupId, files) {
     assert.strictEqual(groupId, "group1");
-    assert.strictEqual(file.name, "123.pdf");
+    assert.deepStrictEqual(Array.from(files, file => file.name), ["123.pdf", "456.pdf"]);
     uploadCalls++;
     uploaded = true;
   },
@@ -44,18 +44,19 @@ vm.runInContext(html.slice(start, end), context);
 function selectedFile(status) {
   const label = { classList: { add() {}, remove() {} }, parentElement: { querySelector() { return status; } } };
   return {
-    files: [{ name: "123.pdf" }],
+    files: [{ name: "123.pdf" }, { name: "456.pdf" }],
     parentElement: label,
     value: "123.pdf",
     disabled: false,
     closest(selector) { return selector === ".pal-invoice-upload" ? label : this; },
-    getAttribute() { return "group1"; }
+    getAttribute(name) { return name === "data-current-count" ? "0" : "group1"; }
   };
 }
 
 (async () => {
   await context.loadPaladarSales();
   assert(wrap.innerHTML.includes('type="file"'), "Anexar has a native file input");
+  assert(wrap.innerHTML.includes(" multiple "), "Anexar accepts multiple files at once");
   assert(wrap.innerHTML.includes('data-pal-invoice-upload="group1"'));
   assert(!wrap.innerHTML.includes("promptUploadPaladarInvoice"));
   const status = { hidden: true, textContent: "", classList: { add() {}, remove() {} } };
@@ -63,7 +64,8 @@ function selectedFile(status) {
   await listeners.change({ target: input });
   assert.strictEqual(uploadCalls, 1);
   assert.strictEqual(input.value, "", "same file can be selected again");
-  assert(toasts.includes("Nota fiscal anexada!"));
-  assert(wrap.innerHTML.includes("Trocar"), "table refreshes after upload");
+  assert(toasts.includes("2 arquivo(s) anexado(s)!"));
+  assert(wrap.innerHTML.includes("Ver (2)"), "table shows a viewer for uploaded files");
+  assert(wrap.innerHTML.includes("Anexar (2/5)"), "table shows remaining attachment capacity");
   console.log("Monteiro invoice upload JS: OK");
 })().catch(error => { console.error(error); process.exitCode = 1; });

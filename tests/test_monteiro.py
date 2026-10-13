@@ -1,5 +1,7 @@
 import sqlite3
 import uuid
+import io
+import zipfile
 
 from fastapi.testclient import TestClient
 
@@ -585,10 +587,12 @@ def test_monteiro_full_edit_preserves_items_and_invoice(isolated_app):
     created = _post_sale(isolated_app.client, token, nf_number="MON-EDIT-001")
     group_id = created["group"]
     ids = created["ids"]
+    legacy_path = isolated_app.notes_dir / "invoice.pdf"
+    legacy_path.write_bytes(b"legacy invoice")
     conn = sqlite3.connect(isolated_app.db_paths["raios"])
     conn.execute(
         "UPDATE paladar_sales SET invoice_file_path=?, invoice_original_name=?, invoice_mime=? WHERE sale_group=?",
-        ("/safe/invoice.pdf", "invoice.pdf", "application/pdf", group_id),
+        (str(legacy_path), "invoice.pdf", "application/pdf", group_id),
     )
     conn.commit()
     conn.close()
@@ -597,6 +601,13 @@ def test_monteiro_full_edit_preserves_items_and_invoice(isolated_app):
     assert detail.status_code == 200
     assert [item["id"] for item in detail.json()["items"]] == ids
     assert detail.json()["invoice_original_name"] == "invoice.pdf"
+    assert detail.json()["invoices"][0]["name"] == "invoice.pdf"
+    old_file = isolated_app.client.get(
+        f"/api/monteiro/sales/group/{group_id}/invoices/{detail.json()['invoices'][0]['id']}",
+        headers=_headers(token),
+    )
+    assert old_file.status_code == 200
+    assert old_file.content == b"legacy invoice"
 
     edit = {
         "saledate": "2026-06-07", "client": "Cliente Corrigido", "nf_number": "MON-EDIT-002",
@@ -632,6 +643,54 @@ def test_monteiro_full_edit_preserves_items_and_invoice(isolated_app):
     assert len(isolated_app.client.get(
         f"/api/monteiro/sales/group/{group_id}", headers=_headers(token),
     ).json()["items"]) == 2
+
+
+def test_monteiro_sale_supports_five_viewable_append_only_attachments(isolated_app):
+    token = _login(isolated_app.client)
+    group_id = _post_sale(isolated_app.client, token, nf_number="MON-ATTACH-001")["group"]
+
+    first_batch = [("files", (f"nota-{i}.pdf", f"conteudo-{i}".encode(), "application/pdf")) for i in range(2)]
+    uploaded = isolated_app.client.post(
+        f"/api/monteiro/sales/group/{group_id}/invoice", headers=_headers(token), files=first_batch,
+    )
+    assert uploaded.status_code == 200, uploaded.text
+    assert len(uploaded.json()["attachments"]) == 2
+
+    second_batch = [("files", (f"comprovante-{i}.png", f"imagem-{i}".encode(), "image/png")) for i in range(3)]
+    uploaded = isolated_app.client.post(
+        f"/api/monteiro/sales/group/{group_id}/invoice", headers=_headers(token), files=second_batch,
+    )
+    assert uploaded.status_code == 200, uploaded.text
+    attachments = uploaded.json()["attachments"]
+    assert len(attachments) == 5
+
+    listing = isolated_app.client.get(
+        f"/api/monteiro/sales/group/{group_id}/invoices", headers=_headers(token),
+    )
+    assert listing.status_code == 200
+    assert len(listing.json()["attachments"]) == 5
+    for attachment in attachments:
+        viewed = isolated_app.client.get(
+            f"/api/monteiro/sales/group/{group_id}/invoices/{attachment['id']}", headers=_headers(token),
+        )
+        assert viewed.status_code == 200
+        assert viewed.content.startswith((b"conteudo-", b"imagem-"))
+
+    rejected = isolated_app.client.post(
+        f"/api/monteiro/sales/group/{group_id}/invoice", headers=_headers(token),
+        files=[("files", ("extra.pdf", b"extra", "application/pdf"))],
+    )
+    assert rejected.status_code == 400
+    assert len(isolated_app.client.get(
+        f"/api/monteiro/sales/group/{group_id}/invoices", headers=_headers(token),
+    ).json()["attachments"]) == 5
+
+    archive = isolated_app.client.post(
+        "/api/monteiro/invoices/zip", headers=_headers(token), json={"groups": [group_id]},
+    )
+    assert archive.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(archive.content)) as zipped:
+        assert len(zipped.namelist()) == 5
 
 
 def test_monteiro_payments_report_uses_paladar_sales_and_monteiro_payments(isolated_app):

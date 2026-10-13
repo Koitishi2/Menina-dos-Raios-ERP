@@ -726,6 +726,26 @@ def init_db(company: str = None):
             conn.execute(f"ALTER TABLE paladar_sales ADD COLUMN {col} TEXT")
         except sqlite3.OperationalError:
             pass
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS paladar_sale_attachments (
+            id TEXT PRIMARY KEY,
+            sale_group TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            original_name TEXT NOT NULL DEFAULT '',
+            mime TEXT NOT NULL DEFAULT '',
+            uploaded_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(sale_group, file_path)
+        );
+        CREATE INDEX IF NOT EXISTS idx_paladar_sale_attachments_group
+            ON paladar_sale_attachments(sale_group, uploaded_at, id);
+        INSERT OR IGNORE INTO paladar_sale_attachments
+            (id,sale_group,file_path,original_name,mime,uploaded_at)
+        SELECT lower(hex(randomblob(16))), sale_group, invoice_file_path,
+            COALESCE(invoice_original_name,''), COALESCE(invoice_mime,''),
+            COALESCE(invoice_uploaded_at,datetime('now'))
+        FROM paladar_sales
+        WHERE sale_group IS NOT NULL AND invoice_file_path IS NOT NULL AND invoice_file_path!='';
+    """)
     # Indices usados pelos relatorios/filtros mais pesados.
     for idx_sql in [
         "CREATE INDEX IF NOT EXISTS idx_paladar_sales_client_date ON paladar_sales(client, saledate)",
@@ -4307,6 +4327,20 @@ def paladar_sales(period:Optional[str]=None,month:Optional[str]=None,year:Option
             }
         groups[sg]["items"].append(dict(r))
         groups[sg]["total_group"]=round(groups[sg]["total_group"]+(r["total"] or 0),2)
+    group_ids=list(groups)
+    for offset in range(0,len(group_ids),900):
+        batch=group_ids[offset:offset+900]
+        ph=",".join("?" for _ in batch)
+        attachments=conn.execute(f"""SELECT id,sale_group,original_name,mime,uploaded_at
+            FROM paladar_sale_attachments WHERE sale_group IN ({ph})
+            ORDER BY uploaded_at,id""",batch).fetchall()
+        for attachment in attachments:
+            groups[attachment["sale_group"]].setdefault("invoices",[]).append({
+                "id":attachment["id"],"name":attachment["original_name"],
+                "mime":attachment["mime"],"uploaded_at":attachment["uploaded_at"]
+            })
+    for group in groups.values():
+        group.setdefault("invoices",[])
     conn.close()
     return list(groups.values())
 
@@ -4381,93 +4415,168 @@ def _monteiro_invoice_row(conn, group_id: str):
     return conn.execute("""SELECT sale_group, invoice_file_path, invoice_original_name, invoice_mime
         FROM paladar_sales WHERE sale_group=? LIMIT 1""", (group_id,)).fetchone()
 
+def _sync_legacy_monteiro_invoice(conn, group_id: str):
+    row=_monteiro_invoice_row(conn,group_id)
+    if row and row["invoice_file_path"]:
+        conn.execute("""INSERT OR IGNORE INTO paladar_sale_attachments
+            (id,sale_group,file_path,original_name,mime,uploaded_at)
+            SELECT lower(hex(randomblob(16))),sale_group,invoice_file_path,
+                COALESCE(invoice_original_name,''),COALESCE(invoice_mime,''),
+                COALESCE(invoice_uploaded_at,datetime('now'))
+            FROM paladar_sales WHERE sale_group=? AND invoice_file_path IS NOT NULL
+            LIMIT 1""",(group_id,))
+
+def _monteiro_invoice_metadata(conn, group_id: str):
+    return [dict(row) for row in conn.execute("""SELECT id,original_name AS name,mime,uploaded_at
+        FROM paladar_sale_attachments WHERE sale_group=? ORDER BY uploaded_at,id""",(group_id,)).fetchall()]
+
+def _monteiro_invoice_path(file_path: str):
+    try:
+        resolved=Path(file_path).resolve()
+        if resolved.parent != MONTEIRO_NOTES_DIR.resolve() or not resolved.is_file():
+            raise HTTPException(404,"Arquivo não encontrado.")
+        return resolved
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(404,"Arquivo não encontrado.")
+
 @app.post("/api/monteiro/sales/group/{group_id}/invoice")
 @app.post("/api/paladar/sales/group/{group_id}/invoice")
-async def upload_monteiro_invoice(group_id: str, file: UploadFile = File(...), x_token: str = Header("")):
+async def upload_monteiro_invoice(group_id: str, file: Optional[UploadFile] = File(None),
+                                  files: Optional[list[UploadFile]] = File(None), x_token: str = Header("")):
     require_editor_tab_access(x_token,["nf","pendentes","consolidado"])
     gid = (group_id or "").strip()
     if not gid:
         raise HTTPException(400, "Grupo invÃ¡lido.")
-    original = file.filename or "nota_fiscal"
-    ext = Path(original).suffix.lower()
     allowed = {".pdf",".xml",".jpg",".jpeg",".png",".webp"}
-    if ext not in allowed:
-        raise HTTPException(400, "Envie PDF, XML ou imagem da nota fiscal.")
-    content = await read_upload_limited(file, MAX_NF_UPLOAD, "Nota fiscal")
+    incoming=list(files or [])
+    if file is not None: incoming.append(file)
+    if not incoming:
+        raise HTTPException(400,"Selecione pelo menos um arquivo para anexar.")
+    if len(incoming)>5:
+        raise HTTPException(400,"É possível anexar no máximo 5 arquivos por envio.")
+    prepared=[]
+    for upload in incoming:
+        original=Path((upload.filename or "nota_fiscal").replace("\\","/")).name[:255]
+        ext=Path(original).suffix.lower()
+        if ext not in allowed:
+            raise HTTPException(400,"Envie PDF, XML ou imagem (PDF, XML, JPG, PNG ou WEBP).")
+        prepared.append((upload,original,ext,await read_upload_limited(upload,MAX_NF_UPLOAD,"Arquivo")))
     conn = get_db()
-    row = _monteiro_invoice_row(conn, gid)
-    if not row:
-        conn.close()
-        raise HTTPException(404, "LanÃ§amento nÃ£o encontrado.")
-    old_path = row["invoice_file_path"]
     safe_gid = re.sub(r"[^A-Za-z0-9_-]+", "_", gid)
-    fname = f"{safe_gid}_{datetime.now().strftime('%Y%m%d%H%M%S')}{ext}"
-    dest = MONTEIRO_NOTES_DIR / fname
-    with open(dest, "wb") as f:
-        f.write(content)
-    if old_path:
-        try:
-            old = Path(old_path)
-            if old.exists() and old.resolve().parent == MONTEIRO_NOTES_DIR.resolve():
-                old.unlink()
-        except Exception:
-            pass
-    conn.execute("""UPDATE paladar_sales
-        SET invoice_file_path=?, invoice_original_name=?, invoice_mime=?, invoice_uploaded_at=datetime('now')
-        WHERE sale_group=?""", (str(dest), original, file.content_type or "application/octet-stream", gid))
-    conn.commit(); conn.close()
-    return {"ok": True, "filename": original}
+    created=[]
+    try:
+        if not _monteiro_invoice_row(conn,gid):
+            raise HTTPException(404,"Lançamento não encontrado.")
+        conn.execute("BEGIN IMMEDIATE")
+        _sync_legacy_monteiro_invoice(conn,gid)
+        current=conn.execute("SELECT COUNT(*) FROM paladar_sale_attachments WHERE sale_group=?",(gid,)).fetchone()[0]
+        if current+len(prepared)>5:
+            raise HTTPException(400,f"Este lançamento já tem {current} arquivo(s). O limite é 5.")
+        for upload,original,ext,content in prepared:
+            fname=f"{safe_gid}_{uuid.uuid4().hex}{ext}"
+            dest=MONTEIRO_NOTES_DIR/fname
+            with open(dest,"xb") as stream: stream.write(content)
+            created.append(dest)
+            conn.execute("""INSERT INTO paladar_sale_attachments
+                (id,sale_group,file_path,original_name,mime,uploaded_at)
+                VALUES(?,?,?,?,?,datetime('now'))""",
+                (str(uuid.uuid4()),gid,str(dest),original,upload.content_type or "application/octet-stream"))
+            conn.execute("""UPDATE paladar_sales SET
+                invoice_file_path=COALESCE(invoice_file_path,?),
+                invoice_original_name=COALESCE(invoice_original_name,?),
+                invoice_mime=COALESCE(invoice_mime,?),
+                invoice_uploaded_at=COALESCE(invoice_uploaded_at,datetime('now'))
+                WHERE sale_group=?""",(str(dest),original,upload.content_type or "application/octet-stream",gid))
+        conn.commit()
+        return {"ok":True,"attachments":_monteiro_invoice_metadata(conn,gid)}
+    except Exception:
+        conn.rollback()
+        for path in created:
+            try: path.unlink(missing_ok=True)
+            except Exception: pass
+        raise
+    finally:
+        conn.close()
+
+@app.get("/api/monteiro/sales/group/{group_id}/invoices")
+@app.get("/api/paladar/sales/group/{group_id}/invoices")
+def list_monteiro_invoices(group_id: str,x_token: str = Header("")):
+    require_auth(x_token)
+    conn=get_db()
+    try:
+        if not _monteiro_invoice_row(conn,group_id):
+            raise HTTPException(404,"Lançamento não encontrado.")
+        _sync_legacy_monteiro_invoice(conn,group_id)
+        conn.commit()
+        return {"attachments":_monteiro_invoice_metadata(conn,group_id)}
+    finally:
+        conn.close()
+
+@app.get("/api/monteiro/sales/group/{group_id}/invoices/{attachment_id}")
+@app.get("/api/paladar/sales/group/{group_id}/invoices/{attachment_id}")
+def view_monteiro_invoice_file(group_id: str,attachment_id: str,x_token: str = Header("")):
+    require_auth(x_token)
+    conn=get_db()
+    row=conn.execute("""SELECT file_path,original_name,mime FROM paladar_sale_attachments
+        WHERE sale_group=? AND id=?""",(group_id,attachment_id)).fetchone()
+    conn.close()
+    if not row: raise HTTPException(404,"Arquivo anexado não encontrado.")
+    path=_monteiro_invoice_path(row["file_path"])
+    return FileResponse(str(path),media_type=row["mime"] or "application/octet-stream",
+                        filename=row["original_name"] or path.name)
 
 @app.get("/api/monteiro/sales/group/{group_id}/invoice")
 @app.get("/api/paladar/sales/group/{group_id}/invoice")
 def view_monteiro_invoice(group_id: str, x_token: str = Header("")):
     require_auth(x_token)
     conn = get_db()
-    row = _monteiro_invoice_row(conn, group_id)
-    conn.close()
-    if not row or not row["invoice_file_path"]:
-        raise HTTPException(404, "Nota fiscal nÃ£o anexada.")
-    path = Path(row["invoice_file_path"])
     try:
-        resolved = path.resolve()
-        if resolved.parent != MONTEIRO_NOTES_DIR.resolve():
-            raise HTTPException(403, "Arquivo invÃ¡lido.")
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(404, "Arquivo nÃ£o encontrado.")
-    if not resolved.exists():
-        raise HTTPException(404, "Arquivo nÃ£o encontrado.")
-    return FileResponse(str(resolved), media_type=row["invoice_mime"] or "application/octet-stream",
-                        filename=row["invoice_original_name"] or resolved.name)
+        _sync_legacy_monteiro_invoice(conn,group_id)
+        rows=conn.execute("""SELECT file_path,original_name,mime FROM paladar_sale_attachments
+            WHERE sale_group=? ORDER BY uploaded_at,id LIMIT 1""",(group_id,)).fetchone()
+        conn.commit()
+    finally:
+        conn.close()
+    if not rows:
+        raise HTTPException(404, "Nota fiscal nÃ£o anexada.")
+    path=_monteiro_invoice_path(rows["file_path"])
+    return FileResponse(str(path),media_type=rows["mime"] or "application/octet-stream",
+                        filename=rows["original_name"] or path.name)
 
 @app.delete("/api/monteiro/sales/group/{group_id}/invoice")
 @app.delete("/api/paladar/sales/group/{group_id}/invoice")
 def delete_monteiro_invoice(group_id: str, x_token: str = Header("")):
     require_editor_tab_access(x_token,["nf","pendentes","consolidado"])
     conn = get_db()
-    row = _monteiro_invoice_row(conn, group_id)
-    if not row:
-        conn.close()
-        raise HTTPException(404, "LanÃ§amento nÃ£o encontrado.")
-    path_txt = row["invoice_file_path"]
-    conn.execute("""UPDATE paladar_sales
-        SET invoice_file_path=NULL, invoice_original_name=NULL, invoice_mime=NULL, invoice_uploaded_at=NULL
-        WHERE sale_group=?""", (group_id,))
-    conn.commit(); conn.close()
-    if path_txt:
+    paths=[]
+    try:
+        row=_monteiro_invoice_row(conn,group_id)
+        if not row: raise HTTPException(404,"Lançamento não encontrado.")
+        _sync_legacy_monteiro_invoice(conn,group_id)
+        paths=[r["file_path"] for r in conn.execute(
+            "SELECT file_path FROM paladar_sale_attachments WHERE sale_group=?",(group_id,)).fetchall()]
+        conn.execute("DELETE FROM paladar_sale_attachments WHERE sale_group=?",(group_id,))
+        conn.execute("""UPDATE paladar_sales SET invoice_file_path=NULL,invoice_original_name=NULL,
+            invoice_mime=NULL,invoice_uploaded_at=NULL WHERE sale_group=?""",(group_id,))
+        conn.commit()
+    except Exception:
+        conn.rollback(); raise
+    finally: conn.close()
+    for path_txt in paths:
         try:
             p = Path(path_txt)
             if p.exists() and p.resolve().parent == MONTEIRO_NOTES_DIR.resolve():
                 p.unlink()
         except Exception:
             pass
-    return {"ok": True}
+    return {"ok":True,"removed":len(paths)}
 
 @app.post("/api/monteiro/invoices/zip")
 @app.post("/api/paladar/invoices/zip")
 def download_monteiro_invoices_zip(body: dict, x_token: str = Header("")):
-    """Gera um ZIP com as notas fiscais (PDF/imagem/XML) dos grupos informados.
+    """Gera um ZIP com todos os anexos fiscais dos grupos informados.
     body: {"groups": ["sale_group", ...]}. Nomeia cada arquivo como data_NF_cliente."""
     require_auth(x_token)
     import io as _io, zipfile
@@ -4477,12 +4586,16 @@ def download_monteiro_invoices_zip(body: dict, x_token: str = Header("")):
         raise HTTPException(400, "Nenhuma nota selecionada para download.")
     conn = get_db()
     ph = ",".join("?" * len(groups))
-    rows = conn.execute(f"""SELECT DISTINCT sale_group, saledate, client, nf_number,
-        invoice_file_path, invoice_original_name
-        FROM paladar_sales
-        WHERE sale_group IN ({ph}) AND invoice_file_path IS NOT NULL
-        ORDER BY saledate DESC""", groups).fetchall()
-    conn.close()
+    try:
+        for group_id in groups: _sync_legacy_monteiro_invoice(conn,group_id)
+        rows = conn.execute(f"""SELECT a.sale_group,s.saledate,s.client,s.nf_number,
+            a.file_path AS invoice_file_path,a.original_name AS invoice_original_name
+            FROM paladar_sale_attachments a JOIN paladar_sales s ON s.sale_group=a.sale_group
+            WHERE a.sale_group IN ({ph})
+            GROUP BY a.id ORDER BY s.saledate DESC,a.uploaded_at,a.id""", groups).fetchall()
+        conn.commit()
+    finally:
+        conn.close()
     if not rows:
         raise HTTPException(404, "Nenhuma nota fiscal anexada nos lanÃ§amentos selecionados.")
     buf = _io.BytesIO()
@@ -4595,6 +4708,9 @@ def get_monteiro_sale_group(group_id: str, x_token: str = Header("")):
             raise HTTPException(404, "Lancamento nao encontrado.")
         group = dict(rows[0])
         group["items"] = [dict(row) for row in rows]
+        _sync_legacy_monteiro_invoice(conn,group_id)
+        conn.commit()
+        group["invoices"] = _monteiro_invoice_metadata(conn,group_id)
         return group
     finally:
         conn.close()
@@ -4687,20 +4803,43 @@ def update_monteiro_sale_group_full(group_id: str, body: dict, x_token: str = He
 @app.delete("/api/monteiro/sales/{pid}")
 @app.delete("/api/paladar/sales/{pid}")
 def delete_paladar_sale(pid:str,x_token:str=Header("")):
-    require_editor_tab_access(x_token,["consolidado","nf","avulso","pendentes"]); conn=get_db()
-    conn.execute("DELETE FROM paladar_sales WHERE id=?",(pid,))
-    conn.commit(); conn.close()
+    require_editor_tab_access(x_token,["consolidado","nf","avulso","pendentes"]); conn=get_db(); paths=[]
+    try:
+        row=conn.execute("SELECT sale_group FROM paladar_sales WHERE id=?",(pid,)).fetchone()
+        conn.execute("DELETE FROM paladar_sales WHERE id=?",(pid,))
+        if row and not conn.execute("SELECT 1 FROM paladar_sales WHERE sale_group=? LIMIT 1",(row["sale_group"],)).fetchone():
+            paths=[r["file_path"] for r in conn.execute(
+                "SELECT file_path FROM paladar_sale_attachments WHERE sale_group=?",(row["sale_group"],)).fetchall()]
+            conn.execute("DELETE FROM paladar_sale_attachments WHERE sale_group=?",(row["sale_group"],))
+        conn.commit()
+    except Exception:
+        conn.rollback(); raise
+    finally: conn.close()
+    for path_txt in paths:
+        try:
+            path=Path(path_txt)
+            if path.exists() and path.resolve().parent==MONTEIRO_NOTES_DIR.resolve(): path.unlink()
+        except Exception: pass
     return {"ok":True}
 
 @app.delete("/api/monteiro/sales/group/{group_id}")
 @app.delete("/api/paladar/sales/group/{group_id}")
 def delete_paladar_sale_group(group_id:str,x_token:str=Header("")):
     require_editor_tab_access(x_token,["consolidado","nf","avulso","pendentes"]); conn=get_db()
-    row=_monteiro_invoice_row(conn, group_id)
-    path_txt=row["invoice_file_path"] if row else None
-    conn.execute("DELETE FROM paladar_sales WHERE sale_group=?",(group_id,))
-    conn.commit(); conn.close()
-    if path_txt:
+    paths=[]
+    try:
+        row=_monteiro_invoice_row(conn,group_id)
+        if row:
+            _sync_legacy_monteiro_invoice(conn,group_id)
+            paths=[r["file_path"] for r in conn.execute(
+                "SELECT file_path FROM paladar_sale_attachments WHERE sale_group=?",(group_id,)).fetchall()]
+        conn.execute("DELETE FROM paladar_sale_attachments WHERE sale_group=?",(group_id,))
+        conn.execute("DELETE FROM paladar_sales WHERE sale_group=?",(group_id,))
+        conn.commit()
+    except Exception:
+        conn.rollback(); raise
+    finally: conn.close()
+    for path_txt in paths:
         try:
             p=Path(path_txt)
             if p.exists() and p.resolve().parent == MONTEIRO_NOTES_DIR.resolve():
