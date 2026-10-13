@@ -17476,6 +17476,73 @@ async function downloadPaladarInvoicesZip(){
   }catch(e){ toast(' '+e.message,'error'); }
 }
 
+function queuePaladarInvoiceFiles(current, selected, existingCount){
+  var queued=(current||[]).slice();
+  var seen=new Set(queued.map(function(file){return [file.name,file.size,file.lastModified].join('|');}));
+  (selected||[]).forEach(function(file){
+    var key=[file.name,file.size,file.lastModified].join('|');
+    if(!seen.has(key)){seen.add(key);queued.push(file);}
+  });
+  return {files:queued,overflow:Number(existingCount||0)+queued.length>5};
+}
+
+function renderPaladarInvoiceQueue(){
+  var list=document.getElementById('pal-sale-invoice-list');
+  if(!list)return;
+  var queued=window._palPendingInvoiceFiles||[];
+  var existing=Number(window._palEditingGroup&&window._palEditingGroup.invoiceCount||0);
+  list.replaceChildren();
+  var count=document.createElement('div');
+  count.style.cssText='font-size:11px;color:var(--muted);margin:5px 0 3px';
+  count.textContent=(existing?'Já anexados: '+existing+' · ':'')+'Selecionados: '+queued.length+' · Total após salvar: '+(existing+queued.length)+'/5';
+  list.appendChild(count);
+  queued.forEach(function(file,index){
+    var row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 8px;margin-top:4px;border:1px solid var(--border);border-radius:6px;background:var(--card)';
+    var name=document.createElement('span');
+    name.style.cssText='min-width:0;overflow-wrap:anywhere;font-size:12px;color:var(--text)';
+    name.textContent=file.name+' ('+Math.max(1,Math.ceil((file.size||0)/1024))+' KB)';
+    var remove=document.createElement('button');
+    remove.type='button';
+    remove.dataset.removePendingInvoice=String(index);
+    remove.setAttribute('aria-label','Remover '+file.name);
+    remove.title='Remover arquivo selecionado';
+    remove.textContent='Remover';
+    remove.style.cssText='flex:0 0 auto;padding:4px 8px;border:1px solid #FECACA;border-radius:5px;background:#FEF2F2;color:#B42318;font-size:11px;cursor:pointer';
+    row.append(name,remove);
+    list.appendChild(row);
+  });
+}
+
+function bindPaladarInvoiceQueue(){
+  var input=document.getElementById('pal-sale-invoice');
+  var list=document.getElementById('pal-sale-invoice-list');
+  if(input&&!input.dataset.queueBound){
+    input.addEventListener('change',function(){
+      var chosen=Array.from(input.files||[]);
+      var existing=Number(window._palEditingGroup&&window._palEditingGroup.invoiceCount||0);
+      var result=queuePaladarInvoiceFiles(window._palPendingInvoiceFiles,chosen,existing);
+      if(result.overflow){
+        toast('O limite é 5 arquivos por venda. Os selecionados anteriormente foram mantidos.','error');
+      }else{
+        window._palPendingInvoiceFiles=result.files;
+      }
+      input.value='';
+      renderPaladarInvoiceQueue();
+    });
+    input.dataset.queueBound='1';
+  }
+  if(list&&!list.dataset.removeBound){
+    list.addEventListener('click',function(event){
+      var button=event.target.closest('[data-remove-pending-invoice]');
+      if(!button||!list.contains(button))return;
+      window._palPendingInvoiceFiles.splice(Number(button.dataset.removePendingInvoice),1);
+      renderPaladarInvoiceQueue();
+    });
+    list.dataset.removeBound='1';
+  }
+}
+
 async function openPaladarSaleModal(){
   window._palEditingGroup = null;
   document.getElementById('pal-sale-modal-title').textContent = 'Lançar Venda Monteiro';
@@ -17494,6 +17561,9 @@ async function openPaladarSaleModal(){
   var _pt = document.getElementById('pal-plate-manual-toggle'); if(_pt) _pt.style.display = '';
   document.getElementById('pal-sale-notes').value = '';
   var inv=document.getElementById('pal-sale-invoice'); if(inv) inv.value='';
+  window._palPendingInvoiceFiles=[];
+  bindPaladarInvoiceQueue();
+  renderPaladarInvoiceQueue();
   await loadSellers(true,false,'raios','monteiro');
   fillSellerSelect('pal-sale-seller','',true);
   var c = document.getElementById('pal-items-body');
@@ -17566,6 +17636,7 @@ async function editPaladarGroup(groupId){
     document.getElementById('pal-sale-invoice-label').textContent=(group.invoices||[]).length
       ? (group.invoices.length)+' arquivo(s) anexado(s); selecione mais para adicionar (limite 5)'
       : 'Anexos da venda (até 5 arquivos; PDF, XML ou imagem)';
+    renderPaladarInvoiceQueue();
     palSetVal('pal-sale-date',group.saledate);
     palSetVal('pal-sale-client',group.client);
     palSetVal('pal-sale-nf',group.nf_number);
@@ -17681,7 +17752,7 @@ async function savePaladarSale(){
   var vehicle = document.getElementById('pal-sale-vehicle')?.value?.trim() || '';
   var plate = document.getElementById('pal-sale-plate')?.value?.trim().toUpperCase() || '';
   var notes = document.getElementById('pal-sale-notes')?.value || '';
-  var selectedInvoiceFiles=Array.from(document.getElementById('pal-sale-invoice')?.files||[]);
+  var selectedInvoiceFiles=(window._palPendingInvoiceFiles||[]).slice();
   var existingInvoiceCount=editing?Number(editing.invoiceCount||0):0;
   if(existingInvoiceCount+selectedInvoiceFiles.length>5){
     toast('O limite é 5 arquivos por venda. Já existem '+existingInvoiceCount+' anexado(s).','error');return;
@@ -20476,6 +20547,7 @@ setTimeout(installMobileReadOnlyGuards,0);
         <div style="margin-bottom:8px">
           <label id="pal-sale-invoice-label" style="font-size:11px;font-weight:600;color:var(--muted);display:block;margin-bottom:3px">Anexos da venda (até 5 arquivos; PDF, XML ou imagem)</label>
           <input type="file" id="pal-sale-invoice" multiple accept=".pdf,.xml,.jpg,.jpeg,.png,.webp,application/pdf,text/xml,application/xml,image/*" style="width:100%;padding:7px 9px;border:1px solid #ddd;border-radius:7px;font-size:12px;font-family:inherit;box-sizing:border-box;background:var(--card)">
+          <div id="pal-sale-invoice-list" aria-live="polite"></div>
         </div>
         <div style="font-size:12px;font-weight:700;color:#4F46E5;margin:10px 0 8px">Itens da Venda</div>
         <div id="pal-items-body" style="max-height:320px;overflow-y:auto"></div>
