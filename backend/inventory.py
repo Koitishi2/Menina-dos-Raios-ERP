@@ -22,13 +22,23 @@ SEED_PRODUCTS = [
         "aliases": [
             "UVA VITORIA 5 KG KIDS - 250 G",
             "UVA VITORIA 5KG KIDS 250G",
+            "Uva Vitória 250G - Cx",
         ],
+        "sale_quantity_factor": 0.05,
     },
     {
         "sku": "UVA-VITORIA-5KG",
         "name": "Uva Vitória - Caixa 5 kg",
         "unit": "CX",
-        "aliases": ["UVA VITORIA CX 5 KG", "UVA VITORIA CAIXA 5 KG"],
+        "aliases": ["UVA VITORIA CX 5 KG", "UVA VITORIA CAIXA 5 KG", "Uva Vitoria"],
+        "sale_quantity_factor": 0.2,
+    },
+    {
+        "sku": "UVA-THOMPSON-VERDE-500G",
+        "name": "Uva Thompson Verde - Caixa 500 g",
+        "unit": "CX",
+        "aliases": ["Uva Thompson Verde Cx 500G"],
+        "sale_quantity_factor": 1,
     },
 ]
 
@@ -49,6 +59,7 @@ def init_inventory_schema(conn):
             name TEXT NOT NULL,
             unit TEXT NOT NULL DEFAULT 'UND',
             aliases_json TEXT NOT NULL DEFAULT '[]',
+            sale_quantity_factor REAL NOT NULL DEFAULT 1,
             active INTEGER NOT NULL DEFAULT 1,
             tracking_after TEXT NOT NULL,
             created_at TEXT NOT NULL,
@@ -70,7 +81,11 @@ def init_inventory_schema(conn):
         CREATE INDEX IF NOT EXISTS idx_stock_movements_product_date ON stock_movements(product_id, movement_date DESC);
         """
     )
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(stock_products)")}
+    if "sale_quantity_factor" not in columns:
+        conn.execute("ALTER TABLE stock_products ADD COLUMN sale_quantity_factor REAL NOT NULL DEFAULT 1")
     now = datetime.now().astimezone().isoformat(timespec="seconds")
+    opening_at = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0).isoformat(timespec="seconds")
     for item in SEED_PRODUCTS:
         conn.execute(
             """INSERT OR IGNORE INTO stock_products
@@ -87,6 +102,19 @@ def init_inventory_schema(conn):
                 now,
             ),
         )
+        product = conn.execute(
+            "SELECT id,aliases_json FROM stock_products WHERE module_key='estrada' AND sku=? AND active=1",
+            (item["sku"],),
+        ).fetchone()
+        try:
+            aliases = json.loads(product["aliases_json"] or "[]")
+        except (TypeError, ValueError):
+            aliases = []
+        aliases = list(dict.fromkeys([*aliases, *item["aliases"]]))
+        conn.execute(
+            "UPDATE stock_products SET aliases_json=?,sale_quantity_factor=? WHERE id=?",
+            (json.dumps(aliases, ensure_ascii=False), item.get("sale_quantity_factor", 1), product["id"]),
+        )
     today = datetime.now().date().isoformat()
     for sku, quantity in INITIAL_STOCK.items():
         product = conn.execute(
@@ -99,14 +127,20 @@ def init_inventory_schema(conn):
             "SELECT 1 FROM stock_movements WHERE product_id=? LIMIT 1",
             (product["id"],),
         ).fetchone()
+        movement_id = f"opening-stock-{sku.lower()}"
         if has_history:
+            conn.execute(
+                """UPDATE stock_movements SET created_at=?
+                   WHERE id=? AND movement_date=? AND substr(created_at,12,8)!='00:00:00'""",
+                (opening_at, movement_id, today),
+            )
             continue
         conn.execute(
             """INSERT OR IGNORE INTO stock_movements
                (id,product_id,movement_type,quantity_delta,movement_date,reference,notes,created_by,created_at)
                VALUES(?,?,?,?,?,?,?,?,?)""",
             (
-                f"opening-stock-{sku.lower()}",
+                movement_id,
                 product["id"],
                 "entry",
                 quantity,
@@ -114,7 +148,7 @@ def init_inventory_schema(conn):
                 "Saldo inicial - nota das uvas enviada",
                 "Quantidade informada na nota enviada pelo usuário.",
                 "system",
-                now,
+                opening_at,
             ),
         )
     conn.commit()
@@ -175,6 +209,7 @@ def inventory_snapshot(stock_conn, source_conn, module_key):
         except (TypeError, ValueError):
             pass
         started = _as_datetime(product["tracking_after"])
+        sale_quantity_factor = float(product.get("sale_quantity_factor") or 1)
         balance = 0.0
         events = []
         for row in manual_rows:
@@ -183,14 +218,19 @@ def inventory_snapshot(stock_conn, source_conn, module_key):
         for sale in sales:
             if _normalized(sale["product"]) not in aliases:
                 continue
-            created = _as_datetime(sale["created_at"])
-            if not started or not created or created < started:
+            sold_on = _as_datetime(sale["sale_date"])
+            if not started or not sold_on or sold_on.date() < started.date():
                 continue
             quantity = float(sale["quantity"] or 0)
             if quantity <= 0:
                 continue
-            delta = -quantity
+            converted_quantity = quantity * sale_quantity_factor
+            delta = -converted_quantity
             events.append((str(sale["sale_date"] or ""), str(sale["created_at"] or ""), delta))
+            conversion_note = (
+                f" · {quantity:g} na venda → {converted_quantity:g} {product['unit']} no estoque"
+                if sale_quantity_factor != 1 else ""
+            )
             movements.append({
                 "id": f"sale:{module_key}:{sale['id']}",
                 "product_id": product["id"],
@@ -202,7 +242,9 @@ def inventory_snapshot(stock_conn, source_conn, module_key):
                 "movement_date": sale["sale_date"],
                 "reference": sale["nf_number"] or "",
                 "client": sale["client"] or "",
-                "notes": f"Saída por venda · {sale['client'] or 'Cliente não informado'}",
+                "notes": f"Saída por venda · {sale['client'] or 'Cliente não informado'}{conversion_note}",
+                "sale_quantity": quantity,
+                "sale_quantity_factor": sale_quantity_factor,
                 "source": "sale",
                 "source_id": str(sale["id"]),
                 "total": float(sale["total"] or 0),
