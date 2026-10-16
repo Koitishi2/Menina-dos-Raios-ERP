@@ -515,6 +515,8 @@ header{background:var(--g800);color:#fff;padding:0 16px;height:56px;display:flex
 #stock-app .stock-archived-toggle input[type="checkbox"]{appearance:auto;flex:0 0 16px;width:16px!important;min-width:16px!important;height:16px!important;min-height:16px!important;margin:0;padding:0!important;accent-color:var(--g800);cursor:pointer}
 #stock-app .stock-actions{display:flex;align-items:center;gap:5px;white-space:nowrap}
 #stock-app .stock-actions .btn{width:auto!important;min-width:0;min-height:30px;padding:5px 8px;font-size:11px;line-height:1.2;justify-content:center}
+#stock-app dialog[open]{position:fixed!important;top:50%!important;left:50%!important;right:auto!important;bottom:auto!important;transform:translate(-50%,-50%)!important;margin:0!important;max-height:calc(100dvh - 32px)!important;overflow:auto}
+#stock-app dialog::backdrop{background:rgba(12,20,16,.42)}
 @media(max-width:760px){.stock-content-grid{grid-template-columns:minmax(0,1fr)}#stock-app{inset:52px 0 0!important;padding:12px!important}.stock-forms{order:2}}
 .header-center .btn-company-switch{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.28);padding:6px 16px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .2s;backdrop-filter:blur(4px)}
 .header-center .btn-company-switch:hover{background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.42);transform:scale(1.04)}
@@ -6021,9 +6023,11 @@ async function loadStock(){
 }
 function renderStock(){
   if(!stockSnapshot)return;
-  const products=(stockSnapshot.products||[]).filter(product=>Number(product.active)!==0&&Number(product.balance)>0);
+  const products=(stockSnapshot.products||[]).filter(product=>Number(product.active)!==0&&Number(product.balance)!==0);
   const productsEl=document.getElementById('stock-products');
   if(productsEl)productsEl.innerHTML=products.length?products.map(function(product){
+    const negative=Number(product.balance)<0;
+    const balanceTone=negative?'#b42318':'var(--g800)';
     if(product.sku==='STRETCH-FILM'){
       const balance=Number(product.balance)||0, capacity=6400, percent=Math.max(0,Math.min(100,balance/capacity*100));
       const tone=percent<=20?'#c2413b':percent<=50?'#d58a12':'#21834a';
@@ -6033,7 +6037,7 @@ function renderStock(){
         '<div><div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px"><div><div style="font-size:11px;color:var(--muted)">Vendido no histórico</div><strong>'+stockFormatQty(product.sold_quantity)+' '+stockEscape(product.unit)+'</strong><div style="font-size:11px;color:var(--muted)">'+stockFormatQty(product.sales_count)+' vendas</div></div><div><div style="font-size:11px;color:var(--muted)">Menor venda</div><strong>'+stockFormatQty(product.min_sale_quantity)+' '+stockEscape(product.unit)+'</strong></div><div><div style="font-size:11px;color:var(--muted)">Maior venda</div><strong>'+stockFormatQty(product.max_sale_quantity)+' '+stockEscape(product.unit)+'</strong></div></div><div role="img" aria-label="Saldo atual de '+stockFormatQty(balance)+' de '+stockFormatQty(capacity)+' unidades" style="height:12px;background:var(--bg,#edf2ef);border-radius:20px;overflow:hidden"><div style="height:100%;width:'+percent+'%;background:'+tone+';border-radius:20px;transition:width .5s ease,background .3s ease"></div></div><div style="display:flex;justify-content:space-between;gap:8px;font-size:10px;color:var(--muted);margin-top:5px"><span>0</span><span>Estoque inicial '+stockFormatQty(capacity)+' UN</span></div></div>'+
         '<button type="button" class="btn btn-secondary" data-stock-action="sales" data-stock-id="'+stockEscape(product.id)+'">Ver vendas por NF</button></article>';
     }
-    return '<article style="background:var(--card,#fff);border:1px solid var(--border);border-top:3px solid var(--g500,#2f855a);border-radius:8px;padding:14px"><div style="font-size:11px;color:var(--muted);font-weight:700">'+stockEscape(product.sku)+'</div><strong style="display:block;margin:5px 0;color:var(--ink)">'+stockEscape(product.name)+'</strong><div style="font-size:24px;font-weight:800;color:var(--g800)">'+stockFormatQty(product.balance)+' <small style="font-size:12px">'+stockEscape(product.unit)+'</small></div><div style="font-size:11px;color:var(--muted);margin-top:5px">Saldo disponível</div>'+stockTrendMarkup(product)+'</article>';
+    return '<article style="background:var(--card,#fff);border:1px solid var(--border);border-top:3px solid '+(negative?'#b42318':'var(--g500,#2f855a)')+';border-radius:8px;padding:14px"><div style="font-size:11px;color:var(--muted);font-weight:700">'+stockEscape(product.sku)+'</div><strong style="display:block;margin:5px 0;color:var(--ink)">'+stockEscape(product.name)+'</strong><div style="font-size:24px;font-weight:800;color:'+balanceTone+'">'+stockFormatQty(product.balance)+' <small style="font-size:12px">'+stockEscape(product.unit)+'</small></div><div style="font-size:11px;color:'+(negative?'#b42318':'var(--muted)')+';font-weight:'+(negative?'700':'400')+';margin-top:5px">'+(negative?'Saldo negativo · verificar entrada de estoque':'Saldo disponível')+'</div>'+stockTrendMarkup(product)+'</article>';
   }).join(''):'<div class="card" style="padding:18px">Nenhum produto com saldo disponível. Consulte a aba Produtos para cadastrar itens ou definir o saldo atual.</div>';
   const movementEl=document.getElementById('stock-movements');
   const rows=stockSnapshot.movements||[];
