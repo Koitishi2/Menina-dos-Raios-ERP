@@ -5930,6 +5930,18 @@ let stockSnapshot = null;
 function stockEscape(value){return String(value??'').replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];});}
 function stockFormatQty(value){return new Intl.NumberFormat('pt-BR',{maximumFractionDigits:3}).format(Number(value)||0);}
 function stockToday(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function syncStockPanelViewport(){
+  const panel=document.getElementById('stock-app');
+  if(!panel||panel.style.display==='none')return;
+  const nav=document.querySelector('#app .tabs-wrap');
+  const navRect=nav?.getBoundingClientRect();
+  const navStyle=nav?getComputedStyle(nav):null;
+  const sidebarRight=navRect&&navStyle?.position==='fixed'&&navRect.right>0&&navRect.left<=1?Math.ceil(navRect.right):0;
+  panel.style.left=sidebarRight+'px';
+  panel.style.right='0';
+  panel.style.width='auto';
+}
+window.addEventListener('resize',syncStockPanelViewport,{passive:true});
 function openStockShortcut(){
   const mobileSheet=document.getElementById('mobile-more-sheet');
   if(mobileSheet&&mobileSheet.classList.contains('open'))closeMobileMoreSheet();
@@ -5938,8 +5950,9 @@ function openStockShortcut(){
   if(panel.parentElement!==document.body)document.body.appendChild(panel);
   const appHeader=document.querySelector('#app>header');
   panel.style.top=(appHeader?Math.ceil(appHeader.getBoundingClientRect().bottom):0)+'px';
-  panel.style.left='0';panel.style.right='0';panel.style.width='100vw';
+  panel.style.left='0';panel.style.right='0';panel.style.width='auto';
   panel.style.display='block';
+  syncStockPanelViewport();
   document.body.style.overflow='hidden';
   const date=document.getElementById('stock-date');if(date&&!date.value)date.value=stockToday();
   loadStock();
