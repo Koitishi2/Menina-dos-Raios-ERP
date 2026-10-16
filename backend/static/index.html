@@ -511,6 +511,10 @@ header{background:var(--g800);color:#fff;padding:0 16px;height:56px;display:flex
 .header-center .btn-stock-header:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.35);transform:scale(1.04)}
 .stock-content-grid{display:grid;grid-template-columns:minmax(280px,.85fr) minmax(360px,1.5fr);gap:16px;align-items:start}
 .stock-forms{display:grid;gap:12px;min-width:0}
+#stock-app .stock-archived-toggle{display:inline-flex;flex:0 0 auto;align-items:center;gap:7px;white-space:nowrap;font-size:12px;color:var(--muted);cursor:pointer}
+#stock-app .stock-archived-toggle input[type="checkbox"]{appearance:auto;flex:0 0 16px;width:16px!important;min-width:16px!important;height:16px!important;min-height:16px!important;margin:0;padding:0!important;accent-color:var(--g800);cursor:pointer}
+#stock-app .stock-actions{display:flex;align-items:center;gap:5px;white-space:nowrap}
+#stock-app .stock-actions .btn{width:auto!important;min-width:0;min-height:30px;padding:5px 8px;font-size:11px;line-height:1.2;justify-content:center}
 @media(max-width:760px){.stock-content-grid{grid-template-columns:minmax(0,1fr)}#stock-app{inset:52px 0 0!important;padding:12px!important}.stock-forms{order:2}}
 .header-center .btn-company-switch{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.28);padding:6px 16px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .2s;backdrop-filter:blur(4px)}
 .header-center .btn-company-switch:hover{background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.42);transform:scale(1.04)}
@@ -3504,7 +3508,7 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
       </form>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
         <input id="stock-product-search" class="form-input" type="search" placeholder="Buscar produto ou código" oninput="renderStockCatalog()" style="max-width:340px">
-        <label style="display:flex;gap:7px;align-items:center;font-size:12px;color:var(--muted)"><input id="stock-show-archived" type="checkbox" onchange="renderStockCatalog()"> Mostrar arquivados</label>
+        <label class="stock-archived-toggle"><input id="stock-show-archived" type="checkbox" onchange="renderStockCatalog()"> Mostrar arquivados</label>
         <span id="stock-product-count" style="font-size:12px;color:var(--muted)"></span>
       </div>
       <div style="background:var(--card,#fff);border:1px solid var(--border);border-radius:8px;overflow:auto">
@@ -6043,7 +6047,7 @@ function renderStockCatalog(){
     const archived=Number(product.active)===0;
     const edit='stockEditProduct('+JSON.stringify(product.id)+')';
     const archive=archived?'stockRestoreProduct('+JSON.stringify(product.id)+')':'stockArchiveProduct('+JSON.stringify(product.id)+')';
-    return '<tr style="border-bottom:1px solid var(--border);'+(archived?'opacity:.65':'')+'"><td style="padding:11px"><strong>'+stockEscape(product.name)+'</strong>'+(product.aliases?.length?'<div style="font-size:11px;color:var(--muted);margin-top:3px">Venda reconhecida por: '+stockEscape(product.aliases.slice(0,3).join(', '))+'</div>':'')+'</td><td>'+stockEscape(product.sku)+'</td><td>'+stockEscape(product.unit)+'</td><td><strong style="color:'+(Number(product.balance)<0?'#b42318':'var(--g800)')+'">'+stockFormatQty(product.balance)+' '+stockEscape(product.unit)+'</strong></td><td>'+(archived?'Arquivado':Number(product.balance)>0?'Em estoque':'Sem saldo')+'</td><td style="white-space:nowrap"><button class="btn btn-secondary" type="button" onclick="'+stockEscape(edit)+'">Editar / saldo</button> <button class="btn btn-secondary" type="button" onclick="'+stockEscape(archive)+'">'+(archived?'Reativar':'Remover')+'</button></td></tr>';
+    return '<tr style="border-bottom:1px solid var(--border);'+(archived?'opacity:.65':'')+'"><td style="padding:11px"><strong>'+stockEscape(product.name)+'</strong>'+(product.aliases?.length?'<div style="font-size:11px;color:var(--muted);margin-top:3px">Venda reconhecida por: '+stockEscape(product.aliases.slice(0,3).join(', '))+'</div>':'')+'</td><td>'+stockEscape(product.sku)+'</td><td>'+stockEscape(product.unit)+'</td><td><strong style="color:'+(Number(product.balance)<0?'#b42318':'var(--g800)')+'">'+stockFormatQty(product.balance)+' '+stockEscape(product.unit)+'</strong></td><td>'+(archived?'Arquivado':Number(product.balance)>0?'Em estoque':'Sem saldo')+'</td><td><div class="stock-actions"><button class="btn btn-secondary" type="button" onclick="'+stockEscape(edit)+'">Editar / saldo</button><button class="btn btn-secondary" type="button" onclick="'+stockEscape(archive)+'">'+(archived?'Reativar':'Remover')+'</button></div></td></tr>';
   }).join(''):'<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">Nenhum produto encontrado.</td></tr>';
 }
 function stockEditProduct(id){
