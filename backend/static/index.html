@@ -507,8 +507,8 @@ header{background:var(--g800);color:#fff;padding:0 16px;height:56px;display:flex
 .header-center .btn-paladar-header:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.35);transform:scale(1.04)}
 .header-center .btn-orcamento-header{background:linear-gradient(135deg,#8B5CF6,#6D28D9);color:#fff;border:1px solid rgba(255,255,255,.28);padding:6px 16px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .2s;box-shadow:0 8px 18px rgba(25,12,60,.18),inset 0 1px 0 rgba(255,255,255,.18)}
 .header-center .btn-orcamento-header:hover{background:linear-gradient(135deg,#7C3AED,#5B21B6);border-color:rgba(255,255,255,.42);transform:scale(1.04)}
-.header-center .btn-stock-header{background:#E6F4EA;color:#145C29;border:1px solid rgba(255,255,255,.35);padding:6px 16px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .2s}
-.header-center .btn-stock-header:hover{background:#fff;transform:scale(1.04)}
+.header-center .btn-stock-header{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);padding:6px 16px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;transition:all .2s;backdrop-filter:blur(4px)}
+.header-center .btn-stock-header:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.35);transform:scale(1.04)}
 .stock-content-grid{display:grid;grid-template-columns:minmax(280px,.85fr) minmax(360px,1.5fr);gap:16px;align-items:start}
 .stock-forms{display:grid;gap:12px;min-width:0}
 @media(max-width:760px){.stock-content-grid{grid-template-columns:minmax(0,1fr)}#stock-app{inset:52px 0 0!important;padding:12px!important}.stock-forms{order:2}}
@@ -3468,8 +3468,8 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
   </div>
 </header>
 
-<section id="stock-app" aria-labelledby="stock-title" style="display:none;position:fixed;inset:56px 0 0;z-index:120;background:var(--bg,#f3f7f4);overflow:auto;padding:clamp(14px,2.2vw,30px)">
-  <div style="max-width:1500px;margin:0 auto">
+<section id="stock-app" aria-labelledby="stock-title" style="display:none;position:fixed;top:68px;left:0;right:0;bottom:0;width:100vw;box-sizing:border-box;z-index:1000;background:var(--bg,#f3f7f4);overflow:auto;overflow-x:hidden;padding:clamp(14px,2.2vw,30px)">
+  <div style="width:100%;max-width:1500px;margin:0 auto;box-sizing:border-box">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:16px">
       <div><h2 id="stock-title" style="margin:0;color:var(--g800)">📦 Estoque</h2><div style="font-size:12px;color:var(--muted);margin-top:4px">Saldos, entradas e saídas rastreadas por venda/nota</div></div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -5935,6 +5935,10 @@ function openStockShortcut(){
   if(mobileSheet&&mobileSheet.classList.contains('open'))closeMobileMoreSheet();
   const panel=document.getElementById('stock-app');
   if(!panel)return;
+  if(panel.parentElement!==document.body)document.body.appendChild(panel);
+  const appHeader=document.querySelector('#app>header');
+  panel.style.top=(appHeader?Math.ceil(appHeader.getBoundingClientRect().bottom):0)+'px';
+  panel.style.left='0';panel.style.right='0';panel.style.width='100vw';
   panel.style.display='block';
   document.body.style.overflow='hidden';
   const date=document.getElementById('stock-date');if(date&&!date.value)date.value=stockToday();
