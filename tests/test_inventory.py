@@ -14,15 +14,18 @@ def test_stock_seeds_note_quantities_once_and_tracks_manual_entry_and_sale(isola
     response = isolated_app.client.get("/api/stock?module=estrada", headers=headers)
     assert response.status_code == 200
     payload = response.json()
-    assert len(payload["products"]) == 4
+    assert len(payload["products"]) >= 4
     expected_opening = {
         "UVA-VITORIA-8KG": 5,
         "UVA-VITORIA-KIDS-250G": 110,
         "UVA-VITORIA-5KG": 2870,
         "UVA-THOMPSON-VERDE-500G": 0,
     }
-    assert {item["sku"]: item["balance"] for item in payload["products"]} == expected_opening
+    actual_opening = {item["sku"]: item["balance"] for item in payload["products"]}
+    assert {sku: actual_opening[sku] for sku in expected_opening} == expected_opening
     assert all(item["trend"] == [item["balance"]] for item in payload["products"])
+    assert {item["sku"] for item in payload["products"]} >= set(expected_opening)
+    assert any(item["sku"] == "UVA-THOMPSON-VERDE-500G" for item in payload["all_products"])
     product = next(item for item in payload["products"] if item["sku"] == "UVA-VITORIA-8KG")
     assert product["balance"] == 5
     assert sum(item["reference"] == "Saldo inicial - nota das uvas enviada" for item in payload["movements"]) == 3
@@ -169,3 +172,57 @@ def test_inventory_schema_migrates_existing_products_for_sale_unit_conversion():
         "SELECT quantity_delta FROM stock_movements WHERE id='opening-stock-uva-vitoria-5kg'"
     ).fetchone()[0] == 2870
     conn.close()
+
+
+def test_stock_catalog_edit_archive_and_set_current_balance(isolated_app):
+    token = _login(isolated_app.client)
+    headers = _headers(token)
+    source = sqlite3.connect(isolated_app.db_paths["estrada"])
+    source.execute(
+        "INSERT OR REPLACE INTO product_prices(key,label,price) VALUES(?,?,?)",
+        ("stretch-filme", "Stretch Filme", 35),
+    )
+    source.commit()
+    source.close()
+
+    response = isolated_app.client.get("/api/stock?module=estrada", headers=headers)
+    assert response.status_code == 200
+    catalog_product = next(item for item in response.json()["all_products"] if item["sku"] == "STRETCH-FILME")
+    assert catalog_product["name"] == "Stretch Filme"
+    assert catalog_product["active"] == 1
+
+    response = isolated_app.client.put(
+        f"/api/stock/products/{catalog_product['id']}/balance",
+        headers=headers,
+        json={"module": "estrada", "quantity": 12},
+    )
+    assert response.status_code == 200
+    payload = isolated_app.client.get("/api/stock?module=estrada", headers=headers).json()
+    updated = next(item for item in payload["products"] if item["id"] == catalog_product["id"])
+    assert updated["balance"] == 12
+
+    response = isolated_app.client.put(
+        f"/api/stock/products/{catalog_product['id']}",
+        headers=headers,
+        json={"module": "estrada", "name": "Stretch Filme Transparente", "sku": "STRETCH-FILME", "unit": "ROLO", "aliases": ["Stretch Filme"]},
+    )
+    assert response.status_code == 200
+    edited = next(item for item in isolated_app.client.get("/api/stock?module=estrada", headers=headers).json()["products"] if item["id"] == catalog_product["id"])
+    assert edited["name"] == "Stretch Filme Transparente"
+    assert "Stretch Filme" in edited["aliases"]
+
+    response = isolated_app.client.delete(
+        f"/api/stock/products/{catalog_product['id']}?module=estrada", headers=headers
+    )
+    assert response.status_code == 200
+    archived = next(item for item in isolated_app.client.get("/api/stock?module=estrada", headers=headers).json()["all_products"] if item["id"] == catalog_product["id"])
+    assert archived["active"] == 0
+    assert archived["balance"] == 12
+    response = isolated_app.client.put(
+        f"/api/stock/products/{catalog_product['id']}",
+        headers=headers,
+        json={"module": "estrada", "name": archived["name"], "sku": archived["sku"], "unit": archived["unit"], "aliases": archived["aliases"], "active": True},
+    )
+    assert response.status_code == 200
+    restored = next(item for item in isolated_app.client.get("/api/stock?module=estrada", headers=headers).json()["all_products"] if item["id"] == catalog_product["id"])
+    assert restored["active"] == 1

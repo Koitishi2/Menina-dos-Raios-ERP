@@ -160,6 +160,74 @@ def _normalized(value):
     return re.sub(r"[^A-Z0-9]+", "", text.upper())
 
 
+def sync_stock_catalog(stock_conn, source_conn, module_key):
+    """Make registered module products manageable in inventory without duplicating SKUs."""
+    if module_key not in MODULES:
+        raise ValueError("Módulo de estoque inválido.")
+    if module_key == "monteiro":
+        try:
+            rows = source_conn.execute(
+                "SELECT id,name FROM paladar_products WHERE COALESCE(active,1)=1 ORDER BY name COLLATE NOCASE"
+            ).fetchall()
+        except sqlite3.OperationalError:
+            rows = []
+        catalog = [(str(row["id"]), str(row["name"] or "").strip()) for row in rows]
+    else:
+        try:
+            rows = source_conn.execute(
+                "SELECT key,label FROM product_prices WHERE COALESCE(active,1)=1 ORDER BY label COLLATE NOCASE"
+            ).fetchall()
+        except sqlite3.OperationalError:
+            rows = []
+        catalog = [(str(row["key"]), str(row["label"] or "").strip()) for row in rows]
+
+    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    inserted = 0
+    changed = False
+    for source_key, label in catalog:
+        if not label:
+            continue
+        normalized_label = _normalized(label)
+        matched = None
+        for existing in stock_conn.execute(
+            "SELECT id,name,aliases_json FROM stock_products WHERE module_key=? AND active=1",
+            (module_key,),
+        ).fetchall():
+            try:
+                existing_aliases = json.loads(existing["aliases_json"] or "[]")
+            except (TypeError, ValueError):
+                existing_aliases = []
+            if normalized_label in {_normalized(existing["name"]), *(_normalized(value) for value in existing_aliases)}:
+                matched = (existing, existing_aliases)
+                break
+        if matched:
+            existing, existing_aliases = matched
+            if label not in existing_aliases:
+                existing_aliases.append(label)
+                stock_conn.execute(
+                    "UPDATE stock_products SET aliases_json=? WHERE id=?",
+                    (json.dumps(existing_aliases, ensure_ascii=False), existing["id"]),
+                )
+                changed = True
+            continue
+        sku = re.sub(r"[^A-Z0-9]+", "-", source_key.upper()).strip("-")[:60] or _normalized(label)[:60]
+        product_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"bm-stock:{module_key}:{sku}"))
+        unit_match = re.search(r"\b(CX|CAIXA|KG|QUILO|G|GRAMA|GRAMAS|MAÇO|MACO|SACO|UN|UND|UNIDADE|ROLO|L|LITRO)\b", label, re.IGNORECASE)
+        unit = (unit_match.group(1).upper() if unit_match else "UND")
+        unit = {"CAIXA": "CX", "QUILO": "KG", "G": "G", "GRAMA": "G", "GRAMAS": "G", "MACO": "MAÇO", "UNIDADE": "UN", "UND": "UN", "LITRO": "L"}.get(unit, unit)
+        cursor = stock_conn.execute(
+            """INSERT OR IGNORE INTO stock_products
+               (id,module_key,sku,name,unit,aliases_json,tracking_after,created_at)
+               VALUES(?,?,?,?,?,?,?,?)""",
+            (product_id, module_key, sku, label, unit, json.dumps([label], ensure_ascii=False), now, now),
+        )
+        inserted += max(0, cursor.rowcount)
+        changed = changed or bool(cursor.rowcount)
+    if changed:
+        stock_conn.commit()
+    return inserted
+
+
 def _as_datetime(value):
     try:
         parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
@@ -187,12 +255,12 @@ def _sale_rows(conn, module_key):
     ).fetchall()
 
 
-def inventory_snapshot(stock_conn, source_conn, module_key):
+def inventory_snapshot(stock_conn, source_conn, module_key, include_archived=False):
     if module_key not in MODULES:
         raise ValueError("Módulo de estoque inválido.")
     products = [dict(row) for row in stock_conn.execute(
-        "SELECT * FROM stock_products WHERE module_key=? AND active=1 ORDER BY name COLLATE NOCASE",
-        (module_key,),
+        "SELECT * FROM stock_products WHERE module_key=? AND (?=1 OR active=1) ORDER BY name COLLATE NOCASE",
+        (module_key, int(bool(include_archived))),
     ).fetchall()]
     manual_rows = stock_conn.execute(
         """SELECT m.*, p.name AS product_name, p.sku, p.unit

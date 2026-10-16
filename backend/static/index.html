@@ -3479,33 +3479,50 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
         <button class="btn btn-secondary" onclick="closeStockApp()">Fechar</button>
       </div>
     </div>
-    <div id="stock-products" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px;margin-bottom:18px"></div>
-    <div class="stock-content-grid">
-      <div class="stock-forms">
-      <form id="stock-movement-form" onsubmit="submitStockMovement(event)" style="background:var(--card,#fff);border:1px solid var(--border);border-radius:8px;padding:16px;display:grid;gap:10px">
-        <h3 style="margin:0 0 4px;color:var(--g800)">Registrar movimentação</h3>
-        <label style="font-size:12px;font-weight:700">Produto<select id="stock-product" class="form-input" required></select></label>
-        <label style="font-size:12px;font-weight:700">Tipo<select id="stock-type" class="form-input"><option value="entry">Entrada</option><option value="exit">Saída</option><option value="adjustment">Ajuste de saldo (+/-)</option></select></label>
-        <label style="font-size:12px;font-weight:700">Quantidade<input id="stock-quantity" class="form-input" type="number" step="0.001" required></label>
-        <label style="font-size:12px;font-weight:700">Data<input id="stock-date" class="form-input" type="date" required></label>
-        <label style="font-size:12px;font-weight:700">Referência<input id="stock-reference" class="form-input" maxlength="120" placeholder="Ex.: NF de compra, inventário"></label>
-        <label style="font-size:12px;font-weight:700">Observação<input id="stock-notes" class="form-input" maxlength="500" placeholder="Opcional"></label>
-        <button class="btn btn-primary" type="submit">Salvar movimentação</button>
-      </form>
-      <form id="stock-product-form" onsubmit="submitStockProduct(event)" style="background:var(--card,#fff);border:1px solid var(--border);border-radius:8px;padding:16px;display:grid;gap:10px">
-        <h3 style="margin:0 0 4px;color:var(--g800)">Cadastrar produto no módulo</h3>
-        <label style="font-size:12px;font-weight:700">Nome<input id="stock-new-name" class="form-input" required maxlength="120"></label>
-        <label style="font-size:12px;font-weight:700">Código interno (SKU)<input id="stock-new-sku" class="form-input" required maxlength="60" placeholder="Ex.: UVA-ITALIA-5KG"></label>
-        <label style="font-size:12px;font-weight:700">Unidade de controle<input id="stock-new-unit" class="form-input" required maxlength="20" value="CX" placeholder="CX, KG, UN, MAÇO"></label>
-        <label style="font-size:12px;font-weight:700">Nomes usados nas vendas<input id="stock-new-aliases" class="form-input" placeholder="Separados por vírgula"></label>
-        <button class="btn btn-secondary" type="submit">Adicionar produto</button>
-      </form>
-      </div>
+    <div role="tablist" aria-label="Seções do estoque" style="display:flex;gap:8px;border-bottom:1px solid var(--border);margin-bottom:16px">
+      <button id="stock-tab-summary" role="tab" aria-selected="true" class="btn btn-primary" onclick="switchStockTab('summary')">Resumo</button>
+      <button id="stock-tab-products" role="tab" aria-selected="false" class="btn btn-secondary" onclick="switchStockTab('products')">Produtos</button>
+    </div>
+    <div id="stock-summary-pane" role="tabpanel">
+      <div id="stock-products" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px;margin-bottom:18px"></div>
       <div style="background:var(--card,#fff);border:1px solid var(--border);border-radius:8px;padding:16px;min-width:0">
         <h3 style="margin:0 0 12px;color:var(--g800)">Histórico e origem das baixas</h3>
         <div style="overflow:auto;max-height:560px"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:660px"><thead><tr style="text-align:left;color:var(--muted);border-bottom:1px solid var(--border)"><th style="padding:9px">Data</th><th>Produto</th><th>Movimento</th><th>Qtd.</th><th>Referência / origem</th><th></th></tr></thead><tbody id="stock-movements"><tr><td colspan="6" style="padding:18px;text-align:center;color:var(--muted)">Carregando estoque…</td></tr></tbody></table></div>
       </div>
     </div>
+    <div id="stock-products-pane" role="tabpanel" hidden>
+      <form id="stock-product-form" onsubmit="submitStockProduct(event)" style="background:var(--card,#fff);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:14px">
+        <h3 style="margin:0 0 12px;color:var(--g800)">Adicionar produto ao estoque</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:10px;align-items:end">
+          <label style="font-size:12px;font-weight:700">Nome<input id="stock-new-name" class="form-input" required maxlength="120"></label>
+          <label style="font-size:12px;font-weight:700">Código<input id="stock-new-sku" class="form-input" required maxlength="60" placeholder="Ex.: UVA-ITALIA-5KG"></label>
+          <label style="font-size:12px;font-weight:700">Unidade de estoque<input id="stock-new-unit" class="form-input" required maxlength="20" value="UND" placeholder="CX, KG, UN, MAÇO"></label>
+          <label style="font-size:12px;font-weight:700">Nome usado nas vendas<input id="stock-new-aliases" class="form-input" placeholder="Opcional"></label>
+          <label style="font-size:12px;font-weight:700">Saldo físico atual<input id="stock-new-balance" class="form-input" type="number" min="0" step="0.001" value="0" required></label>
+          <button class="btn btn-primary" type="submit">Adicionar produto</button>
+        </div>
+      </form>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+        <input id="stock-product-search" class="form-input" type="search" placeholder="Buscar produto ou código" oninput="renderStockCatalog()" style="max-width:340px">
+        <label style="display:flex;gap:7px;align-items:center;font-size:12px;color:var(--muted)"><input id="stock-show-archived" type="checkbox" onchange="renderStockCatalog()"> Mostrar arquivados</label>
+        <span id="stock-product-count" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+      <div style="background:var(--card,#fff);border:1px solid var(--border);border-radius:8px;overflow:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:780px"><thead><tr style="text-align:left;color:var(--muted);background:var(--bg,#f3f7f4);border-bottom:1px solid var(--border)"><th style="padding:11px">Produto</th><th>Código</th><th>Unidade</th><th>Saldo atual</th><th>Status</th><th>Ações</th></tr></thead><tbody id="stock-catalog-rows"></tbody></table>
+      </div>
+    </div>
+    <dialog id="stock-edit-dialog" style="width:min(560px,calc(100vw - 28px));border:1px solid var(--border);border-radius:10px;padding:0;color:var(--ink);box-shadow:0 18px 60px #10251b33">
+      <form id="stock-edit-form" onsubmit="saveStockEdit(event)" style="padding:20px;display:grid;gap:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><h3 id="stock-edit-title" style="margin:0;color:var(--g800)">Editar produto</h3><button class="btn btn-secondary" type="button" onclick="document.getElementById('stock-edit-dialog').close()" aria-label="Fechar">×</button></div>
+        <input id="stock-edit-id" type="hidden">
+        <label style="font-size:12px;font-weight:700">Nome<input id="stock-edit-name" class="form-input" required maxlength="120"></label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><label style="font-size:12px;font-weight:700">Código<input id="stock-edit-sku" class="form-input" required maxlength="60"></label><label style="font-size:12px;font-weight:700">Unidade<input id="stock-edit-unit" class="form-input" required maxlength="20"></label></div>
+        <label style="font-size:12px;font-weight:700">Aliases usados em vendas<input id="stock-edit-aliases" class="form-input" placeholder="Separados por vírgula"></label>
+        <label style="font-size:12px;font-weight:700">Saldo físico atual<input id="stock-edit-balance" class="form-input" type="number" min="0" step="0.001" required></label>
+        <div style="font-size:11px;color:var(--muted)">O saldo será ajustado pela diferença e as vendas futuras continuarão sendo baixadas automaticamente.</div>
+        <div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-secondary" type="button" onclick="document.getElementById('stock-edit-dialog').close()">Cancelar</button><button class="btn btn-primary" type="submit">Salvar alterações</button></div>
+      </form>
+    </dialog>
   </div>
 </section>
 
@@ -5929,6 +5946,16 @@ let stockSnapshot = null;
 function stockEscape(value){return String(value??'').replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];});}
 function stockFormatQty(value){return new Intl.NumberFormat('pt-BR',{maximumFractionDigits:3}).format(Number(value)||0);}
 function stockToday(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function switchStockTab(tab){
+  const summary=tab==='summary';
+  document.getElementById('stock-summary-pane').hidden=!summary;
+  document.getElementById('stock-products-pane').hidden=summary;
+  document.getElementById('stock-tab-summary').setAttribute('aria-selected',String(summary));
+  document.getElementById('stock-tab-products').setAttribute('aria-selected',String(!summary));
+  document.getElementById('stock-tab-summary').className='btn '+(summary?'btn-primary':'btn-secondary');
+  document.getElementById('stock-tab-products').className='btn '+(!summary?'btn-primary':'btn-secondary');
+  if(!summary)renderStockCatalog();
+}
 function stockTrendMarkup(product){
   const values=(product.trend||[product.balance||0]).map(value=>Number(value)||0);
   const low=Math.min(0,...values),high=Math.max(0,...values),span=high-low||1;
@@ -5983,14 +6010,11 @@ async function loadStock(){
 }
 function renderStock(){
   if(!stockSnapshot)return;
-  const products=stockSnapshot.products||[];
+  const products=(stockSnapshot.products||[]).filter(product=>Number(product.active)!==0&&Number(product.balance)>0);
   const productsEl=document.getElementById('stock-products');
-  const select=document.getElementById('stock-product');
-  const previous=select?.value;
   if(productsEl)productsEl.innerHTML=products.length?products.map(function(product){
     return '<article style="background:var(--card,#fff);border:1px solid var(--border);border-top:3px solid var(--g500,#2f855a);border-radius:8px;padding:14px"><div style="font-size:11px;color:var(--muted);font-weight:700">'+stockEscape(product.sku)+'</div><strong style="display:block;margin:5px 0;color:var(--ink)">'+stockEscape(product.name)+'</strong><div style="font-size:24px;font-weight:800;color:var(--g800)">'+stockFormatQty(product.balance)+' <small style="font-size:12px">'+stockEscape(product.unit)+'</small></div><div style="font-size:11px;color:var(--muted);margin-top:5px">Saldo disponível</div>'+stockTrendMarkup(product)+'</article>';
-  }).join(''):'<div class="card" style="padding:18px">Nenhum produto cadastrado neste módulo.</div>';
-  if(select){select.innerHTML=products.map(function(product){return '<option value="'+stockEscape(product.id)+'">'+stockEscape(product.name)+' ('+stockEscape(product.unit)+')</option>';}).join('');if(products.some(p=>p.id===previous))select.value=previous;}
+  }).join(''):'<div class="card" style="padding:18px">Nenhum produto com saldo disponível. Consulte a aba Produtos para cadastrar itens ou definir o saldo atual.</div>';
   const movementEl=document.getElementById('stock-movements');
   const rows=stockSnapshot.movements||[];
   if(movementEl)movementEl.innerHTML=rows.length?rows.map(function(movement){
@@ -6000,19 +6024,58 @@ function renderStock(){
     const reference=movement.reference?('NF '+movement.reference):(movement.notes||'Movimento manual');
     const dateText=String(movement.movement_date||'').slice(0,10);
     const sourceAction='stockOpenSource('+JSON.stringify(stockSnapshot.module)+','+JSON.stringify(String(movement.reference||''))+','+JSON.stringify(String(movement.client||''))+')';
-    const button=sale?'<button type="button" class="btn btn-secondary" style="padding:5px 8px" onclick=\''+stockEscape(sourceAction)+'\'>Ver nota</button>':'';
-    return '<tr style="border-bottom:1px solid var(--border)"><td style="padding:9px;white-space:nowrap">'+stockEscape(dateText)+'</td><td>'+stockEscape(movement.product_name||'')+'</td><td>'+label+(sale?' · '+stockEscape(movement.notes||''):'')+'</td><td style="font-weight:700;color:'+(delta<0?'#b42318':'#14733c')+'">'+(delta>0?'+':'')+stockFormatQty(delta)+' '+stockEscape(movement.unit||'')+'</td><td>'+stockEscape(reference)+'</td><td>'+button+'</td></tr>';
+    const button=sale?'<button type="button" class="btn btn-secondary" style="padding:5px 8px" onclick=\''+stockEscape(sourceAction)+'\'>'+(movement.reference?'Abrir NF '+stockEscape(movement.reference):'Abrir venda')+'</button>':'';
+    const refCell=sale&&movement.reference?'<button type="button" class="btn btn-secondary" style="padding:4px 7px;color:var(--g800);text-decoration:underline" onclick=\''+stockEscape(sourceAction)+'\'>NF '+stockEscape(movement.reference)+'</button>':stockEscape(reference);
+    return '<tr style="border-bottom:1px solid var(--border)"><td style="padding:9px;white-space:nowrap">'+stockEscape(dateText)+'</td><td>'+stockEscape(movement.product_name||'')+'</td><td>'+label+(sale?' · '+stockEscape(movement.notes||''):'')+'</td><td style="font-weight:700;color:'+(delta<0?'#b42318':'#14733c')+'">'+(delta>0?'+':'')+stockFormatQty(delta)+' '+stockEscape(movement.unit||'')+'</td><td>'+refCell+(sale&&movement.client?'<div style="font-size:11px;color:var(--muted);margin-top:4px">'+stockEscape(movement.client)+'</div>':'')+'</td><td>'+button+'</td></tr>';
   }).join(''):'<tr><td colspan="6" style="padding:18px;text-align:center;color:var(--muted)">Ainda não há movimentações ou vendas reconhecidas para este módulo.</td></tr>';
+  renderStockCatalog();
 }
-async function submitStockMovement(event){
-  event.preventDefault();
-  const module=document.getElementById('stock-module').value;
-  const payload={module:module,product_id:document.getElementById('stock-product').value,movement_type:document.getElementById('stock-type').value,quantity:document.getElementById('stock-quantity').value,movement_date:document.getElementById('stock-date').value,reference:document.getElementById('stock-reference').value,notes:document.getElementById('stock-notes').value};
+function renderStockCatalog(){
+  if(!stockSnapshot)return;
+  const query=(document.getElementById('stock-product-search')?.value||'').trim().toLocaleLowerCase('pt-BR');
+  const showArchived=Boolean(document.getElementById('stock-show-archived')?.checked);
+  const products=(stockSnapshot.all_products||stockSnapshot.products||[]).filter(product=>(showArchived||Number(product.active)!==0)&&(!query||[product.name,product.sku].some(value=>String(value||'').toLocaleLowerCase('pt-BR').includes(query))));
+  const rows=document.getElementById('stock-catalog-rows');
+  const count=document.getElementById('stock-product-count');
+  if(count)count.textContent=products.length+' produto(s)';
+  if(!rows)return;
+  rows.innerHTML=products.length?products.map(product=>{
+    const archived=Number(product.active)===0;
+    const edit='stockEditProduct('+JSON.stringify(product.id)+')';
+    const archive=archived?'stockRestoreProduct('+JSON.stringify(product.id)+')':'stockArchiveProduct('+JSON.stringify(product.id)+')';
+    return '<tr style="border-bottom:1px solid var(--border);'+(archived?'opacity:.65':'')+'"><td style="padding:11px"><strong>'+stockEscape(product.name)+'</strong>'+(product.aliases?.length?'<div style="font-size:11px;color:var(--muted);margin-top:3px">Venda reconhecida por: '+stockEscape(product.aliases.slice(0,3).join(', '))+'</div>':'')+'</td><td>'+stockEscape(product.sku)+'</td><td>'+stockEscape(product.unit)+'</td><td><strong style="color:'+(Number(product.balance)<0?'#b42318':'var(--g800)')+'">'+stockFormatQty(product.balance)+' '+stockEscape(product.unit)+'</strong></td><td>'+(archived?'Arquivado':Number(product.balance)>0?'Em estoque':'Sem saldo')+'</td><td style="white-space:nowrap"><button class="btn btn-secondary" type="button" onclick="'+stockEscape(edit)+'">Editar / saldo</button> <button class="btn btn-secondary" type="button" onclick="'+stockEscape(archive)+'">'+(archived?'Reativar':'Remover')+'</button></td></tr>';
+  }).join(''):'<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">Nenhum produto encontrado.</td></tr>';
+}
+function stockEditProduct(id){
+  const product=(stockSnapshot?.all_products||[]).find(item=>item.id===id);if(!product)return;
+  document.getElementById('stock-edit-id').value=product.id;
+  document.getElementById('stock-edit-name').value=product.name||'';
+  document.getElementById('stock-edit-sku').value=product.sku||'';
+  document.getElementById('stock-edit-unit').value=product.unit||'UND';
+  document.getElementById('stock-edit-aliases').value=(product.aliases||[]).join(', ');
+  document.getElementById('stock-edit-balance').value=Number(product.balance)||0;
+  document.getElementById('stock-edit-title').textContent='Editar produto';
+  document.getElementById('stock-edit-dialog').showModal();
+}
+async function saveStockEdit(event){
+  event.preventDefault();const id=document.getElementById('stock-edit-id').value,module=document.getElementById('stock-module').value;
+  const aliases=document.getElementById('stock-edit-aliases').value.split(',').map(value=>value.trim()).filter(Boolean);
+  const body={module,name:document.getElementById('stock-edit-name').value.trim(),sku:document.getElementById('stock-edit-sku').value.trim(),unit:document.getElementById('stock-edit-unit').value.trim(),aliases};
   try{
-    await api('/api/stock/movements',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    document.getElementById('stock-quantity').value='';document.getElementById('stock-reference').value='';document.getElementById('stock-notes').value='';
-    toast('Movimentação registrada.','success');await loadStock();
-  }catch(error){toast(error.message||'Não foi possível salvar a movimentação.','error');}
+    await api('/api/stock/products/'+encodeURIComponent(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    await api('/api/stock/products/'+encodeURIComponent(id)+'/balance',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({module,quantity:document.getElementById('stock-edit-balance').value})});
+    document.getElementById('stock-edit-dialog').close();toast('Produto e saldo atualizados.','success');await loadStock();
+  }catch(error){toast(error.message||'Não foi possível atualizar o produto.','error');}
+}
+async function stockArchiveProduct(id){
+  if(!confirm('Remover este produto da lista ativa? O histórico será preservado e o item poderá ser reativado.'))return;
+  try{await api('/api/stock/products/'+encodeURIComponent(id)+'?module='+encodeURIComponent(document.getElementById('stock-module').value),{method:'DELETE'});toast('Produto arquivado.','success');await loadStock();}
+  catch(error){toast(error.message||'Não foi possível arquivar o produto.','error');}
+}
+async function stockRestoreProduct(id){
+  const product=(stockSnapshot?.all_products||[]).find(item=>item.id===id);if(!product)return;
+  try{await api('/api/stock/products/'+encodeURIComponent(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({module:product.module_key,name:product.name,sku:product.sku,unit:product.unit,aliases:product.aliases||[],active:true})});toast('Produto reativado.','success');await loadStock();}
+  catch(error){toast(error.message||'Não foi possível reativar o produto.','error');}
 }
 async function submitStockProduct(event){
   event.preventDefault();
@@ -6020,8 +6083,10 @@ async function submitStockProduct(event){
   const aliases=document.getElementById('stock-new-aliases').value.split(',').map(value=>value.trim()).filter(Boolean);
   const payload={module:module,name:document.getElementById('stock-new-name').value.trim(),sku:document.getElementById('stock-new-sku').value.trim(),unit:document.getElementById('stock-new-unit').value.trim(),aliases:aliases};
   try{
-    await api('/api/stock/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    document.getElementById('stock-product-form').reset();document.getElementById('stock-new-unit').value='CX';
+    const created=await api('/api/stock/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const openingBalance=Number(document.getElementById('stock-new-balance').value)||0;
+    if(openingBalance>0)await api('/api/stock/products/'+encodeURIComponent(created.id)+'/balance',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({module,quantity:openingBalance})});
+    document.getElementById('stock-product-form').reset();document.getElementById('stock-new-unit').value='UND';document.getElementById('stock-new-balance').value='0';
     toast('Produto adicionado ao estoque.','success');await loadStock();
   }catch(error){toast(error.message||'Não foi possível cadastrar o produto.','error');}
 }
