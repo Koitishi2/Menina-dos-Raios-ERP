@@ -121,9 +121,15 @@ def test_stock_debits_todays_grape_sales_with_sales_unit_conversion(isolated_app
     products = {item["sku"]: item for item in payload["products"]}
     assert products["UVA-VITORIA-5KG"]["balance"] == 2850
     assert products["UVA-THOMPSON-VERDE-500G"]["balance"] == -70
+    assert products["UVA-VITORIA-5KG"]["today_sold_quantity"] == 20
+    assert products["UVA-VITORIA-5KG"]["today_sales_count"] == 2
+    assert products["UVA-VITORIA-5KG"]["today_sales_revenue"] == 850
+    assert products["UVA-THOMPSON-VERDE-500G"]["today_sold_quantity"] == 70
     assert products["UVA-VITORIA-5KG"]["trend"][-1] == 2850
     sale_movements = [item for item in payload["movements"] if item.get("source_id") in sale_ids]
     assert len(sale_movements) == 4
+    assert [item["reference"] for item in sale_movements] == ["107", "108", "108", "109"]
+    assert sale_movements[0]["movement_date"] == today
     converted = next(
         item for item in sale_movements
         if item["product_id"] == products["UVA-VITORIA-5KG"]["id"] and item["sale_quantity"] == 80
@@ -279,3 +285,15 @@ def test_stretch_film_opening_total_is_reconciled_once_and_keeps_manual_balance(
     refreshed = isolated_app.client.get("/api/stock?module=estrada", headers=headers).json()
     current = next(item for item in refreshed["products"] if item["sku"] == "STRETCH-FILM")
     assert current["balance"] == 4000
+
+
+def test_stock_summary_products_are_clickable_and_history_is_newest_first():
+    from pathlib import Path
+
+    source = Path(__file__).parents[1] / "backend" / "static" / "index.html"
+    html = source.read_text(encoding="utf-8")
+    assert 'class="stock-product-summary-card" role="button" tabindex="0"' in html
+    assert "stockOpenSales(card.dataset.stockId)" in html
+    assert "today_sold_quantity" in html
+    assert "today_sales_revenue" in html
+    assert "Vendido hoje" in html

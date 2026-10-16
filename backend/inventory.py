@@ -270,6 +270,7 @@ def inventory_snapshot(stock_conn, source_conn, module_key, include_archived=Fal
     ).fetchall()
     movements = [dict(row) | {"source": "manual"} for row in manual_rows]
     sales = _sale_rows(source_conn, module_key)
+    today = datetime.now().date().isoformat()
     for product in products:
         aliases = {_normalized(product["name"]), _normalized(product["sku"])}
         try:
@@ -341,8 +342,12 @@ def inventory_snapshot(stock_conn, source_conn, module_key, include_archived=Fal
         product["balance"] = round(balance, 3)
         product["trend"] = balance_points
         converted_sales = [float(sale["quantity"] or 0) * sale_quantity_factor for sale in matched_sales]
+        today_sales = [sale for sale in matched_sales if str(sale["sale_date"] or "")[:10] == today]
         product["sales_count"] = len(matched_sales)
         product["sold_quantity"] = round(sum(converted_sales), 3)
+        product["today_sales_count"] = len(today_sales)
+        product["today_sold_quantity"] = round(sum(float(sale["quantity"] or 0) * sale_quantity_factor for sale in today_sales), 3)
+        product["today_sales_revenue"] = round(sum(float(sale["total"] or 0) for sale in today_sales), 2)
         product["min_sale_quantity"] = round(min(converted_sales), 3) if converted_sales else 0
         product["max_sale_quantity"] = round(max(converted_sales), 3) if converted_sales else 0
         product["sales_revenue"] = round(sum(float(sale["total"] or 0) for sale in matched_sales), 2)
@@ -355,11 +360,11 @@ def inventory_snapshot(stock_conn, source_conn, module_key, include_archived=Fal
     def movement_order(row):
         ref = str(row.get("reference") or "")
         match = re.search(r"\d+", ref)
-        if row.get("source") == "sale" and match:
-            return (0, int(match.group()), str(row.get("movement_date") or ""), str(row.get("source_id") or ""))
-        if row.get("source") == "sale":
-            return (1, str(row.get("movement_date") or ""), str(row.get("created_at") or ""), str(row.get("source_id") or ""))
-        return (2, str(row.get("movement_date") or ""), str(row.get("created_at") or ""), str(row.get("id") or ""))
+        movement_date = _as_datetime(row.get("movement_date"))
+        day_order = -(movement_date.date().toordinal() if movement_date else 0)
+        sale_order = 0 if row.get("source") == "sale" else 1
+        invoice_order = int(match.group()) if row.get("source") == "sale" and match else 0
+        return (day_order, sale_order, invoice_order, str(row.get("created_at") or ""), str(row.get("source_id") or row.get("id") or ""))
     movements.sort(key=movement_order)
     return {"module": module_key, "products": products, "movements": movements[:500]}
 
@@ -432,6 +437,10 @@ def inventory_product_sales(stock_conn, source_conn, module_key, product_id):
         })
     def invoice_order(row):
         match = re.search(r"\d+", row["reference"])
-        return (0, int(match.group()), row["date"], row["id"]) if match else (1, 0, row["date"], row["id"])
+        try:
+            date_order = -datetime.fromisoformat(row["date"]).date().toordinal()
+        except ValueError:
+            date_order = 0
+        return (date_order, 0 if match else 1, int(match.group()) if match else 0, row["id"])
     rows.sort(key=invoice_order)
     return rows
