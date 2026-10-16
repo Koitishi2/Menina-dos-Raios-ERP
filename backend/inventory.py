@@ -32,6 +32,12 @@ SEED_PRODUCTS = [
     },
 ]
 
+INITIAL_STOCK = {
+    "UVA-VITORIA-8KG": 5,
+    "UVA-VITORIA-KIDS-250G": 110,
+    "UVA-VITORIA-5KG": 2870,
+}
+
 
 def init_inventory_schema(conn):
     conn.executescript(
@@ -78,6 +84,36 @@ def init_inventory_schema(conn):
                 item["unit"],
                 json.dumps(item["aliases"], ensure_ascii=False),
                 now,
+                now,
+            ),
+        )
+    today = datetime.now().date().isoformat()
+    for sku, quantity in INITIAL_STOCK.items():
+        product = conn.execute(
+            "SELECT id FROM stock_products WHERE module_key='estrada' AND sku=? AND active=1",
+            (sku,),
+        ).fetchone()
+        if not product:
+            continue
+        has_history = conn.execute(
+            "SELECT 1 FROM stock_movements WHERE product_id=? LIMIT 1",
+            (product["id"],),
+        ).fetchone()
+        if has_history:
+            continue
+        conn.execute(
+            """INSERT OR IGNORE INTO stock_movements
+               (id,product_id,movement_type,quantity_delta,movement_date,reference,notes,created_by,created_at)
+               VALUES(?,?,?,?,?,?,?,?,?)""",
+            (
+                f"opening-stock-{sku.lower()}",
+                product["id"],
+                "entry",
+                quantity,
+                today,
+                "Saldo inicial - nota das uvas enviada",
+                "Quantidade informada na nota enviada pelo usuário.",
+                "system",
                 now,
             ),
         )
@@ -140,9 +176,10 @@ def inventory_snapshot(stock_conn, source_conn, module_key):
             pass
         started = _as_datetime(product["tracking_after"])
         balance = 0.0
+        events = []
         for row in manual_rows:
             if row["product_id"] == product["id"]:
-                balance += float(row["quantity_delta"] or 0)
+                events.append((str(row["movement_date"] or ""), str(row["created_at"] or ""), float(row["quantity_delta"] or 0)))
         for sale in sales:
             if _normalized(sale["product"]) not in aliases:
                 continue
@@ -152,7 +189,8 @@ def inventory_snapshot(stock_conn, source_conn, module_key):
             quantity = float(sale["quantity"] or 0)
             if quantity <= 0:
                 continue
-            balance -= quantity
+            delta = -quantity
+            events.append((str(sale["sale_date"] or ""), str(sale["created_at"] or ""), delta))
             movements.append({
                 "id": f"sale:{module_key}:{sale['id']}",
                 "product_id": product["id"],
@@ -160,7 +198,7 @@ def inventory_snapshot(stock_conn, source_conn, module_key):
                 "sku": product["sku"],
                 "unit": product["unit"],
                 "movement_type": "exit",
-                "quantity_delta": -quantity,
+                "quantity_delta": delta,
                 "movement_date": sale["sale_date"],
                 "reference": sale["nf_number"] or "",
                 "client": sale["client"] or "",
@@ -169,7 +207,18 @@ def inventory_snapshot(stock_conn, source_conn, module_key):
                 "source_id": str(sale["id"]),
                 "total": float(sale["total"] or 0),
             })
+        events.sort(key=lambda event: (event[0], event[1]))
+        balance_points = []
+        for _, _, delta in events:
+            balance += delta
+            balance_points.append(round(balance, 3))
+        if not balance_points:
+            balance_points = [0.0]
+        elif len(balance_points) > 8:
+            last_index = len(balance_points) - 1
+            balance_points = [balance_points[round(index * last_index / 7)] for index in range(8)]
         product["balance"] = round(balance, 3)
+        product["trend"] = balance_points
         product["aliases"] = json.loads(product.pop("aliases_json") or "[]")
         product.pop("tracking_after", None)
     movements.sort(key=lambda row: (str(row.get("movement_date") or ""), str(row.get("created_at") or "")), reverse=True)

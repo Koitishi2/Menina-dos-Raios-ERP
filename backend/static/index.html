@@ -3479,7 +3479,6 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
         <button class="btn btn-secondary" onclick="closeStockApp()">Fechar</button>
       </div>
     </div>
-    <div style="padding:12px 14px;border-left:4px solid #d97706;background:#fff8e8;color:#684b17;border-radius:6px;font-size:13px;margin-bottom:16px">Os itens da imagem pertencem a uma NF-e de <strong>saída</strong>. Eles foram cadastrados como produtos, mas não como saldo de entrada. Informe a contagem física atual ou lance uma nota de compra para iniciar o saldo corretamente.</div>
     <div id="stock-products" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px;margin-bottom:18px"></div>
     <div class="stock-content-grid">
       <div class="stock-forms">
@@ -5930,6 +5929,17 @@ let stockSnapshot = null;
 function stockEscape(value){return String(value??'').replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];});}
 function stockFormatQty(value){return new Intl.NumberFormat('pt-BR',{maximumFractionDigits:3}).format(Number(value)||0);}
 function stockToday(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function stockTrendMarkup(product){
+  const values=(product.trend||[product.balance||0]).map(value=>Number(value)||0);
+  const low=Math.min(0,...values),high=Math.max(0,...values),span=high-low||1;
+  const points=values.map((value,index)=>{
+    const x=values.length===1?0:index*120/(values.length-1);
+    const y=27-((value-low)/span)*22;
+    return x.toFixed(1)+','+y.toFixed(1);
+  }).join(' ')+(values.length===1?' 120.0,'+(27-((values[0]-low)/span)*22).toFixed(1):'');
+  const label='Evolução do saldo em '+values.length+' movimentação(ões): '+values.map(stockFormatQty).join(', ')+' '+product.unit;
+  return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px;padding-top:8px;border-top:1px solid var(--border)"><span style="font-size:10px;color:var(--muted)">Evolução do saldo</span><svg role="img" aria-label="'+stockEscape(label)+'" viewBox="0 0 120 32" width="120" height="32" preserveAspectRatio="none"><line x1="0" y1="29" x2="120" y2="29" stroke="var(--border)" stroke-width="1"/><polyline points="'+points+'" fill="none" stroke="'+(product.balance<0?'#d97706':'#23804a')+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>';
+}
 function syncStockPanelViewport(){
   const panel=document.getElementById('stock-app');
   if(!panel||panel.style.display==='none')return;
@@ -5978,7 +5988,7 @@ function renderStock(){
   const select=document.getElementById('stock-product');
   const previous=select?.value;
   if(productsEl)productsEl.innerHTML=products.length?products.map(function(product){
-    return '<article style="background:var(--card,#fff);border:1px solid var(--border);border-top:3px solid var(--g500,#2f855a);border-radius:8px;padding:14px"><div style="font-size:11px;color:var(--muted);font-weight:700">'+stockEscape(product.sku)+'</div><strong style="display:block;margin:5px 0;color:var(--ink)">'+stockEscape(product.name)+'</strong><div style="font-size:24px;font-weight:800;color:var(--g800)">'+stockFormatQty(product.balance)+' <small style="font-size:12px">'+stockEscape(product.unit)+'</small></div><div style="font-size:11px;color:var(--muted);margin-top:5px">Saldo disponível</div></article>';
+    return '<article style="background:var(--card,#fff);border:1px solid var(--border);border-top:3px solid var(--g500,#2f855a);border-radius:8px;padding:14px"><div style="font-size:11px;color:var(--muted);font-weight:700">'+stockEscape(product.sku)+'</div><strong style="display:block;margin:5px 0;color:var(--ink)">'+stockEscape(product.name)+'</strong><div style="font-size:24px;font-weight:800;color:var(--g800)">'+stockFormatQty(product.balance)+' <small style="font-size:12px">'+stockEscape(product.unit)+'</small></div><div style="font-size:11px;color:var(--muted);margin-top:5px">Saldo disponível</div>'+stockTrendMarkup(product)+'</article>';
   }).join(''):'<div class="card" style="padding:18px">Nenhum produto cadastrado neste módulo.</div>';
   if(select){select.innerHTML=products.map(function(product){return '<option value="'+stockEscape(product.id)+'">'+stockEscape(product.name)+' ('+stockEscape(product.unit)+')</option>';}).join('');if(products.some(p=>p.id===previous))select.value=previous;}
   const movementEl=document.getElementById('stock-movements');
@@ -6103,6 +6113,7 @@ async function switchCompanyUI(target){
       body:JSON.stringify({company:target})
     });
     if(!r.ok){var e=await r.json().catch(()=>({detail:r.statusText}));throw new Error(e.detail||'Erro ao trocar empresa');}
+    closeStockApp();
     var data=await r.json();
     activeCompany=target;
     _todayRemote=null;
@@ -6290,6 +6301,7 @@ function switchTab(btn,name){
     if(first) return switchTab(first,'consolidado');
     return;
   }
+  closeStockApp();
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-drawer-item').forEach(function(it){it.classList.toggle('active',it.dataset.tab===name);});
@@ -16643,6 +16655,7 @@ function togglePalPeriodFields(){
 }
 
 function openPaladarApp(){
+  closeStockApp();
   document.getElementById('paladar-app').classList.add('active');
   document.body.classList.add('paladar-active');
   togglePalPeriodFields();
@@ -16676,6 +16689,7 @@ function openOrcamentoFromMonteiro(){
 }
 
 function openOrcamentoShortcut(){
+  closeStockApp();
   var app=document.getElementById('paladar-app');
   if(app) app.classList.add('active');
   document.body.classList.add('paladar-active');
