@@ -507,6 +507,11 @@ header{background:var(--g800);color:#fff;padding:0 16px;height:56px;display:flex
 .header-center .btn-paladar-header:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.35);transform:scale(1.04)}
 .header-center .btn-orcamento-header{background:linear-gradient(135deg,#8B5CF6,#6D28D9);color:#fff;border:1px solid rgba(255,255,255,.28);padding:6px 16px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .2s;box-shadow:0 8px 18px rgba(25,12,60,.18),inset 0 1px 0 rgba(255,255,255,.18)}
 .header-center .btn-orcamento-header:hover{background:linear-gradient(135deg,#7C3AED,#5B21B6);border-color:rgba(255,255,255,.42);transform:scale(1.04)}
+.header-center .btn-stock-header{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);padding:6px 16px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;transition:all .2s;backdrop-filter:blur(4px)}
+.header-center .btn-stock-header:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.35);transform:scale(1.04)}
+.stock-content-grid{display:grid;grid-template-columns:minmax(280px,.85fr) minmax(360px,1.5fr);gap:16px;align-items:start}
+.stock-forms{display:grid;gap:12px;min-width:0}
+@media(max-width:760px){.stock-content-grid{grid-template-columns:minmax(0,1fr)}#stock-app{inset:52px 0 0!important;padding:12px!important}.stock-forms{order:2}.stock-focus-card{grid-template-columns:minmax(0,1fr)!important;gap:14px!important}.stock-focus-stats{gap:8px!important}}
 .header-center .btn-company-switch{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.28);padding:6px 16px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .2s;backdrop-filter:blur(4px)}
 .header-center .btn-company-switch:hover{background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.42);transform:scale(1.04)}
 .header-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
@@ -1663,6 +1668,7 @@ header::after{
 .logo p{font-size:12px;opacity:.82;font-weight:500}
 .header-center .btn-paladar-header,
 .header-center .btn-orcamento-header,
+.header-center .btn-stock-header,
 .header-center .btn-company-switch,
 .user-chip{
   min-height:38px;
@@ -1673,6 +1679,7 @@ header::after{
 }
 .header-center .btn-paladar-header,
 .header-center .btn-orcamento-header,
+.header-center .btn-stock-header,
 .header-center .btn-company-switch{padding:8px 22px;font-size:13px}
 .header-right{gap:8px}
 .btn-launch,.btn-nfe{
@@ -3423,6 +3430,7 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
     <button class="btn-paladar-header" onclick="openPaladarApp()" title="Abrir Monteiro"> Monteiro</button>
     <button class="btn-company-switch" id="company-switch-btn" onclick="switchCompanyUI()" title="Trocar empresa">🚚 Menina da Estrada</button>
     <button class="btn-orcamento-header" onclick="openOrcamentoShortcut()" title="Abrir Orçamentos"> Orçamentos</button>
+    <button class="btn-stock-header" onclick="openStockShortcut()" title="Abrir estoque">📦 Estoque</button>
   </div>
   <div class="header-right">
     <span class="h-badge" id="badge-count" style="display:none">—</span>
@@ -3459,6 +3467,51 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
     </div>
   </div>
 </header>
+
+<section id="stock-app" aria-labelledby="stock-title" style="display:none;position:fixed;top:68px;left:0;right:0;bottom:0;width:100vw;box-sizing:border-box;z-index:1000;background:var(--bg,#f3f7f4);overflow:auto;overflow-x:hidden;padding:clamp(14px,2.2vw,30px)">
+  <div style="width:100%;max-width:1500px;margin:0 auto;box-sizing:border-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:16px">
+      <div><h2 id="stock-title" style="margin:0;color:var(--g800)">📦 Estoque</h2><div style="font-size:12px;color:var(--muted);margin-top:4px">Saldos, entradas e saídas rastreadas por venda/nota</div></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label for="stock-module" style="font-size:12px;font-weight:700">Módulo</label>
+        <select id="stock-module" class="form-input" style="width:auto;min-width:190px" onchange="loadStock()"><option value="estrada">Menina da Estrada</option><option value="raios">Menina dos Raios</option><option value="monteiro">Monteiro</option></select>
+        <button class="btn btn-secondary" onclick="loadStock()">↻ Atualizar</button>
+        <button class="btn btn-secondary" onclick="closeStockApp()">Fechar</button>
+      </div>
+    </div>
+    <div id="stock-products" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px;margin-bottom:18px"></div>
+    <div class="stock-content-grid">
+      <div class="stock-forms">
+      <form id="stock-movement-form" onsubmit="submitStockMovement(event)" style="background:var(--card,#fff);border:1px solid var(--border);border-radius:8px;padding:16px;display:grid;gap:10px">
+        <h3 style="margin:0 0 4px;color:var(--g800)">Registrar movimentação</h3>
+        <label style="font-size:12px;font-weight:700">Produto<select id="stock-product" class="form-input" required></select></label>
+        <label style="font-size:12px;font-weight:700">Tipo<select id="stock-type" class="form-input"><option value="entry">Entrada</option><option value="exit">Saída</option><option value="adjustment">Ajuste de saldo (+/-)</option></select></label>
+        <label style="font-size:12px;font-weight:700">Quantidade<input id="stock-quantity" class="form-input" type="number" step="0.001" required></label>
+        <label style="font-size:12px;font-weight:700">Data<input id="stock-date" class="form-input" type="date" required></label>
+        <label style="font-size:12px;font-weight:700">Referência<input id="stock-reference" class="form-input" maxlength="120" placeholder="Ex.: NF de compra, inventário"></label>
+        <label style="font-size:12px;font-weight:700">Observação<input id="stock-notes" class="form-input" maxlength="500" placeholder="Opcional"></label>
+        <button class="btn btn-primary" type="submit">Salvar movimentação</button>
+      </form>
+      <form id="stock-product-form" onsubmit="submitStockProduct(event)" style="background:var(--card,#fff);border:1px solid var(--border);border-radius:8px;padding:16px;display:grid;gap:10px">
+        <h3 style="margin:0 0 4px;color:var(--g800)">Cadastrar produto no módulo</h3>
+        <label style="font-size:12px;font-weight:700">Nome<input id="stock-new-name" class="form-input" required maxlength="120"></label>
+        <label style="font-size:12px;font-weight:700">Código interno (SKU)<input id="stock-new-sku" class="form-input" required maxlength="60" placeholder="Ex.: UVA-ITALIA-5KG"></label>
+        <label style="font-size:12px;font-weight:700">Unidade de controle<input id="stock-new-unit" class="form-input" required maxlength="20" value="CX" placeholder="CX, KG, UN, MAÇO"></label>
+        <label style="font-size:12px;font-weight:700">Nomes usados nas vendas<input id="stock-new-aliases" class="form-input" placeholder="Separados por vírgula"></label>
+        <button class="btn btn-secondary" type="submit">Adicionar produto</button>
+      </form>
+      </div>
+      <div style="background:var(--card,#fff);border:1px solid var(--border);border-radius:8px;padding:16px;min-width:0">
+        <h3 style="margin:0 0 12px;color:var(--g800)">Histórico e origem das baixas</h3>
+        <div style="overflow:auto;max-height:560px"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:660px"><thead><tr style="text-align:left;color:var(--muted);border-bottom:1px solid var(--border)"><th style="padding:9px">Data</th><th>Produto</th><th>Movimento</th><th>Qtd.</th><th>Referência / origem</th><th></th></tr></thead><tbody id="stock-movements"><tr><td colspan="6" style="padding:18px;text-align:center;color:var(--muted)">Carregando estoque…</td></tr></tbody></table></div>
+      </div>
+    </div>
+  </div>
+  <dialog id="stock-sales-dialog" style="width:min(920px,calc(100vw - 28px));max-height:82vh;padding:0;border:1px solid var(--border);border-radius:10px;background:var(--card,#fff);color:var(--ink);box-shadow:0 20px 60px #10241b40">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--border)"><div><h3 id="stock-sales-title" style="margin:0;color:var(--g800)">Vendas do produto</h3><div id="stock-sales-subtitle" style="font-size:12px;color:var(--muted);margin-top:4px"></div></div><button type="button" class="btn btn-secondary" aria-label="Fechar vendas" onclick="document.getElementById('stock-sales-dialog').close()">Fechar</button></div>
+    <div style="padding:12px 18px;overflow:auto;max-height:calc(82vh - 78px)"><table style="width:100%;border-collapse:collapse;font-size:13px;min-width:600px"><thead><tr style="text-align:left;color:var(--muted);background:var(--bg)"><th style="padding:10px">NF</th><th>Data</th><th>Cliente</th><th>Quantidade</th><th>Valor</th><th></th></tr></thead><tbody id="stock-sales-rows"></tbody></table></div>
+  </dialog>
+</section>
 
 <div id="mobile-period-switcher" class="mobile-period-switcher" aria-label="Seletor de período mobile">
   <button type="button" class="mobile-period-arrow" onclick="mobileShiftMonth(-1)" aria-label="Mês anterior">‹</button>
@@ -3643,6 +3696,7 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
         <button type="button" role="menuitem" data-layout-module="estrada" onclick="selectLayoutModule('estrada')"><span>🚚</span><span>Menina da Estrada</span><b id="layout-module-check-estrada"></b></button>
         <button type="button" role="menuitem" onclick="selectLayoutModule('monteiro')"><span>📊</span><span>Monteiro</span><b></b></button>
         <button type="button" role="menuitem" onclick="selectLayoutModule('orcamentos')"><span>🧾</span><span>Orçamentos</span><b></b></button>
+        <button type="button" role="menuitem" onclick="openStockShortcut()"><span>📦</span><span>Estoque</span><b></b></button>
       </div>
     </div>
     <button class="tab active" onclick="switchTab(this,'hoje')">Hoje</button>
@@ -5329,6 +5383,7 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
     <button type="button" data-layout-module="estrada" onclick="selectLayoutModule('estrada')">🚚 Menina da Estrada</button>
     <button type="button" onclick="selectLayoutModule('monteiro')">📊 Monteiro</button>
     <button type="button" onclick="selectLayoutModule('orcamentos')">🧾 Orçamentos</button>
+    <button type="button" onclick="openStockShortcut()">📦 Estoque</button>
   </div>
   </div>
   <div class="mobile-more-grid">
@@ -5872,6 +5927,136 @@ async function api(path,opts={}){
   if(r.status===401){doLogout();throw new Error('Sessão expirada.');}
   if(!r.ok){const e=await r.json().catch(()=>({detail:r.statusText}));throw new Error(e.detail||'Erro '+r.status);}
   return r.json();
+}
+
+let stockSnapshot = null;
+function stockEscape(value){return String(value??'').replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];});}
+function stockFormatQty(value){return new Intl.NumberFormat('pt-BR',{maximumFractionDigits:3}).format(Number(value)||0);}
+function stockMoney(value){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(value)||0);}
+function stockToday(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function syncStockPanelViewport(){
+  const panel=document.getElementById('stock-app');
+  if(!panel||panel.style.display==='none')return;
+  const nav=document.querySelector('#app .tabs-wrap');
+  const navRect=nav?.getBoundingClientRect();
+  const navStyle=nav?getComputedStyle(nav):null;
+  const sidebarRight=navRect&&navStyle?.position==='fixed'&&navRect.right>0&&navRect.left<=1?Math.ceil(navRect.right):0;
+  panel.style.left=sidebarRight+'px';
+  panel.style.right='0';
+  panel.style.width='auto';
+}
+window.addEventListener('resize',syncStockPanelViewport,{passive:true});
+function openStockShortcut(){
+  const mobileSheet=document.getElementById('mobile-more-sheet');
+  if(mobileSheet&&mobileSheet.classList.contains('open'))closeMobileMoreSheet();
+  const panel=document.getElementById('stock-app');
+  if(!panel)return;
+  if(panel.parentElement!==document.body)document.body.appendChild(panel);
+  const appHeader=document.querySelector('#app>header');
+  panel.style.top=(appHeader?Math.ceil(appHeader.getBoundingClientRect().bottom):0)+'px';
+  panel.style.left='0';panel.style.right='0';panel.style.width='auto';
+  panel.style.display='block';
+  syncStockPanelViewport();
+  document.body.style.overflow='hidden';
+  const date=document.getElementById('stock-date');if(date&&!date.value)date.value=stockToday();
+  loadStock();
+}
+function closeStockApp(){const panel=document.getElementById('stock-app');if(panel)panel.style.display='none';document.body.style.overflow='';}
+async function loadStock(){
+  const module=document.getElementById('stock-module')?.value||'estrada';
+  const productsEl=document.getElementById('stock-products');
+  const movementEl=document.getElementById('stock-movements');
+  if(productsEl)productsEl.innerHTML='<div class="card" style="padding:18px;color:var(--muted)">Carregando saldos…</div>';
+  try{
+    stockSnapshot=await api('/api/stock?module='+encodeURIComponent(module));
+    renderStock();
+  }catch(error){
+    if(productsEl)productsEl.innerHTML='<div class="card" style="padding:18px;color:var(--red)">'+stockEscape(error.message||'Não foi possível carregar o estoque.')+'</div>';
+    if(movementEl)movementEl.innerHTML='<tr><td colspan="6" style="padding:18px;color:var(--red)">Falha ao carregar histórico.</td></tr>';
+  }
+}
+function renderStock(){
+  if(!stockSnapshot)return;
+  const products=stockSnapshot.products||[];
+  const productsEl=document.getElementById('stock-products');
+  const select=document.getElementById('stock-product');
+  const previous=select?.value;
+  if(productsEl)productsEl.innerHTML=products.length?products.map(function(product){
+    const featured=product.sku==='STRETCH-FILM';
+    if(!featured)return '<article style="background:var(--card,#fff);border:1px solid var(--border);border-top:3px solid var(--g500,#2f855a);border-radius:8px;padding:14px"><div style="font-size:11px;color:var(--muted);font-weight:700">'+stockEscape(product.sku)+'</div><strong style="display:block;margin:5px 0;color:var(--ink)">'+stockEscape(product.name)+'</strong><div style="font-size:24px;font-weight:800;color:var(--g800)">'+stockFormatQty(product.balance)+' <small style="font-size:12px">'+stockEscape(product.unit)+'</small></div><div style="font-size:11px;color:var(--muted);margin-top:5px">Saldo disponível</div></article>';
+    const balance=Number(product.balance)||0, capacity=6400, percent=Math.max(0,Math.min(100,balance/capacity*100));
+    const tone=percent<=20?'#c2413b':percent<=50?'#d58a12':'#21834a';
+    const label=percent<=20?'Reposição urgente':percent<=50?'Estoque em atenção':'Estoque saudável';
+    const salesAction='stockOpenSales('+JSON.stringify(product.id)+')';
+    return '<article class="stock-focus-card" style="grid-column:1/-1;background:var(--card,#fff);border:1px solid var(--border);border-top:4px solid '+tone+';border-radius:8px;padding:18px;display:grid;grid-template-columns:minmax(220px,1.2fr) minmax(260px,2fr) auto;gap:18px;align-items:center">'+
+      '<div><div style="font-size:11px;color:var(--muted);font-weight:700">'+stockEscape(product.sku)+' · MENINA DA ESTRADA</div><strong style="display:block;margin:5px 0 10px;color:var(--ink);font-size:16px">'+stockEscape(product.name)+'</strong><div style="font-size:32px;line-height:1.05;font-weight:800;color:'+tone+'">'+stockFormatQty(balance)+' <small style="font-size:13px">'+stockEscape(product.unit)+'</small></div><div style="font-size:12px;color:'+tone+';font-weight:700;margin-top:5px">'+label+' · '+stockFormatQty(percent)+'% do saldo inicial</div></div>'+
+      '<div><div class="stock-focus-stats" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px"><div><div style="font-size:11px;color:var(--muted)">Vendido no histórico</div><strong>'+stockFormatQty(product.sold_quantity)+' '+stockEscape(product.unit)+'</strong><div style="font-size:11px;color:var(--muted)">'+stockFormatQty(product.sales_count)+' vendas</div></div><div><div style="font-size:11px;color:var(--muted)">Menor venda</div><strong>'+stockFormatQty(product.min_sale_quantity)+' '+stockEscape(product.unit)+'</strong></div><div><div style="font-size:11px;color:var(--muted)">Maior venda</div><strong>'+stockFormatQty(product.max_sale_quantity)+' '+stockEscape(product.unit)+'</strong></div></div><div role="img" aria-label="Saldo atual de '+stockFormatQty(balance)+' de '+stockFormatQty(capacity)+' unidades" style="height:12px;background:var(--bg,#edf2ef);border-radius:20px;overflow:hidden"><div style="height:100%;width:'+percent+'%;background:'+tone+';border-radius:20px;transition:width .5s ease,background .3s ease"></div></div><div style="display:flex;justify-content:space-between;gap:8px;font-size:10px;color:var(--muted);margin-top:5px"><span>0</span><span>Contagem inicial '+stockFormatQty(capacity)+' UN</span></div></div>'+
+      '<button type="button" class="btn btn-secondary" onclick=\''+stockEscape(salesAction)+'\'>Ver vendas por NF</button></article>';
+  }).join(''):'<div class="card" style="padding:18px">Nenhum produto cadastrado neste módulo.</div>';
+  if(select){select.innerHTML=products.map(function(product){return '<option value="'+stockEscape(product.id)+'">'+stockEscape(product.name)+' ('+stockEscape(product.unit)+')</option>';}).join('');if(products.some(p=>p.id===previous))select.value=previous;}
+  const movementEl=document.getElementById('stock-movements');
+  const rows=stockSnapshot.movements||[];
+  if(movementEl)movementEl.innerHTML=rows.length?rows.map(function(movement){
+    const sale=movement.source==='sale';
+    const delta=Number(movement.quantity_delta)||0;
+    const label=sale?'Baixa por venda':movement.movement_type==='entry'?'Entrada':movement.movement_type==='adjustment'?'Ajuste':'Saída';
+    const reference=movement.reference?('NF '+movement.reference):(movement.notes||'Movimento manual');
+    const dateText=String(movement.movement_date||'').slice(0,10);
+    const sourceAction='stockOpenSource('+JSON.stringify(stockSnapshot.module)+','+JSON.stringify(String(movement.reference||''))+','+JSON.stringify(String(movement.client||''))+')';
+    const button=sale?'<button type="button" class="btn btn-secondary" style="padding:5px 8px" onclick=\''+stockEscape(sourceAction)+'\'>Ver nota</button>':'';
+    return '<tr style="border-bottom:1px solid var(--border)"><td style="padding:9px;white-space:nowrap">'+stockEscape(dateText)+'</td><td>'+stockEscape(movement.product_name||'')+'</td><td>'+label+(sale?' · '+stockEscape(movement.notes||''):'')+'</td><td style="font-weight:700;color:'+(delta<0?'#b42318':'#14733c')+'">'+(delta>0?'+':'')+stockFormatQty(delta)+' '+stockEscape(movement.unit||'')+'</td><td>'+stockEscape(reference)+'</td><td>'+button+'</td></tr>';
+  }).join(''):'<tr><td colspan="6" style="padding:18px;text-align:center;color:var(--muted)">Ainda não há movimentações ou vendas reconhecidas para este módulo.</td></tr>';
+}
+async function submitStockMovement(event){
+  event.preventDefault();
+  const module=document.getElementById('stock-module').value;
+  const payload={module:module,product_id:document.getElementById('stock-product').value,movement_type:document.getElementById('stock-type').value,quantity:document.getElementById('stock-quantity').value,movement_date:document.getElementById('stock-date').value,reference:document.getElementById('stock-reference').value,notes:document.getElementById('stock-notes').value};
+  try{
+    await api('/api/stock/movements',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    document.getElementById('stock-quantity').value='';document.getElementById('stock-reference').value='';document.getElementById('stock-notes').value='';
+    toast('Movimentação registrada.','success');await loadStock();
+  }catch(error){toast(error.message||'Não foi possível salvar a movimentação.','error');}
+}
+async function submitStockProduct(event){
+  event.preventDefault();
+  const module=document.getElementById('stock-module').value;
+  const aliases=document.getElementById('stock-new-aliases').value.split(',').map(value=>value.trim()).filter(Boolean);
+  const payload={module:module,name:document.getElementById('stock-new-name').value.trim(),sku:document.getElementById('stock-new-sku').value.trim(),unit:document.getElementById('stock-new-unit').value.trim(),aliases:aliases};
+  try{
+    await api('/api/stock/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    document.getElementById('stock-product-form').reset();document.getElementById('stock-new-unit').value='CX';
+    toast('Produto adicionado ao estoque.','success');await loadStock();
+  }catch(error){toast(error.message||'Não foi possível cadastrar o produto.','error');}
+}
+async function stockOpenSource(module,nf,client){
+  const salesDialog=document.getElementById('stock-sales-dialog');if(salesDialog?.open)salesDialog.close();
+  closeStockApp();
+  if(module==='monteiro'){
+    openPaladarApp();switchPaladarTab('lancamentos');
+    const filter=document.getElementById('pal-filter-nf');const clientFilter=document.getElementById('pal-filter-client');if(filter)filter.value=nf;if(clientFilter)clientFilter.value=client||'';if(filter||clientFilter)await loadPaladarSales();
+    return;
+  }
+  if(activeCompany!==module)await switchCompanyUI(module);
+  const nfTab=Array.from(document.querySelectorAll('.tabs-wrap .tab')).find(function(button){return (button.getAttribute('onclick')||'').includes("'nf'");});
+  if(nfTab)switchTab(nfTab,'nf');
+  const search=document.getElementById('search-input');if(search){search.value=nf||client||'';filterTable();}
+}
+async function stockOpenSales(productId){
+  const dialog=document.getElementById('stock-sales-dialog');
+  const tbody=document.getElementById('stock-sales-rows');
+  const product=(stockSnapshot?.products||[]).find(item=>item.id===productId);
+  if(!dialog||!tbody||!product)return;
+  document.getElementById('stock-sales-title').textContent=product.name+' · vendas por NF';
+  document.getElementById('stock-sales-subtitle').textContent='Histórico completo em ordem numérica crescente. '+stockFormatQty(product.sold_quantity)+' '+product.unit+' em '+stockFormatQty(product.sales_count)+' vendas.';
+  tbody.innerHTML='<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">Carregando notas…</td></tr>';
+  dialog.showModal();
+  try{
+    const data=await api('/api/stock/products/'+encodeURIComponent(productId)+'/sales?module='+encodeURIComponent(stockSnapshot.module));
+    tbody.innerHTML=(data.sales||[]).length?data.sales.map(function(sale){
+      const action='stockOpenSource('+JSON.stringify(stockSnapshot.module)+','+JSON.stringify(sale.reference)+','+JSON.stringify(sale.client)+')';
+      return '<tr style="border-bottom:1px solid var(--border)"><td style="padding:10px;font-weight:700">'+(sale.reference?'NF '+stockEscape(sale.reference):stockEscape(sale.sale_type))+'</td><td>'+stockEscape(sale.date)+'</td><td>'+stockEscape(sale.client||'Cliente não informado')+'</td><td>'+stockFormatQty(sale.quantity)+' '+stockEscape(sale.unit)+'</td><td>'+stockMoney(sale.total)+'</td><td><button class="btn btn-secondary" type="button" onclick=\''+stockEscape(action)+'\'>Abrir</button></td></tr>';
+    }).join(''):'<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">Nenhuma venda encontrada.</td></tr>';
+  }catch(error){tbody.innerHTML='<tr><td colspan="6" style="padding:20px;color:#b42318">'+stockEscape(error.message||'Falha ao buscar vendas.')+'</td></tr>';}
 }
 
 async function loadSellers(force=false, includeInactive=false, companyOverride=null, moduleContext=''){
