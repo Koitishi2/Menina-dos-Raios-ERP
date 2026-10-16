@@ -121,7 +121,10 @@ def test_stock_debits_todays_grape_sales_with_sales_unit_conversion(isolated_app
     assert products["UVA-VITORIA-5KG"]["trend"][-1] == 2850
     sale_movements = [item for item in payload["movements"] if item.get("source_id") in sale_ids]
     assert len(sale_movements) == 4
-    converted = next(item for item in sale_movements if item["product_id"] == products["UVA-VITORIA-5KG"]["id"])
+    converted = next(
+        item for item in sale_movements
+        if item["product_id"] == products["UVA-VITORIA-5KG"]["id"] and item["sale_quantity"] == 80
+    )
     assert converted["quantity_delta"] == -16
     assert "80 na venda → 16 CX no estoque" in converted["notes"]
 
