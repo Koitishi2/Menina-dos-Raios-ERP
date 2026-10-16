@@ -27,7 +27,7 @@ try:
     from .orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from .permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from .repositories.sellers_repository import init_sellers_schema
-    from .inventory import MODULES as STOCK_MODULES, init_inventory_schema, inventory_snapshot, sync_stock_catalog
+    from .inventory import MODULES as STOCK_MODULES, ensure_stock_balance_count, init_inventory_schema, inventory_product_sales, inventory_snapshot, sync_stock_catalog
     from .repositories.whatsapp_repository import init_whatsapp_schema
     from .routers.sellers import create_sellers_router
     from .routers.whatsapp_clients import create_whatsapp_clients_router
@@ -50,7 +50,7 @@ except ImportError:
     from orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from repositories.sellers_repository import init_sellers_schema
-    from inventory import MODULES as STOCK_MODULES, init_inventory_schema, inventory_snapshot, sync_stock_catalog
+    from inventory import MODULES as STOCK_MODULES, ensure_stock_balance_count, init_inventory_schema, inventory_product_sales, inventory_snapshot, sync_stock_catalog
     from repositories.whatsapp_repository import init_whatsapp_schema
     from routers.sellers import create_sellers_router
     from routers.whatsapp_clients import create_whatsapp_clients_router
@@ -1242,6 +1242,8 @@ def _managed_route_permission(path:str,method:str):
         return (None,"produtos","edit" if method=="PUT" else "delete")
     if re.fullmatch(r"/api/stock/products/[^/]+/balance",path) and method=="PUT":
         return (None,"produtos","edit")
+    if re.fullmatch(r"/api/stock/products/[^/]+/sales",path) and method=="GET":
+        return (None,"produtos","view")
     if path=="/api/stock/movements" and method=="POST":
         return (None,"consolidado","create")
     if path in ("/api/auth/me","/api/auth/permissions","/api/auth/company-switch","/api/auth/change-password","/api/auth/logout"):
@@ -5997,6 +5999,11 @@ def get_stock(module: str = "estrada", x_token: str = Header("")):
     source_conn = get_db("raios" if module == "monteiro" else module)
     try:
         sync_stock_catalog(stock_conn, source_conn, module)
+        if module == "estrada":
+            ensure_stock_balance_count(
+                stock_conn, source_conn, module, "STRETCH-FILM", 6400,
+                "stock-count-stretch-film-20261016-6400", "Contagem inicial Stretch Film — 6.400 UN",
+            )
         snapshot = inventory_snapshot(stock_conn, source_conn, module, include_archived=True)
         balances = {item["id"]: item["balance"] for item in snapshot["products"]}
         snapshot["all_products"] = [
@@ -6010,6 +6017,30 @@ def get_stock(module: str = "estrada", x_token: str = Header("")):
             item.pop("aliases_json", None)
             item.pop("tracking_after", None)
         return snapshot
+    finally:
+        source_conn.close()
+        stock_conn.close()
+
+
+@app.get("/api/stock/products/{product_id}/sales")
+def get_stock_product_sales(product_id: str, module: str = "estrada", x_token: str = Header("")):
+    require_auth(x_token)
+    if module not in STOCK_MODULES:
+        raise HTTPException(400, "Módulo de estoque inválido.")
+    area = {"raios": "menina_dos_raios", "estrada": "menina_da_estrada", "monteiro": "monteiro"}[module]
+    require_module_action(x_token, area, "produtos", "view")
+    stock_conn = get_db("raios")
+    source_conn = get_db("raios" if module == "monteiro" else module)
+    try:
+        product = stock_conn.execute(
+            "SELECT * FROM stock_products WHERE id=? AND module_key=?", (product_id, module)
+        ).fetchone()
+        if not product:
+            raise HTTPException(404, "Produto não encontrado.")
+        sales = inventory_product_sales(stock_conn, source_conn, module, product_id)
+        if sales is None:
+            raise HTTPException(404, "Produto não encontrado.")
+        return {"sales": sales}
     finally:
         source_conn.close()
         stock_conn.close()

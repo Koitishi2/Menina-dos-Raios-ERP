@@ -3484,8 +3484,8 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
       </div>
     </div>
     <div role="tablist" aria-label="Seções do estoque" style="display:flex;gap:8px;border-bottom:1px solid var(--border);margin-bottom:16px">
-      <button id="stock-tab-summary" role="tab" aria-selected="true" class="btn btn-primary" onclick="switchStockTab('summary')">Resumo</button>
-      <button id="stock-tab-products" role="tab" aria-selected="false" class="btn btn-secondary" onclick="switchStockTab('products')">Produtos</button>
+      <button id="stock-tab-summary" role="tab" aria-selected="true" aria-controls="stock-summary-pane" class="btn btn-primary" onclick="switchStockTab('summary')">Resumo</button>
+      <button id="stock-tab-products" role="tab" aria-selected="false" aria-controls="stock-products-pane" class="btn btn-secondary" onclick="switchStockTab('products')">Produtos</button>
     </div>
     <div id="stock-summary-pane" role="tabpanel">
       <div id="stock-products" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px;margin-bottom:18px"></div>
@@ -3515,6 +3515,10 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
         <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:780px"><thead><tr style="text-align:left;color:var(--muted);background:var(--bg,#f3f7f4);border-bottom:1px solid var(--border)"><th style="padding:11px">Produto</th><th>Código</th><th>Unidade</th><th>Saldo atual</th><th>Status</th><th>Ações</th></tr></thead><tbody id="stock-catalog-rows"></tbody></table>
       </div>
     </div>
+    <dialog id="stock-sales-dialog" style="width:min(920px,calc(100vw - 28px));max-height:82vh;padding:0;border:1px solid var(--border);border-radius:10px;background:var(--card,#fff);color:var(--ink);box-shadow:0 20px 60px #10241b40">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--border)"><div><h3 id="stock-sales-title" style="margin:0;color:var(--g800)">Vendas do produto</h3><div id="stock-sales-subtitle" style="font-size:12px;color:var(--muted);margin-top:4px"></div></div><button type="button" class="btn btn-secondary" onclick="document.getElementById('stock-sales-dialog').close()">Fechar</button></div>
+      <div style="padding:12px 18px;overflow:auto;max-height:calc(82vh - 78px)"><table style="width:100%;border-collapse:collapse;font-size:13px;min-width:600px"><thead><tr style="text-align:left;color:var(--muted);background:var(--bg)"><th style="padding:10px">NF</th><th>Data</th><th>Cliente</th><th>Quantidade</th><th>Valor</th><th></th></tr></thead><tbody id="stock-sales-rows"></tbody></table></div>
+    </dialog>
     <dialog id="stock-edit-dialog" style="width:min(560px,calc(100vw - 28px));border:1px solid var(--border);border-radius:10px;padding:0;color:var(--ink);box-shadow:0 18px 60px #10251b33">
       <form id="stock-edit-form" onsubmit="saveStockEdit(event)" style="padding:20px;display:grid;gap:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><h3 id="stock-edit-title" style="margin:0;color:var(--g800)">Editar produto</h3><button class="btn btn-secondary" type="button" onclick="document.getElementById('stock-edit-dialog').close()" aria-label="Fechar">×</button></div>
@@ -5949,11 +5953,14 @@ async function api(path,opts={}){
 let stockSnapshot = null;
 function stockEscape(value){return String(value??'').replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];});}
 function stockFormatQty(value){return new Intl.NumberFormat('pt-BR',{maximumFractionDigits:3}).format(Number(value)||0);}
+function stockMoney(value){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(value)||0);}
 function stockToday(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function switchStockTab(tab){
   const summary=tab==='summary';
   document.getElementById('stock-summary-pane').hidden=!summary;
   document.getElementById('stock-products-pane').hidden=summary;
+  document.getElementById('stock-summary-pane').style.display=summary?'block':'none';
+  document.getElementById('stock-products-pane').style.display=summary?'none':'block';
   document.getElementById('stock-tab-summary').setAttribute('aria-selected',String(summary));
   document.getElementById('stock-tab-products').setAttribute('aria-selected',String(!summary));
   document.getElementById('stock-tab-summary').className='btn '+(summary?'btn-primary':'btn-secondary');
@@ -6017,6 +6024,15 @@ function renderStock(){
   const products=(stockSnapshot.products||[]).filter(product=>Number(product.active)!==0&&Number(product.balance)>0);
   const productsEl=document.getElementById('stock-products');
   if(productsEl)productsEl.innerHTML=products.length?products.map(function(product){
+    if(product.sku==='STRETCH-FILM'){
+      const balance=Number(product.balance)||0, capacity=6400, percent=Math.max(0,Math.min(100,balance/capacity*100));
+      const tone=percent<=20?'#c2413b':percent<=50?'#d58a12':'#21834a';
+      const label=percent<=20?'Reposição urgente':percent<=50?'Estoque em atenção':'Estoque saudável';
+      return '<article class="stock-focus-card" style="grid-column:1/-1;background:var(--card,#fff);border:1px solid var(--border);border-top:4px solid '+tone+';border-radius:8px;padding:18px;display:grid;grid-template-columns:minmax(220px,1.2fr) minmax(260px,2fr) auto;gap:18px;align-items:center">'+
+        '<div><div style="font-size:11px;color:var(--muted);font-weight:700">'+stockEscape(product.sku)+' · MENINA DA ESTRADA</div><strong style="display:block;margin:5px 0 10px;color:var(--ink);font-size:16px">'+stockEscape(product.name)+'</strong><div style="font-size:32px;line-height:1.05;font-weight:800;color:'+tone+'">'+stockFormatQty(balance)+' <small style="font-size:13px">'+stockEscape(product.unit)+'</small></div><div style="font-size:12px;color:'+tone+';font-weight:700;margin-top:5px">'+label+' · '+stockFormatQty(percent)+'% do saldo inicial</div></div>'+
+        '<div><div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px"><div><div style="font-size:11px;color:var(--muted)">Vendido no histórico</div><strong>'+stockFormatQty(product.sold_quantity)+' '+stockEscape(product.unit)+'</strong><div style="font-size:11px;color:var(--muted)">'+stockFormatQty(product.sales_count)+' vendas</div></div><div><div style="font-size:11px;color:var(--muted)">Menor venda</div><strong>'+stockFormatQty(product.min_sale_quantity)+' '+stockEscape(product.unit)+'</strong></div><div><div style="font-size:11px;color:var(--muted)">Maior venda</div><strong>'+stockFormatQty(product.max_sale_quantity)+' '+stockEscape(product.unit)+'</strong></div></div><div role="img" aria-label="Saldo atual de '+stockFormatQty(balance)+' de '+stockFormatQty(capacity)+' unidades" style="height:12px;background:var(--bg,#edf2ef);border-radius:20px;overflow:hidden"><div style="height:100%;width:'+percent+'%;background:'+tone+';border-radius:20px;transition:width .5s ease,background .3s ease"></div></div><div style="display:flex;justify-content:space-between;gap:8px;font-size:10px;color:var(--muted);margin-top:5px"><span>0</span><span>Estoque inicial '+stockFormatQty(capacity)+' UN</span></div></div>'+
+        '<button type="button" class="btn btn-secondary" data-stock-action="sales" data-stock-id="'+stockEscape(product.id)+'">Ver vendas por NF</button></article>';
+    }
     return '<article style="background:var(--card,#fff);border:1px solid var(--border);border-top:3px solid var(--g500,#2f855a);border-radius:8px;padding:14px"><div style="font-size:11px;color:var(--muted);font-weight:700">'+stockEscape(product.sku)+'</div><strong style="display:block;margin:5px 0;color:var(--ink)">'+stockEscape(product.name)+'</strong><div style="font-size:24px;font-weight:800;color:var(--g800)">'+stockFormatQty(product.balance)+' <small style="font-size:12px">'+stockEscape(product.unit)+'</small></div><div style="font-size:11px;color:var(--muted);margin-top:5px">Saldo disponível</div>'+stockTrendMarkup(product)+'</article>';
   }).join(''):'<div class="card" style="padding:18px">Nenhum produto com saldo disponível. Consulte a aba Produtos para cadastrar itens ou definir o saldo atual.</div>';
   const movementEl=document.getElementById('stock-movements');
@@ -6045,11 +6061,19 @@ function renderStockCatalog(){
   if(!rows)return;
   rows.innerHTML=products.length?products.map(product=>{
     const archived=Number(product.active)===0;
-    const edit='stockEditProduct('+JSON.stringify(product.id)+')';
-    const archive=archived?'stockRestoreProduct('+JSON.stringify(product.id)+')':'stockArchiveProduct('+JSON.stringify(product.id)+')';
-    return '<tr style="border-bottom:1px solid var(--border);'+(archived?'opacity:.65':'')+'"><td style="padding:11px"><strong>'+stockEscape(product.name)+'</strong>'+(product.aliases?.length?'<div style="font-size:11px;color:var(--muted);margin-top:3px">Venda reconhecida por: '+stockEscape(product.aliases.slice(0,3).join(', '))+'</div>':'')+'</td><td>'+stockEscape(product.sku)+'</td><td>'+stockEscape(product.unit)+'</td><td><strong style="color:'+(Number(product.balance)<0?'#b42318':'var(--g800)')+'">'+stockFormatQty(product.balance)+' '+stockEscape(product.unit)+'</strong></td><td>'+(archived?'Arquivado':Number(product.balance)>0?'Em estoque':'Sem saldo')+'</td><td><div class="stock-actions"><button class="btn btn-secondary" type="button" onclick="'+stockEscape(edit)+'">Editar / saldo</button><button class="btn btn-secondary" type="button" onclick="'+stockEscape(archive)+'">'+(archived?'Reativar':'Remover')+'</button></div></td></tr>';
+    return '<tr style="border-bottom:1px solid var(--border);'+(archived?'opacity:.65':'')+'"><td style="padding:11px"><strong>'+stockEscape(product.name)+'</strong>'+(product.aliases?.length?'<div style="font-size:11px;color:var(--muted);margin-top:3px">Venda reconhecida por: '+stockEscape(product.aliases.slice(0,3).join(', '))+'</div>':'')+'</td><td>'+stockEscape(product.sku)+'</td><td>'+stockEscape(product.unit)+'</td><td><strong style="color:'+(Number(product.balance)<0?'#b42318':'var(--g800)')+'">'+stockFormatQty(product.balance)+' '+stockEscape(product.unit)+'</strong></td><td>'+(archived?'Arquivado':Number(product.balance)>0?'Em estoque':'Sem saldo')+'</td><td><div class="stock-actions"><button class="btn btn-secondary" type="button" data-stock-action="edit" data-stock-id="'+stockEscape(product.id)+'">Editar / saldo</button><button class="btn btn-secondary" type="button" data-stock-action="'+(archived?'restore':'archive')+'" data-stock-id="'+stockEscape(product.id)+'">'+(archived?'Reativar':'Remover')+'</button></div></td></tr>';
   }).join(''):'<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">Nenhum produto encontrado.</td></tr>';
 }
+document.getElementById('stock-catalog-rows')?.addEventListener('click',function(event){
+  const button=event.target.closest('button[data-stock-action]');if(!button)return;
+  const {stockAction:action,stockId:id}=button.dataset;
+  if(action==='edit')stockEditProduct(id);
+  else if(action==='archive')stockArchiveProduct(id);
+  else if(action==='restore')stockRestoreProduct(id);
+});
+document.getElementById('stock-products')?.addEventListener('click',function(event){
+  const button=event.target.closest('button[data-stock-action="sales"]');if(button)stockOpenSales(button.dataset.stockId);
+});
 function stockEditProduct(id){
   const product=(stockSnapshot?.all_products||[]).find(item=>item.id===id);if(!product)return;
   document.getElementById('stock-edit-id').value=product.id;
@@ -6095,6 +6119,7 @@ async function submitStockProduct(event){
   }catch(error){toast(error.message||'Não foi possível cadastrar o produto.','error');}
 }
 async function stockOpenSource(module,nf,client){
+  const salesDialog=document.getElementById('stock-sales-dialog');if(salesDialog?.open)salesDialog.close();
   closeStockApp();
   if(module==='monteiro'){
     openPaladarApp();switchPaladarTab('lancamentos');
@@ -6105,6 +6130,22 @@ async function stockOpenSource(module,nf,client){
   const nfTab=Array.from(document.querySelectorAll('.tabs-wrap .tab')).find(function(button){return (button.getAttribute('onclick')||'').includes("'nf'");});
   if(nfTab)switchTab(nfTab,'nf');
   const search=document.getElementById('search-input');if(search){search.value=nf||client||'';filterTable();}
+}
+async function stockOpenSales(productId){
+  const product=(stockSnapshot?.products||[]).find(item=>item.id===productId);
+  const dialog=document.getElementById('stock-sales-dialog'),tbody=document.getElementById('stock-sales-rows');
+  if(!product||!dialog||!tbody)return;
+  document.getElementById('stock-sales-title').textContent=product.name+' · vendas por NF';
+  document.getElementById('stock-sales-subtitle').textContent='Notas em ordem numérica crescente · '+stockFormatQty(product.sold_quantity)+' '+product.unit+' em '+stockFormatQty(product.sales_count)+' vendas.';
+  tbody.innerHTML='<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">Carregando notas…</td></tr>';
+  dialog.showModal();
+  try{
+    const result=await api('/api/stock/products/'+encodeURIComponent(productId)+'/sales?module='+encodeURIComponent(stockSnapshot.module));
+    tbody.innerHTML=(result.sales||[]).length?result.sales.map(function(sale){
+      const action='stockOpenSource('+JSON.stringify(stockSnapshot.module)+','+JSON.stringify(sale.reference)+','+JSON.stringify(sale.client)+')';
+      return '<tr style="border-bottom:1px solid var(--border)"><td style="padding:10px;font-weight:700">'+(sale.reference?'NF '+stockEscape(sale.reference):stockEscape(sale.sale_type))+'</td><td>'+stockEscape(sale.date)+'</td><td>'+stockEscape(sale.client||'Cliente não informado')+'</td><td>'+stockFormatQty(sale.quantity)+' '+stockEscape(sale.unit)+'</td><td>'+stockMoney(sale.total)+'</td><td><button class="btn btn-secondary" type="button" onclick=\''+stockEscape(action)+'\'>Abrir</button></td></tr>';
+    }).join(''):'<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">Nenhuma venda encontrada.</td></tr>';
+  }catch(error){tbody.innerHTML='<tr><td colspan="6" style="padding:20px;color:#b42318">'+stockEscape(error.message||'Falha ao buscar vendas.')+'</td></tr>';}
 }
 
 async function loadSellers(force=false, includeInactive=false, companyOverride=null, moduleContext=''){

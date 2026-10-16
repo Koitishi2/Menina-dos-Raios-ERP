@@ -226,3 +226,56 @@ def test_stock_catalog_edit_archive_and_set_current_balance(isolated_app):
     assert response.status_code == 200
     restored = next(item for item in isolated_app.client.get("/api/stock?module=estrada", headers=headers).json()["all_products"] if item["id"] == catalog_product["id"])
     assert restored["active"] == 1
+
+
+def test_stretch_film_opening_total_is_reconciled_once_and_keeps_manual_balance(isolated_app):
+    token = _login(isolated_app.client)
+    headers = _headers(token)
+    source = sqlite3.connect(isolated_app.db_paths["estrada"])
+    source.execute(
+        "INSERT OR REPLACE INTO product_prices(key,label,price) VALUES(?,?,?)",
+        ("stretch-film", "Stretch Film PVC 4kg", 80),
+    )
+    today = datetime.now().date().isoformat()
+    for index, quantity in enumerate((400, 625), start=1):
+        source.execute(
+            """INSERT INTO sales
+               (id,sale_type,sale_date,sale_time,client,product,nf_number,quantity,unit_price,total,created_at)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+            (f"stretch-sale-{index}", "NF", today, "10:00", "Cliente", "Stretch Film PVC 4kg",
+             str(500 + index), quantity, 80, quantity * 80, datetime.now().astimezone().isoformat()),
+        )
+    source.commit()
+    source.close()
+
+    payload = isolated_app.client.get("/api/stock?module=estrada", headers=headers).json()
+    product = next(item for item in payload["products"] if item["sku"] == "STRETCH-FILM")
+    assert product["sold_quantity"] == 1025
+    assert product["balance"] == 5375
+    assert len([item for item in payload["movements"] if item.get("id") == "stock-count-stretch-film-20261016-6400"]) == 1
+
+    stock = sqlite3.connect(isolated_app.db_paths["raios"])
+    stock.execute(
+        "UPDATE stock_movements SET quantity_delta=quantity_delta+2050,notes=? WHERE id=?",
+        ("Saldo físico atual definido para 6400 UN; legado a corrigir", "stock-count-stretch-film-20261016-6400"),
+    )
+    stock.commit()
+    stock.close()
+    repaired = isolated_app.client.get("/api/stock?module=estrada", headers=headers).json()
+    product = next(item for item in repaired["products"] if item["sku"] == "STRETCH-FILM")
+    assert product["balance"] == 5375
+
+    sales = isolated_app.client.get(
+        f"/api/stock/products/{product['id']}/sales?module=estrada", headers=headers
+    )
+    assert sales.status_code == 200
+    assert [sale["reference"] for sale in sales.json()["sales"]] == ["501", "502"]
+
+    changed = isolated_app.client.put(
+        f"/api/stock/products/{product['id']}/balance", headers=headers,
+        json={"module": "estrada", "quantity": 4000},
+    )
+    assert changed.status_code == 200
+    refreshed = isolated_app.client.get("/api/stock?module=estrada", headers=headers).json()
+    current = next(item for item in refreshed["products"] if item["sku"] == "STRETCH-FILM")
+    assert current["balance"] == 4000

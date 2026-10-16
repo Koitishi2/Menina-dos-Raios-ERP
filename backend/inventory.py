@@ -280,21 +280,24 @@ def inventory_snapshot(stock_conn, source_conn, module_key, include_archived=Fal
         sale_quantity_factor = float(product.get("sale_quantity_factor") or 1)
         balance = 0.0
         events = []
+        matched_sales = []
         for row in manual_rows:
             if row["product_id"] == product["id"]:
-                events.append((str(row["movement_date"] or ""), str(row["created_at"] or ""), float(row["quantity_delta"] or 0)))
+                is_count = "contagem" in str(row["reference"] or "").casefold()
+                events.append((str(row["movement_date"] or ""), str(row["created_at"] or ""), float(row["quantity_delta"] or 0), is_count))
         for sale in sales:
             if _normalized(sale["product"]) not in aliases:
-                continue
-            sold_on = _as_datetime(sale["sale_date"])
-            if not started or not sold_on or sold_on.date() < started.date():
                 continue
             quantity = float(sale["quantity"] or 0)
             if quantity <= 0:
                 continue
+            matched_sales.append(sale)
+            sold_on = _as_datetime(sale["sale_date"])
+            if not started or not sold_on or sold_on.date() < started.date():
+                continue
             converted_quantity = quantity * sale_quantity_factor
             delta = -converted_quantity
-            events.append((str(sale["sale_date"] or ""), str(sale["created_at"] or ""), delta))
+            events.append((str(sale["sale_date"] or ""), str(sale["created_at"] or ""), delta, False))
             conversion_note = (
                 f" · {quantity:g} na venda → {converted_quantity:g} {product['unit']} no estoque"
                 if sale_quantity_factor != 1 else ""
@@ -319,9 +322,17 @@ def inventory_snapshot(stock_conn, source_conn, module_key, include_archived=Fal
             })
         events.sort(key=lambda event: (event[0], event[1]))
         balance_points = []
-        for _, _, delta in events:
+        count_events = [event for event in events if event[3]]
+        latest_count = max(count_events, key=lambda event: (event[0], event[1])) if count_events else None
+        after_count = latest_count is None
+        for event in events:
+            _, _, delta, is_count = event
             balance += delta
-            balance_points.append(round(balance, 3))
+            if is_count and latest_count == event:
+                after_count = True
+                balance_points = [round(balance, 3)]
+            elif after_count:
+                balance_points.append(round(balance, 3))
         if not balance_points:
             balance_points = [0.0]
         elif len(balance_points) > 8:
@@ -329,7 +340,98 @@ def inventory_snapshot(stock_conn, source_conn, module_key, include_archived=Fal
             balance_points = [balance_points[round(index * last_index / 7)] for index in range(8)]
         product["balance"] = round(balance, 3)
         product["trend"] = balance_points
+        converted_sales = [float(sale["quantity"] or 0) * sale_quantity_factor for sale in matched_sales]
+        product["sales_count"] = len(matched_sales)
+        product["sold_quantity"] = round(sum(converted_sales), 3)
+        product["min_sale_quantity"] = round(min(converted_sales), 3) if converted_sales else 0
+        product["max_sale_quantity"] = round(max(converted_sales), 3) if converted_sales else 0
+        product["sales_revenue"] = round(sum(float(sale["total"] or 0) for sale in matched_sales), 2)
+        product["sales_first_date"] = min((str(sale["sale_date"] or "")[:10] for sale in matched_sales), default="")
+        product["sales_last_date"] = max((str(sale["sale_date"] or "")[:10] for sale in matched_sales), default="")
+        product["max_balance"] = round(max([0.0, *balance_points]), 3)
+        product["min_balance"] = 0
         product["aliases"] = json.loads(product.pop("aliases_json") or "[]")
         product.pop("tracking_after", None)
-    movements.sort(key=lambda row: (str(row.get("movement_date") or ""), str(row.get("created_at") or "")), reverse=True)
+    def movement_order(row):
+        ref = str(row.get("reference") or "")
+        match = re.search(r"\d+", ref)
+        if row.get("source") == "sale" and match:
+            return (0, int(match.group()), str(row.get("movement_date") or ""), str(row.get("source_id") or ""))
+        if row.get("source") == "sale":
+            return (1, str(row.get("movement_date") or ""), str(row.get("created_at") or ""), str(row.get("source_id") or ""))
+        return (2, str(row.get("movement_date") or ""), str(row.get("created_at") or ""), str(row.get("id") or ""))
+    movements.sort(key=movement_order)
     return {"module": module_key, "products": products, "movements": movements[:500]}
+
+
+def ensure_stock_balance_count(stock_conn, source_conn, module_key, sku, quantity, movement_id, reference):
+    if module_key not in MODULES:
+        raise ValueError("Módulo de estoque inválido.")
+    product = stock_conn.execute(
+        "SELECT id,unit FROM stock_products WHERE module_key=? AND sku=? AND active=1",
+        (module_key, sku),
+    ).fetchone()
+    if not product:
+        return False
+    snapshot = inventory_snapshot(stock_conn, source_conn, module_key)
+    snapshot_product = next((item for item in snapshot["products"] if item["id"] == product["id"]), {})
+    current = float(snapshot_product.get("balance") or 0)
+    target_balance = max(0.0, float(quantity) - float(snapshot_product.get("sold_quantity") or 0))
+    delta = round(target_balance - current, 6)
+    existing = stock_conn.execute(
+        "SELECT quantity_delta,notes FROM stock_movements WHERE id=? AND product_id=?",
+        (movement_id, product["id"]),
+    ).fetchone()
+    if existing:
+        if not str(existing["notes"] or "").startswith("Saldo físico atual definido para"):
+            return False
+        corrected_delta = round(float(existing["quantity_delta"] or 0) + delta, 6)
+        stock_conn.execute(
+            "UPDATE stock_movements SET quantity_delta=?,notes=? WHERE id=?",
+            (corrected_delta,
+             f"Saldo inicial reconciliado: {float(quantity):g} {product['unit']} menos {float(snapshot_product.get('sold_quantity') or 0):g} vendidos.",
+             movement_id),
+        )
+        stock_conn.commit()
+        return True
+    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    stock_conn.execute(
+        """INSERT INTO stock_movements
+           (id,product_id,movement_type,quantity_delta,movement_date,reference,notes,created_by,created_at)
+           VALUES(?,?,?,?,?,?,?,?,?)""",
+        (movement_id, product["id"], "adjustment", delta, datetime.now().date().isoformat(), reference,
+         f"Saldo inicial de {float(quantity):g} {product['unit']} menos {float(snapshot_product.get('sold_quantity') or 0):g} vendidos.",
+         "system", now),
+    )
+    stock_conn.commit()
+    return True
+
+
+def inventory_product_sales(stock_conn, source_conn, module_key, product_id):
+    product = stock_conn.execute(
+        "SELECT * FROM stock_products WHERE id=? AND module_key=?",
+        (product_id, module_key),
+    ).fetchone()
+    if not product:
+        return None
+    aliases = {_normalized(product["name"]), _normalized(product["sku"])}
+    try:
+        aliases.update(_normalized(value) for value in json.loads(product["aliases_json"] or "[]"))
+    except (TypeError, ValueError):
+        pass
+    factor = float(product["sale_quantity_factor"] or 1)
+    rows = []
+    for sale in _sale_rows(source_conn, module_key):
+        if _normalized(sale["product"]) not in aliases or float(sale["quantity"] or 0) <= 0:
+            continue
+        rows.append({
+            "id": str(sale["id"]), "date": str(sale["sale_date"] or "")[:10],
+            "reference": str(sale["nf_number"] or ""), "client": str(sale["client"] or ""),
+            "sale_type": str(sale["sale_type"] or ""), "quantity": round(float(sale["quantity"]) * factor, 3),
+            "unit": product["unit"], "total": round(float(sale["total"] or 0), 2),
+        })
+    def invoice_order(row):
+        match = re.search(r"\d+", row["reference"])
+        return (0, int(match.group()), row["date"], row["id"]) if match else (1, 0, row["date"], row["id"])
+    rows.sort(key=invoice_order)
+    return rows
