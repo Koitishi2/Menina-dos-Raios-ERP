@@ -27,6 +27,7 @@ try:
     from .orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from .permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from .repositories.sellers_repository import init_sellers_schema
+    from .inventory import MODULES as STOCK_MODULES, init_inventory_schema, inventory_snapshot
     from .repositories.whatsapp_repository import init_whatsapp_schema
     from .routers.sellers import create_sellers_router
     from .routers.whatsapp_clients import create_whatsapp_clients_router
@@ -49,6 +50,7 @@ except ImportError:
     from orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from repositories.sellers_repository import init_sellers_schema
+    from inventory import MODULES as STOCK_MODULES, init_inventory_schema, inventory_snapshot
     from repositories.whatsapp_repository import init_whatsapp_schema
     from routers.sellers import create_sellers_router
     from routers.whatsapp_clients import create_whatsapp_clients_router
@@ -758,6 +760,8 @@ def init_db(company: str = None):
         except sqlite3.OperationalError as e:
             print(f"indice paladar_sales falhou: {e}")
     init_sellers_schema(conn)
+    if _company_key(company if company is not None else CURRENT_COMPANY.get()) == "raios":
+        init_inventory_schema(conn)
     # Tabela de pagamentos do Monteiro
     try:
         conn.execute("""CREATE TABLE IF NOT EXISTS monteiro_payments (
@@ -1230,6 +1234,12 @@ app.add_middleware(CORSMiddleware,
 
 def _managed_route_permission(path:str,method:str):
     method=method.upper()
+    if path=="/api/stock" and method=="GET":
+        return (None,"produtos","view")
+    if path=="/api/stock/products" and method=="POST":
+        return (None,"produtos","create")
+    if path=="/api/stock/movements" and method=="POST":
+        return (None,"consolidado","create")
     if path in ("/api/auth/me","/api/auth/permissions","/api/auth/company-switch","/api/auth/change-password","/api/auth/logout"):
         return ("auth","session","view")
     if path=="/api/sales" and method=="GET":
@@ -5971,6 +5981,101 @@ def _quote_totals(items, discount=0):
         return quote_totals_from_items(items, discount)
     except QuoteItemsLimitError:
         raise HTTPException(400,"O orÃ§amento permite no mÃ¡ximo 20 itens.")
+
+@app.get("/api/stock")
+def get_stock(module: str = "estrada", x_token: str = Header("")):
+    require_auth(x_token)
+    if module not in STOCK_MODULES:
+        raise HTTPException(400, "Módulo de estoque inválido.")
+    area = {"raios": "menina_dos_raios", "estrada": "menina_da_estrada", "monteiro": "monteiro"}[module]
+    require_module_action(x_token, area, "produtos", "view")
+    stock_conn = get_db("raios")
+    source_conn = get_db("raios" if module == "monteiro" else module)
+    try:
+        return inventory_snapshot(stock_conn, source_conn, module)
+    finally:
+        source_conn.close()
+        stock_conn.close()
+
+
+@app.post("/api/stock/products")
+def create_stock_product(body: dict, x_token: str = Header("")):
+    sess = require_editor(x_token)
+    module = str(body.get("module") or "").strip().lower()
+    name = str(body.get("name") or "").strip()
+    sku = str(body.get("sku") or "").strip().upper()
+    unit = str(body.get("unit") or "UND").strip().upper()
+    aliases = body.get("aliases") or []
+    if module not in STOCK_MODULES or not name or not sku or not unit:
+        raise HTTPException(400, "Informe módulo, produto, código e unidade.")
+    area = {"raios": "menina_dos_raios", "estrada": "menina_da_estrada", "monteiro": "monteiro"}[module]
+    require_module_action(x_token, area, "produtos", "create")
+    if not isinstance(aliases, list) or len(aliases) > 20:
+        raise HTTPException(400, "Lista de nomes equivalentes inválida.")
+    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    product_id = str(uuid.uuid4())
+    conn = get_db("raios")
+    try:
+        conn.execute(
+            """INSERT INTO stock_products
+               (id,module_key,sku,name,unit,aliases_json,tracking_after,created_at)
+               VALUES(?,?,?,?,?,?,?,?)""",
+            (product_id, module, sku, name, unit,
+             json.dumps([str(value).strip() for value in aliases if str(value).strip()], ensure_ascii=False),
+             now, now),
+        )
+        conn.commit()
+        return {"ok": True, "id": product_id}
+    except sqlite3.IntegrityError:
+        conn.rollback()
+        raise HTTPException(409, "Já existe um produto com esse código neste módulo.")
+    finally:
+        conn.close()
+
+
+@app.post("/api/stock/movements")
+def create_stock_movement(body: dict, x_token: str = Header("")):
+    sess = require_editor(x_token)
+    module = str(body.get("module") or "").strip().lower()
+    product_id = str(body.get("product_id") or "").strip()
+    movement_type = str(body.get("movement_type") or "").strip().lower()
+    reference = str(body.get("reference") or "").strip()[:120]
+    notes = str(body.get("notes") or "").strip()[:500]
+    try:
+        quantity = float(body.get("quantity"))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Informe uma quantidade válida.")
+    if module not in STOCK_MODULES or movement_type not in ("entry", "exit", "adjustment"):
+        raise HTTPException(400, "Módulo ou tipo de movimentação inválido.")
+    area = {"raios": "menina_dos_raios", "estrada": "menina_da_estrada", "monteiro": "monteiro"}[module]
+    require_module_action(x_token, area, "consolidado", "create")
+    if not quantity or (movement_type != "adjustment" and quantity < 0):
+        raise HTTPException(400, "A quantidade deve ser positiva; ajuste pode ser positivo ou negativo.")
+    movement_date = str(body.get("movement_date") or datetime.now().date().isoformat())
+    try:
+        datetime.strptime(movement_date, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(400, "Data da movimentação inválida.")
+    delta = quantity if movement_type in ("entry", "adjustment") else -quantity
+    conn = get_db("raios")
+    try:
+        product = conn.execute(
+            "SELECT id FROM stock_products WHERE id=? AND module_key=? AND active=1",
+            (product_id, module),
+        ).fetchone()
+        if not product:
+            raise HTTPException(404, "Produto não encontrado neste módulo.")
+        conn.execute(
+            """INSERT INTO stock_movements
+               (id,product_id,movement_type,quantity_delta,movement_date,reference,notes,created_by,created_at)
+               VALUES(?,?,?,?,?,?,?,?,?)""",
+            (str(uuid.uuid4()), product_id, movement_type, delta, movement_date,
+             reference, notes, sess.get("username", ""), datetime.now().astimezone().isoformat(timespec="seconds")),
+        )
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
 
 @app.get("/api/orcamentos/company")
 def quote_company(x_token:str=Header("")):

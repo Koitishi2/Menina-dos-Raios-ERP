@@ -4,6 +4,7 @@ branch=feat/clientes-whatsapp-pedidos
 [runtime]
 README.md
 backend/app.py
+backend/inventory.py
 backend/app_notes_domain.py
 backend/app_notes_service.py
 backend/backup_admin.py
