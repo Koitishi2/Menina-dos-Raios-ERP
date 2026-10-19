@@ -27,7 +27,7 @@ try:
     from .orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from .permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from .repositories.sellers_repository import init_sellers_schema
-    from .inventory import MODULES as STOCK_MODULES, ensure_stock_balance_count, init_inventory_schema, inventory_product_sales, inventory_snapshot, sync_stock_catalog
+    from .inventory import MODULES as STOCK_MODULES, ensure_stock_balance_count, init_inventory_schema, inventory_product_sales, inventory_snapshot, record_app_note_stock_intake, sync_stock_catalog
     from .repositories.whatsapp_repository import init_whatsapp_schema
     from .routers.sellers import create_sellers_router
     from .routers.whatsapp_clients import create_whatsapp_clients_router
@@ -50,7 +50,7 @@ except ImportError:
     from orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from repositories.sellers_repository import init_sellers_schema
-    from inventory import MODULES as STOCK_MODULES, ensure_stock_balance_count, init_inventory_schema, inventory_product_sales, inventory_snapshot, sync_stock_catalog
+    from inventory import MODULES as STOCK_MODULES, ensure_stock_balance_count, init_inventory_schema, inventory_product_sales, inventory_snapshot, record_app_note_stock_intake, sync_stock_catalog
     from repositories.whatsapp_repository import init_whatsapp_schema
     from routers.sellers import create_sellers_router
     from routers.whatsapp_clients import create_whatsapp_clients_router
@@ -7697,6 +7697,32 @@ def _require_app_note_token(x_app_token):
     if not APP_NOTES_TOKEN or not hmac.compare_digest(x_app_token,APP_NOTES_TOKEN):
         raise HTTPException(401,"Aplicativo não autorizado.")
 
+def _app_note_stock_intake(body, client, external_id, items, x_token, sess):
+    if not body.get("stock_intake") or _normalize_name(client) != _normalize_name("ESTOQUE"):
+        return None
+    require_editor(x_token)
+    require_module_action(x_token, "menina_dos_raios", "consolidado", "create")
+    raw_date = str(body.get("date") or body.get("note_date") or "").strip()
+    movement_date = None
+    for date_format in ("%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            movement_date = datetime.strptime(raw_date, date_format).date().isoformat()
+            break
+        except ValueError:
+            pass
+    if movement_date is None:
+        raise HTTPException(400, "Data da nota inválida para entrada no estoque.")
+    stock_conn = get_db("raios")
+    try:
+        init_inventory_schema(stock_conn)
+        return record_app_note_stock_intake(
+            stock_conn, external_id, items, movement_date, sess.get("username", "")
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    finally:
+        stock_conn.close()
+
 @app.get("/api/app-notes/mobile/matches")
 def find_mobile_app_note_matches(
     client:str="", date:str="", external_id:str="",
@@ -7749,7 +7775,9 @@ def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-toke
             existing=conn.execute("SELECT * FROM app_notes WHERE id=?",(submission["note_id"],)).fetchone()
             submitted=conn.execute("SELECT * FROM app_note_submissions WHERE external_id=?",(external_id,)).fetchone()
             result=_app_note_dict(conn,existing)
-            return {"ok":True,"duplicate":True,"merged":False,"note":result,"submission":dict(submitted)}
+            stock_intake=_app_note_stock_intake(body, client, external_id, items, x_token, sess)
+            return {"ok":True,"duplicate":True,"merged":False,"note":result,"submission":dict(submitted),
+                    **({"stock_intake":stock_intake} if stock_intake is not None else {})}
         note_id=str(uuid.uuid4()); now=datetime.now().isoformat(timespec="seconds")
         merge_target=None
         if merge_into_id:
@@ -7784,7 +7812,9 @@ def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-toke
         raise
     finally:
         conn.close()
-    return {"ok":True,"duplicate":False,"merged":merged_note,"note":result,"submission":dict(submitted)}
+    stock_intake=_app_note_stock_intake(body, client, external_id, items, x_token, sess)
+    return {"ok":True,"duplicate":False,"merged":merged_note,"note":result,"submission":dict(submitted),
+            **({"stock_intake":stock_intake} if stock_intake is not None else {})}
 
 @app.get("/api/app-notes")
 def list_app_notes(client:Optional[str]=None,month:Optional[str]=None,year:Optional[str]=None,status:Optional[str]=None,x_token:str=Header("")):

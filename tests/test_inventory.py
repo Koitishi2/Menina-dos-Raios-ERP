@@ -77,7 +77,6 @@ def test_stock_rejects_unknown_module_and_negative_entry(isolated_app):
     headers = _headers(token)
     response = isolated_app.client.get("/api/stock?module=desconhecido", headers=headers)
     assert response.status_code == 400
-
     product = isolated_app.client.get("/api/stock?module=estrada", headers=headers).json()["products"][0]
     response = isolated_app.client.post(
         "/api/stock/movements",
@@ -85,6 +84,68 @@ def test_stock_rejects_unknown_module_and_negative_entry(isolated_app):
         json={"module": "estrada", "product_id": product["id"], "movement_type": "entry", "quantity": -2},
     )
     assert response.status_code == 400
+
+
+def test_voice_stock_customer_adds_and_accumulates_stock_once(isolated_app):
+    token = _login(isolated_app.client)
+    headers = {
+        "x-token": token,
+        "x-app-token": isolated_app.module.APP_NOTES_TOKEN,
+    }
+    payload = {
+        "external_id": "voice-stock-intake-001",
+        "client": "ESTOQUE",
+        "date": datetime.now().strftime("%d/%m/%Y"),
+        "stock_intake": True,
+        "items": [
+            {"product": "Macaxeira a Vácuo", "weight": 12, "unit": "KG"},
+            {"product": "Alho Descascado 250g", "weight": 8, "unit": "UN"},
+            {"product": "Produto falado novo", "weight": 3, "unit": "MC"},
+        ],
+    }
+    first = isolated_app.client.post("/api/app-notes/mobile", headers=headers, json=payload)
+    assert first.status_code == 200
+    assert first.json()["stock_intake"] == {"ok": True, "duplicate": False, "items_added": 3}
+
+    snapshot = isolated_app.client.get("/api/stock?module=raios", headers={"x-token": token}).json()
+    products = {product["name"]: product for product in snapshot["products"]}
+    assert products["Macaxeira a Vácuo"]["balance"] == 12
+    assert products["Alho Descascado 250 g"]["balance"] == 8
+    assert products["Produto falado novo"]["balance"] == 3
+
+    repeated = isolated_app.client.post("/api/app-notes/mobile", headers=headers, json=payload)
+    assert repeated.status_code == 200
+    assert repeated.json()["stock_intake"] == {"ok": True, "duplicate": True, "items_added": 0}
+
+    payload["external_id"] = "voice-stock-intake-002"
+    payload["items"] = [{"product": "Macaxeira a Vácuo", "weight": 5, "unit": "KG"}]
+    second = isolated_app.client.post("/api/app-notes/mobile", headers=headers, json=payload)
+    assert second.status_code == 200
+    accumulated = isolated_app.client.get("/api/stock?module=raios", headers={"x-token": token}).json()
+    product = next(item for item in accumulated["products"] if item["name"] == "Macaxeira a Vácuo")
+    assert product["balance"] == 17
+
+
+def test_non_stock_voice_customer_does_not_create_stock(isolated_app):
+    token = _login(isolated_app.client)
+    response = isolated_app.client.post(
+        "/api/app-notes/mobile",
+        headers={"x-token": token, "x-app-token": isolated_app.module.APP_NOTES_TOKEN},
+        json={
+            "external_id": "voice-regular-client-001",
+            "client": "Cliente comum",
+            "date": datetime.now().strftime("%d/%m/%Y"),
+            "stock_intake": True,
+            "items": [{"product": "Macaxeira a Vácuo", "weight": 12, "unit": "KG"}],
+        },
+    )
+    assert response.status_code == 200
+    assert "stock_intake" not in response.json()
+    snapshot = isolated_app.client.get("/api/stock?module=raios", headers={"x-token": token}).json()
+    assert not any(
+        movement.get("reference") == "Nota APP voice-regular-client-001"
+        for movement in snapshot["movements"]
+    )
 
 
 def test_stock_debits_todays_grape_sales_with_sales_unit_conversion(isolated_app):

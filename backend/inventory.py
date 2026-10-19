@@ -1,4 +1,5 @@
 import json
+import math
 import re
 import sqlite3
 import unicodedata
@@ -76,6 +77,10 @@ def init_inventory_schema(conn):
             created_by TEXT NOT NULL DEFAULT '',
             created_at TEXT NOT NULL,
             FOREIGN KEY(product_id) REFERENCES stock_products(id)
+        );
+        CREATE TABLE IF NOT EXISTS stock_app_note_intakes (
+            external_id TEXT PRIMARY KEY,
+            created_at TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_stock_products_module ON stock_products(module_key, active, name);
         CREATE INDEX IF NOT EXISTS idx_stock_movements_product_date ON stock_movements(product_id, movement_date DESC);
@@ -158,6 +163,103 @@ def _normalized(value):
     text = unicodedata.normalize("NFKD", str(value or ""))
     text = "".join(char for char in text if not unicodedata.combining(char))
     return re.sub(r"[^A-Z0-9]+", "", text.upper())
+
+
+def _normalized_stock_unit(value):
+    unit = _normalized(value)
+    return {"UNIDADE": "UN", "UNIDADES": "UN", "UND": "UN", "UN": "UN",
+            "QUILO": "KG", "QUILOS": "KG", "KILO": "KG", "KILOS": "KG",
+            "CAIXA": "CX", "CAIXAS": "CX", "MACO": "MC", "MACOS": "MC",
+            "SACO": "SC", "SACOS": "SC"}.get(unit, unit)
+
+
+def record_app_note_stock_intake(stock_conn, external_id, items, movement_date, created_by=""):
+    """Add an app note to Raios stock exactly once, creating products on demand."""
+    external_id = str(external_id or "").strip()[:80]
+    if not external_id:
+        raise ValueError("Identificador da nota obrigatório.")
+    try:
+        datetime.strptime(str(movement_date), "%Y-%m-%d")
+    except ValueError as exc:
+        raise ValueError("Data da movimentação inválida.") from exc
+
+    normalized_items = []
+    for item in items or []:
+        name = str(item.get("product") or "").strip()[:160]
+        unit = str(item.get("unit") or "UND").strip().upper()[:20]
+        try:
+            quantity = float(item.get("weight"))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Quantidade de estoque inválida.") from exc
+        if not name or quantity <= 0 or not math.isfinite(quantity):
+            raise ValueError("Produto e quantidade positiva são obrigatórios.")
+        normalized = _normalized(name)
+        if normalized == "MACAXEIRAAVACUO":
+            name = "Macaxeira a Vácuo"
+        elif normalized == "ALHODESCASCADO250G":
+            name = "Alho Descascado 250 g"
+        normalized_items.append((name, unit, quantity))
+    if not normalized_items:
+        raise ValueError("A nota não contém produtos para entrada no estoque.")
+
+    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    stock_conn.execute("BEGIN IMMEDIATE")
+    try:
+        if stock_conn.execute(
+            "SELECT 1 FROM stock_app_note_intakes WHERE external_id=?", (external_id,)
+        ).fetchone():
+            stock_conn.commit()
+            return {"ok": True, "duplicate": True, "items_added": 0}
+
+        products = [dict(row) for row in stock_conn.execute(
+            "SELECT * FROM stock_products WHERE module_key='raios' AND active=1"
+        ).fetchall()]
+        added = 0
+        for index, (name, unit, quantity) in enumerate(normalized_items):
+            key = _normalized(name)
+            product = None
+            for candidate in products:
+                if _normalized_stock_unit(candidate["unit"]) != _normalized_stock_unit(unit):
+                    continue
+                aliases = {_normalized(candidate["name"]), _normalized(candidate["sku"])}
+                try:
+                    aliases.update(_normalized(alias) for alias in json.loads(candidate["aliases_json"] or "[]"))
+                except (TypeError, ValueError):
+                    pass
+                if key in aliases:
+                    product = candidate
+                    break
+            if product is None:
+                sku = "APP-" + (key[:62] or uuid.uuid4().hex[:12]) + "-" + (_normalized_stock_unit(unit)[:12] or "UN")
+                product_id = str(uuid.uuid4())
+                aliases_json = json.dumps([name], ensure_ascii=False)
+                stock_conn.execute(
+                    """INSERT INTO stock_products
+                       (id,module_key,sku,name,unit,aliases_json,tracking_after,created_at)
+                       VALUES(?, 'raios', ?, ?, ?, ?, ?, ?)""",
+                    (product_id, sku, name, unit, aliases_json, now, now),
+                )
+                product = {"id": product_id, "name": name, "sku": sku, "unit": unit,
+                           "aliases_json": aliases_json}
+                products.append(product)
+            stock_conn.execute(
+                """INSERT INTO stock_movements
+                   (id,product_id,movement_type,quantity_delta,movement_date,reference,notes,created_by,created_at)
+                   VALUES(?, ?, 'entry', ?, ?, ?, ?, ?, ?)""",
+                (f"app-note:{external_id}:{index}", product["id"], quantity, movement_date,
+                 "Nota APP " + external_id,
+                 "Entrada automática da Entrega por voz · cliente ESTOQUE",
+                 str(created_by or "")[:120], now),
+            )
+            added += 1
+        stock_conn.execute(
+            "INSERT INTO stock_app_note_intakes(external_id,created_at) VALUES(?,?)", (external_id, now)
+        )
+        stock_conn.commit()
+        return {"ok": True, "duplicate": False, "items_added": added}
+    except Exception:
+        stock_conn.rollback()
+        raise
 
 
 def sync_stock_catalog(stock_conn, source_conn, module_key):
