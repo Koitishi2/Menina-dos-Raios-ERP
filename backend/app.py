@@ -284,6 +284,21 @@ def get_db(company: str = None):
     conn.execute("PRAGMA temp_store=MEMORY")  # ordenaÃ§Ãµes/temporÃ¡rios em RAM
     return conn
 
+@lru_cache(maxsize=32)
+def _wa_config_cached(company: str):
+    conn = get_db(company)
+    try:
+        rows = conn.execute("SELECT key, value FROM whatsapp_config").fetchall()
+        return {r["key"]: r["value"] for r in rows}
+    finally:
+        conn.close()
+
+def get_wa_config_cached():
+    return dict(_wa_config_cached(CURRENT_COMPANY.get()))
+
+def clear_wa_config_cache():
+    _wa_config_cached.cache_clear()
+
 def get_control_db():
     """Banco compartilhado do grupo: usuarios, sessoes, permissoes e avisos."""
     return get_db("raios")
@@ -5648,7 +5663,7 @@ def send_daily_motivation(force:bool=False):
     now=_motivation_now();today=now.strftime("%Y-%m-%d")
     conn=get_db()
     try:
-        cfg={r["key"]:r["value"] for r in conn.execute("SELECT key,value FROM whatsapp_config").fetchall()}
+        cfg=get_wa_config_cached()
         if not force and cfg.get("motivation_enabled","1")!="1": return {"ok":False,"reason":"disabled"}
         send_time=cfg.get("motivation_time","07:00") or "07:00"
         if not force:
@@ -5677,6 +5692,7 @@ def send_daily_motivation(force:bool=False):
         content=(item.get("content") or "").strip()
         conn.execute("INSERT OR REPLACE INTO whatsapp_config(key,value) VALUES('motivation_last_attempt',?)",[now.isoformat()])
         conn.commit()
+        clear_wa_config_cache()
     except Exception:
         conn.rollback()
         raise
@@ -5700,6 +5716,7 @@ def send_daily_motivation(force:bool=False):
         if sent>0:
             conn.execute("INSERT OR REPLACE INTO whatsapp_config(key,value) VALUES('motivation_last_success',?)",[today])
         conn.commit()
+        clear_wa_config_cache()
         print(f"[motivacao] {today}: template {item.get('name')} | enviados={sent} falhas={failed}")
         return {"ok":sent>0,"sent":sent,"failed":failed,"templates":len(templates),"message":content}
     except Exception:
@@ -5776,10 +5793,7 @@ def delete_wa_contact(cid: str, x_token: str = Header(...)):
 @app.get("/api/whatsapp/config")
 def get_wa_config(x_token: str = Header(...)):
     require_admin(x_token)
-    conn = get_db()
-    rows = conn.execute("SELECT key, value FROM whatsapp_config").fetchall()
-    conn.close()
-    return {r["key"]: r["value"] for r in rows}
+    return get_wa_config_cached()
 
 @app.put("/api/whatsapp/config")
 def save_wa_config(body: dict, x_token: str = Header(...)):
@@ -5793,6 +5807,7 @@ def save_wa_config(body: dict, x_token: str = Header(...)):
             if k in allowed:
                 conn.execute("INSERT OR REPLACE INTO whatsapp_config (key, value) VALUES (?,?)", [k, str(v)])
         conn.commit()
+        clear_wa_config_cache()
     except Exception:
         try:
             conn.rollback()
@@ -5808,8 +5823,7 @@ def check_wa_triggers(body: dict, x_token: str = Header(...)):
     require_admin(x_token)
     conn = get_db()
     try:
-        cfg_rows = conn.execute("SELECT key, value FROM whatsapp_config").fetchall()
-        cfg = {r["key"]: r["value"] for r in cfg_rows}
+        cfg = get_wa_config_cached()
         send = body.get("send", False)
         contact_ids = body.get("contact_ids")
         selected_contact_ids = None
@@ -6003,7 +6017,7 @@ def wa_send_endpoint(body: dict, x_token: str = Header(...)):
     require_admin(x_token)
     conn = get_db()
     try:
-        cfg  = {r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM whatsapp_config").fetchall()}
+        cfg  = get_wa_config_cached()
         ids = body.get("contact_ids") or []
         if ids:
             ph  = ",".join(["?"] * len(ids))
@@ -6040,8 +6054,8 @@ def wa_test(cid: str, x_token: str = Header(...)):
     require_admin(x_token)
     conn    = get_db()
     contact = conn.execute("SELECT * FROM whatsapp_contacts WHERE id=?", [cid]).fetchone()
-    cfg = {r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM whatsapp_config").fetchall()}
     conn.close()
+    cfg = get_wa_config_cached()
     if not contact: raise HTTPException(404, "Contato n\u00e3o encontrado.")
     msg = ("\u2705 *Menina dos Raios \u2013 Teste de Notifica\u00e7\u00e3o*\n\n"
            "Este \u00e9 um teste do sistema de alertas.\n"
@@ -6067,11 +6081,7 @@ def wa_test(cid: str, x_token: str = Header(...)):
 def wa_baileys_status(x_token: str = Header(...)):
     """Proxy para o status/QR do serviÃ§o Baileys local (http://127.0.0.1:3001)."""
     require_admin(x_token)
-    conn = get_db()
-    try:
-        cfg  = {r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM whatsapp_config").fetchall()}
-    finally:
-        conn.close()
+    cfg = get_wa_config_cached()
     api_url = (cfg.get("api_url") or "").strip().rstrip("/")
     token   = cfg.get("api_token", "")
     if not api_url:
@@ -6098,11 +6108,7 @@ def wa_baileys_connection(action: str, x_token: str = Header(...)):
     require_admin(x_token)
     if action not in ("reconnect","disconnect"):
         raise HTTPException(400,"Acao de conexao invalida.")
-    conn=get_db()
-    try:
-        cfg={r["key"]:r["value"] for r in conn.execute("SELECT key,value FROM whatsapp_config").fetchall()}
-    finally:
-        conn.close()
+    cfg=get_wa_config_cached()
     if cfg.get("provider","ultramsg")!="baileys":
         raise HTTPException(400,"Os controles de QR Code estao disponiveis somente para o provedor Baileys.")
     api_url=(cfg.get("api_url") or "http://127.0.0.1:3001").strip().rstrip("/")
@@ -6222,7 +6228,7 @@ def list_wa_templates(x_token: str = Header(...)):
 @app.get("/api/whatsapp/motivation-status")
 def motivation_status(x_token: str = Header(...)):
     require_admin(x_token);conn=get_db()
-    cfg={r["key"]:r["value"] for r in conn.execute("SELECT key,value FROM whatsapp_config").fetchall()}
+    cfg=get_wa_config_cached()
     count=len(_motivation_templates(conn));contacts=conn.execute("SELECT COUNT(*) c FROM whatsapp_contacts WHERE active=1").fetchone()["c"]
     conn.close()
     return {"enabled":cfg.get("motivation_enabled","1")=="1","time":cfg.get("motivation_time","07:00"),
@@ -6296,6 +6302,7 @@ def save_wa_bot_settings(body: dict, x_token: str = Header(...)):
             if k in body:
                 conn.execute("INSERT OR REPLACE INTO whatsapp_config (key, value) VALUES (?,?)", [k, str(body[k])])
         conn.commit()
+        clear_wa_config_cache()
     except Exception:
         try:
             conn.rollback()
@@ -6317,11 +6324,7 @@ def wa_test_message(body: dict, x_token: str = Header(...)):
         raise HTTPException(400, "Telefone obrigatÃ³rio para teste.")
     if not phone.startswith("55"):
         phone = "55" + phone
-    conn = get_db()
-    try:
-        cfg = {r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM whatsapp_config").fetchall()}
-    finally:
-        conn.close()
+    cfg = get_wa_config_cached()
     res = wa_send(phone, msg, cfg)
     return {"ok": res.get("ok"), "response": res.get("response")}
 
