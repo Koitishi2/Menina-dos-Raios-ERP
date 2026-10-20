@@ -32,7 +32,7 @@ SEED_PRODUCTS = [
         "name": "Uva Vitória - Caixa 5 kg",
         "unit": "CX",
         "aliases": ["UVA VITORIA CX 5 KG", "UVA VITORIA CAIXA 5 KG", "Uva Vitoria"],
-        "sale_quantity_factor": 0.2,
+        "sale_quantity_factor": 0.1,
     },
     {
         "sku": "UVA-THOMPSON-VERDE-500G",

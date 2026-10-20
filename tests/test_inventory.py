@@ -153,7 +153,7 @@ def test_stock_debits_todays_grape_sales_with_sales_unit_conversion(isolated_app
     headers = _headers(token)
     payload = isolated_app.client.get("/api/stock?module=estrada", headers=headers).json()
     products = {item["sku"]: item for item in payload["products"]}
-    assert products["UVA-VITORIA-5KG"]["sale_quantity_factor"] == 0.2
+    assert products["UVA-VITORIA-5KG"]["sale_quantity_factor"] == 0.1
 
     conn = sqlite3.connect(isolated_app.db_paths["estrada"])
     today = datetime.now().date().isoformat()
@@ -161,6 +161,7 @@ def test_stock_debits_todays_grape_sales_with_sales_unit_conversion(isolated_app
     sales = [
         ("Uva Vitoria", 80, 8.5, 680, "108"),
         ("Uva Vitoria", 20, 8.5, 170, "109"),
+        ("Uva Vitoria", 60, 8.5, 510, "110"),
         ("Uva Thompson Verde Cx 500G", 50, 10, 500, "107"),
         ("Uva Thompson Verde Cx 500G", 20, 10, 200, "108"),
     ]
@@ -180,23 +181,29 @@ def test_stock_debits_todays_grape_sales_with_sales_unit_conversion(isolated_app
 
     payload = isolated_app.client.get("/api/stock?module=estrada", headers=headers).json()
     products = {item["sku"]: item for item in payload["products"]}
-    assert products["UVA-VITORIA-5KG"]["balance"] == 2850
+    assert products["UVA-VITORIA-5KG"]["balance"] == 2854
     assert products["UVA-THOMPSON-VERDE-500G"]["balance"] == -70
-    assert products["UVA-VITORIA-5KG"]["today_sold_quantity"] == 20
-    assert products["UVA-VITORIA-5KG"]["today_sales_count"] == 2
-    assert products["UVA-VITORIA-5KG"]["today_sales_revenue"] == 850
+    assert products["UVA-VITORIA-5KG"]["today_sold_quantity"] == 16
+    assert products["UVA-VITORIA-5KG"]["today_sales_count"] == 3
+    assert products["UVA-VITORIA-5KG"]["today_sales_revenue"] == 1360
     assert products["UVA-THOMPSON-VERDE-500G"]["today_sold_quantity"] == 70
-    assert products["UVA-VITORIA-5KG"]["trend"][-1] == 2850
+    assert products["UVA-VITORIA-5KG"]["trend"][-1] == 2854
     sale_movements = [item for item in payload["movements"] if item.get("source_id") in sale_ids]
-    assert len(sale_movements) == 4
-    assert [item["reference"] for item in sale_movements] == ["107", "108", "108", "109"]
+    assert len(sale_movements) == 5
+    assert [item["reference"] for item in sale_movements] == ["107", "108", "108", "109", "110"]
     assert sale_movements[0]["movement_date"] == today
     converted = next(
         item for item in sale_movements
         if item["product_id"] == products["UVA-VITORIA-5KG"]["id"] and item["sale_quantity"] == 80
     )
-    assert converted["quantity_delta"] == -16
-    assert "80 na venda → 16 CX no estoque" in converted["notes"]
+    assert converted["quantity_delta"] == -8
+    assert "80 na venda → 8 CX no estoque" in converted["notes"]
+    sixty_units = next(
+        item for item in sale_movements
+        if item["product_id"] == products["UVA-VITORIA-5KG"]["id"] and item["sale_quantity"] == 60
+    )
+    assert sixty_units["quantity_delta"] == -6
+    assert "60 na venda → 6 CX no estoque" in sixty_units["notes"]
 
 
 def test_inventory_schema_migrates_existing_products_for_sale_unit_conversion():
@@ -232,7 +239,7 @@ def test_inventory_schema_migrates_existing_products_for_sale_unit_conversion():
     init_inventory_schema(conn)
     migrated = conn.execute("SELECT * FROM stock_products WHERE id='existing-5kg'").fetchone()
     aliases = json.loads(migrated["aliases_json"])
-    assert migrated["sale_quantity_factor"] == 0.2
+    assert migrated["sale_quantity_factor"] == 0.1
     assert "ALIAS PERSONALIZADO" in aliases
     assert "Uva Vitoria" in aliases
     assert conn.execute(
