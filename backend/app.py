@@ -4589,8 +4589,15 @@ def monteiro_payments_print(client:str="",period:Optional[str]=None,month:str=""
         vendas = []; pags = []
     try:
         cli_notas = defaultdict(list); cli_pags = defaultdict(list)
-        for v in vendas: cli_notas[_safe_txt(v["client"], "SEM NOME")].append(v)
-        for p in pags: cli_pags[_safe_txt(p["client"], "SEM NOME")].append(p)
+        cli_notas_total = defaultdict(float); cli_pags_total = defaultdict(float)
+        for v in vendas:
+            c = _safe_txt(v["client"], "SEM NOME")
+            cli_notas[c].append(v)
+            cli_notas_total[c] += float(v.get("total") or 0)
+        for p in pags:
+            c = _safe_txt(p["client"], "SEM NOME")
+            cli_pags[c].append(p)
+            cli_pags_total[c] += float(p.get("amount") or 0)
         todos = sorted(set(list(cli_notas.keys()) + list(cli_pags.keys())))
         if not todos:
             body = '<div class="nd">Nenhum dado encontrado no perÃ­odo.</div>'
@@ -4599,8 +4606,8 @@ def monteiro_payments_print(client:str="",period:Optional[str]=None,month:str=""
             for cli in todos:
                 nts = cli_notas.get(cli, [])
                 pp = cli_pags.get(cli, [])
-                total_notas = sum(float(n.get("total") or 0) for n in nts)
-                total_pago = sum(float(p.get("amount") or 0) for p in pp)
+                total_notas = cli_notas_total.get(cli, 0.0)
+                total_pago = cli_pags_total.get(cli, 0.0)
                 saldo = round(total_notas - total_pago, 2)
                 sclass = "s0" if saldo <= 0 else "s1"
                 parts.append(f'<div class="ch">{cli}</div>')
@@ -4869,8 +4876,15 @@ def monteiro_payments_pdf_wk(client:str="",period:Optional[str]=None,month:str="
         vendas = []; pags = []
     try:
         cli_notas = defaultdict(list); cli_pags = defaultdict(list)
-        for v in vendas: cli_notas[_safe_txt(v.get("client"), "SEM NOME")].append(v)
-        for p in pags: cli_pags[_safe_txt(p.get("client"), "SEM NOME")].append(p)
+        cli_notas_total = defaultdict(float); cli_pags_total = defaultdict(float)
+        for v in vendas:
+            c = _safe_txt(v.get("client"), "SEM NOME")
+            cli_notas[c].append(v)
+            cli_notas_total[c] += float(v.get("total") or 0)
+        for p in pags:
+            c = _safe_txt(p.get("client"), "SEM NOME")
+            cli_pags[c].append(p)
+            cli_pags_total[c] += float(p.get("amount") or 0)
         todos = sorted(set(list(cli_notas.keys()) + list(cli_pags.keys())))
         print(f"[monteiro_payments_pdf] clientes={len(todos)}")
         def _money_br(v):
@@ -4960,8 +4974,8 @@ def monteiro_payments_pdf_wk(client:str="",period:Optional[str]=None,month:str="
             for cli in todos:
                 nts = cli_notas.get(cli, [])
                 pp = cli_pags.get(cli, [])
-                total_notas = sum(float(n.get("total") or 0) for n in nts)
-                total_pago = sum(float(p.get("amount") or 0) for p in pp)
+                total_notas = cli_notas_total.get(cli, 0.0)
+                total_pago = cli_pags_total.get(cli, 0.0)
                 saldo = round(total_notas - total_pago, 2)
                 sclass = "s0" if saldo <= 0 else "s1"
                 parts.append(f'<div class="ch">{cli}</div>')
