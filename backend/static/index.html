@@ -6003,10 +6003,10 @@ function openStockShortcut(){
   if(panel.parentElement!==document.body)document.body.appendChild(panel);
   if(!panel.dataset.stockSourceNavigationBound){
     panel.addEventListener('click',function(event){
-      const button=event.target.closest('[data-stock-open-module][data-stock-open-nf]');
+      const button=event.target.closest('[data-stock-open-module][data-stock-open-sale-id]');
       if(!button||!panel.contains(button))return;
       event.preventDefault();event.stopPropagation();
-      stockOpenSource(button.dataset.stockOpenModule,button.dataset.stockOpenNf,button.dataset.stockOpenClient,button.dataset.stockOpenDate).catch(function(error){
+      stockOpenSource(button.dataset.stockOpenModule,button.dataset.stockOpenSaleId).catch(function(error){
         toast(error.message||'Não foi possível abrir a nota.','error');
       });
     });
@@ -6057,8 +6057,8 @@ function renderStock(){
     const label=sale?'Baixa por venda':movement.movement_type==='entry'?'Entrada':movement.movement_type==='adjustment'?'Ajuste':'Saída';
     const reference=movement.reference?('NF '+movement.reference):(movement.notes||'Movimento manual');
     const dateText=String(movement.movement_date||'').slice(0,10);
-    const sourceAttrs='data-stock-open-module="'+stockEscape(stockSnapshot.module)+'" data-stock-open-nf="'+stockEscape(String(movement.reference||''))+'" data-stock-open-client="'+stockEscape(String(movement.client||''))+'" data-stock-open-date="'+stockEscape(dateText)+'"';
-    const button=sale?'<button type="button" class="btn btn-secondary" style="padding:5px 8px" '+sourceAttrs+'>'+(movement.reference?'Abrir NF '+stockEscape(movement.reference):'Abrir venda')+'</button>':'';
+    const sourceAttrs='data-stock-open-module="'+stockEscape(stockSnapshot.module)+'" data-stock-open-sale-id="'+stockEscape(String(movement.source_id||''))+'"';
+    const button=sale?'<button type="button" class="btn btn-secondary" style="padding:5px 8px" '+sourceAttrs+'>'+(movement.reference?'Editar NF '+stockEscape(movement.reference):'Editar venda')+'</button>':'';
     const refCell=sale&&movement.reference?'<button type="button" class="btn btn-secondary" style="padding:4px 7px;color:var(--g800);text-decoration:underline" '+sourceAttrs+'>NF '+stockEscape(movement.reference)+'</button>':stockEscape(reference);
     return '<tr style="border-bottom:1px solid var(--border)"><td style="padding:9px;white-space:nowrap">'+stockEscape(dateText)+'</td><td>'+stockEscape(movement.product_name||'')+'</td><td>'+label+(sale?' · '+stockEscape(movement.notes||''):'')+'</td><td style="font-weight:700;color:'+(delta<0?'#b42318':'#14733c')+'">'+(delta>0?'+':'')+stockFormatQty(delta)+' '+stockEscape(movement.unit||'')+'</td><td>'+refCell+(sale&&movement.client?'<div style="font-size:11px;color:var(--muted);margin-top:4px">'+stockEscape(movement.client)+'</div>':'')+'</td><td>'+button+'</td></tr>';
   }).join(''):'<tr><td colspan="6" style="padding:18px;text-align:center;color:var(--muted)">Ainda não há movimentações ou vendas reconhecidas para este módulo.</td></tr>';
@@ -6138,13 +6138,14 @@ async function submitStockProduct(event){
     toast('Produto adicionado ao estoque.','success');await loadStock();
   }catch(error){toast(error.message||'Não foi possível cadastrar o produto.','error');}
 }
-async function stockOpenSource(module,nf,client,date){
+async function stockOpenSource(module,saleId){
   const salesDialog=document.getElementById('stock-sales-dialog');if(salesDialog?.open)salesDialog.close();
   closeStockApp();
   if(module==='monteiro'){
     openPaladarApp();switchPaladarTab('lancamentos');
-    const filter=document.getElementById('pal-filter-nf');const clientFilter=document.getElementById('pal-filter-client');if(filter)filter.value=nf;if(clientFilter)clientFilter.value=client||'';if(filter||clientFilter)await loadPaladarSales();
-    return;
+    await loadPaladarSales();
+    if(window._palSaleItemsById&&window._palSaleItemsById[String(saleId)]){editPaladarSaleItem(saleId);return;}
+    throw new Error('O item desta venda não foi encontrado nos lançamentos do Monteiro.');
   }
   if(module!=='raios'&&module!=='estrada')throw new Error('Módulo de origem da nota inválido.');
   if(activeCompany!==module)await switchCompanyUI(module);
@@ -6152,25 +6153,10 @@ async function stockOpenSource(module,nf,client,date){
   const nfTab=Array.from(document.querySelectorAll('.tabs-wrap .tab')).find(function(button){return (button.getAttribute('onclick')||'').includes("'nf'");});
   if(!nfTab)throw new Error('A aba de vendas por NF não está disponível.');
   switchTab(nfTab,'nf');
-  if(!allSales.length)await loadAll();
-  clearFilters();
-  const search=document.getElementById('search-input');
-  const from=document.getElementById('period-from'),to=document.getElementById('period-to');
-  const customPeriod=Array.from(document.querySelectorAll('.period-pills .subnav-pill')).find(function(button){return button.dataset.period==='custom';});
-  if(date&&/^\d{4}-\d{2}-\d{2}$/.test(date)&&from&&to&&customPeriod){
-    from.value=date;to.value=date;
-    document.querySelectorAll('.period-pills .subnav-pill').forEach(function(button){button.classList.toggle('active',button===customPeriod);});
-    applyConsolidadoPeriod('custom');
-  }
-  if(search)search.value=nf||client||'';
-  filterTable();
-  if(nf&&!getFiltered().length&&date){
-    if(from)from.value='';if(to)to.value='';
-    applyConsolidadoPeriod('all');filterTable();
-  }
-  if(nf&&!getFiltered().length&&client){if(search)search.value=client;filterTable();}
-  if(nf&&!getFiltered().length)throw new Error('A NF '+nf+' não foi encontrada nas vendas deste módulo.');
-  document.getElementById('panel-nf')?.scrollIntoView({behavior:'smooth',block:'start'});
+  let sale=allSales.find(function(item){return String(item.id)===String(saleId);});
+  if(!sale){allSales=await api('/api/sales');sale=allSales.find(function(item){return String(item.id)===String(saleId);});}
+  if(!sale)throw new Error('A venda de origem não foi encontrada neste módulo.');
+  await editSale(sale.id);
 }
 async function stockOpenSales(productId){
   const product=(stockSnapshot?.products||[]).find(item=>item.id===productId);
@@ -6192,8 +6178,8 @@ async function stockOpenSales(productId){
   try{
     const result=await api('/api/stock/products/'+encodeURIComponent(productId)+'/sales?module='+encodeURIComponent(stockSnapshot.module));
     tbody.innerHTML=(result.sales||[]).length?result.sales.map(function(sale){
-      const sourceAttrs='data-stock-open-module="'+stockEscape(stockSnapshot.module)+'" data-stock-open-nf="'+stockEscape(String(sale.reference||''))+'" data-stock-open-client="'+stockEscape(String(sale.client||''))+'" data-stock-open-date="'+stockEscape(String(sale.date||'').slice(0,10))+'"';
-      return '<tr style="border-bottom:1px solid var(--border)"><td style="padding:10px;font-weight:700">'+(sale.reference?'NF '+stockEscape(sale.reference):stockEscape(sale.sale_type))+'</td><td>'+stockEscape(sale.date)+'</td><td>'+stockEscape(sale.client||'Cliente não informado')+'</td><td>'+stockFormatQty(sale.quantity)+' '+stockEscape(sale.unit)+'</td><td>'+stockMoney(sale.total)+'</td><td><button class="btn btn-secondary" type="button" '+sourceAttrs+'>Abrir</button></td></tr>';
+      const sourceAttrs='data-stock-open-module="'+stockEscape(stockSnapshot.module)+'" data-stock-open-sale-id="'+stockEscape(String(sale.id||''))+'"';
+      return '<tr style="border-bottom:1px solid var(--border)"><td style="padding:10px;font-weight:700">'+(sale.reference?'NF '+stockEscape(sale.reference):stockEscape(sale.sale_type))+'</td><td>'+stockEscape(sale.date)+'</td><td>'+stockEscape(sale.client||'Cliente não informado')+'</td><td>'+stockFormatQty(sale.quantity)+' '+stockEscape(sale.unit)+'</td><td>'+stockMoney(sale.total)+'</td><td><button class="btn btn-secondary" type="button" '+sourceAttrs+'>Editar NF</button></td></tr>';
     }).join(''):'<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">Nenhuma venda encontrada.</td></tr>';
   }catch(error){tbody.innerHTML='<tr><td colspan="6" style="padding:20px;color:#b42318">'+stockEscape(error.message||'Falha ao buscar vendas.')+'</td></tr>';}
 }

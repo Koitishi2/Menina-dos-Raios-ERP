@@ -344,6 +344,7 @@ def test_stretch_film_opening_total_is_reconciled_once_and_keeps_manual_balance(
     )
     assert sales.status_code == 200
     assert [sale["reference"] for sale in sales.json()["sales"]] == ["501", "502"]
+    assert all(sale["id"] for sale in sales.json()["sales"])
 
     changed = isolated_app.client.put(
         f"/api/stock/products/{product['id']}/balance", headers=headers,
@@ -367,13 +368,14 @@ def test_stock_summary_products_are_clickable_and_history_is_newest_first():
     assert "Vendido hoje" in html
 
 
-def test_stock_invoice_navigation_uses_delegated_events_and_invoice_date():
+def test_stock_invoice_navigation_opens_the_existing_sale_editor():
     from pathlib import Path
 
     html = (Path(__file__).parents[1] / "backend" / "static" / "index.html").read_text(encoding="utf-8")
     assert "panel.dataset.stockSourceNavigationBound" in html
-    assert "[data-stock-open-module][data-stock-open-nf]" in html
-    assert "data-stock-open-date" in html
+    assert "[data-stock-open-module][data-stock-open-sale-id]" in html
     assert "stockOpenSource(button.dataset.stockOpenModule" in html
+    assert "await editSale(sale.id)" in html
+    assert ">Editar NF</button>" in html
     assert "onclick=\\'" not in html[html.index("function renderStock()") : html.index("function renderStockCatalog()")]
     assert "onclick=\\'" not in html[html.index("async function stockOpenSales(") : html.index("async function loadSellers(")]
