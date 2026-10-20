@@ -7678,7 +7678,7 @@ def get_app_notes_db():
 
 def _app_note_catalog_prices():
     """PreÃ§os atuais da aba Produtos do Monteiro, com aliases seguros de unidade."""
-    main=get_db()
+    main=get_db("raios")
     try:
         rows=main.execute("SELECT name,suggested_price FROM paladar_products WHERE active=1").fetchall()
     finally:

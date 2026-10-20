@@ -407,7 +407,7 @@ def test_app_note_catalog_prices_current_selection_normalization_and_aliases(iso
     assert "" not in prices
 
 
-def test_app_note_catalog_prices_current_company_scope(isolated_app):
+def test_app_note_catalog_prices_always_use_monteiro_catalog(isolated_app):
     catalog_prices = isolated_app.module._app_note_catalog_prices
     normalize_name = isolated_app.module._normalize_name
 
@@ -428,9 +428,8 @@ def test_app_note_catalog_prices_current_company_scope(isolated_app):
     finally:
         isolated_app.module.CURRENT_COMPANY.reset(token)
 
-    assert normalize_name("Produto Escopo Raios KG") not in estrada_prices
-    assert estrada_prices[normalize_name("Produto Escopo Estrada KG")] == 22.0
-    assert estrada_prices[normalize_name("Produto Escopo Estrada")] == 22.0
+    assert estrada_prices[normalize_name("Produto Escopo Raios KG")] == 11.0
+    assert normalize_name("Produto Escopo Estrada KG") not in estrada_prices
 
 
 def test_app_note_catalog_prices_closes_main_connection_when_execute_fails(isolated_app):
