@@ -27,7 +27,6 @@ const context = vm.createContext({
     ], submissions: [] }],
   appNoteMoney(v) { return `R$ ${v}`; },
   appNoteQty(v) { return String(v); },
-  appNoteMeasureLabel() { return "Peso"; },
   appNoteHasPrice() { return true; },
   appNoteUnitPrice(i) { return i.unit_price; },
   appNoteAttr(v) { return String(v); },
@@ -39,8 +38,8 @@ vm.runInContext(html.slice(helpersStart, actionStart) + html.slice(actionStart, 
 
 const weightOnly = { quantity: 0, quantity_provided: 0, weight: 30, unit: "KG" };
 assert.strictEqual(context.appNoteEffectiveQuantity(weightOnly), 30, "weight is shown as quantity for KG-only notes");
-assert.strictEqual(context.appNoteQuantityDisplay(weightOnly), "30 KG", "weight quantity includes its unit");
-assert.strictEqual(context.appNoteMeasure(weightOnly), "—", "KG weight is not duplicated in measure");
+assert.strictEqual(context.appNoteQuantityDisplay(weightOnly), "30", "weight quantity is displayed without its unit suffix");
+assert.strictEqual(context.appNoteUnitDisplay(weightOnly.unit), "kg", "unit is shown in its own column");
 
 context.renderAppNotes({ count: 1, total: 160 });
 for (const action of ["edit", "status", "delete"]) {
@@ -48,7 +47,9 @@ for (const action of ["edit", "status", "delete"]) {
 }
 assert(nodes["app-notes-wrap"].innerHTML.includes('class="app-note-items-table"'));
 assert(nodes["app-notes-wrap"].innerHTML.includes('data-label="Subtotal"'));
-assert(nodes["app-notes-wrap"].innerHTML.includes('data-label="Quantidade" style="padding:11px 12px;text-align:center">30 KG'));
+assert(nodes["app-notes-wrap"].innerHTML.includes('data-label="Quantidade" style="padding:11px 12px;text-align:center">30'));
+assert(nodes["app-notes-wrap"].innerHTML.includes('data-label="Unidade"'));
+assert(!nodes["app-notes-wrap"].innerHTML.includes('data-label="Medida"'));
 
 context.session.role = "viewer";
 context.renderAppNotes({ count: 1, total: 160 });

@@ -16884,12 +16884,11 @@ var _appNotesPendingNotif=[];
 function debounceAppNotes(){ clearTimeout(_appNotesTimer); _appNotesTimer=setTimeout(loadAppNotes,350); }
 function appNoteMoney(v){ return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
 function appNoteQty(v){ return Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:3}); }
-function appNoteMeasureLabel(unit){return ({KG:'Peso',UN:'Unidade',CX:'Caixa',MC:'Maço',SC:'Saco'})[String(unit||'').toUpperCase()]||'Medida';}
 function appNoteIsCountUnit(unit){return ['UN','CX','MC','SC'].includes(String(unit||'').toUpperCase());}
 function appNoteUsesWeightAsQuantity(i){return String(i&&i.unit||'').toUpperCase()==='KG'&&Number(i&&i.quantity_provided)!==1;}
 function appNoteEffectiveQuantity(i){if(Number(i&&i.quantity_provided)===1)return i.quantity;if(appNoteIsCountUnit(i&&i.unit)||appNoteUsesWeightAsQuantity(i))return i.weight==null?i.quantity:i.weight;return null;}
-function appNoteQuantityDisplay(i){var quantity=appNoteEffectiveQuantity(i);return quantity===null?null:appNoteQty(quantity)+(appNoteUsesWeightAsQuantity(i)?' '+admEsc(i.unit):'');}
-function appNoteMeasure(i){if(appNoteIsCountUnit(i&&i.unit)||appNoteUsesWeightAsQuantity(i))return '—';return appNoteQty(i&&i.weight==null?i&&i.quantity:i&&i.weight)+' '+admEsc(i&&i.unit||'');}
+function appNoteQuantityDisplay(i){var quantity=appNoteEffectiveQuantity(i);return quantity===null?null:appNoteQty(quantity);}
+function appNoteUnitDisplay(unit){return ({KG:'kg',G:'g',UN:'un',CX:'cx',MC:'maço',SC:'saco'})[String(unit||'').toUpperCase()]||String(unit||'—');}
 function appNoteHasPrice(i){return i&&i.effective_price_provided!==undefined?!!i.effective_price_provided:Number(i&&i.price_provided)!==0;}
 function appNoteUnitPrice(i){return i&&i.effective_unit_price!==undefined?Number(i.effective_unit_price||0):Number(i&&i.unit_price||0);}
 function appNoteAttr(v){return admEsc(String(v==null?'':v));}
@@ -16958,18 +16957,17 @@ function renderAppNotes(data){
     var itemRows=(n.items||[]).map(function(i,index){
       var effectiveQty=appNoteEffectiveQuantity(i);
       var qty=appNoteQuantityDisplay(i);qty=qty!==null?qty:'<span style="color:var(--muted)">Não informado</span>';
-      var measure=appNoteMeasure(i);
+      var unit=admEsc(appNoteUnitDisplay(i.unit));
       var price=appNoteHasPrice(i)?appNoteMoney(appNoteUnitPrice(i))+(i.price_from_catalog?'<div style="font-size:8px;color:#166534">Preço atual de Produtos</div>':''):'<span style="color:var(--muted)">Não informado</span>';
       var subtotal=appNoteHasPrice(i)?appNoteMoney(Number(i.weight||0)*appNoteUnitPrice(i)):'—';
       return '<tr style="border-top:1px solid var(--border);background:'+(index%2?'var(--card2)':'var(--card)')+'">'
         +'<td data-label="Produto" style="padding:11px 12px;font-weight:800;color:var(--g800)">'+admEsc(i.product||'Sem produto')+'</td>'
         +'<td data-label="Quantidade" style="padding:11px 12px;text-align:center">'+qty+'</td>'
-        +'<td data-label="Tipo" style="padding:11px 12px;text-align:center"><span style="display:inline-block;background:#EEF2FF;color:#4338CA;border-radius:999px;padding:3px 9px;font-size:10px;font-weight:800">'+appNoteMeasureLabel(i.unit)+'</span></td>'
-        +'<td data-label="Medida" style="padding:11px 12px;text-align:center;font-weight:700;white-space:nowrap">'+measure+'</td>'
+        +'<td data-label="Unidade" style="padding:11px 12px;text-align:center"><span style="display:inline-block;background:#EEF2FF;color:#4338CA;border-radius:999px;padding:3px 9px;font-size:10px;font-weight:800">'+unit+'</span></td>'
         +'<td data-label="Valor unitário" style="padding:11px 12px;text-align:right;white-space:nowrap">'+price+'</td>'
         +'<td data-label="Subtotal" style="padding:11px 12px;text-align:right;font-weight:800;white-space:nowrap">'+subtotal+'</td></tr>';
     }).join('');
-    if(!itemRows)itemRows='<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--muted)">Nenhum produto nesta nota.</td></tr>';
+    if(!itemRows)itemRows='<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--muted)">Nenhum produto nesta nota.</td></tr>';
     var statusAction=_appNotesStatus==='pending'
       ? appNoteActionButton('status',n.id,'✅ Concluir','btn btn-primary btn-sm','', 'data-app-note-status="completed"')
       : appNoteActionButton('status',n.id,'↩ Voltar para pendente','btn btn-secondary btn-sm','', 'data-app-note-status="pending"');
@@ -16986,7 +16984,7 @@ function renderAppNotes(data){
       +'<div style="min-width:100px"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;font-weight:700">Produtos</div><div style="font-size:16px;font-weight:900;color:var(--g800);margin-top:3px">'+(n.items||[]).length+'</div></div>'
       +'<div style="min-width:140px;text-align:right"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;font-weight:700">Total do dia</div><div style="font-size:18px;font-weight:900;color:#4F46E5;margin-top:3px">'+appNoteMoney(n.total)+'</div></div>'
       +'<div style="min-width:170px">'+actions+'</div></div>'
-      +'<div style="overflow-x:auto"><table class="app-note-items-table" style="width:100%;min-width:760px;border-collapse:collapse;font-size:11px"><thead><tr style="background:#F1F5F3;color:var(--muted);text-transform:uppercase;font-size:9px"><th style="padding:9px 12px;text-align:left">Produto</th><th style="padding:9px 12px;text-align:center">Quantidade</th><th style="padding:9px 12px;text-align:center">Tipo</th><th style="padding:9px 12px;text-align:center">Medida</th><th style="padding:9px 12px;text-align:right">Valor unitário</th><th style="padding:9px 12px;text-align:right">Subtotal</th></tr></thead><tbody>'+itemRows+'</tbody></table></div></section>';
+      +'<div style="overflow-x:auto"><table class="app-note-items-table" style="width:100%;min-width:650px;border-collapse:collapse;font-size:11px"><thead><tr style="background:#F1F5F3;color:var(--muted);text-transform:uppercase;font-size:9px"><th style="padding:9px 12px;text-align:left">Produto</th><th style="padding:9px 12px;text-align:center">Quantidade</th><th style="padding:9px 12px;text-align:center">Unidade</th><th style="padding:9px 12px;text-align:right">Valor unitário</th><th style="padding:9px 12px;text-align:right">Subtotal</th></tr></thead><tbody>'+itemRows+'</tbody></table></div></section>';
   }).join('');
   wrap.innerHTML=cards;
 }
@@ -17004,8 +17002,7 @@ function openAppNoteDetail(id){
       +'<div style="font-size:14px;font-weight:900;color:var(--g800);margin-bottom:10px">'+admEsc(i.product||'Sem produto')+'</div>'
       +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:9px">'
       +'<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase">Quantidade</div><div style="font-weight:800;margin-top:2px">'+qty+'</div></div>'
-      +'<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase">Tipo</div><div style="font-weight:800;margin-top:2px">'+appNoteMeasureLabel(i.unit)+'</div></div>'
-      +'<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase">Medida</div><div style="font-weight:800;margin-top:2px">'+appNoteMeasure(i)+'</div></div>'
+      +'<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase">Unidade</div><div style="font-weight:800;margin-top:2px">'+admEsc(appNoteUnitDisplay(i.unit))+'</div></div>'
       +'<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase">Valor unitário</div><div style="font-weight:800;margin-top:2px">'+price+'</div></div>'
       +'<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase">Subtotal</div><div style="font-weight:900;color:#4F46E5;margin-top:2px">'+subtotal+'</div></div>'
       +'</div></article>';
@@ -17021,10 +17018,10 @@ function printAppNoteReceipt(id){
   var n=_appNotes.find(function(x){return String(x.id)===String(id);});
   if(!n){toast('Nota não encontrada.','error');return;}
   var itens=(n.items||[]).map(function(i,index){
-    var medida=appNoteQty(i.weight==null?i.quantity:i.weight)+' '+admEsc(i.unit||'');
+    var quantidade=appNoteQuantityDisplay(i)||'—';
     var valor=appNoteHasPrice(i)?appNoteMoney(appNoteUnitPrice(i))+(i.price_from_catalog?' *':''):'Não informado';
     var subtotal=appNoteHasPrice(i)?appNoteMoney((Number(i.weight==null?i.quantity:i.weight)||0)*appNoteUnitPrice(i)):'—';
-    return '<tr><td>'+(index+1)+'</td><td><strong>'+admEsc(i.product||'Produto')+'</strong></td><td>'+admEsc(appNoteMeasureLabel(i.unit||''))+'</td><td class="num">'+medida+'</td><td class="num">'+valor+'</td><td class="num">'+subtotal+'</td></tr>';
+    return '<tr><td>'+(index+1)+'</td><td><strong>'+admEsc(i.product||'Produto')+'</strong></td><td class="num">'+quantidade+'</td><td>'+admEsc(appNoteUnitDisplay(i.unit))+'</td><td class="num">'+valor+'</td><td class="num">'+subtotal+'</td></tr>';
   }).join('');
   var status=n.status==='completed'?'Concluída':'Pendente';
   var emitido=new Date().toLocaleString('pt-BR');
@@ -17032,7 +17029,7 @@ function printAppNoteReceipt(id){
     +'@page{size:A4;margin:12mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#172033;margin:0;font-size:12px}.sheet{max-width:190mm;margin:auto;border:1px solid #cbd5e1;padding:18px}.head{display:flex;justify-content:space-between;gap:20px;border-bottom:3px solid #4f46e5;padding-bottom:12px;margin-bottom:16px}.brand{font-size:24px;font-weight:900;color:#4f46e5}.sub{font-size:11px;color:#64748b;margin-top:3px}.receipt-title{text-align:right;font-size:20px;font-weight:900}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;background:#f8fafc;border:1px solid #e2e8f0;padding:12px;margin-bottom:16px}.label{font-size:9px;text-transform:uppercase;color:#64748b;font-weight:700}.value{font-size:13px;font-weight:700;margin-top:2px}table{width:100%;border-collapse:collapse}th{background:#eef2ff;color:#3730a3;text-align:left;font-size:9px;text-transform:uppercase;padding:8px;border:1px solid #c7d2fe}td{padding:9px 8px;border:1px solid #e2e8f0}.num{text-align:right;white-space:nowrap}.total{margin-left:auto;margin-top:14px;width:270px;border:2px solid #4f46e5;padding:12px;text-align:right}.total-label{font-size:10px;color:#64748b;text-transform:uppercase}.total-value{font-size:22px;font-weight:900;color:#4f46e5;margin-top:3px}.note{margin-top:14px;padding:10px;background:#fffbeb;border:1px solid #fde68a;color:#92400e}.signatures{display:grid;grid-template-columns:1fr 1fr;gap:50px;margin-top:60px}.sign{text-align:center;border-top:1px solid #334155;padding-top:6px}.footer{margin-top:24px;text-align:center;color:#94a3b8;font-size:9px}.no-print{margin:0 auto 12px;display:block;padding:10px 22px;background:#4f46e5;color:white;border:0;border-radius:7px;font-weight:700;cursor:pointer}@media print{.no-print{display:none}.sheet{border:0;padding:0}}</style></head><body>'
     +'<button class="no-print" onclick="window.print()">🖨 Imprimir recibo</button><main class="sheet"><header class="head"><div><div class="brand"> Monteiro</div><div class="sub">Menina dos Raios Ltda · Sistema de Vendas Independente</div></div><div><div class="receipt-title">RECIBO DE PEDIDO</div><div class="sub">Nota APP nº '+admEsc(String(n.id||'—'))+'</div></div></header>'
     +'<section class="meta"><div><div class="label">Cliente</div><div class="value">'+admEsc(n.client||'Sem cliente')+'</div></div><div><div class="label">Data do pedido</div><div class="value">'+admEsc(n.note_date||'—')+'</div></div><div><div class="label">Situação</div><div class="value">'+status+'</div></div><div><div class="label">Emitido em</div><div class="value">'+admEsc(emitido)+'</div></div><div style="grid-column:1/-1"><div class="label">Lançamentos e responsáveis</div><div class="value">'+appNoteSubmissionSummary(n)+'</div></div></section>'
-    +'<table><thead><tr><th>#</th><th>Produto</th><th>Tipo</th><th style="text-align:right">Medida</th><th style="text-align:right">Valor unitário</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>'+(itens||'<tr><td colspan="6">Nenhum produto informado.</td></tr>')+'</tbody></table>'
+    +'<table><thead><tr><th>#</th><th>Produto</th><th style="text-align:right">Quantidade</th><th>Unidade</th><th style="text-align:right">Valor unitário</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>'+(itens||'<tr><td colspan="6">Nenhum produto informado.</td></tr>')+'</tbody></table>'
     +'<div class="total"><div class="total-label">Total do pedido</div><div class="total-value">'+appNoteMoney(n.total)+'</div></div>'
     +'<div class="note">* Valor obtido do preço atual cadastrado na aba Produtos. Este recibo comprova o registro do pedido recebido pelo aplicativo interno e não substitui documento fiscal.</div><div class="signatures"><div class="sign">Responsável pelo recebimento</div><div class="sign">Cliente</div></div><div class="footer">Gerado pelo Monteiro · Notas APP</div></main></body></html>';
   var janela=window.open('','_blank','width=980,height=760');
