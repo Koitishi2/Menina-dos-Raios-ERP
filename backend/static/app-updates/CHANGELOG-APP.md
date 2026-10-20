@@ -2,7 +2,7 @@
 
 Este arquivo registra as alteracoes funcionais do aplicativo Android e da integracao com o sistema.
 
-Versao estavel atual: `2.0.20`.
+Versao estavel atual: `2.0.33`.
 
 As versoes 2.x representam a linha estavel atual do APK Android. Historicos antigos permanecem apenas como registro funcional, sem indicar estado de refatoracao ou versao experimental.
 
@@ -13,36 +13,81 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - O `versionCode` interno do Android sempre aumenta a cada APK publicado.
 - Uma versao publicada nunca deve ser reutilizada para outro APK.
 
-## [2.0.20] - 02/10/2026
+## [2.0.33] - 20/10/2026
 
-### Autoria e unificacao de notas
+### Entrada por voz no estoque
 
-- Cada envio registra o usuário da sessão autenticada e o horário de recebimento no servidor.
-- O sistema consulta notas do mesmo estabelecimento/data e pergunta se deve unificar ou criar uma nota separada.
-- Quando há mais de uma nota correspondente, é possível escolher o destino da unificação.
-- Cada envio unificado mantém sua própria autoria e horário, exibidos em Notas APP e no recibo.
-- Reenvios offline preservam a decisão de unificação e continuam idempotentes.
-- Notas antigas continuam preservadas; envios anteriores sem identidade ficam marcados como não identificados.
+- No cliente ESTOQUE, Macaxeira a Vácuo e alho sao registrados por unidade, mesmo se a fala for interpretada inicialmente como KG.
+- O nome generico "Alho" e normalizado para o produto existente Alho 250g, sem criar uma variacao nova.
+- A conversao e restrita ao cliente ESTOQUE; os demais clientes e Alho KG permanecem inalterados.
 
-## [2.0.19] - 02/10/2026
+## [2.0.32] - 20/10/2026
 
-### Tela de lancamento de pedidos
+### Quantidade e peso na Entrega por voz
 
-- Formulario reorganizado em secoes para cliente/data, produtos e itens do pedido.
-- Cabecalho mais compacto para priorizar o preenchimento no celular.
-- Campos de peso/quantidade e valor unitario agrupados; itens agora mostram produto, medida e total em linhas mais legiveis.
-- Estado vazio orienta a adicionar um produto e o envio fica bloqueado ate existir ao menos um item.
-- Fluxos existentes de colagem do WhatsApp, catalogo de produtos, notas pendentes e envio foram preservados.
+- Pesos falados com decimal em gramas, como "cenoura 100 kg virgula 45 g", sao registrados como 100,45 kg.
+- Unidades contaveis, como macos, unidades, caixas e sacos, passam a preencher Quantidade nas Notas APP.
+- Notas antigas com unidade contavel mostram a quantidade correta mesmo quando o campo original estava vazio.
+- No cliente ESTOQUE, alho por unidade ou identificado como embalagem de 250 g e normalizado para Alho 250g em UN; outros clientes nao recebem essa conversao.
 
-## [2.0.18] - 01/10/2026
+## [2.0.31] - 19/10/2026
 
-### Sessao Android, biometria e sincronizacao
+### Entrada automatica de estoque pela Entrega por voz
 
-- Sessao Android passou a ter validade propria de ate 30 dias; as sessoes web mantem a politica existente de 20 minutos sem atividade e 10 horas de validade.
-- Falha temporaria de conexao ao validar acesso nao apaga o token salvo nem a preferencia de biometria; o app oferece tentar novamente.
-- Sessao realmente expirada e tratada separadamente, preservando a biometria para evitar reconfiguracao depois do novo login.
-- Se a biometria ja estiver ativada, um login necessario por expiracao nao pergunta novamente se deseja ativa-la.
-- Falhas no envio de vale continuam preservando assinatura e dados localmente, agora exibindo o detalhe retornado pelo servidor.
+- Ao informar o cliente ESTOQUE e confirmar o envio por voz, os itens e quantidades sao somados ao estoque da Menina dos Raios.
+- Produtos novos sao cadastrados automaticamente; Macaxeira a Vacuo e Alho Descascado 250 g recebem nomes padronizados.
+- Reenvios da mesma nota nao duplicam entradas, e unidades diferentes permanecem em saldos separados.
+
+## [2.0.30] - 13/10/2026
+
+### Identificacao de clientes
+
+- Os nomes de clientes passam a ser exibidos e mantidos em letras maiusculas no APK.
+
+## [2.0.29] - 12/10/2026
+
+### Itens novos e rascunhos recuperaveis
+
+- Itens falados que nao estao no catalogo oficial do Monteiro pedem confirmacao antes de entrar na nota.
+- Itens aceitos como novos recebem a identificacao `NOVO` na revisao por voz e no formulario, podendo ser removidos antes do envio.
+- A lista oficial de produtos do Monteiro e sincronizada e armazenada para uso offline; nenhum produto novo e cadastrado automaticamente no catalogo global.
+- Rascunhos de nota digitada e por voz sao recuperaveis, incluindo a etapa da pergunta sobre produto novo.
+- O envio informa verificacao, andamento, sucesso ou pendencia, e preserva a nota em fila local quando o servidor nao conclui o recebimento.
+
+## [2.0.28] - 12/10/2026
+
+### Preservacao da tela de nota e continuidade por voz
+
+- Girar o aparelho durante o preenchimento nao recria a tela nem descarta os dados inseridos.
+- Depois do envio confirmado pelo servidor, a Entrega por voz inicia uma nova nota na mesma tela, sem voltar ao formulario digitado.
+- Se o envio falhar, a nota continua salva em pendentes e o usuario recebe a orientacao de reenvio.
+
+## [2.0.27] - 11/10/2026
+
+### Um item por fala na Entrega por voz
+
+- Cada áudio registra um produto; em seguida o app pergunta apenas "Próximo item?".
+- É possível ditar o item seguinte diretamente ou dizer "não" para revisar o pedido.
+- "Março" reconhecido após a quantidade passa a ser aceito como a unidade maço (MC), por exemplo "alface, um maço".
+
+## [2.0.26] - 10/10/2026
+
+### Fala curta e escuta imediata na Entrega por voz
+
+- Ao tocar em FALAR, a voz sintetizada e interrompida imediatamente para iniciar a escuta.
+- Perguntas e confirmacoes repetidas foram encurtadas; a revisao final continua lendo produtos, quantidades e unidades.
+- A tela protege a escuta contra temporizadores antigos e informa quando o tempo de reconhecimento termina.
+
+## [2.0.25] - 10/10/2026
+
+### Unidade automatica na Entrega por voz
+
+- Ao falar apenas produto e quantidade, o APK usa a unidade cadastrada para aquele produto.
+- Uma unidade dita no pedido sempre substitui o padrao, aceitando peso, unidade, caixa, maco ou saco.
+- Exemplos: "maca oito" usa caixas; "laranja cinquenta e seis quilos" usa KG; "laranja um saco" usa SC.
+- Alface passa a usar maco (MC) como unidade padrao, junto com couve e cheiro verde.
+- A Entrega por voz aceita varios produtos e quantidades no mesmo audio, separando-os pela fala e exibindo todos para conferencia antes do envio.
+- O reconhecimento permite uma fala mais longa e nao envia o lote se algum produto mencionado nao puder ser interpretado.
 
 ## [2.0.17] - 14/08/2026
 
@@ -599,9 +644,4 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 
 
 
-
-
-## [2.0.21] - 05/10/2026 07:22
-
-- Reformulacao mobile de Clientes, Produtividade e Consolidado; indicadores reais e resultado liquido destacado.
 

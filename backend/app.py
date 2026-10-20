@@ -3,6 +3,8 @@ Menina dos Raios Ltda â€” Backend v15
 Multi-usuÃ¡rio Â· SessÃµes Â· HistÃ³rico por conta Â· Placa Â· Hora Â· PreÃ§o por data
 """
 import os, sys, re, uuid, sqlite3, webbrowser, threading, io, json, hashlib, socket, hmac, logging, shutil, base64, secrets
+import urllib.request
+from xml.sax.saxutils import escape as xml_escape
 from urllib.parse import urlparse
 from contextvars import ContextVar
 from contextlib import contextmanager
@@ -16,7 +18,7 @@ from functools import lru_cache
 from fastapi import FastAPI, HTTPException, UploadFile, File, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 try:
     from .app_notes_domain import _clean_app_note
     from .app_notes_service import app_note_catalog_from_rows, app_note_dict_from_row
@@ -27,6 +29,7 @@ try:
     from .orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from .permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from .repositories.sellers_repository import init_sellers_schema
+    from .inventory import MODULES as STOCK_MODULES, ensure_stock_balance_count, init_inventory_schema, inventory_product_sales, inventory_snapshot, record_app_note_stock_intake
     from .repositories.whatsapp_repository import init_whatsapp_schema
     from .routers.sellers import create_sellers_router
     from .routers.whatsapp_clients import create_whatsapp_clients_router
@@ -49,6 +52,7 @@ except ImportError:
     from orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from repositories.sellers_repository import init_sellers_schema
+    from inventory import MODULES as STOCK_MODULES, ensure_stock_balance_count, init_inventory_schema, inventory_product_sales, inventory_snapshot, record_app_note_stock_intake
     from repositories.whatsapp_repository import init_whatsapp_schema
     from routers.sellers import create_sellers_router
     from routers.whatsapp_clients import create_whatsapp_clients_router
@@ -758,6 +762,8 @@ def init_db(company: str = None):
         except sqlite3.OperationalError as e:
             print(f"indice paladar_sales falhou: {e}")
     init_sellers_schema(conn)
+    if _company_key(company if company is not None else CURRENT_COMPANY.get()) == "raios":
+        init_inventory_schema(conn)
     # Tabela de pagamentos do Monteiro
     try:
         conn.execute("""CREATE TABLE IF NOT EXISTS monteiro_payments (
@@ -1230,6 +1236,16 @@ app.add_middleware(CORSMiddleware,
 
 def _managed_route_permission(path:str,method:str):
     method=method.upper()
+    if path=="/api/stock" and method=="GET":
+        return (None,"produtos","view")
+    if re.fullmatch(r"/api/stock/products/[^/]+/sales",path) and method=="GET":
+        return (None,"produtos","view")
+    if path=="/api/stock/products" and method=="POST":
+        return (None,"produtos","create")
+    if path=="/api/stock/movements" and method=="POST":
+        return (None,"consolidado","create")
+    if path=="/api/mobile/tts" and method=="POST":
+        return (None,"entregas","view")
     if path in ("/api/auth/me","/api/auth/permissions","/api/auth/company-switch","/api/auth/change-password","/api/auth/logout"):
         return ("auth","session","view")
     if path=="/api/sales" and method=="GET":
@@ -1551,6 +1567,46 @@ def mobile_vale_signature(vale_id:str,x_token:str=Header("")):
         return StreamingResponse(io.BytesIO(data),media_type="image/png",headers={"Cache-Control":"private, no-store"})
     finally:
         conn.close()
+
+@app.post("/api/mobile/tts")
+def mobile_text_to_speech(body:dict,x_token:str=Header("")):
+    require_any_tab_access(x_token,["entregas"])
+    text=str(body.get("text") or "").strip()
+    if not text:
+        raise HTTPException(400,"Texto obrigatorio.")
+    if len(text)>500:
+        raise HTTPException(413,"Texto muito longo para fala.")
+    speech_key=os.environ.get("AZURE_SPEECH_KEY","").strip()
+    region=os.environ.get("AZURE_SPEECH_REGION","brazilsouth").strip().lower()
+    if not speech_key:
+        raise HTTPException(503,"Voz Francisca indisponivel: credencial Azure nao configurada.")
+    if not re.fullmatch(r"[a-z0-9-]{3,30}",region):
+        raise HTTPException(503,"Regiao Azure Speech invalida.")
+    ssml=("<speak version='1.0' xml:lang='pt-BR'>"
+          "<voice name='pt-BR-FranciscaNeural'><prosody rate='+12%'>"
+          + xml_escape(text) + "</prosody></voice></speak>")
+    request=urllib.request.Request(
+        f"https://{region}.tts.speech.microsoft.com/cognitiveservices/v1",
+        data=ssml.encode("utf-8"),
+        headers={
+            "Ocp-Apim-Subscription-Key":speech_key,
+            "Content-Type":"application/ssml+xml",
+            "X-Microsoft-OutputFormat":"audio-16khz-128kbitrate-mono-mp3",
+            "User-Agent":"MeninaDosRaiosAndroid",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request,timeout=12) as response:
+            audio=response.read(2_000_001)
+        if not audio or len(audio)>2_000_000:
+            raise HTTPException(502,"Resposta de audio invalida do Azure Speech.")
+        return Response(content=audio,media_type="audio/mpeg",headers={"Cache-Control":"private, no-store"})
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("Falha na sintese Azure Speech (%s).",type(exc).__name__)
+        raise HTTPException(502,"Falha ao gerar fala Francisca no Azure Speech.") from exc
 
 @app.get("/api/auth/me")
 def me(x_token:str=Header("")):
@@ -5972,6 +6028,131 @@ def _quote_totals(items, discount=0):
     except QuoteItemsLimitError:
         raise HTTPException(400,"O orÃ§amento permite no mÃ¡ximo 20 itens.")
 
+@app.get("/api/stock")
+def get_stock(module: str = "estrada", x_token: str = Header("")):
+    require_auth(x_token)
+    if module not in STOCK_MODULES:
+        raise HTTPException(400, "Módulo de estoque inválido.")
+    area = {"raios": "menina_dos_raios", "estrada": "menina_da_estrada", "monteiro": "monteiro"}[module]
+    require_module_action(x_token, area, "produtos", "view")
+    stock_conn = get_db("raios")
+    source_conn = get_db("raios" if module == "monteiro" else module)
+    try:
+        if module == "estrada":
+            ensure_stock_balance_count(
+                stock_conn, source_conn, module, "STRETCH-FILM", 6400,
+                "stock-count-stretch-film-20261016-6400",
+                "Contagem física 6.400 UN - 16/10/2026",
+            )
+        return inventory_snapshot(stock_conn, source_conn, module)
+    finally:
+        source_conn.close()
+        stock_conn.close()
+
+
+@app.get("/api/stock/products/{product_id}/sales")
+def get_stock_product_sales(product_id: str, module: str = "estrada", x_token: str = Header("")):
+    require_auth(x_token)
+    if module not in STOCK_MODULES:
+        raise HTTPException(400, "Módulo de estoque inválido.")
+    area = {"raios": "menina_dos_raios", "estrada": "menina_da_estrada", "monteiro": "monteiro"}[module]
+    require_module_action(x_token, area, "produtos", "view")
+    stock_conn = get_db("raios")
+    source_conn = get_db("raios" if module == "monteiro" else module)
+    try:
+        product = stock_conn.execute(
+            "SELECT * FROM stock_products WHERE id=? AND module_key=? AND active=1",
+            (product_id, module),
+        ).fetchone()
+        if not product:
+            raise HTTPException(404, "Produto não encontrado neste módulo.")
+        rows = inventory_product_sales(source_conn, module, dict(product))
+        return {"product": product["name"], "unit": product["unit"], "sales": rows}
+    finally:
+        source_conn.close()
+        stock_conn.close()
+
+
+@app.post("/api/stock/products")
+def create_stock_product(body: dict, x_token: str = Header("")):
+    sess = require_editor(x_token)
+    module = str(body.get("module") or "").strip().lower()
+    name = str(body.get("name") or "").strip()
+    sku = str(body.get("sku") or "").strip().upper()
+    unit = str(body.get("unit") or "UND").strip().upper()
+    aliases = body.get("aliases") or []
+    if module not in STOCK_MODULES or not name or not sku or not unit:
+        raise HTTPException(400, "Informe módulo, produto, código e unidade.")
+    area = {"raios": "menina_dos_raios", "estrada": "menina_da_estrada", "monteiro": "monteiro"}[module]
+    require_module_action(x_token, area, "produtos", "create")
+    if not isinstance(aliases, list) or len(aliases) > 20:
+        raise HTTPException(400, "Lista de nomes equivalentes inválida.")
+    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    product_id = str(uuid.uuid4())
+    conn = get_db("raios")
+    try:
+        conn.execute(
+            """INSERT INTO stock_products
+               (id,module_key,sku,name,unit,aliases_json,tracking_after,created_at)
+               VALUES(?,?,?,?,?,?,?,?)""",
+            (product_id, module, sku, name, unit,
+             json.dumps([str(value).strip() for value in aliases if str(value).strip()], ensure_ascii=False),
+             now, now),
+        )
+        conn.commit()
+        return {"ok": True, "id": product_id}
+    except sqlite3.IntegrityError:
+        conn.rollback()
+        raise HTTPException(409, "Já existe um produto com esse código neste módulo.")
+    finally:
+        conn.close()
+
+
+@app.post("/api/stock/movements")
+def create_stock_movement(body: dict, x_token: str = Header("")):
+    sess = require_editor(x_token)
+    module = str(body.get("module") or "").strip().lower()
+    product_id = str(body.get("product_id") or "").strip()
+    movement_type = str(body.get("movement_type") or "").strip().lower()
+    reference = str(body.get("reference") or "").strip()[:120]
+    notes = str(body.get("notes") or "").strip()[:500]
+    try:
+        quantity = float(body.get("quantity"))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Informe uma quantidade válida.")
+    if module not in STOCK_MODULES or movement_type not in ("entry", "exit", "adjustment"):
+        raise HTTPException(400, "Módulo ou tipo de movimentação inválido.")
+    area = {"raios": "menina_dos_raios", "estrada": "menina_da_estrada", "monteiro": "monteiro"}[module]
+    require_module_action(x_token, area, "consolidado", "create")
+    if not quantity or (movement_type != "adjustment" and quantity < 0):
+        raise HTTPException(400, "A quantidade deve ser positiva; ajuste pode ser positivo ou negativo.")
+    movement_date = str(body.get("movement_date") or datetime.now().date().isoformat())
+    try:
+        datetime.strptime(movement_date, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(400, "Data da movimentação inválida.")
+    delta = quantity if movement_type in ("entry", "adjustment") else -quantity
+    conn = get_db("raios")
+    try:
+        product = conn.execute(
+            "SELECT id FROM stock_products WHERE id=? AND module_key=? AND active=1",
+            (product_id, module),
+        ).fetchone()
+        if not product:
+            raise HTTPException(404, "Produto não encontrado neste módulo.")
+        conn.execute(
+            """INSERT INTO stock_movements
+               (id,product_id,movement_type,quantity_delta,movement_date,reference,notes,created_by,created_at)
+               VALUES(?,?,?,?,?,?,?,?,?)""",
+            (str(uuid.uuid4()), product_id, movement_type, delta, movement_date,
+             reference, notes, sess.get("username", ""), datetime.now().astimezone().isoformat(timespec="seconds")),
+        )
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
 @app.get("/api/orcamentos/company")
 def quote_company(x_token:str=Header("")):
     require_auth(x_token)
@@ -7473,6 +7654,32 @@ def find_mobile_app_note_matches(
     finally:
         conn.close()
 
+def _app_note_stock_intake(body, client, external_id, items, x_token, sess):
+    if not body.get("stock_intake") or _normalize_name(client) != _normalize_name("ESTOQUE"):
+        return None
+    require_editor(x_token)
+    require_module_action(x_token, "menina_dos_raios", "consolidado", "create")
+    raw_date = str(body.get("date") or body.get("note_date") or "").strip()
+    movement_date = None
+    for date_format in ("%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            movement_date = datetime.strptime(raw_date, date_format).date().isoformat()
+            break
+        except ValueError:
+            pass
+    if movement_date is None:
+        raise HTTPException(400, "Data da nota inválida para entrada no estoque.")
+    stock_conn = get_db("raios")
+    try:
+        init_inventory_schema(stock_conn)
+        return record_app_note_stock_intake(
+            stock_conn, external_id, items, movement_date, sess.get("username", "")
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    finally:
+        stock_conn.close()
+
 @app.post("/api/app-notes/mobile")
 def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-token"),x_token:str=Header("")):
     _require_app_note_token(x_app_token)
@@ -7490,7 +7697,9 @@ def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-toke
             existing=conn.execute("SELECT * FROM app_notes WHERE id=?",(submission["note_id"],)).fetchone()
             submitted=conn.execute("SELECT * FROM app_note_submissions WHERE external_id=?",(external_id,)).fetchone()
             result=_app_note_dict(conn,existing)
-            return {"ok":True,"duplicate":True,"merged":False,"note":result,"submission":dict(submitted)}
+            stock_intake=_app_note_stock_intake(body, client, external_id, items, x_token, sess)
+            return {"ok":True,"duplicate":True,"merged":False,"note":result,"submission":dict(submitted),
+                    **({"stock_intake":stock_intake} if stock_intake is not None else {})}
         note_id=str(uuid.uuid4()); now=datetime.now().isoformat(timespec="seconds")
         merge_target=None
         if merge_into_id:
@@ -7525,7 +7734,9 @@ def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-toke
         raise
     finally:
         conn.close()
-    return {"ok":True,"duplicate":False,"merged":merged_note,"note":result,"submission":dict(submitted)}
+    stock_intake=_app_note_stock_intake(body, client, external_id, items, x_token, sess)
+    return {"ok":True,"duplicate":False,"merged":merged_note,"note":result,"submission":dict(submitted),
+            **({"stock_intake":stock_intake} if stock_intake is not None else {})}
 
 @app.get("/api/app-notes")
 def list_app_notes(client:Optional[str]=None,month:Optional[str]=None,year:Optional[str]=None,status:Optional[str]=None,x_token:str=Header("")):

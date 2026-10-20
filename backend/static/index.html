@@ -507,6 +507,11 @@ header{background:var(--g800);color:#fff;padding:0 16px;height:56px;display:flex
 .header-center .btn-paladar-header:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.35);transform:scale(1.04)}
 .header-center .btn-orcamento-header{background:linear-gradient(135deg,#8B5CF6,#6D28D9);color:#fff;border:1px solid rgba(255,255,255,.28);padding:6px 16px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .2s;box-shadow:0 8px 18px rgba(25,12,60,.18),inset 0 1px 0 rgba(255,255,255,.18)}
 .header-center .btn-orcamento-header:hover{background:linear-gradient(135deg,#7C3AED,#5B21B6);border-color:rgba(255,255,255,.42);transform:scale(1.04)}
+.header-center .btn-stock-header{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);padding:6px 16px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;transition:all .2s;backdrop-filter:blur(4px)}
+.header-center .btn-stock-header:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.35);transform:scale(1.04)}
+.stock-content-grid{display:grid;grid-template-columns:minmax(280px,.85fr) minmax(360px,1.5fr);gap:16px;align-items:start}
+.stock-forms{display:grid;gap:12px;min-width:0}
+@media(max-width:760px){.stock-content-grid{grid-template-columns:minmax(0,1fr)}#stock-app{inset:52px 0 0!important;padding:12px!important}.stock-forms{order:2}.stock-focus-card{grid-template-columns:minmax(0,1fr)!important;gap:14px!important}.stock-focus-stats{gap:8px!important}}
 .header-center .btn-company-switch{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.28);padding:6px 16px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .2s;backdrop-filter:blur(4px)}
 .header-center .btn-company-switch:hover{background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.42);transform:scale(1.04)}
 .header-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
@@ -1663,6 +1668,7 @@ header::after{
 .logo p{font-size:12px;opacity:.82;font-weight:500}
 .header-center .btn-paladar-header,
 .header-center .btn-orcamento-header,
+.header-center .btn-stock-header,
 .header-center .btn-company-switch,
 .user-chip{
   min-height:38px;
@@ -1673,6 +1679,7 @@ header::after{
 }
 .header-center .btn-paladar-header,
 .header-center .btn-orcamento-header,
+.header-center .btn-stock-header,
 .header-center .btn-company-switch{padding:8px 22px;font-size:13px}
 .header-right{gap:8px}
 .btn-launch,.btn-nfe{
@@ -3406,7 +3413,7 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
       <div class="aurora-meta"><span id="aurora-status">Sistema online</span></div>
     </div>
   </div>
-  <div class="login-version" id="login-version-display">2.1.0</div>
+  <div class="login-version" id="login-version-display">2.1.1</div>
 </div>
 
 <!-- APP -->
@@ -3423,6 +3430,7 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
     <button class="btn-paladar-header" onclick="openPaladarApp()" title="Abrir Monteiro"> Monteiro</button>
     <button class="btn-company-switch" id="company-switch-btn" onclick="switchCompanyUI()" title="Trocar empresa">🚚 Menina da Estrada</button>
     <button class="btn-orcamento-header" onclick="openOrcamentoShortcut()" title="Abrir Orçamentos"> Orçamentos</button>
+    <button class="btn-stock-header" onclick="openStockShortcut()" title="Abrir estoque">📦 Estoque</button>
   </div>
   <div class="header-right">
     <span class="h-badge" id="badge-count" style="display:none">—</span>
@@ -3459,6 +3467,51 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
     </div>
   </div>
 </header>
+
+<section id="stock-app" aria-labelledby="stock-title" style="display:none;position:fixed;top:68px;left:0;right:0;bottom:0;width:100vw;box-sizing:border-box;z-index:1000;background:var(--bg,#f3f7f4);overflow:auto;overflow-x:hidden;padding:clamp(14px,2.2vw,30px)">
+  <div style="width:100%;max-width:1500px;margin:0 auto;box-sizing:border-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:16px">
+      <div><h2 id="stock-title" style="margin:0;color:var(--g800)">📦 Estoque</h2><div style="font-size:12px;color:var(--muted);margin-top:4px">Saldos, entradas e saídas rastreadas por venda/nota</div></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label for="stock-module" style="font-size:12px;font-weight:700">Módulo</label>
+        <select id="stock-module" class="form-input" style="width:auto;min-width:190px" onchange="loadStock()"><option value="estrada">Menina da Estrada</option><option value="raios">Menina dos Raios</option><option value="monteiro">Monteiro</option></select>
+        <button class="btn btn-secondary" onclick="loadStock()">↻ Atualizar</button>
+        <button class="btn btn-secondary" onclick="closeStockApp()">Fechar</button>
+      </div>
+    </div>
+    <div id="stock-products" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px;margin-bottom:18px"></div>
+    <div class="stock-content-grid">
+      <div class="stock-forms">
+      <form id="stock-movement-form" onsubmit="submitStockMovement(event)" style="background:var(--card,#fff);border:1px solid var(--border);border-radius:8px;padding:16px;display:grid;gap:10px">
+        <h3 style="margin:0 0 4px;color:var(--g800)">Registrar movimentação</h3>
+        <label style="font-size:12px;font-weight:700">Produto<select id="stock-product" class="form-input" required></select></label>
+        <label style="font-size:12px;font-weight:700">Tipo<select id="stock-type" class="form-input"><option value="entry">Entrada</option><option value="exit">Saída</option><option value="adjustment">Ajuste de saldo (+/-)</option></select></label>
+        <label style="font-size:12px;font-weight:700">Quantidade<input id="stock-quantity" class="form-input" type="number" step="0.001" required></label>
+        <label style="font-size:12px;font-weight:700">Data<input id="stock-date" class="form-input" type="date" required></label>
+        <label style="font-size:12px;font-weight:700">Referência<input id="stock-reference" class="form-input" maxlength="120" placeholder="Ex.: NF de compra, inventário"></label>
+        <label style="font-size:12px;font-weight:700">Observação<input id="stock-notes" class="form-input" maxlength="500" placeholder="Opcional"></label>
+        <button class="btn btn-primary" type="submit">Salvar movimentação</button>
+      </form>
+      <form id="stock-product-form" onsubmit="submitStockProduct(event)" style="background:var(--card,#fff);border:1px solid var(--border);border-radius:8px;padding:16px;display:grid;gap:10px">
+        <h3 style="margin:0 0 4px;color:var(--g800)">Cadastrar produto no módulo</h3>
+        <label style="font-size:12px;font-weight:700">Nome<input id="stock-new-name" class="form-input" required maxlength="120"></label>
+        <label style="font-size:12px;font-weight:700">Código interno (SKU)<input id="stock-new-sku" class="form-input" required maxlength="60" placeholder="Ex.: UVA-ITALIA-5KG"></label>
+        <label style="font-size:12px;font-weight:700">Unidade de controle<input id="stock-new-unit" class="form-input" required maxlength="20" value="CX" placeholder="CX, KG, UN, MAÇO"></label>
+        <label style="font-size:12px;font-weight:700">Nomes usados nas vendas<input id="stock-new-aliases" class="form-input" placeholder="Separados por vírgula"></label>
+        <button class="btn btn-secondary" type="submit">Adicionar produto</button>
+      </form>
+      </div>
+      <div style="background:var(--card,#fff);border:1px solid var(--border);border-radius:8px;padding:16px;min-width:0">
+        <h3 style="margin:0 0 12px;color:var(--g800)">Histórico e origem das baixas</h3>
+        <div style="overflow:auto;max-height:560px"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:660px"><thead><tr style="text-align:left;color:var(--muted);border-bottom:1px solid var(--border)"><th style="padding:9px">Data</th><th>Produto</th><th>Movimento</th><th>Qtd.</th><th>Referência / origem</th><th></th></tr></thead><tbody id="stock-movements"><tr><td colspan="6" style="padding:18px;text-align:center;color:var(--muted)">Carregando estoque…</td></tr></tbody></table></div>
+      </div>
+    </div>
+  </div>
+  <dialog id="stock-sales-dialog" style="width:min(920px,calc(100vw - 28px));max-height:82vh;padding:0;border:1px solid var(--border);border-radius:10px;background:var(--card,#fff);color:var(--ink);box-shadow:0 20px 60px #10241b40">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--border)"><div><h3 id="stock-sales-title" style="margin:0;color:var(--g800)">Vendas do produto</h3><div id="stock-sales-subtitle" style="font-size:12px;color:var(--muted);margin-top:4px"></div></div><button type="button" class="btn btn-secondary" aria-label="Fechar vendas" onclick="document.getElementById('stock-sales-dialog').close()">Fechar</button></div>
+    <div style="padding:12px 18px;overflow:auto;max-height:calc(82vh - 78px)"><table style="width:100%;border-collapse:collapse;font-size:13px;min-width:600px"><thead><tr style="text-align:left;color:var(--muted);background:var(--bg)"><th style="padding:10px">NF</th><th>Data</th><th>Cliente</th><th>Quantidade</th><th>Valor</th><th></th></tr></thead><tbody id="stock-sales-rows"></tbody></table></div>
+  </dialog>
+</section>
 
 <div id="mobile-period-switcher" class="mobile-period-switcher" aria-label="Seletor de período mobile">
   <button type="button" class="mobile-period-arrow" onclick="mobileShiftMonth(-1)" aria-label="Mês anterior">‹</button>
@@ -3643,6 +3696,7 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
         <button type="button" role="menuitem" data-layout-module="estrada" onclick="selectLayoutModule('estrada')"><span>🚚</span><span>Menina da Estrada</span><b id="layout-module-check-estrada"></b></button>
         <button type="button" role="menuitem" onclick="selectLayoutModule('monteiro')"><span>📊</span><span>Monteiro</span><b></b></button>
         <button type="button" role="menuitem" onclick="selectLayoutModule('orcamentos')"><span>🧾</span><span>Orçamentos</span><b></b></button>
+        <button type="button" role="menuitem" onclick="openStockShortcut()"><span>📦</span><span>Estoque</span><b></b></button>
       </div>
     </div>
     <button class="tab active" onclick="switchTab(this,'hoje')">Hoje</button>
@@ -5329,6 +5383,7 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
     <button type="button" data-layout-module="estrada" onclick="selectLayoutModule('estrada')">🚚 Menina da Estrada</button>
     <button type="button" onclick="selectLayoutModule('monteiro')">📊 Monteiro</button>
     <button type="button" onclick="selectLayoutModule('orcamentos')">🧾 Orçamentos</button>
+    <button type="button" onclick="openStockShortcut()">📦 Estoque</button>
   </div>
   </div>
   <div class="mobile-more-grid">
@@ -5405,7 +5460,7 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
 </div>
 
 <script>
-const APP_VERSION = '2.1.0';
+const APP_VERSION = '2.1.1';
 
 (function hardenInnerHTML(){
   const desc = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
@@ -5872,6 +5927,180 @@ async function api(path,opts={}){
   if(r.status===401){doLogout();throw new Error('Sessão expirada.');}
   if(!r.ok){const e=await r.json().catch(()=>({detail:r.statusText}));throw new Error(e.detail||'Erro '+r.status);}
   return r.json();
+}
+
+let stockSnapshot = null;
+function stockEscape(value){return String(value??'').replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];});}
+function stockFormatQty(value){return new Intl.NumberFormat('pt-BR',{maximumFractionDigits:3}).format(Number(value)||0);}
+function stockMoney(value){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(value)||0);}
+function stockToday(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function syncStockPanelViewport(){
+  const panel=document.getElementById('stock-app');
+  if(!panel||panel.style.display==='none')return;
+  const nav=document.querySelector('#app .tabs-wrap');
+  const navRect=nav?.getBoundingClientRect();
+  const navStyle=nav?getComputedStyle(nav):null;
+  const sidebarRight=navRect&&navStyle?.position==='fixed'&&navRect.right>0&&navRect.left<=1?Math.ceil(navRect.right):0;
+  panel.style.left=sidebarRight+'px';
+  panel.style.right='0';
+  panel.style.width='auto';
+}
+window.addEventListener('resize',syncStockPanelViewport,{passive:true});
+function openStockShortcut(){
+  const mobileSheet=document.getElementById('mobile-more-sheet');
+  if(mobileSheet&&mobileSheet.classList.contains('open'))closeMobileMoreSheet();
+  const panel=document.getElementById('stock-app');
+  if(!panel)return;
+  if(!window._stockActionsBound){
+    document.addEventListener('click',function(event){
+      const sourceButton=event.target.closest('[data-stock-open-module]');
+      const stockPanel=document.getElementById('stock-app');
+      if(sourceButton&&stockPanel?.contains(sourceButton)){
+        event.preventDefault();
+        event.stopPropagation();
+        stockOpenSource(sourceButton.dataset.stockOpenModule,sourceButton.dataset.stockOpenNf||'',sourceButton.dataset.stockOpenClient||'',sourceButton.dataset.stockOpenDate||'').catch(function(error){
+          console.error('Falha ao abrir origem da venda no estoque:',error);
+          toast(error.message||'Não foi possível abrir a nota.','error');
+        });
+        return;
+      }
+      const salesButton=event.target.closest('[data-stock-sales-product]');
+      if(salesButton&&stockPanel?.contains(salesButton)){
+        event.preventDefault();
+        event.stopPropagation();
+        stockOpenSales(salesButton.dataset.stockSalesProduct);
+      }
+    },true);
+    window._stockActionsBound=true;
+  }
+  if(panel.parentElement!==document.body)document.body.appendChild(panel);
+  const appHeader=document.querySelector('#app>header');
+  panel.style.top=(appHeader?Math.ceil(appHeader.getBoundingClientRect().bottom):0)+'px';
+  panel.style.left='0';panel.style.right='0';panel.style.width='auto';
+  panel.style.display='block';
+  syncStockPanelViewport();
+  document.body.style.overflow='hidden';
+  const date=document.getElementById('stock-date');if(date&&!date.value)date.value=stockToday();
+  loadStock();
+}
+function closeStockApp(){const panel=document.getElementById('stock-app');if(panel)panel.style.display='none';document.body.style.overflow='';}
+async function loadStock(){
+  const module=document.getElementById('stock-module')?.value||'estrada';
+  const productsEl=document.getElementById('stock-products');
+  const movementEl=document.getElementById('stock-movements');
+  if(productsEl)productsEl.innerHTML='<div class="card" style="padding:18px;color:var(--muted)">Carregando saldos…</div>';
+  try{
+    stockSnapshot=await api('/api/stock?module='+encodeURIComponent(module));
+    renderStock();
+  }catch(error){
+    if(productsEl)productsEl.innerHTML='<div class="card" style="padding:18px;color:var(--red)">'+stockEscape(error.message||'Não foi possível carregar o estoque.')+'</div>';
+    if(movementEl)movementEl.innerHTML='<tr><td colspan="6" style="padding:18px;color:var(--red)">Falha ao carregar histórico.</td></tr>';
+  }
+}
+function renderStock(){
+  if(!stockSnapshot)return;
+  const products=stockSnapshot.products||[];
+  const productsEl=document.getElementById('stock-products');
+  const select=document.getElementById('stock-product');
+  const previous=select?.value;
+  if(productsEl)productsEl.innerHTML=products.length?products.map(function(product){
+    const featured=product.sku==='STRETCH-FILM';
+    if(!featured)return '<article style="background:var(--card,#fff);border:1px solid var(--border);border-top:3px solid var(--g500,#2f855a);border-radius:8px;padding:14px"><div style="font-size:11px;color:var(--muted);font-weight:700">'+stockEscape(product.sku)+'</div><strong style="display:block;margin:5px 0;color:var(--ink)">'+stockEscape(product.name)+'</strong><div style="font-size:24px;font-weight:800;color:var(--g800)">'+stockFormatQty(product.balance)+' <small style="font-size:12px">'+stockEscape(product.unit)+'</small></div><div style="font-size:11px;color:var(--muted);margin-top:5px">Saldo disponível</div></article>';
+    const balance=Number(product.balance)||0, capacity=6400, percent=Math.max(0,Math.min(100,balance/capacity*100));
+    const tone=percent<=20?'#c2413b':percent<=50?'#d58a12':'#21834a';
+    const label=percent<=20?'Reposição urgente':percent<=50?'Estoque em atenção':'Estoque saudável';
+    return '<article class="stock-focus-card" style="grid-column:1/-1;background:var(--card,#fff);border:1px solid var(--border);border-top:4px solid '+tone+';border-radius:8px;padding:18px;display:grid;grid-template-columns:minmax(220px,1.2fr) minmax(260px,2fr) auto;gap:18px;align-items:center">'+
+      '<div><div style="font-size:11px;color:var(--muted);font-weight:700">'+stockEscape(product.sku)+' · MENINA DA ESTRADA</div><strong style="display:block;margin:5px 0 10px;color:var(--ink);font-size:16px">'+stockEscape(product.name)+'</strong><div style="font-size:32px;line-height:1.05;font-weight:800;color:'+tone+'">'+stockFormatQty(balance)+' <small style="font-size:13px">'+stockEscape(product.unit)+'</small></div><div style="font-size:12px;color:'+tone+';font-weight:700;margin-top:5px">'+label+' · '+stockFormatQty(percent)+'% do saldo inicial</div></div>'+
+      '<div><div class="stock-focus-stats" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px"><div><div style="font-size:11px;color:var(--muted)">Vendido no histórico</div><strong>'+stockFormatQty(product.sold_quantity)+' '+stockEscape(product.unit)+'</strong><div style="font-size:11px;color:var(--muted)">'+stockFormatQty(product.sales_count)+' vendas</div></div><div><div style="font-size:11px;color:var(--muted)">Menor venda</div><strong>'+stockFormatQty(product.min_sale_quantity)+' '+stockEscape(product.unit)+'</strong></div><div><div style="font-size:11px;color:var(--muted)">Maior venda</div><strong>'+stockFormatQty(product.max_sale_quantity)+' '+stockEscape(product.unit)+'</strong></div></div><div role="img" aria-label="Saldo atual de '+stockFormatQty(balance)+' de '+stockFormatQty(capacity)+' unidades" style="height:12px;background:var(--bg,#edf2ef);border-radius:20px;overflow:hidden"><div style="height:100%;width:'+percent+'%;background:'+tone+';border-radius:20px;transition:width .5s ease,background .3s ease"></div></div><div style="display:flex;justify-content:space-between;gap:8px;font-size:10px;color:var(--muted);margin-top:5px"><span>0</span><span>Contagem inicial '+stockFormatQty(capacity)+' UN</span></div></div>'+
+      '<button type="button" class="btn btn-secondary" data-stock-sales-product="'+stockEscape(product.id)+'">Ver vendas por NF</button></article>';
+  }).join(''):'<div class="card" style="padding:18px">Nenhum produto cadastrado neste módulo.</div>';
+  if(select){select.innerHTML=products.map(function(product){return '<option value="'+stockEscape(product.id)+'">'+stockEscape(product.name)+' ('+stockEscape(product.unit)+')</option>';}).join('');if(products.some(p=>p.id===previous))select.value=previous;}
+  const movementEl=document.getElementById('stock-movements');
+  const rows=stockSnapshot.movements||[];
+  if(movementEl)movementEl.innerHTML=rows.length?rows.map(function(movement){
+    const sale=movement.source==='sale';
+    const delta=Number(movement.quantity_delta)||0;
+    const label=sale?'Baixa por venda':movement.movement_type==='entry'?'Entrada':movement.movement_type==='adjustment'?'Ajuste':'Saída';
+    const reference=movement.reference?('NF '+movement.reference):(movement.notes||'Movimento manual');
+    const dateText=String(movement.movement_date||'').slice(0,10);
+    const sourceAttrs='data-stock-open-module="'+stockEscape(stockSnapshot.module)+'" data-stock-open-nf="'+stockEscape(String(movement.reference||''))+'" data-stock-open-client="'+stockEscape(String(movement.client||''))+'" data-stock-open-date="'+stockEscape(dateText)+'"';
+    const button=sale?'<button type="button" class="btn btn-secondary" style="padding:5px 8px" '+sourceAttrs+'>Ver nota</button>':'';
+    return '<tr style="border-bottom:1px solid var(--border)"><td style="padding:9px;white-space:nowrap">'+stockEscape(dateText)+'</td><td>'+stockEscape(movement.product_name||'')+'</td><td>'+label+(sale?' · '+stockEscape(movement.notes||''):'')+'</td><td style="font-weight:700;color:'+(delta<0?'#b42318':'#14733c')+'">'+(delta>0?'+':'')+stockFormatQty(delta)+' '+stockEscape(movement.unit||'')+'</td><td>'+stockEscape(reference)+'</td><td>'+button+'</td></tr>';
+  }).join(''):'<tr><td colspan="6" style="padding:18px;text-align:center;color:var(--muted)">Ainda não há movimentações ou vendas reconhecidas para este módulo.</td></tr>';
+}
+async function submitStockMovement(event){
+  event.preventDefault();
+  const module=document.getElementById('stock-module').value;
+  const payload={module:module,product_id:document.getElementById('stock-product').value,movement_type:document.getElementById('stock-type').value,quantity:document.getElementById('stock-quantity').value,movement_date:document.getElementById('stock-date').value,reference:document.getElementById('stock-reference').value,notes:document.getElementById('stock-notes').value};
+  try{
+    await api('/api/stock/movements',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    document.getElementById('stock-quantity').value='';document.getElementById('stock-reference').value='';document.getElementById('stock-notes').value='';
+    toast('Movimentação registrada.','success');await loadStock();
+  }catch(error){toast(error.message||'Não foi possível salvar a movimentação.','error');}
+}
+async function submitStockProduct(event){
+  event.preventDefault();
+  const module=document.getElementById('stock-module').value;
+  const aliases=document.getElementById('stock-new-aliases').value.split(',').map(value=>value.trim()).filter(Boolean);
+  const payload={module:module,name:document.getElementById('stock-new-name').value.trim(),sku:document.getElementById('stock-new-sku').value.trim(),unit:document.getElementById('stock-new-unit').value.trim(),aliases:aliases};
+  try{
+    await api('/api/stock/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    document.getElementById('stock-product-form').reset();document.getElementById('stock-new-unit').value='CX';
+    toast('Produto adicionado ao estoque.','success');await loadStock();
+  }catch(error){toast(error.message||'Não foi possível cadastrar o produto.','error');}
+}
+async function stockOpenSource(module,nf,client,date){
+  const salesDialog=document.getElementById('stock-sales-dialog');if(salesDialog?.open)salesDialog.close();
+  closeStockApp();
+  if(module==='monteiro'){
+    openPaladarApp();switchPaladarTab('lancamentos');
+    const filter=document.getElementById('pal-filter-nf');const clientFilter=document.getElementById('pal-filter-client');if(filter)filter.value=nf;if(clientFilter)clientFilter.value=client||'';if(filter||clientFilter)await loadPaladarSales();
+    return;
+  }
+  if(!['raios','estrada'].includes(module))throw new Error('Módulo de origem da nota inválido.');
+  if(activeCompany!==module)await switchCompanyUI(module);
+  if(activeCompany!==module)throw new Error('Não foi possível trocar para o módulo que contém esta nota.');
+  const nfTab=Array.from(document.querySelectorAll('.tabs-wrap .tab')).find(function(button){return (button.getAttribute('onclick')||'').includes("switchTab(this,'nf')");});
+  if(!nfTab)throw new Error('A aba de NF-e não foi encontrada.');
+  switchTab(nfTab,'nf');
+  const search=document.getElementById('search-input');
+  if(search){
+    clearFilters();
+    if(date&&/^\d{4}-\d{2}-\d{2}$/.test(date)){
+      const from=document.getElementById('period-from'),to=document.getElementById('period-to');
+      if(from&&to){from.value=date;to.value=date;document.querySelectorAll('.period-pills .subnav-pill').forEach(function(button){button.classList.toggle('active',button.dataset.period==='custom');});applyConsolidadoPeriod('custom');}
+    }
+    search.value=String(nf||client||'').trim();
+    filterTable();
+    const visible=getFiltered();
+    if(!visible.length&&date){
+      const from=document.getElementById('period-from'),to=document.getElementById('period-to');
+      if(from&&to){from.value='';to.value='';}
+      document.querySelectorAll('.period-pills .subnav-pill').forEach(function(button){button.classList.remove('active');});
+      applyConsolidadoPeriod('all');
+      filterTable();
+    }
+    if(!getFiltered().length)toast('NF '+(nf||'')+' não encontrada neste módulo. Confira o número da nota.','warning');
+    else document.getElementById('panel-nf')?.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  else toast('NF-e aberta. Não foi possível aplicar o filtro da nota.','info');
+}
+async function stockOpenSales(productId){
+  const dialog=document.getElementById('stock-sales-dialog');
+  const tbody=document.getElementById('stock-sales-rows');
+  const product=(stockSnapshot?.products||[]).find(item=>item.id===productId);
+  if(!dialog||!tbody||!product)return;
+  document.getElementById('stock-sales-title').textContent=product.name+' · vendas por NF';
+  document.getElementById('stock-sales-subtitle').textContent='Histórico completo em ordem numérica crescente. '+stockFormatQty(product.sold_quantity)+' '+product.unit+' em '+stockFormatQty(product.sales_count)+' vendas.';
+  tbody.innerHTML='<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">Carregando notas…</td></tr>';
+  dialog.showModal();
+  try{
+    const data=await api('/api/stock/products/'+encodeURIComponent(productId)+'/sales?module='+encodeURIComponent(stockSnapshot.module));
+    tbody.innerHTML=(data.sales||[]).length?data.sales.map(function(sale){
+      const sourceAttrs='data-stock-open-module="'+stockEscape(stockSnapshot.module)+'" data-stock-open-nf="'+stockEscape(sale.reference||'')+'" data-stock-open-client="'+stockEscape(sale.client||'')+'" data-stock-open-date="'+stockEscape(sale.date||'')+'"';
+      return '<tr style="border-bottom:1px solid var(--border)"><td style="padding:10px;font-weight:700">'+(sale.reference?'NF '+stockEscape(sale.reference):stockEscape(sale.sale_type))+'</td><td>'+stockEscape(sale.date)+'</td><td>'+stockEscape(sale.client||'Cliente não informado')+'</td><td>'+stockFormatQty(sale.quantity)+' '+stockEscape(sale.unit)+'</td><td>'+stockMoney(sale.total)+'</td><td><button class="btn btn-secondary" type="button" '+sourceAttrs+'>Abrir</button></td></tr>';
+    }).join(''):'<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">Nenhuma venda encontrada.</td></tr>';
+  }catch(error){tbody.innerHTML='<tr><td colspan="6" style="padding:20px;color:#b42318">'+stockEscape(error.message||'Falha ao buscar vendas.')+'</td></tr>';}
 }
 
 async function loadSellers(force=false, includeInactive=false, companyOverride=null, moduleContext=''){
@@ -16570,7 +16799,11 @@ var _appNotesPendingNotif=[];
 function debounceAppNotes(){ clearTimeout(_appNotesTimer); _appNotesTimer=setTimeout(loadAppNotes,350); }
 function appNoteMoney(v){ return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
 function appNoteQty(v){ return Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:3}); }
-function appNoteMeasureLabel(unit){return ({KG:'Peso',UN:'Unidade',CX:'Caixa',MC:'Maço',SC:'Saco'})[String(unit||'').toUpperCase()]||'Medida';}
+function appNoteIsCountUnit(unit){return ['UN','CX','MC','SC'].includes(String(unit||'').toUpperCase());}
+function appNoteUsesWeightAsQuantity(i){return String(i&&i.unit||'').toUpperCase()==='KG'&&Number(i&&i.quantity_provided)!==1;}
+function appNoteEffectiveQuantity(i){if(Number(i&&i.quantity_provided)===1)return i.quantity;if(appNoteIsCountUnit(i&&i.unit)||appNoteUsesWeightAsQuantity(i))return i.weight==null?i.quantity:i.weight;return null;}
+function appNoteQuantityDisplay(i){var quantity=appNoteEffectiveQuantity(i);return quantity===null?null:appNoteQty(quantity);}
+function appNoteUnitDisplay(unit){return ({KG:'kg',G:'g',UN:'un',CX:'cx',MC:'maço',SC:'saco'})[String(unit||'').toUpperCase()]||String(unit||'—');}
 function appNoteHasPrice(i){return i&&i.effective_price_provided!==undefined?!!i.effective_price_provided:Number(i&&i.price_provided)!==0;}
 function appNoteUnitPrice(i){return i&&i.effective_unit_price!==undefined?Number(i.effective_unit_price||0):Number(i&&i.unit_price||0);}
 function appNoteAttr(v){return admEsc(String(v==null?'':v));}
@@ -16637,19 +16870,19 @@ function renderAppNotes(data){
   var canEdit=!!(session&&['admin','editor'].includes(session.role));
   var cards=_appNotes.map(function(n){
     var itemRows=(n.items||[]).map(function(i,index){
-      var qty=Number(i.quantity_provided)!==0?appNoteQty(i.quantity):'<span style="color:var(--muted)">Não informado</span>';
-      var measure=appNoteQty(i.weight==null?i.quantity:i.weight)+' '+admEsc(i.unit||'');
+      var effectiveQty=appNoteQuantityDisplay(i);
+      var qty=effectiveQty!==null?effectiveQty:'<span style="color:var(--muted)">Não informado</span>';
+      var unit=admEsc(appNoteUnitDisplay(i.unit));
       var price=appNoteHasPrice(i)?appNoteMoney(appNoteUnitPrice(i))+(i.price_from_catalog?'<div style="font-size:8px;color:#166534">Preço atual de Produtos</div>':''):'<span style="color:var(--muted)">Não informado</span>';
       var subtotal=appNoteHasPrice(i)?appNoteMoney(Number(i.weight||0)*appNoteUnitPrice(i)):'—';
       return '<tr style="border-top:1px solid var(--border);background:'+(index%2?'var(--card2)':'var(--card)')+'">'
         +'<td data-label="Produto" style="padding:11px 12px;font-weight:800;color:var(--g800)">'+admEsc(i.product||'Sem produto')+'</td>'
         +'<td data-label="Quantidade" style="padding:11px 12px;text-align:center">'+qty+'</td>'
-        +'<td data-label="Tipo" style="padding:11px 12px;text-align:center"><span style="display:inline-block;background:#EEF2FF;color:#4338CA;border-radius:999px;padding:3px 9px;font-size:10px;font-weight:800">'+appNoteMeasureLabel(i.unit)+'</span></td>'
-        +'<td data-label="Medida" style="padding:11px 12px;text-align:center;font-weight:700;white-space:nowrap">'+measure+'</td>'
+        +'<td data-label="Unidade" style="padding:11px 12px;text-align:center"><span style="display:inline-block;background:#EEF2FF;color:#4338CA;border-radius:999px;padding:3px 9px;font-size:10px;font-weight:800">'+unit+'</span></td>'
         +'<td data-label="Valor unitário" style="padding:11px 12px;text-align:right;white-space:nowrap">'+price+'</td>'
         +'<td data-label="Subtotal" style="padding:11px 12px;text-align:right;font-weight:800;white-space:nowrap">'+subtotal+'</td></tr>';
     }).join('');
-    if(!itemRows)itemRows='<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--muted)">Nenhum produto nesta nota.</td></tr>';
+    if(!itemRows)itemRows='<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--muted)">Nenhum produto nesta nota.</td></tr>';
     var statusAction=_appNotesStatus==='pending'
       ? appNoteActionButton('status',n.id,'✅ Concluir','btn btn-primary btn-sm','', 'data-app-note-status="completed"')
       : appNoteActionButton('status',n.id,'↩ Voltar para pendente','btn btn-secondary btn-sm','', 'data-app-note-status="pending"');
@@ -16666,7 +16899,7 @@ function renderAppNotes(data){
       +'<div style="min-width:100px"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;font-weight:700">Produtos</div><div style="font-size:16px;font-weight:900;color:var(--g800);margin-top:3px">'+(n.items||[]).length+'</div></div>'
       +'<div style="min-width:140px;text-align:right"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;font-weight:700">Total do dia</div><div style="font-size:18px;font-weight:900;color:#4F46E5;margin-top:3px">'+appNoteMoney(n.total)+'</div></div>'
       +'<div style="min-width:170px">'+actions+'</div></div>'
-      +'<div style="overflow-x:auto"><table class="app-note-items-table" style="width:100%;min-width:760px;border-collapse:collapse;font-size:11px"><thead><tr style="background:#F1F5F3;color:var(--muted);text-transform:uppercase;font-size:9px"><th style="padding:9px 12px;text-align:left">Produto</th><th style="padding:9px 12px;text-align:center">Quantidade</th><th style="padding:9px 12px;text-align:center">Tipo</th><th style="padding:9px 12px;text-align:center">Medida</th><th style="padding:9px 12px;text-align:right">Valor unitário</th><th style="padding:9px 12px;text-align:right">Subtotal</th></tr></thead><tbody>'+itemRows+'</tbody></table></div></section>';
+      +'<div style="overflow-x:auto"><table class="app-note-items-table" style="width:100%;min-width:650px;border-collapse:collapse;font-size:11px"><thead><tr style="background:#F1F5F3;color:var(--muted);text-transform:uppercase;font-size:9px"><th style="padding:9px 12px;text-align:left">Produto</th><th style="padding:9px 12px;text-align:center">Quantidade</th><th style="padding:9px 12px;text-align:center">Unidade</th><th style="padding:9px 12px;text-align:right">Valor unitário</th><th style="padding:9px 12px;text-align:right">Subtotal</th></tr></thead><tbody>'+itemRows+'</tbody></table></div></section>';
   }).join('');
   wrap.innerHTML=cards;
 }
@@ -16676,15 +16909,15 @@ function openAppNoteDetail(id){
   document.getElementById('app-note-detail-client').textContent=n.client||'Sem cliente';
   document.getElementById('app-note-detail-meta').textContent=(n.note_date||'—')+' · '+(n.items||[]).length+' produto(s) · Total '+appNoteMoney(n.total);
   var products=(n.items||[]).map(function(i){
-    var qty=Number(i.quantity_provided)!==0?appNoteQty(i.quantity):'Não informado';
+    var effectiveQty=appNoteQuantityDisplay(i);
+    var qty=effectiveQty!==null?effectiveQty:'Não informado';
     var price=appNoteHasPrice(i)?appNoteMoney(appNoteUnitPrice(i))+(i.price_from_catalog?' · Produtos':''):'Não informado';
     var subtotal=appNoteHasPrice(i)?appNoteMoney(Number(i.weight||0)*appNoteUnitPrice(i)):'—';
     return '<article style="border:1px solid var(--border);border-radius:10px;padding:13px;background:var(--card)">'
       +'<div style="font-size:14px;font-weight:900;color:var(--g800);margin-bottom:10px">'+admEsc(i.product||'Sem produto')+'</div>'
       +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:9px">'
       +'<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase">Quantidade</div><div style="font-weight:800;margin-top:2px">'+qty+'</div></div>'
-      +'<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase">Tipo</div><div style="font-weight:800;margin-top:2px">'+appNoteMeasureLabel(i.unit)+'</div></div>'
-      +'<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase">Medida</div><div style="font-weight:800;margin-top:2px">'+appNoteQty(i.weight==null?i.quantity:i.weight)+' '+admEsc(i.unit||'')+'</div></div>'
+      +'<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase">Unidade</div><div style="font-weight:800;margin-top:2px">'+admEsc(appNoteUnitDisplay(i.unit))+'</div></div>'
       +'<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase">Valor unitário</div><div style="font-weight:800;margin-top:2px">'+price+'</div></div>'
       +'<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase">Subtotal</div><div style="font-weight:900;color:#4F46E5;margin-top:2px">'+subtotal+'</div></div>'
       +'</div></article>';
@@ -16700,10 +16933,10 @@ function printAppNoteReceipt(id){
   var n=_appNotes.find(function(x){return String(x.id)===String(id);});
   if(!n){toast('Nota não encontrada.','error');return;}
   var itens=(n.items||[]).map(function(i,index){
-    var medida=appNoteQty(i.weight==null?i.quantity:i.weight)+' '+admEsc(i.unit||'');
+    var quantidade=appNoteQuantityDisplay(i)||'—';
     var valor=appNoteHasPrice(i)?appNoteMoney(appNoteUnitPrice(i))+(i.price_from_catalog?' *':''):'Não informado';
     var subtotal=appNoteHasPrice(i)?appNoteMoney((Number(i.weight==null?i.quantity:i.weight)||0)*appNoteUnitPrice(i)):'—';
-    return '<tr><td>'+(index+1)+'</td><td><strong>'+admEsc(i.product||'Produto')+'</strong></td><td>'+admEsc(appNoteMeasureLabel(i.unit||''))+'</td><td class="num">'+medida+'</td><td class="num">'+valor+'</td><td class="num">'+subtotal+'</td></tr>';
+    return '<tr><td>'+(index+1)+'</td><td><strong>'+admEsc(i.product||'Produto')+'</strong></td><td class="num">'+quantidade+'</td><td>'+admEsc(appNoteUnitDisplay(i.unit))+'</td><td class="num">'+valor+'</td><td class="num">'+subtotal+'</td></tr>';
   }).join('');
   var status=n.status==='completed'?'Concluída':'Pendente';
   var emitido=new Date().toLocaleString('pt-BR');
@@ -16711,7 +16944,7 @@ function printAppNoteReceipt(id){
     +'@page{size:A4;margin:12mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#172033;margin:0;font-size:12px}.sheet{max-width:190mm;margin:auto;border:1px solid #cbd5e1;padding:18px}.head{display:flex;justify-content:space-between;gap:20px;border-bottom:3px solid #4f46e5;padding-bottom:12px;margin-bottom:16px}.brand{font-size:24px;font-weight:900;color:#4f46e5}.sub{font-size:11px;color:#64748b;margin-top:3px}.receipt-title{text-align:right;font-size:20px;font-weight:900}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;background:#f8fafc;border:1px solid #e2e8f0;padding:12px;margin-bottom:16px}.label{font-size:9px;text-transform:uppercase;color:#64748b;font-weight:700}.value{font-size:13px;font-weight:700;margin-top:2px}table{width:100%;border-collapse:collapse}th{background:#eef2ff;color:#3730a3;text-align:left;font-size:9px;text-transform:uppercase;padding:8px;border:1px solid #c7d2fe}td{padding:9px 8px;border:1px solid #e2e8f0}.num{text-align:right;white-space:nowrap}.total{margin-left:auto;margin-top:14px;width:270px;border:2px solid #4f46e5;padding:12px;text-align:right}.total-label{font-size:10px;color:#64748b;text-transform:uppercase}.total-value{font-size:22px;font-weight:900;color:#4f46e5;margin-top:3px}.note{margin-top:14px;padding:10px;background:#fffbeb;border:1px solid #fde68a;color:#92400e}.signatures{display:grid;grid-template-columns:1fr 1fr;gap:50px;margin-top:60px}.sign{text-align:center;border-top:1px solid #334155;padding-top:6px}.footer{margin-top:24px;text-align:center;color:#94a3b8;font-size:9px}.no-print{margin:0 auto 12px;display:block;padding:10px 22px;background:#4f46e5;color:white;border:0;border-radius:7px;font-weight:700;cursor:pointer}@media print{.no-print{display:none}.sheet{border:0;padding:0}}</style></head><body>'
     +'<button class="no-print" onclick="window.print()">🖨 Imprimir recibo</button><main class="sheet"><header class="head"><div><div class="brand"> Monteiro</div><div class="sub">Menina dos Raios Ltda · Sistema de Vendas Independente</div></div><div><div class="receipt-title">RECIBO DE PEDIDO</div><div class="sub">Nota APP nº '+admEsc(String(n.id||'—'))+'</div></div></header>'
     +'<section class="meta"><div><div class="label">Cliente</div><div class="value">'+admEsc(n.client||'Sem cliente')+'</div></div><div><div class="label">Data do pedido</div><div class="value">'+admEsc(n.note_date||'—')+'</div></div><div><div class="label">Situação</div><div class="value">'+status+'</div></div><div><div class="label">Emitido em</div><div class="value">'+admEsc(emitido)+'</div></div><div style="grid-column:1/-1"><div class="label">Lançamentos e responsáveis</div><div class="value">'+appNoteSubmissionSummary(n)+'</div></div></section>'
-    +'<table><thead><tr><th>#</th><th>Produto</th><th>Tipo</th><th style="text-align:right">Medida</th><th style="text-align:right">Valor unitário</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>'+(itens||'<tr><td colspan="6">Nenhum produto informado.</td></tr>')+'</tbody></table>'
+    +'<table><thead><tr><th>#</th><th>Produto</th><th style="text-align:right">Quantidade</th><th>Unidade</th><th style="text-align:right">Valor unitário</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>'+(itens||'<tr><td colspan="6">Nenhum produto informado.</td></tr>')+'</tbody></table>'
     +'<div class="total"><div class="total-label">Total do pedido</div><div class="total-value">'+appNoteMoney(n.total)+'</div></div>'
     +'<div class="note">* Valor obtido do preço atual cadastrado na aba Produtos. Este recibo comprova o registro do pedido recebido pelo aplicativo interno e não substitui documento fiscal.</div><div class="signatures"><div class="sign">Responsável pelo recebimento</div><div class="sign">Cliente</div></div><div class="footer">Gerado pelo Monteiro · Notas APP</div></main></body></html>';
   var janela=window.open('','_blank','width=980,height=760');
@@ -16734,7 +16967,7 @@ function openAppNoteModal(id){
   document.getElementById('app-note-id').value=n.id;
   document.getElementById('app-note-edit-client').value=n.client||'';
   document.getElementById('app-note-edit-date').value=n.note_date||'';
-  document.getElementById('app-note-edit-items').value=(n.items||[]).map(function(i){var q=Number(i.quantity_provided)!==0?appNoteQty(i.quantity):'';var p=appNoteHasPrice(i)?appNoteUnitPrice(i).toFixed(2).replace('.',','):'';return [i.product||'',q,appNoteQty(i.weight==null?i.quantity:i.weight),i.unit||'',p].join(' | ');}).join('\n');
+  document.getElementById('app-note-edit-items').value=(n.items||[]).map(function(i){var effectiveQty=appNoteEffectiveQuantity(i);var q=effectiveQty!==null?appNoteQty(effectiveQty):'';var measure=appNoteQty(i.weight==null?i.quantity:i.weight);var p=appNoteHasPrice(i)?appNoteUnitPrice(i).toFixed(2).replace('.',','):'';return [i.product||'',q,measure,i.unit||'',p].join(' | ');}).join('\n');
   renderAppNotePriceInputs();
   document.getElementById('app-note-modal').style.display='flex';
 }
@@ -20023,7 +20256,7 @@ setTimeout(installMobileReadOnlyGuards,0);
       </span>
       Atualização automática a cada 30 segundos · Pressione Esc para sair
     </span>
-    <span id="tv-footer-version" style="opacity:.5">2.1.0</span>
+    <span id="tv-footer-version" style="opacity:.5">2.1.1</span>
   </div>
 </div>
 <div class="notif-drawer-overlay" id="notif-drawer-overlay" onclick="toggleNotificationDrawer()"></div>
