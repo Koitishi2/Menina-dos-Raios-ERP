@@ -254,6 +254,37 @@ def test_clean_app_note_current_items_normalization_and_total_contract(isolated_
     assert items[4]["unit_price"] == 0.0
 
 
+def test_stock_intake_canonicalizes_two_voice_products_to_units_only_for_stock_client(isolated_app):
+    clean = isolated_app.module._clean_app_note
+    client, _, items, total = clean({
+        "client": "ESTOQUE",
+        "stock_intake": True,
+        "items": [
+            {"product": "MACAXEIRA A VACUO", "quantity": None, "weight": 450, "unit": "KG"},
+            {"product": "ALHO", "quantity": 300, "weight": 300, "unit": "KG"},
+            {"product": "Alho KG", "quantity": 2, "weight": 2, "unit": "KG"},
+        ],
+    })
+
+    assert client == "ESTOQUE"
+    assert [(item["product"], item["quantity"], item["weight"], item["unit"])
+            for item in items] == [
+        ("Macaxeira a Vácuo", 450, 450, "UN"),
+        ("Alho 250g", 300, 300, "UN"),
+        ("Alho KG", 2, 2, "KG"),
+    ]
+    assert items[0]["quantity_provided"] is True
+    assert total == 0.0
+
+    _, _, ordinary_items, _ = clean({
+        "client": "Cliente comum",
+        "stock_intake": True,
+        "items": [{"product": "ALHO", "quantity": 300, "weight": 300, "unit": "KG"}],
+    })
+    assert ordinary_items[0]["product"] == "ALHO"
+    assert ordinary_items[0]["unit"] == "KG"
+
+
 def test_clean_app_note_current_invalid_input_errors(isolated_app):
     clean = isolated_app.module._clean_app_note
 

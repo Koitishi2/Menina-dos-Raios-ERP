@@ -1,4 +1,17 @@
 from fastapi import HTTPException
+import re
+import unicodedata
+
+
+def _stock_intake_product(product):
+    normalized = unicodedata.normalize("NFKD", str(product or ""))
+    normalized = "".join(char for char in normalized if not unicodedata.combining(char))
+    normalized = re.sub(r"[^A-Z0-9]", "", normalized.upper())
+    if re.fullmatch(r"ALHO(DESCASCADO)?(250(G|GR|GRAMAS))?", normalized):
+        return "Alho 250g"
+    if re.fullmatch(r"MACAXEIRA(A)?VACUO", normalized):
+        return "Macaxeira a Vácuo"
+    return None
 
 
 def _clean_app_note(body: dict):
@@ -8,6 +21,7 @@ def _clean_app_note(body: dict):
     if not isinstance(raw_items,list) or len(raw_items)>100:
         raise HTTPException(400,"Lista de itens invÃ¡lida (mÃ¡ximo 100).")
     items=[]; total=0.0
+    stock_intake = bool(body.get("stock_intake")) and client.casefold() == "estoque"
     for pos,raw in enumerate(raw_items):
         if not isinstance(raw,dict): continue
         product=str(raw.get("product") or "").strip()[:160]
@@ -21,6 +35,16 @@ def _clean_app_note(body: dict):
             price=float(price_raw) if price_provided else 0.0
         except Exception: raise HTTPException(400,"Quantidade ou preÃ§o invÃ¡lido.")
         if abs(quantity)>100000000 or abs(weight)>100000000 or abs(price)>100000000: raise HTTPException(400,"Valor fora do limite permitido.")
+        canonical_stock_product = _stock_intake_product(product) if stock_intake else None
+        if canonical_stock_product:
+            count = quantity if quantity_provided and quantity > 0 else weight
+            if count <= 0:
+                raise HTTPException(400, "Informe a quantidade em unidades para entrada no estoque.")
+            product = canonical_stock_product
+            unit = "UN"
+            quantity = count
+            quantity_provided = True
+            weight = count
         items.append({"product":product,"quantity":quantity,"quantity_provided":quantity_provided,
                       "weight":weight,"unit":unit,"unit_price":price,"price_provided":price_provided,"position":pos})
         if price_provided: total+=weight*price
