@@ -99,7 +99,7 @@ def test_voice_stock_customer_adds_and_accumulates_stock_once(isolated_app):
         "stock_intake": True,
         "items": [
             {"product": "Macaxeira a Vácuo", "weight": 12, "unit": "KG"},
-            {"product": "Alho Descascado 250g", "weight": 8, "unit": "UN"},
+            {"product": "ALHO 250 GRAMAS", "weight": 8, "unit": "KG"},
             {"product": "Produto falado novo", "weight": 3, "unit": "MC"},
         ],
     }
@@ -110,7 +110,9 @@ def test_voice_stock_customer_adds_and_accumulates_stock_once(isolated_app):
     snapshot = isolated_app.client.get("/api/stock?module=raios", headers={"x-token": token}).json()
     products = {product["name"]: product for product in snapshot["products"]}
     assert products["Macaxeira a Vácuo"]["balance"] == 12
-    assert products["Alho Descascado 250 g"]["balance"] == 8
+    assert products["Alho 250g"]["balance"] == 8
+    assert products["Alho 250g"]["unit"] == "UN"
+    assert not any("ALHO 250 GRAMAS" in product["name"] for product in snapshot["products"])
     assert products["Produto falado novo"]["balance"] == 3
 
     repeated = isolated_app.client.post("/api/app-notes/mobile", headers=headers, json=payload)
@@ -122,8 +124,19 @@ def test_voice_stock_customer_adds_and_accumulates_stock_once(isolated_app):
     second = isolated_app.client.post("/api/app-notes/mobile", headers=headers, json=payload)
     assert second.status_code == 200
     accumulated = isolated_app.client.get("/api/stock?module=raios", headers={"x-token": token}).json()
-    product = next(item for item in accumulated["products"] if item["name"] == "Macaxeira a Vácuo")
-    assert product["balance"] == 17
+    accumulated_products = {item["name"]: item for item in accumulated["products"]}
+    assert accumulated_products["Macaxeira a Vácuo"]["balance"] == 17
+
+    garlic_payload = dict(payload)
+    garlic_payload["external_id"] = "voice-stock-intake-garlic-003"
+    garlic_payload["items"] = [{"product": "Alho", "weight": 4, "unit": "unidades"}]
+    garlic = isolated_app.client.post("/api/app-notes/mobile", headers=headers, json=garlic_payload)
+    assert garlic.status_code == 200
+    garlic_snapshot = isolated_app.client.get("/api/stock?module=raios", headers={"x-token": token}).json()
+    garlic_products = {item["name"]: item for item in garlic_snapshot["products"]}
+    assert garlic_products["Alho 250g"]["balance"] == 12
+    assert garlic_products["Alho 250g"]["unit"] == "UN"
+    assert "Alho" not in garlic_products
 
 
 def test_non_stock_voice_customer_does_not_create_stock(isolated_app):

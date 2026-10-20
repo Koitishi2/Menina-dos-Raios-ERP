@@ -194,10 +194,19 @@ def record_app_note_stock_intake(stock_conn, external_id, items, movement_date, 
         if not name or quantity <= 0 or not math.isfinite(quantity):
             raise ValueError("Produto e quantidade positiva são obrigatórios.")
         normalized = _normalized(name)
-        if normalized == "MACAXEIRAAVACUO":
+        normalized_unit = _normalized_stock_unit(unit)
+        garlic_pack_aliases = {
+            "ALHO", "ALHODESCASCADO", "ALHO250G", "ALHO250GR",
+            "ALHO250GRAMAS", "ALHODESCASCADO250G", "ALHODESCASCADO250GR",
+            "ALHODESCASCADO250GRAMAS",
+        }
+        if normalized in garlic_pack_aliases and (
+            normalized_unit == "UN" or "250" in normalized
+        ):
+            name = "Alho 250g"
+            unit = "UN"
+        elif normalized == "MACAXEIRAAVACUO":
             name = "Macaxeira a Vácuo"
-        elif normalized == "ALHODESCASCADO250G":
-            name = "Alho Descascado 250 g"
         normalized_items.append((name, unit, quantity))
     if not normalized_items:
         raise ValueError("A nota não contém produtos para entrada no estoque.")
