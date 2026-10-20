@@ -365,3 +365,15 @@ def test_stock_summary_products_are_clickable_and_history_is_newest_first():
     assert "today_sold_quantity" in html
     assert "today_sales_revenue" in html
     assert "Vendido hoje" in html
+
+
+def test_stock_invoice_navigation_uses_delegated_events_and_invoice_date():
+    from pathlib import Path
+
+    html = (Path(__file__).parents[1] / "backend" / "static" / "index.html").read_text(encoding="utf-8")
+    assert "panel.dataset.stockSourceNavigationBound" in html
+    assert "[data-stock-open-module][data-stock-open-nf]" in html
+    assert "data-stock-open-date" in html
+    assert "stockOpenSource(button.dataset.stockOpenModule" in html
+    assert "onclick=\\'" not in html[html.index("function renderStock()") : html.index("function renderStockCatalog()")]
+    assert "onclick=\\'" not in html[html.index("async function stockOpenSales(") : html.index("async function loadSellers(")]

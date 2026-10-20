@@ -6001,6 +6001,17 @@ function openStockShortcut(){
   const panel=document.getElementById('stock-app');
   if(!panel)return;
   if(panel.parentElement!==document.body)document.body.appendChild(panel);
+  if(!panel.dataset.stockSourceNavigationBound){
+    panel.addEventListener('click',function(event){
+      const button=event.target.closest('[data-stock-open-module][data-stock-open-nf]');
+      if(!button||!panel.contains(button))return;
+      event.preventDefault();event.stopPropagation();
+      stockOpenSource(button.dataset.stockOpenModule,button.dataset.stockOpenNf,button.dataset.stockOpenClient,button.dataset.stockOpenDate).catch(function(error){
+        toast(error.message||'Não foi possível abrir a nota.','error');
+      });
+    });
+    panel.dataset.stockSourceNavigationBound='1';
+  }
   const appHeader=document.querySelector('#app>header');
   panel.style.top=(appHeader?Math.ceil(appHeader.getBoundingClientRect().bottom):0)+'px';
   panel.style.left='0';panel.style.right='0';panel.style.width='auto';
@@ -6046,9 +6057,9 @@ function renderStock(){
     const label=sale?'Baixa por venda':movement.movement_type==='entry'?'Entrada':movement.movement_type==='adjustment'?'Ajuste':'Saída';
     const reference=movement.reference?('NF '+movement.reference):(movement.notes||'Movimento manual');
     const dateText=String(movement.movement_date||'').slice(0,10);
-    const sourceAction='stockOpenSource('+JSON.stringify(stockSnapshot.module)+','+JSON.stringify(String(movement.reference||''))+','+JSON.stringify(String(movement.client||''))+')';
-    const button=sale?'<button type="button" class="btn btn-secondary" style="padding:5px 8px" onclick=\''+stockEscape(sourceAction)+'\'>'+(movement.reference?'Abrir NF '+stockEscape(movement.reference):'Abrir venda')+'</button>':'';
-    const refCell=sale&&movement.reference?'<button type="button" class="btn btn-secondary" style="padding:4px 7px;color:var(--g800);text-decoration:underline" onclick=\''+stockEscape(sourceAction)+'\'>NF '+stockEscape(movement.reference)+'</button>':stockEscape(reference);
+    const sourceAttrs='data-stock-open-module="'+stockEscape(stockSnapshot.module)+'" data-stock-open-nf="'+stockEscape(String(movement.reference||''))+'" data-stock-open-client="'+stockEscape(String(movement.client||''))+'" data-stock-open-date="'+stockEscape(dateText)+'"';
+    const button=sale?'<button type="button" class="btn btn-secondary" style="padding:5px 8px" '+sourceAttrs+'>'+(movement.reference?'Abrir NF '+stockEscape(movement.reference):'Abrir venda')+'</button>':'';
+    const refCell=sale&&movement.reference?'<button type="button" class="btn btn-secondary" style="padding:4px 7px;color:var(--g800);text-decoration:underline" '+sourceAttrs+'>NF '+stockEscape(movement.reference)+'</button>':stockEscape(reference);
     return '<tr style="border-bottom:1px solid var(--border)"><td style="padding:9px;white-space:nowrap">'+stockEscape(dateText)+'</td><td>'+stockEscape(movement.product_name||'')+'</td><td>'+label+(sale?' · '+stockEscape(movement.notes||''):'')+'</td><td style="font-weight:700;color:'+(delta<0?'#b42318':'#14733c')+'">'+(delta>0?'+':'')+stockFormatQty(delta)+' '+stockEscape(movement.unit||'')+'</td><td>'+refCell+(sale&&movement.client?'<div style="font-size:11px;color:var(--muted);margin-top:4px">'+stockEscape(movement.client)+'</div>':'')+'</td><td>'+button+'</td></tr>';
   }).join(''):'<tr><td colspan="6" style="padding:18px;text-align:center;color:var(--muted)">Ainda não há movimentações ou vendas reconhecidas para este módulo.</td></tr>';
   renderStockCatalog();
@@ -6127,7 +6138,7 @@ async function submitStockProduct(event){
     toast('Produto adicionado ao estoque.','success');await loadStock();
   }catch(error){toast(error.message||'Não foi possível cadastrar o produto.','error');}
 }
-async function stockOpenSource(module,nf,client){
+async function stockOpenSource(module,nf,client,date){
   const salesDialog=document.getElementById('stock-sales-dialog');if(salesDialog?.open)salesDialog.close();
   closeStockApp();
   if(module==='monteiro'){
@@ -6135,10 +6146,31 @@ async function stockOpenSource(module,nf,client){
     const filter=document.getElementById('pal-filter-nf');const clientFilter=document.getElementById('pal-filter-client');if(filter)filter.value=nf;if(clientFilter)clientFilter.value=client||'';if(filter||clientFilter)await loadPaladarSales();
     return;
   }
+  if(module!=='raios'&&module!=='estrada')throw new Error('Módulo de origem da nota inválido.');
   if(activeCompany!==module)await switchCompanyUI(module);
+  if(activeCompany!==module)throw new Error('Não foi possível abrir o módulo de origem da nota.');
   const nfTab=Array.from(document.querySelectorAll('.tabs-wrap .tab')).find(function(button){return (button.getAttribute('onclick')||'').includes("'nf'");});
-  if(nfTab)switchTab(nfTab,'nf');
-  const search=document.getElementById('search-input');if(search){search.value=nf||client||'';filterTable();}
+  if(!nfTab)throw new Error('A aba de vendas por NF não está disponível.');
+  switchTab(nfTab,'nf');
+  if(!allSales.length)await loadAll();
+  clearFilters();
+  const search=document.getElementById('search-input');
+  const from=document.getElementById('period-from'),to=document.getElementById('period-to');
+  const customPeriod=Array.from(document.querySelectorAll('.period-pills .subnav-pill')).find(function(button){return button.dataset.period==='custom';});
+  if(date&&/^\d{4}-\d{2}-\d{2}$/.test(date)&&from&&to&&customPeriod){
+    from.value=date;to.value=date;
+    document.querySelectorAll('.period-pills .subnav-pill').forEach(function(button){button.classList.toggle('active',button===customPeriod);});
+    applyConsolidadoPeriod('custom');
+  }
+  if(search)search.value=nf||client||'';
+  filterTable();
+  if(nf&&!getFiltered().length&&date){
+    if(from)from.value='';if(to)to.value='';
+    applyConsolidadoPeriod('all');filterTable();
+  }
+  if(nf&&!getFiltered().length&&client){if(search)search.value=client;filterTable();}
+  if(nf&&!getFiltered().length)throw new Error('A NF '+nf+' não foi encontrada nas vendas deste módulo.');
+  document.getElementById('panel-nf')?.scrollIntoView({behavior:'smooth',block:'start'});
 }
 async function stockOpenSales(productId){
   const product=(stockSnapshot?.products||[]).find(item=>item.id===productId);
@@ -6160,8 +6192,8 @@ async function stockOpenSales(productId){
   try{
     const result=await api('/api/stock/products/'+encodeURIComponent(productId)+'/sales?module='+encodeURIComponent(stockSnapshot.module));
     tbody.innerHTML=(result.sales||[]).length?result.sales.map(function(sale){
-      const action='stockOpenSource('+JSON.stringify(stockSnapshot.module)+','+JSON.stringify(sale.reference)+','+JSON.stringify(sale.client)+')';
-      return '<tr style="border-bottom:1px solid var(--border)"><td style="padding:10px;font-weight:700">'+(sale.reference?'NF '+stockEscape(sale.reference):stockEscape(sale.sale_type))+'</td><td>'+stockEscape(sale.date)+'</td><td>'+stockEscape(sale.client||'Cliente não informado')+'</td><td>'+stockFormatQty(sale.quantity)+' '+stockEscape(sale.unit)+'</td><td>'+stockMoney(sale.total)+'</td><td><button class="btn btn-secondary" type="button" onclick=\''+stockEscape(action)+'\'>Abrir</button></td></tr>';
+      const sourceAttrs='data-stock-open-module="'+stockEscape(stockSnapshot.module)+'" data-stock-open-nf="'+stockEscape(String(sale.reference||''))+'" data-stock-open-client="'+stockEscape(String(sale.client||''))+'" data-stock-open-date="'+stockEscape(String(sale.date||'').slice(0,10))+'"';
+      return '<tr style="border-bottom:1px solid var(--border)"><td style="padding:10px;font-weight:700">'+(sale.reference?'NF '+stockEscape(sale.reference):stockEscape(sale.sale_type))+'</td><td>'+stockEscape(sale.date)+'</td><td>'+stockEscape(sale.client||'Cliente não informado')+'</td><td>'+stockFormatQty(sale.quantity)+' '+stockEscape(sale.unit)+'</td><td>'+stockMoney(sale.total)+'</td><td><button class="btn btn-secondary" type="button" '+sourceAttrs+'>Abrir</button></td></tr>';
     }).join(''):'<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">Nenhuma venda encontrada.</td></tr>';
   }catch(error){tbody.innerHTML='<tr><td colspan="6" style="padding:20px;color:#b42318">'+stockEscape(error.message||'Falha ao buscar vendas.')+'</td></tr>';}
 }
