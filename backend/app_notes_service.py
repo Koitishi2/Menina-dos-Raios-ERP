@@ -10,6 +10,7 @@ def app_note_catalog_from_rows(rows, normalize_name_func=None):
     normalize_name = normalize_name_func or _normalize_name
     prices = {}
     aliases = {}
+    base_candidates = {}
     for r in rows:
         name = str(r["name"] or "").strip(); price = float(r["suggested_price"] or 0)
         if not name: continue
@@ -17,7 +18,16 @@ def app_note_catalog_from_rows(rows, normalize_name_func=None):
         base = re.sub(r"\s*\([^)]*\)\s*$", "", name, flags=re.I)
         base = re.sub(r"\s+(kg|un|cx|mc|sc|unidade|caixa|ma[cç]o|saco)\s*$", "", base, flags=re.I)
         if base.strip() != name: aliases[normalize_name(base)] = price
+        core = re.sub(r"\([^)]*\)", " ", name, flags=re.I)
+        core = re.sub(r"\b\d+(?:[.,]\d+)?\s*(?:kg|g|gr|gramas?|un|unidades?|cx|caixas?|mc|ma[cç]os?|sc|sacos?)?\b", " ", core, flags=re.I)
+        core = re.sub(r"\b(kg|un|unidade|unidades|cx|caixa|caixas|mc|ma[cç]o|ma[cç]os|sc|saco|sacos)\b", " ", core, flags=re.I)
+        core_key = normalize_name(core)
+        if core_key:
+            base_candidates.setdefault(core_key, set()).add(price)
     for key, value in aliases.items(): prices.setdefault(key, value)
+    for key, candidates in base_candidates.items():
+        if len(candidates) == 1:
+            prices.setdefault(key, next(iter(candidates)))
     return prices
 
 
