@@ -16,14 +16,19 @@ def app_note_catalog_from_rows(rows, normalize_name_func=None):
         if not name: continue
         prices[normalize_name(name)] = price
         base = re.sub(r"\s*\([^)]*\)\s*$", "", name, flags=re.I)
-        base = re.sub(r"\s+(kg|un|cx|mc|sc|unidade|caixa|ma[cç]o|saco)\s*$", "", base, flags=re.I)
+        base = re.sub(r"\s+(kg|un|cx|mc|sc|lt|unidade|caixa|ma[cç]o|saco)\s*$", "", base, flags=re.I)
         if base.strip() != name: aliases[normalize_name(base)] = price
         core = re.sub(r"\([^)]*\)", " ", name, flags=re.I)
-        core = re.sub(r"\b\d+(?:[.,]\d+)?\s*(?:kg|g|gr|gramas?|un|unidades?|cx|caixas?|mc|ma[cç]os?|sc|sacos?)?\b", " ", core, flags=re.I)
-        core = re.sub(r"\b(kg|un|unidade|unidades|cx|caixa|caixas|mc|ma[cç]o|ma[cç]os|sc|saco|sacos)\b", " ", core, flags=re.I)
+        core = re.sub(r"\b\d+(?:[.,]\d+)?\s*(?:kg|g|gr|gramas?|un|unidades?|cx|caixas?|mc|ma[cç]os?|sc|sacos?|lt)?\b", " ", core, flags=re.I)
+        core = re.sub(r"\b(kg|g|gr|gramas?|un|unidade|unidades|cx|caixa|caixas|mc|ma[cç]o|ma[cç]os|sc|saco|sacos|lt)\b", " ", core, flags=re.I)
         core_key = normalize_name(core)
         if core_key:
             base_candidates.setdefault(core_key, set()).add(price)
+            words = re.findall(r"[^\W_]+", core.lower(), flags=re.UNICODE)
+            for end in range(1, len(words)):
+                prefix_key = normalize_name(" ".join(words[:end]))
+                if prefix_key:
+                    base_candidates.setdefault(prefix_key, set()).add(price)
     for key, value in aliases.items(): prices.setdefault(key, value)
     for key, candidates in base_candidates.items():
         if len(candidates) == 1:

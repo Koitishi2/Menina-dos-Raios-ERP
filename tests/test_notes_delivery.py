@@ -321,6 +321,7 @@ def test_app_note_catalog_from_rows_current_mapping_contract(isolated_app):
         {"name": "produto duplicado kg", "suggested_price": 8},
         {"name": "Couve Maço", "suggested_price": 3.5},
         {"name": "Alho Descascado 250 g", "suggested_price": 12},
+        {"name": "Cheiro Verde Fresco", "suggested_price": 4.25},
         {"name": "Uva Verde Caixa 500 g", "suggested_price": 7},
         {"name": "Uva Verde Caixa 1 kg", "suggested_price": 13},
     ]
@@ -339,11 +340,12 @@ def test_app_note_catalog_from_rows_current_mapping_contract(isolated_app):
     assert prices[normalize_name("Produto Embalado (UN)")] == 6.0
     assert prices[normalize_name("Produto Embalado")] == 6.0
     assert prices[normalize_name("Produto Litro LT")] == 8.0
-    assert normalize_name("Produto Litro") not in prices
+    assert prices[normalize_name("Produto Litro")] == 8.0
     assert prices[normalize_name("Produto Duplicado KG")] == 8.0
     assert prices[normalize_name("Produto Duplicado")] == 8.0
     assert prices[normalize_name("Couve")] == 3.5
     assert prices[normalize_name("Alho Descascado")] == 12.0
+    assert prices[normalize_name("Cheiro Verde")] == 4.25
     assert normalize_name("Uva Verde") not in prices
     assert "" not in prices
 
@@ -399,7 +401,7 @@ def test_app_note_catalog_prices_current_selection_normalization_and_aliases(iso
     assert prices[normalize_name("Produto Embalado (UN)")] == 6.0
     assert prices[normalize_name("Produto Embalado")] == 6.0
     assert prices[normalize_name("Produto Litro LT")] == 8.0
-    assert normalize_name("Produto Litro") not in prices
+    assert prices[normalize_name("Produto Litro")] == 8.0
     assert prices[normalize_name("Produto Duplicado KG")] == 8.0
     assert prices[normalize_name("Produto Duplicado")] == 8.0
     assert "" not in prices
