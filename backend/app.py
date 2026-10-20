@@ -5560,23 +5560,29 @@ if assets_dir: app.mount("/assets",StaticFiles(directory=str(assets_dir)),name="
 
 # â”€â”€ WhatsApp Notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+try:
+    import httpx as _global_hx
+except ImportError:
+    _global_hx = None
+
+try:
+    import requests as _global_rq
+except ImportError:
+    _global_rq = None
+
 def wa_send(phone: str, message: str, cfg: dict) -> dict:
-    try:
-        import httpx as _hlib
+    if _global_hx:
         def _post(url, data=None, json=None, headers=None, timeout=10):
-            r = _hlib.post(url, data=data, json=json, headers=headers, timeout=timeout)
-            return r
-    except ImportError:
-        try:
-            import requests as _rlib
-            class _Resp:
-                def __init__(self, r):
-                    self.status_code = r.status_code
-                    self.text        = r.text
-            def _post(url, data=None, json=None, headers=None, timeout=10):
-                return _Resp(_rlib.post(url, data=data, json=json, headers=headers, timeout=timeout))
-        except ImportError:
-            return {"ok": False, "response": "Nenhuma biblioteca HTTP. Execute: pip install httpx"}
+            return _global_hx.post(url, data=data, json=json, headers=headers, timeout=timeout)
+    elif _global_rq:
+        class _Resp:
+            def __init__(self, r):
+                self.status_code = r.status_code
+                self.text        = r.text
+        def _post(url, data=None, json=None, headers=None, timeout=10):
+            return _Resp(_global_rq.post(url, data=data, json=json, headers=headers, timeout=timeout))
+    else:
+        return {"ok": False, "response": "Nenhuma biblioteca HTTP. Execute: pip install httpx"}
     provider = cfg.get("provider", "ultramsg")
     api_url  = (cfg.get("api_url") or "").strip().rstrip("/")
     token    = cfg.get("api_token", "")
@@ -6079,12 +6085,14 @@ def wa_baileys_status(x_token: str = Header(...)):
     # Falha de conexÃ£o retorna status "offline" de forma graciosa (200), evitando
     # que o frontend mostre "Internal Server Error" e fique piscando no polling.
     try:
-        try:
-            import httpx as _hx
-            r = _hx.get(f"{api_url}/qr", headers={"x-api-key": token}, timeout=5)
-        except ImportError:
-            import requests as _rq
-            r = _rq.get(f"{api_url}/qr", headers={"x-api-key": token}, timeout=5)
+        if _global_hx:
+            r = _global_hx.get(f"{api_url}/qr", headers={"x-api-key": token}, timeout=5)
+        elif _global_rq:
+            r = _global_rq.get(f"{api_url}/qr", headers={"x-api-key": token}, timeout=5)
+        else:
+            return {"connected": False, "qr": None,
+                    "message": "Nenhuma biblioteca HTTP disponivel no servidor."}
+
         if r.status_code >= 500:
             return {"connected": False, "qr": None,
                     "message": f"ServiÃ§o Baileys respondeu erro {r.status_code}. Reinicie o serviÃ§o no servidor."}
@@ -6108,15 +6116,13 @@ def wa_baileys_connection(action: str, x_token: str = Header(...)):
     api_url=(cfg.get("api_url") or "http://127.0.0.1:3001").strip().rstrip("/")
     token=cfg.get("api_token","")
     try:
-        import httpx as _hx
-        response=_hx.post(f"{api_url}/{action}",headers={"x-api-key":token},timeout=12)
-        payload=response.json() if response.text else {}
-    except ImportError:
-        try:
-            import requests as _rq
-            response=_rq.post(f"{api_url}/{action}",headers={"x-api-key":token},timeout=12)
+        if _global_hx:
+            response=_global_hx.post(f"{api_url}/{action}",headers={"x-api-key":token},timeout=12)
             payload=response.json() if response.text else {}
-        except ImportError:
+        elif _global_rq:
+            response=_global_rq.post(f"{api_url}/{action}",headers={"x-api-key":token},timeout=12)
+            payload=response.json() if response.text else {}
+        else:
             raise HTTPException(503,"Nenhuma biblioteca HTTP disponivel no servidor.")
     except Exception as e:
         raise HTTPException(503,f"Servico Baileys offline ou inacessivel: {e}")
