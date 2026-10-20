@@ -16885,6 +16885,9 @@ function debounceAppNotes(){ clearTimeout(_appNotesTimer); _appNotesTimer=setTim
 function appNoteMoney(v){ return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
 function appNoteQty(v){ return Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:3}); }
 function appNoteMeasureLabel(unit){return ({KG:'Peso',UN:'Unidade',CX:'Caixa',MC:'Maço',SC:'Saco'})[String(unit||'').toUpperCase()]||'Medida';}
+function appNoteIsCountUnit(unit){return ['UN','CX','MC','SC'].includes(String(unit||'').toUpperCase());}
+function appNoteEffectiveQuantity(i){if(Number(i&&i.quantity_provided)===1)return i.quantity;if(appNoteIsCountUnit(i&&i.unit))return i.weight==null?i.quantity:i.weight;return null;}
+function appNoteMeasure(i){if(appNoteIsCountUnit(i&&i.unit))return '—';return appNoteQty(i&&i.weight==null?i&&i.quantity:i&&i.weight)+' '+admEsc(i&&i.unit||'');}
 function appNoteHasPrice(i){return i&&i.effective_price_provided!==undefined?!!i.effective_price_provided:Number(i&&i.price_provided)!==0;}
 function appNoteUnitPrice(i){return i&&i.effective_unit_price!==undefined?Number(i.effective_unit_price||0):Number(i&&i.unit_price||0);}
 function appNoteAttr(v){return admEsc(String(v==null?'':v));}
@@ -16951,8 +16954,9 @@ function renderAppNotes(data){
   var canEdit=!!(session&&['admin','editor'].includes(session.role));
   var cards=_appNotes.map(function(n){
     var itemRows=(n.items||[]).map(function(i,index){
-      var qty=Number(i.quantity_provided)!==0?appNoteQty(i.quantity):'<span style="color:var(--muted)">Não informado</span>';
-      var measure=appNoteQty(i.weight==null?i.quantity:i.weight)+' '+admEsc(i.unit||'');
+      var effectiveQty=appNoteEffectiveQuantity(i);
+      var qty=effectiveQty!==null?appNoteQty(effectiveQty):'<span style="color:var(--muted)">Não informado</span>';
+      var measure=appNoteMeasure(i);
       var price=appNoteHasPrice(i)?appNoteMoney(appNoteUnitPrice(i))+(i.price_from_catalog?'<div style="font-size:8px;color:#166534">Preço atual de Produtos</div>':''):'<span style="color:var(--muted)">Não informado</span>';
       var subtotal=appNoteHasPrice(i)?appNoteMoney(Number(i.weight||0)*appNoteUnitPrice(i)):'—';
       return '<tr style="border-top:1px solid var(--border);background:'+(index%2?'var(--card2)':'var(--card)')+'">'
@@ -16990,7 +16994,8 @@ function openAppNoteDetail(id){
   document.getElementById('app-note-detail-client').textContent=n.client||'Sem cliente';
   document.getElementById('app-note-detail-meta').textContent=(n.note_date||'—')+' · '+(n.items||[]).length+' produto(s) · Total '+appNoteMoney(n.total);
   var products=(n.items||[]).map(function(i){
-    var qty=Number(i.quantity_provided)!==0?appNoteQty(i.quantity):'Não informado';
+    var effectiveQty=appNoteEffectiveQuantity(i);
+    var qty=effectiveQty!==null?appNoteQty(effectiveQty):'Não informado';
     var price=appNoteHasPrice(i)?appNoteMoney(appNoteUnitPrice(i))+(i.price_from_catalog?' · Produtos':''):'Não informado';
     var subtotal=appNoteHasPrice(i)?appNoteMoney(Number(i.weight||0)*appNoteUnitPrice(i)):'—';
     return '<article style="border:1px solid var(--border);border-radius:10px;padding:13px;background:var(--card)">'
@@ -16998,7 +17003,7 @@ function openAppNoteDetail(id){
       +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:9px">'
       +'<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase">Quantidade</div><div style="font-weight:800;margin-top:2px">'+qty+'</div></div>'
       +'<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase">Tipo</div><div style="font-weight:800;margin-top:2px">'+appNoteMeasureLabel(i.unit)+'</div></div>'
-      +'<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase">Medida</div><div style="font-weight:800;margin-top:2px">'+appNoteQty(i.weight==null?i.quantity:i.weight)+' '+admEsc(i.unit||'')+'</div></div>'
+      +'<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase">Medida</div><div style="font-weight:800;margin-top:2px">'+appNoteMeasure(i)+'</div></div>'
       +'<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase">Valor unitário</div><div style="font-weight:800;margin-top:2px">'+price+'</div></div>'
       +'<div><div style="font-size:9px;color:var(--muted);text-transform:uppercase">Subtotal</div><div style="font-weight:900;color:#4F46E5;margin-top:2px">'+subtotal+'</div></div>'
       +'</div></article>';
@@ -17048,7 +17053,7 @@ function openAppNoteModal(id){
   document.getElementById('app-note-id').value=n.id;
   document.getElementById('app-note-edit-client').value=n.client||'';
   document.getElementById('app-note-edit-date').value=n.note_date||'';
-  document.getElementById('app-note-edit-items').value=(n.items||[]).map(function(i){var q=Number(i.quantity_provided)!==0?appNoteQty(i.quantity):'';var p=appNoteHasPrice(i)?appNoteUnitPrice(i).toFixed(2).replace('.',','):'';return [i.product||'',q,appNoteQty(i.weight==null?i.quantity:i.weight),i.unit||'',p].join(' | ');}).join('\n');
+  document.getElementById('app-note-edit-items').value=(n.items||[]).map(function(i){var effectiveQty=appNoteEffectiveQuantity(i);var q=effectiveQty!==null?appNoteQty(effectiveQty):'';var measure=appNoteQty(i.weight==null?i.quantity:i.weight);var p=appNoteHasPrice(i)?appNoteUnitPrice(i).toFixed(2).replace('.',','):'';return [i.product||'',q,measure,i.unit||'',p].join(' | ');}).join('\n');
   renderAppNotePriceInputs();
   document.getElementById('app-note-modal').style.display='flex';
 }
