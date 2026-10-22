@@ -483,6 +483,40 @@ def test_boletos_period_year_month_and_clients_config(isolated_app):
     assert [row["client"] for row in filtered] == ["Cliente Boleto Setembro"]
 
 
+def test_mobile_boleto_config_shares_client_selection_and_filters_overdue(isolated_app):
+    token = _login(isolated_app.client)
+    for client, nf in (("Cliente Alerta A", "ALERTA-1"), ("Cliente Alerta B", "ALERTA-2")):
+        _create_sale(isolated_app.client, token, client=client, nf_number=nf, total=125)
+    _list_boletos(isolated_app.client, token)
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    conn.execute("UPDATE boletos SET due_date=?", ((datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d"),))
+    conn.commit()
+    conn.close()
+
+    config = isolated_app.client.get("/api/mobile/boletos/config", headers=_headers(token))
+    assert config.status_code == 200
+    assert config.json()["alert_enabled"] is True
+    assert {item["name"] for item in config.json()["clients"]} >= {"Cliente Alerta A", "Cliente Alerta B"}
+
+    saved = isolated_app.client.put(
+        "/api/mobile/boletos/config",
+        headers=_headers(token),
+        json={"enabled": ["Cliente Alerta B"], "alert_enabled": True},
+    )
+    assert saved.status_code == 200
+    assert saved.json()["selected_clients"] == 1
+
+    overdue = isolated_app.client.get("/api/mobile/boletos/overdue", headers=_headers(token))
+    assert overdue.status_code == 200
+    assert overdue.json()["count"] == 1
+    assert overdue.json()["boletos"][0]["client"] == "Cliente Alerta B"
+    assert overdue.json()["total_value"] == 125
+
+    erp_config = isolated_app.client.get("/api/boletos/clients-config", headers=_headers(token))
+    assert erp_config.status_code == 200
+    assert {item["name"] for item in erp_config.json()["clients"] if item["enabled"]} == {"Cliente Alerta B"}
+
+
 def test_boletos_authentication_and_role_permissions(isolated_app):
     token = _login(isolated_app.client)
     boleto = _seed_boleto_sales(isolated_app.client, token)["Cliente Boleto Pendente"]
@@ -528,6 +562,9 @@ def test_boletos_authentication_and_role_permissions(isolated_app):
 
     viewer_token = _login(isolated_app.client, "viewer_boletos", "viewer123")
     editor_token = _login(isolated_app.client, "editor_boletos", "editor123")
+
+    assert isolated_app.client.get("/api/mobile/boletos/config", headers=_headers(viewer_token)).status_code == 403
+    assert isolated_app.client.get("/api/mobile/boletos/overdue", headers=_headers(editor_token)).status_code == 403
 
     viewer_read = isolated_app.client.get(
         "/api/boletos?year=2026&month=8",

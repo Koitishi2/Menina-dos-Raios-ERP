@@ -4010,6 +4010,78 @@ def get_boleto_clients(x_token:str=Header("")):
         return {"configured": True, "clients":[{"name":c,"enabled":c in enabled} for c in all_clients]}
     return {"configured": False, "clients":[{"name":c,"enabled":True} for c in all_clients]}
 
+@app.get("/api/mobile/boletos/config")
+def get_mobile_boleto_config(x_token:str=Header("")):
+    require_admin(x_token)
+    conn=get_db()
+    try:
+        clients_row=conn.execute("SELECT value FROM settings WHERE key='boleto_clients'").fetchone()
+        alert_row=conn.execute("SELECT value FROM settings WHERE key='boleto_mobile_alerts_enabled'").fetchone()
+        raw_clients=[r["client"] for r in conn.execute(
+            "SELECT DISTINCT TRIM(client) AS client FROM sales WHERE client IS NOT NULL AND TRIM(client)!='' AND sale_type!='AVARIA' ORDER BY client COLLATE NOCASE"
+        ).fetchall()]
+        import json as _j
+        enabled=set(_j.loads(clients_row["value"])) if clients_row else None
+        enabled_norm={_normalize_name(name) for name in enabled} if enabled is not None else None
+        import unicodedata
+        clients=[]
+        seen=set()
+        for name in raw_clients:
+            normalized=unicodedata.normalize("NFD",name.upper()).encode("ascii","ignore").decode()
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+            clients.append({"name":name,"enabled":enabled_norm is None or _normalize_name(name) in enabled_norm})
+        return {
+            "configured": clients_row is not None,
+            "alert_enabled": alert_row is None or alert_row["value"] != "0",
+            "clients": clients,
+        }
+    finally:
+        conn.close()
+
+@app.put("/api/mobile/boletos/config")
+def set_mobile_boleto_config(body:dict,x_token:str=Header("")):
+    require_admin(x_token)
+    enabled=body.get("enabled",[])
+    if not isinstance(enabled,list) or any(not isinstance(name,str) for name in enabled):
+        raise HTTPException(400,"A lista de clientes selecionados é inválida.")
+    enabled=list(dict.fromkeys(name.strip() for name in enabled if name.strip()))
+    alert_enabled=body.get("alert_enabled",True)
+    if not isinstance(alert_enabled,bool):
+        raise HTTPException(400,"A opção de alertas é inválida.")
+    import json as _j
+    conn=get_db()
+    try:
+        conn.execute("INSERT OR REPLACE INTO settings(key,value) VALUES('boleto_clients',?)",(_j.dumps(enabled,ensure_ascii=False),))
+        conn.execute("INSERT OR REPLACE INTO settings(key,value) VALUES('boleto_mobile_alerts_enabled',?)",("1" if alert_enabled else "0",))
+        conn.commit()
+        return {"ok":True,"selected_clients":len(enabled),"alert_enabled":alert_enabled}
+    finally:
+        conn.close()
+
+@app.get("/api/mobile/boletos/overdue")
+def get_mobile_overdue_boletos(x_token:str=Header("")):
+    require_admin(x_token)
+    # Garante que vendas com boleto sejam materializadas antes de consultar atrasos.
+    list_boletos(x_token=x_token)
+    conn=get_db()
+    try:
+        cfg=conn.execute("SELECT value FROM settings WHERE key='boleto_clients'").fetchone()
+        import json as _j
+        enabled_norm={_normalize_name(name) for name in _j.loads(cfg["value"])} if cfg else None
+        rows=conn.execute(
+            """SELECT id,client,sale_date,nf_number,total_val,due_date,status
+               FROM boletos
+               WHERE status='pendente' AND due_date IS NOT NULL AND due_date < date('now')
+               ORDER BY due_date ASC, CAST(COALESCE(NULLIF(nf_number,''),'0') AS INTEGER) ASC"""
+        ).fetchall()
+        overdue=[dict(row) for row in rows if enabled_norm is None or _normalize_name(row["client"]) in enabled_norm]
+        alert_row=conn.execute("SELECT value FROM settings WHERE key='boleto_mobile_alerts_enabled'").fetchone()
+        return {"alert_enabled":alert_row is None or alert_row["value"]!="0","count":len(overdue),"total_value":round(sum(float(row["total_val"] or 0) for row in overdue),2),"boletos":overdue}
+    finally:
+        conn.close()
+
 @app.put("/api/boletos/clients-config")
 def set_boleto_clients(body:dict,x_token:str=Header("")):
     require_auth(x_token)
@@ -6673,9 +6745,12 @@ def check_wa_triggers(body: dict, x_token: str = Header(...)):
         results = {}
         messages = []
 
-        if cfg.get("notify_boleto", "1") == "1":
-            # Os gatilhos devem incluir todo boleto pendente vencido, mesmo antigo.
-            overdue = conn.execute(
+        mobile_boleto_alerts = conn.execute(
+            "SELECT value FROM settings WHERE key='boleto_mobile_alerts_enabled'"
+        ).fetchone()
+        if cfg.get("notify_boleto", "1") == "1" and (mobile_boleto_alerts is None or mobile_boleto_alerts["value"] != "0"):
+            # Os alertas incluem boletos vencidos, mas respeitam os clientes selecionados no ERP/APK.
+            overdue_rows = conn.execute(
                 """SELECT client, COALESCE(total_val,0) AS total_val, due_date, nf_number
                    FROM boletos
                    WHERE status='pendente'
@@ -6683,6 +6758,13 @@ def check_wa_triggers(body: dict, x_token: str = Header(...)):
                      AND due_date < date('now')
                    ORDER BY due_date""",
             ).fetchall()
+            boleto_clients_config = conn.execute("SELECT value FROM settings WHERE key='boleto_clients'").fetchone()
+            if boleto_clients_config:
+                import json as _json_boleto
+                selected_clients = {_normalize_name(name) for name in _json_boleto.loads(boleto_clients_config["value"])}
+                overdue = [row for row in overdue_rows if _normalize_name(row["client"] or "") in selected_clients]
+            else:
+                overdue = overdue_rows
             if overdue:
                 lines = [f"\u2022 {(b['client'] or '?')}: R$ {(b['total_val'] or 0):.2f} (venc {b['due_date']})" for b in overdue]
                 total = sum((b['total_val'] or 0) for b in overdue)

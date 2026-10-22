@@ -1290,6 +1290,38 @@ def test_whatsapp_boleto_trigger_includes_overdue_beyond_configured_period(isola
     assert "Cliente Boleto Antigo" in payload["messages"][0]["preview"]
 
 
+def test_whatsapp_boleto_trigger_respects_selected_boleto_clients(isolated_app):
+    token = _login(isolated_app.client)
+    db_path = isolated_app.db_paths["raios"]
+    _add_overdue_boleto(db_path, client="Cliente Alerta Incluido", total=90)
+    _add_overdue_boleto(db_path, client="Cliente Alerta Excluido", total=60)
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "INSERT OR REPLACE INTO settings(key,value) VALUES('boleto_clients',?)",
+        (json.dumps(["Cliente Alerta Incluido"]),),
+    )
+    conn.execute(
+        "INSERT OR REPLACE INTO settings(key,value) VALUES('boleto_mobile_alerts_enabled','1')"
+    )
+    conn.commit()
+    conn.close()
+    _set_config(db_path, "notify_avaria", "0")
+    _set_config(db_path, "notify_inativo", "0")
+
+    response = isolated_app.client.post(
+        "/api/whatsapp/check-triggers",
+        headers=_headers(token),
+        json={"send": False},
+    )
+
+    assert response.status_code == 200
+    boleto = response.json()["details"]["boleto"]
+    assert boleto["found"] == 1
+    preview = response.json()["messages"][0]["preview"]
+    assert "Cliente Alerta Incluido" in preview
+    assert "Cliente Alerta Excluido" not in preview
+
+
 def test_whatsapp_triggers_send_true_sends_without_open_sqlite_and_persists_logs(isolated_app, monkeypatch):
     token = _login(isolated_app.client)
     db_path = isolated_app.db_paths["raios"]
