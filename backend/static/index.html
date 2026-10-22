@@ -3494,6 +3494,7 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
       <button id="stock-tab-products" role="tab" aria-selected="false" aria-controls="stock-products-pane" class="btn btn-secondary" onclick="switchStockTab('products')">Produtos</button>
     </div>
     <div id="stock-summary-pane" role="tabpanel">
+      <div id="stock-alerts" role="status" aria-live="polite" hidden style="margin:0 0 14px;padding:12px 14px;border:1px solid #f1b5ae;border-left:4px solid #c2413b;border-radius:8px;background:#fff5f3;color:#8f241c"></div>
       <div id="stock-products" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px;margin-bottom:18px"></div>
       <div style="background:var(--card,#fff);border:1px solid var(--border);border-radius:8px;padding:16px;min-width:0">
         <h3 style="margin:0 0 12px;color:var(--g800)">Histórico e origem das baixas</h3>
@@ -6039,7 +6040,15 @@ async function loadStock(){
 }
 function renderStock(){
   if(!stockSnapshot)return;
-  const products=(stockSnapshot.products||[]).filter(product=>Number(product.active)!==0&&Number(product.balance)!==0);
+  const allProducts=stockSnapshot.products||[];
+  const activeProducts=allProducts.filter(product=>Number(product.active)!==0);
+  const alerts=activeProducts.filter(product=>Number(product.balance)<=0);
+  const alertsEl=document.getElementById('stock-alerts');
+  if(alertsEl){
+    alertsEl.hidden=alerts.length===0;
+    alertsEl.innerHTML=alerts.length?'<strong>'+alerts.length+' produto(s) sem saldo disponível</strong><div style="font-size:12px;margin-top:4px">'+alerts.map(function(product){return stockEscape(product.name)+' ('+stockFormatQty(product.balance)+' '+stockEscape(product.unit)+')';}).join(' · ')+'</div>':'';
+  }
+  const products=activeProducts.filter(product=>Number(product.balance)!==0);
   const productsEl=document.getElementById('stock-products');
   if(productsEl)productsEl.innerHTML=products.length?products.map(function(product){
     const negative=Number(product.balance)<0;

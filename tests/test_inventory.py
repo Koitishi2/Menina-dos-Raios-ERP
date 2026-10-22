@@ -2,9 +2,19 @@ import sqlite3
 import uuid
 from datetime import datetime, timedelta
 import json
+from pathlib import Path
 
 from backend.inventory import init_inventory_schema
 from test_orcamentos import _headers, _login
+
+
+def test_stock_summary_surfaces_zero_and_negative_balances():
+    html = (Path(__file__).resolve().parents[1] / "backend" / "static" / "index.html").read_text(encoding="utf-8")
+    render_stock = html[html.index("function renderStock(){"):html.index("function renderStockCatalog(){")]
+
+    assert 'id="stock-alerts"' in html
+    assert "const alerts=activeProducts.filter(product=>Number(product.balance)<=0);" in render_stock
+    assert "sem saldo disponível" in render_stock.lower()
 
 
 def test_stock_seeds_note_quantities_once_and_tracks_manual_entry_and_sale(isolated_app):
