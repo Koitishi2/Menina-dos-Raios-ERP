@@ -8,6 +8,8 @@ const html = fs.readFileSync("backend/static/index.html", "utf8");
 assert(html.includes('id="panel-hoje"'));
 assert(html.includes('days_inactive=20'));
 assert(html.includes('onclick="switchTab(this,\'hoje\')"'));
+assert(html.includes('href="/app-updates/Menina-dos-Raios-Vendas-OFICIAL.apk" download="Menina-dos-Raios-Vendas-OFICIAL.apk"'));
+assert(html.includes('class="today-actions"><button type="button" class="today-refresh" onclick="refreshToday(true)">Atualizar</button><a class="today-refresh today-download"'));
 
 const groupStart = html.indexOf("function groupNotasRows(list){");
 const groupEnd = html.indexOf("function getPendingCount(){", groupStart);
