@@ -132,18 +132,28 @@ validate_baileys_code() {
 }
 
 validate_baileys_health() {
-  python3 - <<'PY'
+  local attempt
+  for attempt in $(seq 1 30); do
+    if python3 - <<'PY'
 import json
 import urllib.request
 
-with urllib.request.urlopen("http://127.0.0.1:3001/status", timeout=10) as response:
-    payload = json.load(response)
-if payload.get("connected") is not True:
-    raise SystemExit("BAILEYS_NOT_CONNECTED")
-if (payload.get("inbound") or {}).get("listenerInstalled") is not True:
-    raise SystemExit("BAILEYS_LISTENER_NOT_INSTALLED")
+try:
+    with urllib.request.urlopen("http://127.0.0.1:3001/status", timeout=3) as response:
+        payload = json.load(response)
+except Exception:
+    raise SystemExit(1)
+if payload.get("connected") is not True or (payload.get("inbound") or {}).get("listenerInstalled") is not True:
+    raise SystemExit(1)
 print("BAILEYS_HEALTH_OK=connected_listener_installed")
 PY
+    then
+      return 0
+    fi
+    sleep 2
+  done
+  echo "BAILEYS_HEALTH_TIMEOUT" >&2
+  return 1
 }
 
 # Copia somente arquivos e diretorios explicitamente classificados como codigo.
@@ -454,8 +464,6 @@ PREFLIGHT_DIR="$(mktemp -d /tmp/menina_updater_preflight.XXXXXX)"
 chmod 0755 "$PREFLIGHT_DIR"
 mkdir -p "$PREFLIGHT_DIR/backend"
 copy_code_tree "$STAGED_BACKEND" "$PREFLIGHT_DIR/backend" "$STAGED_BACKEND"
-test -f "$APP_DIR/inventory.py"
-cp -p "$APP_DIR/inventory.py" "$PREFLIGHT_DIR/backend/inventory.py"
 chown menina:menina "$PREFLIGHT_DIR" "$PREFLIGHT_DIR/backend"
 chown_code_tree "$PREFLIGHT_DIR/backend" "$STAGED_BACKEND"
 if ! validate_python_as_service_user "$PREFLIGHT_DIR/backend" 1; then
