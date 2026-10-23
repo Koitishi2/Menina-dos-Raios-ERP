@@ -11559,6 +11559,11 @@ let _boletos = [];
 // Bulk selection (Set de IDs de boletos selecionados pra marcar como pagos em massa)
 const _bolBulkSelection = new Set();
 
+function bolTodayIso(){
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
 // Inicializa o picker do Boletos no mês corrente (uma vez por sessão)
 function _bolEnsureDefaultMonth(){
   const m = document.getElementById('bol-month');
@@ -11612,7 +11617,7 @@ async function loadBoletos(){
     const pendentesOnly = filteredBols.filter(function(b){ return b.status!=='pago'; });
     // Filtro adicional do dropdown: vencidos / vence hoje
     const statusFilter = status;
-    const todayStr = new Date().toISOString().slice(0,10);
+    const todayStr = bolTodayIso();
     let viewBols = pendentesOnly;
     if(statusFilter==='vencidos'){
       viewBols = pendentesOnly.filter(function(b){ return b.due_date && b.due_date < todayStr; });
@@ -11810,7 +11815,7 @@ function openBulkPayModal(){
   const countEl = document.getElementById('bulk-pay-count');
   const totalEl = document.getElementById('bulk-pay-total');
   if(!modal || !input) return;
-  input.value = new Date().toISOString().slice(0,10);
+  input.value = bolTodayIso();
   const selected = _boletos.filter(b => _bolBulkSelection.has(b.id));
   const total = selected.reduce((acc,b) => acc + Number(b.total_val||0), 0);
   if(countEl) countEl.textContent = selected.length;
@@ -11900,7 +11905,7 @@ async function toggleBoletoItems(bid){
 async function updateBoleto(bid, fields, srcEl){
   // Se mudou para pago e ainda sem data, usa hoje
   if(fields.status==='pago' && !fields.paid_date){
-    fields.paid_date = new Date().toISOString().slice(0,10);
+    fields.paid_date = bolTodayIso();
   }
   // Captura valor anterior para rollback em caso de erro
   const prevValue = srcEl ? srcEl.value : null;
