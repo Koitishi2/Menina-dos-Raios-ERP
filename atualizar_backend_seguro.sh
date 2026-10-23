@@ -447,6 +447,8 @@ PREFLIGHT_DIR="$(mktemp -d /tmp/menina_updater_preflight.XXXXXX)"
 chmod 0755 "$PREFLIGHT_DIR"
 mkdir -p "$PREFLIGHT_DIR/backend"
 copy_code_tree "$STAGED_BACKEND" "$PREFLIGHT_DIR/backend" "$STAGED_BACKEND"
+test -f "$APP_DIR/inventory.py"
+cp -p "$APP_DIR/inventory.py" "$PREFLIGHT_DIR/backend/inventory.py"
 chown menina:menina "$PREFLIGHT_DIR" "$PREFLIGHT_DIR/backend"
 chown_code_tree "$PREFLIGHT_DIR/backend" "$STAGED_BACKEND"
 if ! validate_python_as_service_user "$PREFLIGHT_DIR/backend" 1; then
