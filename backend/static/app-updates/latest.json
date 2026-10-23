@@ -1,12 +1,12 @@
-﻿{
-    "versionName":  "2.0.17",
-    "versionCode":  45,
-    "packageName":  "br.com.meninadosraios.vendas",
-    "sha256":  "fcf4a953d241b8646947264de9f96445ac45424a65c80aebbcc5208e19b9f801",
-    "releaseNotes":  "Corrige sincronizacao do Vale com client_id, backend passa a aceitar POST /api/mobile/vales e site ganha Monteiro \u003e Dados para vales.",
-    "notes":  "Corrige sincronizacao do Vale com client_id, backend passa a aceitar POST /api/mobile/vales e site ganha Monteiro \u003e Dados para vales.",
-    "apkFile":  "Menina-dos-Raios-Vendas-OFICIAL.apk",
-    "apkUrl":  "https://sistema.meninadosraios.com.br/app-updates/Menina-dos-Raios-Vendas-OFICIAL.apk",
-    "sizeBytes":  2707259,
-    "publishedAt":  "2026-08-14T22:21:43-04:00"
+{
+  "versionName": "2.0.33",
+  "versionCode": 61,
+  "packageName": "br.com.meninadosraios.vendas",
+  "sha256": "8adde04dbd32c5bc4a1a688cb4f1c101ba342da9368f73856976ed38cc7dbf13",
+  "releaseNotes": "No cliente ESTOQUE, macaxeira a vácuo e alho são normalizados como itens por unidade; alho é vinculado a Alho 250g.",
+  "notes": "No cliente ESTOQUE, macaxeira a vácuo e alho são normalizados como itens por unidade; alho é vinculado a Alho 250g.",
+  "apkFile": "Menina-dos-Raios-Vendas-OFICIAL.apk",
+  "apkUrl": "https://sistema.meninadosraios.com.br/app-updates/Menina-dos-Raios-Vendas-OFICIAL.apk",
+  "sizeBytes": 2734411,
+  "publishedAt": "2026-10-20T19:03:00-03:00"
 }

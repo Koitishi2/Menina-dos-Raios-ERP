@@ -333,3 +333,36 @@ def test_expired_session_is_rejected(isolated_app):
 
     me = isolated_app.client.get("/api/auth/me", headers={"x-token": token})
     assert me.status_code == 401
+
+
+def test_android_session_uses_mobile_idle_policy_without_changing_web(isolated_app):
+    android = isolated_app.client.post(
+        "/api/auth/login",
+        headers={"x-company": "raios", "x-client-type": "android"},
+        json={"username": "admin", "password": "admin123"},
+    )
+    web = _login(isolated_app.client)
+    assert android.status_code == web.status_code == 200
+
+    conn = sqlite3.connect(isolated_app.db_paths["raios"])
+    conn.row_factory = sqlite3.Row
+    for response, client_type in ((android, "android"), (web, "web")):
+        token = response.json()["token"]
+        session = conn.execute(
+            "SELECT client_type, expires_at FROM sessions WHERE token=?", (token,)
+        ).fetchone()
+        assert session["client_type"] == client_type
+        if client_type == "android":
+            conn.execute(
+                "UPDATE sessions SET last_seen=? WHERE token=?",
+                ((datetime.now() - timedelta(minutes=21)).strftime("%Y-%m-%d %H:%M:%S"), token),
+            )
+    conn.commit()
+    conn.close()
+
+    assert isolated_app.client.get(
+        "/api/auth/me", headers={"x-token": android.json()["token"]}
+    ).status_code == 200
+    assert isolated_app.client.get(
+        "/api/auth/me", headers={"x-token": web.json()["token"]}
+    ).status_code == 401

@@ -1,5 +1,8 @@
 # Atualizacao da Versao Estavel
 
+Procedimento legado de uma versao anterior. Para novas releases, use
+`ATUALIZAR.bat` e consulte `GUIA_ATUALIZACOES.md`.
+
 Pacote esperado: `bm_app_refatorado_88fef18.zip`
 Checkpoint de codigo: `88fef18`
 Branch publica: `main`

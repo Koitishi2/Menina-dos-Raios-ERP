@@ -1,0 +1,204 @@
+#!/usr/bin/env python3
+import json
+import os
+import re
+import shutil
+import stat
+import subprocess
+import sys
+import time
+import uuid
+from datetime import datetime
+from pathlib import Path
+from urllib.error import URLError
+from urllib.request import urlopen
+
+ENV_FILE = Path(os.environ.get("WHATSAPP_INBOUND_ENV_FILE", "/etc/menina-whatsapp-sandbox.env"))
+SERVICE = "menina-baileys.service"
+STATUS_URL = "http://127.0.0.1:3001/status"
+ALLOWED_MODES = {"sandbox", "production"}
+BACKUP_ROOT = Path(os.environ.get("MENINA_REFATORACAO_BACKUPS", "/root/menina_refatoracao_backups"))
+
+
+def fail(message, code=1):
+    print(message, file=sys.stderr)
+    raise SystemExit(code)
+
+
+def parse_env_text(text):
+    env = {}
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+            value = value[1:-1]
+        env[key] = value
+    return env
+
+
+def load_env():
+    if not ENV_FILE.exists():
+        fail("env_file_missing")
+    text = ENV_FILE.read_text(encoding="utf-8")
+    env = parse_env_text(text)
+    mode = (env.get("WHATSAPP_INBOUND_MODE") or "").strip().lower()
+    if mode not in ALLOWED_MODES:
+        fail("inbound_mode_missing_or_invalid")
+    return text, env, mode
+
+
+def status_payload():
+    try:
+        with urlopen(STATUS_URL, timeout=5) as response:
+            body = response.read().decode("utf-8", errors="replace")
+            return response.status, json.loads(body or "{}")
+    except Exception:
+        return 0, {}
+
+
+def restart_service():
+    result = subprocess.run(["systemctl", "restart", SERVICE], capture_output=True, text=True, timeout=45)
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "systemctl_restart_failed").strip().splitlines()
+        fail(detail[-1][:180] if detail else "systemctl_restart_failed")
+
+
+def wait_mode(expected_mode, attempts=30, delay=2.0):
+    last = {"http_status": 0, "mode": "unknown", "connected": False, "listenerInstalled": False}
+    for attempt in range(1, attempts + 1):
+        http_status, payload = status_payload()
+        inbound = payload.get("inbound") if isinstance(payload, dict) else {}
+        last = {
+            "attempt": attempt,
+            "http_status": http_status,
+            "mode": ((inbound or {}).get("mode") or "unknown"),
+            "connected": bool(payload.get("connected")) if isinstance(payload, dict) else False,
+            "listenerInstalled": bool((inbound or {}).get("listenerInstalled")),
+        }
+        if http_status == 200 and last["mode"] == expected_mode and last["connected"] and last["listenerInstalled"]:
+            return last
+        time.sleep(delay)
+    fail(f"mode_not_confirmed:{last.get('mode')}:{last.get('http_status')}")
+
+
+def write_mode(text, mode):
+    stat_info = ENV_FILE.stat()
+    matches = 0
+    new_lines = []
+    for line in text.splitlines():
+        stripped = line.lstrip()
+        if not stripped.startswith("#") and re.match(r"^WHATSAPP_INBOUND_MODE\s*=", stripped):
+            matches += 1
+            new_lines.append(f"WHATSAPP_INBOUND_MODE={mode}")
+        else:
+            new_lines.append(line)
+    if matches != 1:
+        fail("inbound_mode_line_not_unique")
+    new_text = "\n".join(new_lines) + ("\n" if text.endswith("\n") else "")
+    tmp_path = ENV_FILE.with_name(f".{ENV_FILE.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        tmp_path.write_text(new_text, encoding="utf-8")
+        os.chown(str(tmp_path), stat_info.st_uid, stat_info.st_gid)
+        os.chmod(str(tmp_path), stat.S_IMODE(stat_info.st_mode))
+        os.replace(str(tmp_path), str(ENV_FILE))
+    finally:
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except Exception:
+            pass
+
+
+def backup_env():
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_dir = BACKUP_ROOT / f"inbound_mode_{stamp}"
+    backup_dir.mkdir(parents=True, exist_ok=False)
+    backup_path = backup_dir / ENV_FILE.name
+    shutil.copy2(str(ENV_FILE), str(backup_path))
+    return backup_path
+
+
+def restore_env(backup_path):
+    source = Path(backup_path)
+    if not source.exists() or source.is_symlink():
+        fail("backup_invalid")
+    stat_info = ENV_FILE.stat() if ENV_FILE.exists() else source.stat()
+    tmp_path = ENV_FILE.with_name(f".{ENV_FILE.name}.{uuid.uuid4().hex}.rollback")
+    try:
+        shutil.copy2(str(source), str(tmp_path))
+        os.chown(str(tmp_path), stat_info.st_uid, stat_info.st_gid)
+        os.chmod(str(tmp_path), stat.S_IMODE(stat_info.st_mode))
+        os.replace(str(tmp_path), str(ENV_FILE))
+    finally:
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except Exception:
+            pass
+
+
+def command_read():
+    _, env, mode = load_env()
+    print(json.dumps({
+        "ok": True,
+        "mode": mode,
+        "env": {
+            "WHATSAPP_INBOUND_MODE": mode,
+            "WHATSAPP_INBOUND_SANDBOX_NUMBERS": env.get("WHATSAPP_INBOUND_SANDBOX_NUMBERS", ""),
+            "WHATSAPP_OUTBOUND_MODE": env.get("WHATSAPP_OUTBOUND_MODE", ""),
+            "WHATSAPP_OUTBOUND_SANDBOX_NUMBERS": env.get("WHATSAPP_OUTBOUND_SANDBOX_NUMBERS", ""),
+        },
+    }, sort_keys=True))
+
+
+def command_set(mode):
+    if mode not in ALLOWED_MODES:
+        fail("mode_invalid", 2)
+    text, _, old_mode = load_env()
+    if old_mode == mode:
+        confirmed = wait_mode(mode, attempts=5, delay=1.0)
+        print(json.dumps({"ok": True, "changed": False, "old_mode": old_mode, "mode": mode, "backup": "", "status": confirmed}, sort_keys=True))
+        return
+    backup_path = backup_env()
+    try:
+        write_mode(text, mode)
+        restart_service()
+        confirmed = wait_mode(mode)
+        print(json.dumps({"ok": True, "changed": True, "old_mode": old_mode, "mode": mode, "backup": str(backup_path), "status": confirmed}, sort_keys=True))
+    except Exception:
+        try:
+            restore_env(str(backup_path))
+            restart_service()
+            wait_mode(old_mode, attempts=20, delay=2.0)
+        except Exception as rollback_exc:
+            fail(f"set_failed_rollback_failed:{type(rollback_exc).__name__}")
+        raise
+
+
+def command_rollback(backup_path, mode=""):
+    restore_env(backup_path)
+    restart_service()
+    confirmed = wait_mode(mode, attempts=20, delay=2.0) if mode in ALLOWED_MODES else {}
+    print(json.dumps({"ok": True, "rollback": True, "mode": mode, "status": confirmed}, sort_keys=True))
+
+
+def main(argv):
+    if len(argv) < 2:
+        fail("missing_action", 2)
+    action = argv[1]
+    if action == "read":
+        command_read()
+    elif action == "set" and len(argv) == 3:
+        command_set(argv[2].strip().lower())
+    elif action == "rollback" and len(argv) in (3, 4):
+        command_rollback(argv[2], argv[3].strip().lower() if len(argv) == 4 else "")
+    else:
+        fail("invalid_action", 2)
+
+
+if __name__ == "__main__":
+    main(sys.argv)

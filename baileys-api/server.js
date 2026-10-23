@@ -12,6 +12,10 @@ const { default: makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLat
 const express = require("express");
 const pino    = require("pino");
 const fs      = require("fs");
+const crypto  = require("crypto");
+const { createInboundForwarder, installInboundListener } = require("./inbound");
+const { authorizeApiKey, authorizeLegacySend } = require("./security");
+const { fetchRegistryVersions, launchApprovedUpdate, readVersionState } = require("./maintenance");
 require("dotenv").config();
 
 const app     = express();
@@ -20,6 +24,18 @@ app.use(express.json());
 const PORT     = parseInt(process.env.PORT    || "3001");
 const API_KEY  = (process.env.API_KEY         || "").trim();
 const AUTH_DIR = process.env.AUTH_DIR         || "./auth_info_baileys";
+const OUTBOUND_ENABLED = process.env.WHATSAPP_OUTBOUND_ENABLED || "false";
+const inbound = createInboundForwarder({
+    enabled: process.env.WHATSAPP_INBOUND_ENABLED || "false",
+    mode: process.env.WHATSAPP_INBOUND_MODE || "disabled",
+    sandboxNumbers: process.env.WHATSAPP_INBOUND_SANDBOX_NUMBERS || "",
+    instance: process.env.WHATSAPP_INBOUND_INSTANCE || "",
+    token: process.env.WHATSAPP_INBOUND_TOKEN || "",
+    url: process.env.WHATSAPP_INBOUND_URL || "http://127.0.0.1:8765/internal/whatsapp/events",
+    timeoutMs: process.env.WHATSAPP_INBOUND_TIMEOUT_MS || "5000",
+    maxAttempts: process.env.WHATSAPP_INBOUND_MAX_ATTEMPTS || "3",
+    maxQueue: process.env.WHATSAPP_INBOUND_MAX_QUEUE || "100",
+});
 
 let sock      = null;
 let qrString  = null;   // string do QR (Baileys devolve a string raw)
@@ -28,12 +44,27 @@ let retries   = 0;
 let starting  = false;
 let manualDisconnect = false;
 let lastConnectionUpdate = null;
+let inboundListenerInstalled = false;
+
+function maskPhone(value) {
+    const phone = String(value || "").split("@")[0].replace(/\D/g, "");
+    return phone ? `****${phone.slice(-4)}` : "none";
+}
+
+function requestTag(phone) {
+    return crypto.createHash("sha256").update(`${Date.now()}:${phone || ""}:${Math.random()}`).digest("hex").slice(0, 12);
+}
 
 /* ── Auth middleware ─────────────────────────────────────── */
 function checkAuth(req, res, next) {
-    if (API_KEY && req.headers["x-api-key"] !== API_KEY) {
-        return res.status(401).json({ error: "Unauthorized" });
-    }
+    const auth = authorizeApiKey(API_KEY, req.headers["x-api-key"]);
+    if (!auth.ok) return res.status(auth.status).json({ error: auth.code });
+    next();
+}
+
+function checkLegacySend(req, res, next) {
+    const auth = authorizeLegacySend(API_KEY, req.headers["x-api-key"], OUTBOUND_ENABLED);
+    if (!auth.ok) return res.status(auth.status).json({ error: auth.code, sent: "false" });
     next();
 }
 
@@ -91,13 +122,56 @@ async function startBaileys() {
     });
 
     sock.ev.on("creds.update", saveCreds);
+    inboundListenerInstalled = installInboundListener(sock, inbound);
 }
 
 /* ── Endpoints ───────────────────────────────────────────── */
 
 // Status (sem auth — o Python usa para health-check)
 app.get("/status", (_req, res) => {
-    res.json({ connected, hasQR: !!qrString, starting, lastConnectionUpdate });
+    res.json({
+        connected, hasQR: !!qrString, starting, lastConnectionUpdate,
+        inbound: {
+            enabled: inbound.enabled,
+            mode: inbound.mode,
+            listenerInstalled: inboundListenerInstalled,
+            queued: inbound.queueLength(),
+            forwarded: inbound.stats.forwarded,
+            failed: inbound.stats.failed,
+            filtered: inbound.stats.filtered,
+            duplicate: inbound.stats.duplicate,
+        },
+    });
+});
+
+app.get("/maintenance/status", checkAuth, async (req, res) => {
+    const state = readVersionState(__dirname);
+    const refresh = String(req.query.refresh || "") === "1";
+    const registry = refresh ? await fetchRegistryVersions() : { latest: null, legacy: null };
+    res.json({
+        ...state,
+        latest_version: registry.latest,
+        legacy_version: registry.legacy,
+        connected,
+        inbound_enabled: inbound.enabled,
+        inbound_mode: inbound.mode,
+        listener_installed: inboundListenerInstalled,
+        node_version: process.version,
+    });
+});
+
+app.post("/maintenance/update", checkAuth, (_req, res) => {
+    const state = readVersionState(__dirname);
+    if (state.update_status === "running") return res.status(409).json({ ok: false, error: "atualizacao_em_andamento" });
+    if (!state.approved_version) return res.status(409).json({ ok: false, error: "versao_aprovada_ausente" });
+    if (!state.update_available) return res.status(409).json({ ok: false, error: "versao_aprovada_ja_instalada" });
+    try {
+        const launched = launchApprovedUpdate();
+        return res.status(202).json({ ok: true, message: "Atualizacao segura iniciada.", ...launched });
+    } catch (error) {
+        console.error("[Baileys] Falha ao iniciar atualizacao:", error.message);
+        return res.status(503).json({ ok: false, error: error.message });
+    }
 });
 
 // QR Code em texto (o frontend exibe com uma lib JS qrcode)
@@ -141,20 +215,26 @@ app.post("/disconnect", checkAuth, async (_req, res) => {
 });
 
 // Envio de mensagem — usado pelo Python
-app.post("/send", checkAuth, async (req, res) => {
+app.post("/send", checkLegacySend, async (req, res) => {
     const { phone, message } = req.body || {};
+    const tag = requestTag(phone);
+    console.log(`WA_AUTOREPLY_SEND_ATTEMPT messageIdHash=${tag} senderMasked=${maskPhone(phone)} hasText=${!!String(message || "").trim()} connected=${connected}`);
     if (!phone || !message) {
+        console.log(`WA_AUTOREPLY_SEND_RESULT messageIdHash=${tag} result=blocked reason=invalid_payload senderMasked=${maskPhone(phone)}`);
         return res.status(400).json({ error: "phone e message são obrigatórios", sent: "false" });
     }
     if (!connected || !sock) {
+        console.log(`WA_AUTOREPLY_SEND_RESULT messageIdHash=${tag} result=blocked reason=not_connected senderMasked=${maskPhone(phone)}`);
         return res.status(503).json({ error: "WhatsApp não conectado. Escaneie o QR Code.", sent: "false" });
     }
     try {
         // Aceita "5595999999999" ou "5595999999999@s.whatsapp.net"
         const jid = phone.includes("@") ? phone : `${phone}@s.whatsapp.net`;
         await sock.sendMessage(jid, { text: message });
+        console.log(`WA_AUTOREPLY_SEND_RESULT messageIdHash=${tag} result=sent reason=ok senderMasked=${maskPhone(phone)}`);
         return res.json({ sent: "true", ok: true });
     } catch (e) {
+        console.log(`WA_AUTOREPLY_SEND_RESULT messageIdHash=${tag} result=failed reason=send_error senderMasked=${maskPhone(phone)}`);
         console.error("[Baileys] Erro ao enviar:", e.message);
         return res.status(500).json({ error: e.message, sent: "false" });
     }
