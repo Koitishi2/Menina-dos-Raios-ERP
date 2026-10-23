@@ -367,6 +367,13 @@ rollback() {
   return "$original_status"
 }
 
+handle_error() {
+  local original_status="$?"
+  trap - ERR
+  rollback "$original_status" || true
+  exit "$original_status"
+}
+
 handle_signal() {
   local signal_status="$1"
   rollback "$signal_status" || true
@@ -467,7 +474,7 @@ if [[ "${DRY_RUN:-0}" = "1" ]]; then
   exit 0
 fi
 
-trap 'rollback $?' ERR
+trap handle_error ERR
 trap 'handle_signal 129' HUP
 trap 'handle_signal 130' INT
 trap 'handle_signal 143' TERM
@@ -517,9 +524,14 @@ validate_baileys_code "$BAILEYS_DIR"
 status_phase "SERVICE_RESTART"
 systemctl start "$SERVICE"
 systemctl start "$BAILEYS_SERVICE"
-sleep 5
-FINAL_SERVICE_STATUS="$(systemctl is-active "$SERVICE" 2>&1 || true)"
-BAILEYS_STATUS_FINAL="$(systemctl is-active "$BAILEYS_SERVICE" 2>&1 || true)"
+for attempt in $(seq 1 30); do
+  FINAL_SERVICE_STATUS="$(systemctl is-active "$SERVICE" 2>&1 || true)"
+  BAILEYS_STATUS_FINAL="$(systemctl is-active "$BAILEYS_SERVICE" 2>&1 || true)"
+  if [[ "$FINAL_SERVICE_STATUS" = "active" && "$BAILEYS_STATUS_FINAL" = "active" ]]; then
+    break
+  fi
+  sleep 2
+done
 echo "SERVICE_STATUS_FINAL=$FINAL_SERVICE_STATUS"
 echo "BAILEYS_STATUS_FINAL=$BAILEYS_STATUS_FINAL"
 test "$FINAL_SERVICE_STATUS" = "active"
@@ -528,15 +540,23 @@ validate_baileys_health
 
 # Confirma que o processo responde pela rota da aplicacao, nao apenas pelo systemd.
 status_phase "HEALTHCHECK"
-HEALTH_BODY="$(curl --fail --silent --show-error --max-time 20 "$HEALTHCHECK_URL")"
-if ! printf '%s' "$HEALTH_BODY" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get("ok") is True and d.get("service") == "menina" else 1)'; then
-  echo "HTTP_HEALTHCHECK_INVALID_RESPONSE" >&2
-  false
-fi
-if ! printf '%s' "$HEALTH_BODY" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if (d.get("release") or {}).get("commit") == sys.argv[1] else 1)' "${DEPLOY_COMMIT:-}"; then
+health_matches_release() {
+  printf '%s' "$1" | python3 -c 'import json,sys; d=json.load(sys.stdin); ok=d.get("ok") is True and d.get("service")=="menina" and (d.get("release") or {}).get("commit")==sys.argv[1]; sys.exit(0 if ok else 1)' "${DEPLOY_COMMIT:-}"
+}
+wait_for_release_health() {
+  local body=""
+  for attempt in $(seq 1 30); do
+    body="$(curl --fail --silent --show-error --max-time 5 "$HEALTHCHECK_URL" 2>/dev/null || true)"
+    if [[ -n "$body" ]] && health_matches_release "$body"; then
+      HEALTH_BODY="$body"
+      return 0
+    fi
+    sleep 2
+  done
   echo "HTTP_HEALTHCHECK_RELEASE_MISMATCH expected=${DEPLOY_COMMIT:-unknown}" >&2
-  false
-fi
+  return 1
+}
+wait_for_release_health
 echo "HTTP_HEALTHCHECK_OK"
 
 trap - ERR HUP INT TERM
