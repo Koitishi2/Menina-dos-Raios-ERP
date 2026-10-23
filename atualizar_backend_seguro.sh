@@ -271,10 +271,14 @@ remove_code_pycache() {
 
 validate_python_as_service_user() {
   local root="$1" import_app="${2:-0}"
+  local python_path="$root"
+  if [[ "$import_app" = "1" ]]; then
+    python_path="$(dirname "$root")"
+  fi
   (
     cd "$root"
     runuser -u menina -- env \
-      PYTHONPATH="$root" \
+      PYTHONPATH="$python_path" \
       BACKUP_DIR="$root/.preflight_backups" \
       WHATSAPP_OUTBOUND_ENABLED=false \
       WHATSAPP_OUTBOUND_MODE=disabled \
@@ -300,7 +304,7 @@ with tempfile.TemporaryDirectory(prefix="menina_pycompile_") as output:
         py_compile.compile(str(path), cfile=str(output_dir / f"{index}.pyc"), doraise=True)
 
 if import_app:
-    importlib.import_module("app")
+    importlib.import_module("backend.app")
 else:
     for module in (
         "domains.sellers",
