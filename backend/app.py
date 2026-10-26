@@ -367,6 +367,14 @@ def init_db(company: str = None):
         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_admin_messages_user ON admin_messages(user_id, seen_at, removed_by_admin, expires_at);
+    CREATE TABLE IF NOT EXISTS new_tempo_collection_status (
+        company_key TEXT NOT NULL,
+        collection_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pendente' CHECK(status IN ('pendente','pago')),
+        paid_at TEXT,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY(company_key, collection_id)
+    );
     CREATE TABLE IF NOT EXISTS sales (
         id              TEXT PRIMARY KEY,
         sale_type       TEXT NOT NULL CHECK(sale_type IN ('NF','PR','AVULSO','AVARIA')),
@@ -4081,6 +4089,112 @@ def get_mobile_overdue_boletos(x_token:str=Header("")):
         return {"alert_enabled":alert_row is None or alert_row["value"]!="0","count":len(overdue),"total_value":round(sum(float(row["total_val"] or 0) for row in overdue),2),"boletos":overdue}
     finally:
         conn.close()
+
+def _new_tempo_collection_groups(company_key:str):
+    conn=get_db(company_key)
+    try:
+        rows=conn.execute(
+            """SELECT id,client,sale_date,sale_time,nf_number,product,total
+               FROM sales
+               WHERE sale_type!='AVARIA' AND client IS NOT NULL
+                 AND UPPER(client) LIKE '%NOVO TEMPO%'
+               ORDER BY sale_date DESC,sale_time DESC,id"""
+        ).fetchall()
+    finally:
+        conn.close()
+    groups={}
+    for row in rows:
+        client=str(row["client"] or "").strip()
+        nf=str(row["nf_number"] or "").strip()
+        sale_date=str(row["sale_date"] or "")
+        sale_time=str(row["sale_time"] or "00:00")[:5]
+        group_ref="nf:"+nf.casefold() if nf else "sale:"+str(row["id"])
+        identity="|".join((company_key,_normalize_name(client),sale_date,group_ref))
+        collection_id=hashlib.sha256(identity.encode("utf-8")).hexdigest()[:32]
+        group=groups.setdefault(collection_id,{
+            "id":collection_id,"company_key":company_key,"client":client,
+            "sale_date":sale_date,"sale_time":sale_time,"nf_number":nf,
+            "total":0.0,"item_count":0,"products":[],
+        })
+        group["total"]+=float(row["total"] or 0)
+        group["item_count"]+=1
+        product=str(row["product"] or "").strip()
+        if product and product not in group["products"]:
+            group["products"].append(product)
+        if sale_time < group["sale_time"]:
+            group["sale_time"]=sale_time
+    return list(groups.values())
+
+def _new_tempo_alert_schedule(sale_datetime:datetime,now:datetime):
+    starts_at=sale_datetime+timedelta(hours=24)
+    slots=(8,12,16,20)
+    cursor=max(starts_at,now)
+    candidate=cursor.replace(minute=0,second=0,microsecond=0)
+    while True:
+        for hour in slots:
+            scheduled=candidate.replace(hour=hour)
+            if scheduled>=cursor:
+                return starts_at,scheduled
+        candidate=(candidate+timedelta(days=1)).replace(hour=0)
+
+@app.get("/api/mobile/new-tempo/collections")
+def list_new_tempo_collections(x_token:str=Header("")):
+    require_admin(x_token)
+    control=get_control_db()
+    try:
+        statuses={(row["company_key"],row["collection_id"]):dict(row) for row in control.execute(
+            "SELECT company_key,collection_id,status,paid_at FROM new_tempo_collection_status"
+        ).fetchall()}
+    finally:
+        control.close()
+    now=datetime.now()
+    result=[]
+    for company_key in COMPANY_DBS:
+        for group in _new_tempo_collection_groups(company_key):
+            try:
+                sold_at=datetime.strptime(group["sale_date"]+" "+group["sale_time"],"%Y-%m-%d %H:%M")
+            except ValueError:
+                continue
+            saved=statuses.get((company_key,group["id"]),{})
+            status=saved.get("status","pendente")
+            starts_at,next_alert=_new_tempo_alert_schedule(sold_at,now)
+            group.update({
+                "status":status,
+                "paid_at":saved.get("paid_at"),
+                "sold_at":sold_at.isoformat(timespec="minutes"),
+                "alert_starts_at":starts_at.isoformat(timespec="minutes"),
+                "next_alert_at":next_alert.isoformat(timespec="minutes"),
+                "notifications_due":status!="pago" and now>=starts_at,
+                "hours_pending":max(0,int((now-sold_at).total_seconds()//3600)),
+                "total":round(group["total"],2),
+            })
+            result.append(group)
+    return sorted(result,key=lambda item:(item["status"]=="pago",item["sold_at"]),reverse=False)
+
+@app.put("/api/mobile/new-tempo/collections/{collection_id}")
+def update_new_tempo_collection(collection_id:str,body:dict,x_token:str=Header("")):
+    require_admin(x_token)
+    company_key=_company_key(str(body.get("company_key") or ""))
+    status=str(body.get("status") or "").strip().lower()
+    if status not in {"pendente","pago"}:
+        raise HTTPException(400,"Status de cobrança inválido.")
+    group=next((item for item in _new_tempo_collection_groups(company_key) if item["id"]==collection_id),None)
+    if group is None:
+        raise HTTPException(404,"Venda Novo Tempo não encontrada.")
+    paid_at=datetime.now().isoformat(timespec="seconds") if status=="pago" else None
+    conn=get_control_db()
+    try:
+        conn.execute(
+            """INSERT INTO new_tempo_collection_status(company_key,collection_id,status,paid_at,updated_at)
+               VALUES(?,?,?,?,datetime('now'))
+               ON CONFLICT(company_key,collection_id) DO UPDATE SET
+                 status=excluded.status,paid_at=excluded.paid_at,updated_at=datetime('now')""",
+            (company_key,collection_id,status,paid_at),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return {"ok":True,"status":status,"paid_at":paid_at}
 
 @app.put("/api/boletos/clients-config")
 def set_boleto_clients(body:dict,x_token:str=Header("")):
