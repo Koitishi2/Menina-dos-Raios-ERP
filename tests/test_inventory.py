@@ -8,7 +8,7 @@ from test_orcamentos import _headers, _login
 
 def test_stock_dynamic_note_buttons_use_delegated_click_handlers():
     html = (Path(__file__).resolve().parents[1] / "backend" / "static" / "index.html").read_text(encoding="utf-8")
-    stock_render = html[html.index("function renderStock():"):html.index("async function submitStockMovement(")]
+    stock_render = html[html.index("function renderStock(){"):html.index("async function submitStockMovement(")]
 
     assert "data-stock-open-module" in stock_render
     assert "data-stock-sales-product" in stock_render
@@ -16,6 +16,8 @@ def test_stock_dynamic_note_buttons_use_delegated_click_handlers():
     assert "document.addEventListener('click'" in html
     assert "window._stockActionsBound=true" in html
     assert "data-stock-open-date" in stock_render
+    assert 'id="stock-alerts"' in html
+    assert "const alerts=products.filter(function(product){return Number(product.balance)<=0;});" in stock_render
     assert "clearFilters();" in html[html.index("async function stockOpenSource("):html.index("async function stockOpenSales(")]
 
 

@@ -3310,9 +3310,11 @@ body.company-estrada .notif-bell.has-pending::after{animation-name:notif-halo-es
 @media (prefers-reduced-motion:reduce){.notif-bell,.notif-bell.has-pending,.notif-bell.has-pending::after,.notif-bell.is-updated{animation:none!important;transition:none!important}}
 body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:none!important}
 .today-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin:0 0 18px}
+.today-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
 .today-head h2{font-size:25px;margin:0 0 4px;color:var(--text)}
 .today-head p{margin:0;color:var(--muted);font-size:13px}
 .today-refresh{border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:6px;padding:9px 13px;cursor:pointer}
+.today-download{display:inline-flex;align-items:center;text-decoration:none;font:inherit}
 .today-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:22px}
 .today-kpi{display:block;width:100%;height:100%;text-align:left;font:inherit;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:15px;min-width:0;cursor:pointer;transition:border-color .15s,box-shadow .15s}
 .today-kpi:hover{border-color:#39865b;box-shadow:0 2px 10px rgba(23,79,46,.09)}
@@ -3479,6 +3481,7 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
         <button class="btn btn-secondary" onclick="closeStockApp()">Fechar</button>
       </div>
     </div>
+    <div id="stock-alerts" role="status" aria-live="polite" hidden style="margin:0 0 14px;padding:12px 14px;border:1px solid #f1b5ae;border-left:4px solid #c2413b;border-radius:8px;background:#fff5f3;color:#8f241c"></div>
     <div id="stock-products" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px;margin-bottom:18px"></div>
     <div class="stock-content-grid">
       <div class="stock-forms">
@@ -3717,7 +3720,7 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
   </div>
 
   <div class="panel active" id="panel-hoje">
-    <div class="today-head"><div><h2>Visão de hoje</h2><p id="today-date"></p></div><button type="button" class="today-refresh" onclick="refreshToday(true)">Atualizar</button></div>
+    <div class="today-head"><div><h2>Visão de hoje</h2><p id="today-date"></p></div><div class="today-actions"><button type="button" class="today-refresh" onclick="refreshToday(true)">Atualizar</button><a class="today-refresh today-download" href="/app-updates/Menina-dos-Raios-Vendas-OFICIAL.apk" download="Menina-dos-Raios-Vendas-OFICIAL.apk" aria-label="Baixar o APK oficial">Download APK</a></div></div>
     <div class="today-kpis" id="today-kpis" aria-live="polite"></div>
     <div class="today-grid">
       <div>
@@ -6000,12 +6003,18 @@ async function loadStock(){
 function renderStock(){
   if(!stockSnapshot)return;
   const products=stockSnapshot.products||[];
+  const alerts=products.filter(function(product){return Number(product.balance)<=0;});
+  const alertsEl=document.getElementById('stock-alerts');
+  if(alertsEl){
+    alertsEl.hidden=alerts.length===0;
+    alertsEl.innerHTML=alerts.length?'<strong>'+alerts.length+' produto(s) sem saldo disponível</strong><div style="font-size:12px;margin-top:4px">'+alerts.map(function(product){return stockEscape(product.name)+' ('+stockFormatQty(product.balance)+' '+stockEscape(product.unit)+')';}).join(' · ')+'</div>':'';
+  }
   const productsEl=document.getElementById('stock-products');
   const select=document.getElementById('stock-product');
   const previous=select?.value;
   if(productsEl)productsEl.innerHTML=products.length?products.map(function(product){
     const featured=product.sku==='STRETCH-FILM';
-    if(!featured)return '<article style="background:var(--card,#fff);border:1px solid var(--border);border-top:3px solid var(--g500,#2f855a);border-radius:8px;padding:14px"><div style="font-size:11px;color:var(--muted);font-weight:700">'+stockEscape(product.sku)+'</div><strong style="display:block;margin:5px 0;color:var(--ink)">'+stockEscape(product.name)+'</strong><div style="font-size:24px;font-weight:800;color:var(--g800)">'+stockFormatQty(product.balance)+' <small style="font-size:12px">'+stockEscape(product.unit)+'</small></div><div style="font-size:11px;color:var(--muted);margin-top:5px">Saldo disponível</div></article>';
+    if(!featured){const balance=Number(product.balance)||0,low=balance<=0,tone=low?'#c2413b':'var(--g500,#2f855a)';return '<article style="background:var(--card,#fff);border:1px solid '+(low?'#efb4ad':'var(--border)')+';border-top:3px solid '+tone+';border-radius:8px;padding:14px"><div style="font-size:11px;color:var(--muted);font-weight:700">'+stockEscape(product.sku)+'</div><strong style="display:block;margin:5px 0;color:var(--ink)">'+stockEscape(product.name)+'</strong><div style="font-size:24px;font-weight:800;color:'+(low?'#b42318':'var(--g800)')+'">'+stockFormatQty(balance)+' <small style="font-size:12px">'+stockEscape(product.unit)+'</small></div><div style="font-size:11px;color:'+(low?'#b42318':'var(--muted)')+';margin-top:5px">'+(low?'Sem saldo disponível':'Saldo disponível')+'</div></article>';}
     const balance=Number(product.balance)||0, capacity=6400, percent=Math.max(0,Math.min(100,balance/capacity*100));
     const tone=percent<=20?'#c2413b':percent<=50?'#d58a12':'#21834a';
     const label=percent<=20?'Reposição urgente':percent<=50?'Estoque em atenção':'Estoque saudável';
@@ -11559,6 +11568,11 @@ let _boletos = [];
 // Bulk selection (Set de IDs de boletos selecionados pra marcar como pagos em massa)
 const _bolBulkSelection = new Set();
 
+function bolTodayIso(){
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
 // Inicializa o picker do Boletos no mês corrente (uma vez por sessão)
 function _bolEnsureDefaultMonth(){
   const m = document.getElementById('bol-month');
@@ -11612,7 +11626,7 @@ async function loadBoletos(){
     const pendentesOnly = filteredBols.filter(function(b){ return b.status!=='pago'; });
     // Filtro adicional do dropdown: vencidos / vence hoje
     const statusFilter = status;
-    const todayStr = new Date().toISOString().slice(0,10);
+    const todayStr = bolTodayIso();
     let viewBols = pendentesOnly;
     if(statusFilter==='vencidos'){
       viewBols = pendentesOnly.filter(function(b){ return b.due_date && b.due_date < todayStr; });
@@ -11810,7 +11824,7 @@ function openBulkPayModal(){
   const countEl = document.getElementById('bulk-pay-count');
   const totalEl = document.getElementById('bulk-pay-total');
   if(!modal || !input) return;
-  input.value = new Date().toISOString().slice(0,10);
+  input.value = bolTodayIso();
   const selected = _boletos.filter(b => _bolBulkSelection.has(b.id));
   const total = selected.reduce((acc,b) => acc + Number(b.total_val||0), 0);
   if(countEl) countEl.textContent = selected.length;
@@ -11900,7 +11914,7 @@ async function toggleBoletoItems(bid){
 async function updateBoleto(bid, fields, srcEl){
   // Se mudou para pago e ainda sem data, usa hoje
   if(fields.status==='pago' && !fields.paid_date){
-    fields.paid_date = new Date().toISOString().slice(0,10);
+    fields.paid_date = bolTodayIso();
   }
   // Captura valor anterior para rollback em caso de erro
   const prevValue = srcEl ? srcEl.value : null;

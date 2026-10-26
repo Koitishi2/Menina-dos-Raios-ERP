@@ -24,3 +24,22 @@ Follow this workflow whenever publishing this project to the server or publishin
 - Preserve a timestamped backup under `/root/menina_apk_backup_<release-id>`. Keep the SCP and final SSH checksum/promotion as distinct stages, and require explicit success markers such as `APK_PUBLISH_OK` and `PUBLICACAO_REMOTA=OK`.
 - Update the changelog's current version and release entry to match catalog metadata before upload. After promotion, confirm the public `latest.json` version and SHA-256 match the APK; the remote checksum verification is authoritative if HTTP HEAD is unsupported.
 - Use `C:\Users\bobif\AppData\Local\Temp\menina-apk-publish-2029-status.txt` as the reference record for the successful 2.0.29 flow and `menina-apk-publish-2030-status.txt` for the successful 2.0.30 flow. Both follow backup, SCP-to-staging, checksum validation, promotion.
+
+## External PowerShell Pattern
+
+- Save each release runner as a `.ps1` file in `%TEMP%`; do not build a long SSH command inline. Open it in a visible, interactive PowerShell 5.1 window with:
+
+  ```powershell
+  Start-Process -FilePath "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" `
+    -ArgumentList @('-NoExit', '-ExecutionPolicy', 'Bypass', '-File', "$env:TEMP\<release-script>.ps1")
+  ```
+
+- The release runner must print which phase is starting before invoking SSH/SCP. Let SSH/SCP request passwords interactively in that window; never pass a password as an argument or store it in the script/transcript.
+- Start a transcript at the beginning, keep the window open after completion, and print the log path plus separate backend/APK results. Catch failures without converting them into success.
+- Backend sequence: run `python scripts/deploy_server.py --apply`, answer its explicit confirmation with `s`, enter SSH passwords in the visible window, then require the log marker `RESULT=APPLY_OK` for the exact deployed commit. Do not repeat a backend run after this marker and its healthcheck are confirmed.
+- APK sequence: prevalidate the official signed APK and matching metadata before opening the release window; create a timestamped remote backup; SCP APK, catalogs, changelog, and SHA256SUMS to a unique staging path; remotely run `sha256sum -c` before atomic promotion; require remote checksum success and `APK_PUBLISH_OK`.
+- After promotion, verify the public `latest.json` and `catalog.json` version/code/hash/size, then GET the APK and hash the downloaded bytes. HTTP HEAD may return 405 and is not a publication failure when GET plus checksum succeeds.
+- Keep nested shell quoting out of the final remote success test. Print `cat latest.json` after remote checksums and compare its parsed fields locally with `Invoke-RestMethod`; nested PowerShell/SSH/grep quotes caused a false failure after the 2.0.33 files had already been promoted.
+- In Windows PowerShell 5.1, `apksigner.bat` can emit Java restricted-method warnings that interact badly with `$ErrorActionPreference = 'Stop'`. Verify APK signature before the publication runner; do not rerun `apksigner` inside the SSH/SCP publication script. Treat native command exit codes (`$LASTEXITCODE`) as authoritative.
+- Compute SHA-256 with `[System.Security.Cryptography.SHA256]::Create()` and dispose the object (and any file stream); do not use `Get-FileHash` or `SHA256.HashData` on this machine.
+- Successful reference run on 2026-10-20: backend commit `7d9d0c3c2987cb36977f612ef36c1045ac281af1`, `RESULT=APPLY_OK`; APK `2.0.33`/61, SHA-256 `8adde04dbd32c5bc4a1a688cb4f1c101ba342da9368f73856976ed38cc7dbf13`, remote backup `/root/menina_apk_backup_20261020_2.0.33_8adde04d`. APK public GET and metadata/hash/size matched. The runner's nested-quote final grep failed after remote checksums and promotion; use public GET validation as described above and do not copy that grep implementation.
