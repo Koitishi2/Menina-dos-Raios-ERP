@@ -1,0 +1,60 @@
+# Sistema operacional / editores
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
+
+# Android / Gradle
+.gradle/
+build/
+**/build/
+local.properties
+
+# Artefatos compilados
+*.apk
+*.aab
+*.apks
+*.idsig
+
+# Pastas temporarias de build local
+VendasWhatsApp_build*/
+server_work/
+
+# Backend/servidor local fora do escopo deste repositório Android
+backend/
+
+# Assinatura e credenciais
+**/signing/
+*.jks
+*.keystore
+*.pem
+*.p12
+*.env
+*.env.*
+keystore.properties
+
+# Scripts locais de publicacao/deploy que podem conter dados de infraestrutura
+ATUALIZAR*.bat
+PUBLICAR_APK*.bat
+PUBLICAR_APK*.ps1
+
+# Catalogos locais de publicacao
+latest.json
+catalog.json
+
+# Chave de assinatura oficial e credenciais locais
+signing/
+*.jks
+*.keystore
+*.pem
+*.p12
+keystore.properties
+
+# Artefatos de compilação
+.gradle/
+build/
+app/build/
+local.properties
+gradle/gradle-daemon-jvm.properties
+
+dist/

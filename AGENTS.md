@@ -4,6 +4,8 @@ Follow this workflow whenever publishing this project to the server or publishin
 
 ## General
 
+- All new commits and publications must use `main`. Do not create branches or additional worktrees unless the user explicitly requests them. Keep `origin/main` current with the approved ERP and Android updates.
+- The Android source is maintained in `android/` in this repository. Keep signing keys, credentials, local configuration, and generated APKs outside Git.
 - Never open a visible Command Prompt or run a user-facing deployment through CMD inside Codex. Use an external, visible Windows PowerShell window so the user can enter SSH passwords there.
 - Preserve the user's unrelated working-tree changes. Package, commit, and deploy only files needed for the requested release.
 - Treat the backend and APK as separate deployment targets. Do not report either as published until its own remote validation succeeds.
@@ -12,7 +14,7 @@ Follow this workflow whenever publishing this project to the server or publishin
 
 ## Backend
 
-- Use `scripts/deploy_server.py` from a clean worktree at the exact commit being deployed. The tool requires the commit to be pushed to `origin` first and the local ignored `atualizarrefatorado.local.bat` config to be present in that worktree.
+- Use `scripts/deploy_server.py` from the clean existing `main` checkout at the exact commit being deployed. Push that commit to `origin/main` first and retain the ignored `atualizarrefatorado.local.bat` locally. Do not create a release branch or another worktree.
 - Run the project's focused tests and `python scripts/deploy_server.py --check` before connecting.
 - Publish with `python scripts/deploy_server.py --apply` from external Windows PowerShell. Let its backup, checksum, preflight, promotion, and healthcheck complete; verify `RESULT=APPLY_OK` in the log. Do not rerun a backend deployment already confirmed successful.
 

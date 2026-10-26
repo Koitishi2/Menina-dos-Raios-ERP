@@ -1,0 +1,77 @@
+plugins {
+    id 'com.android.application'
+}
+
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('signing/keystore.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localProperties.load(new FileInputStream(localPropertiesFile))
+}
+
+def serverBaseUrl = localProperties.getProperty('SERVER_BASE_URL', '')
+def appNotesToken = localProperties.getProperty('APP_NOTES_TOKEN', '')
+
+android {
+    namespace 'com.exemplo.vendaswhatsapp'
+    compileSdk 35
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    defaultConfig {
+        applicationId 'br.com.meninadosraios.vendas'
+        minSdk 23
+        targetSdk 35
+        versionCode 70
+        versionName '2.0.42'
+        buildConfigField 'String', 'SERVER_BASE_URL', "\"${serverBaseUrl}\""
+        buildConfigField 'String', 'APP_NOTES_TOKEN', "\"${appNotesToken}\""
+    }
+
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                storeFile rootProject.file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
+
+    flavorDimensions += 'distribution'
+    productFlavors {
+        direct {
+            dimension 'distribution'
+            resValue 'bool', 'self_update_enabled', 'true'
+        }
+        play {
+            dimension 'distribution'
+            resValue 'bool', 'self_update_enabled', 'false'
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+dependencies {
+    implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
+    implementation 'androidx.biometric:biometric:1.1.0'
+    implementation 'androidx.security:security-crypto:1.1.0-alpha06'
+}
