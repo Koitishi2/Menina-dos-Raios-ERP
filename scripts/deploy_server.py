@@ -214,7 +214,14 @@ def main(argv=None):
         if package_hash != package["PACKAGE_SHA256"].upper():
             raise DeployError("PACKAGE", "hash calculado diverge do empacotador")
         package_name = package_path.name
-        script_hash = hashlib.sha256(REMOTE_SCRIPT.read_bytes()).hexdigest().upper()
+        script_relpath = REMOTE_SCRIPT.relative_to(ROOT).as_posix()
+        script_bytes = subprocess.run(
+            ["git", "show", f"{commit}:{script_relpath}"], cwd=ROOT,
+            check=True, capture_output=True,
+        ).stdout.replace(b"\r\n", b"\n")
+        script_package_path = package_path.parent / REMOTE_SCRIPT.name
+        script_package_path.write_bytes(script_bytes)
+        script_hash = hashlib.sha256(script_bytes).hexdigest().upper()
         py_count = package_python_count(package_path)
         log.write(
             f"PACKAGE={package_name} SHA256={package_hash} FILES={package['FILE_COUNT']} "
@@ -261,7 +268,7 @@ def main(argv=None):
         for local_path, target in (
             (package_path, remote_pkg),
             (Path(package["CHECKSUMS"]), remote_checksums),
-            (REMOTE_SCRIPT, remote_script),
+            (script_package_path, remote_script),
         ):
             run_command(
                 ["scp", "-o", "ConnectTimeout=15", "-P", config["PORT"],
