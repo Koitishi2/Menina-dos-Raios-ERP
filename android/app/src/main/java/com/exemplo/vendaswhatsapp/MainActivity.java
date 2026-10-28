@@ -150,6 +150,7 @@ public class MainActivity extends FragmentActivity {
     static final String APP_CALENDAR_URL = SERVER_BASE_URL + "/api/app-calendar/mobile";
     private static final String APP_NOTES_TOKEN = BuildConfig.APP_NOTES_TOKEN;
     static final String APP_CALENDAR_TOKEN = APP_NOTES_TOKEN;
+    static final String EXTRA_OPEN_CALENDAR_NOTIFICATIONS = "open_calendar_notifications";
     private static final long PIN_TEMPO_CONFIAVEL_MS = 15L * 60L * 1000L;
     private static final String[] CLIENTES_PADRAO = {"PALADAR DISTRITO", "PALADAR BASE", "SESAU", "MATERNIDADE", "HGR", "OUTRO"};
     private final List<ItemPedido> itens = new ArrayList<>();
@@ -203,6 +204,12 @@ public class MainActivity extends FragmentActivity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         abrirFluxoInicial();
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (servicosPosLoginIniciados && adminNotificacoes()) abrirCalendarioSeSolicitado();
     }
 
     @Override protected void onDestroy() {
@@ -280,6 +287,14 @@ public class MainActivity extends FragmentActivity {
         }
         sincronizarValesPendentesSilencioso();
         mostrarHomeModulos();
+        abrirCalendarioSeSolicitado();
+    }
+
+    private void abrirCalendarioSeSolicitado() {
+        Intent intent = getIntent();
+        if (intent == null || !intent.getBooleanExtra(EXTRA_OPEN_CALENDAR_NOTIFICATIONS, false)) return;
+        intent.removeExtra(EXTRA_OPEN_CALENDAR_NOTIFICATIONS);
+        if (adminNotificacoes()) abrirCalendarioNotificacoes();
     }
 
     private void mostrarHomeModulos() {

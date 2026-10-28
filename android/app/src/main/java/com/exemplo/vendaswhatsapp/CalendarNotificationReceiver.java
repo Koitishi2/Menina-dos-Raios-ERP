@@ -146,6 +146,7 @@ public class CalendarNotificationReceiver extends BroadcastReceiver {
 
             Intent abrir = new Intent(context, MainActivity.class);
             abrir.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            abrir.putExtra(MainActivity.EXTRA_OPEN_CALENDAR_NOTIFICATIONS, true);
             PendingIntent abrirPi = PendingIntent.getActivity(context, 3307 + Math.abs(eventId.hashCode() % 100000), abrir,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
@@ -155,13 +156,19 @@ public class CalendarNotificationReceiver extends BroadcastReceiver {
             PendingIntent pararPi = PendingIntent.getBroadcast(context, 4407 + Math.abs(eventId.hashCode() % 100000), parar,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
+            Intent abrirCalendario = new Intent(context, MainActivity.class);
+            abrirCalendario.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            abrirCalendario.putExtra(MainActivity.EXTRA_OPEN_CALENDAR_NOTIFICATIONS, true);
+            PendingIntent abrirCalendarioPi = PendingIntent.getActivity(context, 5507 + Math.abs(eventId.hashCode() % 100000), abrirCalendario,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
             android.app.Notification.Builder b = Build.VERSION.SDK_INT >= 26
                 ? new android.app.Notification.Builder(context, CHANNEL_ID)
                 : new android.app.Notification.Builder(context);
             b.setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setContentTitle(titulo)
                 .setContentText(texto)
-                .setStyle(new android.app.Notification.BigTextStyle().bigText(texto))
+                .setStyle(new android.app.Notification.BigTextStyle().setBigContentTitle(titulo).bigText(texto).setSummaryText("Calendário · lembrete"))
                 .setContentIntent(abrirPi)
                 .setAutoCancel(true)
                 .setOngoing(false)
@@ -169,6 +176,7 @@ public class CalendarNotificationReceiver extends BroadcastReceiver {
                 .setPriority(Notification.PRIORITY_HIGH)
                 .setDefaults(Notification.DEFAULT_SOUND | Notification.DEFAULT_VIBRATE | Notification.DEFAULT_LIGHTS)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .addAction(android.R.drawable.ic_menu_view, "Abrir calendário", abrirCalendarioPi)
                 .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Parar hoje", pararPi);
             if (!token.equals(MainActivity.tokenAdminParaAlertas(context))) return;
             nm.notify(notificationId, b.build());
@@ -176,12 +184,22 @@ public class CalendarNotificationReceiver extends BroadcastReceiver {
     }
 
     private static String resumo(JSONObject e) {
-        String data = e.optString("due_date", "");
+        String data = dataLegivel(e.optString("due_date", ""));
         String detalhes = e.optString("details", "").trim();
         String dias = e.optInt("days_left", 0) == 0 ? "Hoje" : "Faltam " + e.optInt("days_left", 0) + " dia(s)";
         String texto = (data.isEmpty() ? dias : data + " - " + dias);
         if (!detalhes.isEmpty()) texto += "\n" + detalhes;
         return texto;
+    }
+
+    private static String dataLegivel(String valor) {
+        if (valor == null || valor.trim().isEmpty()) return "";
+        try {
+            Date data = new SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(valor.trim());
+            return data == null ? valor : new SimpleDateFormat("dd/MM/yyyy", new Locale("pt", "BR")).format(data);
+        } catch (Exception ignored) {
+            return valor;
+        }
     }
 
     private static JSONArray filtrarEventosNotificaveis(Context context, JSONArray eventos) throws Exception {

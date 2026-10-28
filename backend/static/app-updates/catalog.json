@@ -1,12 +1,12 @@
 {
-  "versionName": "2.0.33",
-  "versionCode": 61,
+  "versionName": "2.0.43",
+  "versionCode": 71,
   "packageName": "br.com.meninadosraios.vendas",
-  "sha256": "8adde04dbd32c5bc4a1a688cb4f1c101ba342da9368f73856976ed38cc7dbf13",
-  "releaseNotes": "No cliente ESTOQUE, macaxeira a vácuo e alho são normalizados como itens por unidade; alho é vinculado a Alho 250g.",
-  "notes": "No cliente ESTOQUE, macaxeira a vácuo e alho são normalizados como itens por unidade; alho é vinculado a Alho 250g.",
+  "sha256": "7c9d4bb285c493675b7b512c45a76a1b63bbf6b429953759eb268ddadd9d4883",
+  "releaseNotes": "Calendário com aviso expandido, data localizada, abertura direta e opção Parar hoje. Alertas Novo Tempo somente para notas entregues, após 24 horas.",
+  "notes": "Calendário com aviso expandido, data localizada, abertura direta e opção Parar hoje. Alertas Novo Tempo somente para notas entregues, após 24 horas.",
   "apkFile": "Menina-dos-Raios-Vendas-OFICIAL.apk",
   "apkUrl": "https://sistema.meninadosraios.com.br/app-updates/Menina-dos-Raios-Vendas-OFICIAL.apk",
-  "sizeBytes": 2734411,
-  "publishedAt": "2026-10-20T19:03:00-03:00"
+  "sizeBytes": 2756287,
+  "publishedAt": "2026-10-27T20:59:41-04:00"
 }

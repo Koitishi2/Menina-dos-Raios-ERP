@@ -16,8 +16,8 @@ O projeto anterior em `Documentos/vendas APK` foi preservado com sua configuraç
 ## Publicação
 
 Siga `../AGENTS.md`: confira assinatura, identidade, versão, hash e catálogos; publique com backup e staging no PowerShell externo.
-Backend e APK têm validação independente. As notificações do calendário na versão 2.0.42 exigem a correção correspondente no backend.
+Backend e APK têm validação independente. A versão preparada contém os alertas de Novo Tempo limitados a notas entregues e o Calendário com ação de abertura direta.
 
-Artefato compilado: `br.com.meninadosraios.vendas`, 2.755.419 bytes.
-SHA-256 do APK: `69df14d36e7c4a9887c281a38d5d068030cef002822f0890dbcb6e39f54254eb`.
+Artefato compilado: `br.com.meninadosraios.vendas`, 2.756.287 bytes.
+SHA-256 do APK: `7c9d4bb285c493675b7b512c45a76a1b63bbf6b429953759eb268ddadd9d4883`.
 SHA-256 do certificado oficial: `d9e833244c3a3db92428e83b6badb63a88058064fc1a2ee3996c799e60a16d3f`.

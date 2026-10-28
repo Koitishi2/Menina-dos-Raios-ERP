@@ -2,7 +2,37 @@
 
 Este arquivo registra as alteracoes funcionais do aplicativo Android e da integracao com o sistema.
 
-Versao estavel atual: `2.0.33`.
+Versao estavel atual: `2.0.43`.
+
+## [2.0.43] - 27/10/2026
+
+- Alertas Novo Tempo agora incluem somente notas marcadas como entregues; o prazo de 24 horas conta da entrega.
+- Notas ainda nao entregues ficam identificadas como "Aguardando entrega" e nao geram notificacoes.
+- O aviso do celular destaca que se refere a vendas entregues pendentes.
+- A programação dos avisos é restabelecida ao reiniciar o celular e ao atualizar o APK.
+- O ERP exige que todos os itens da nota estejam entregues antes de liberar o alerta.
+- Notificações do Calendário mostram data em formato local e incluem acesso direto ao calendário e a ação "Parar hoje".
+- Ao tocar em "Abrir calendário" ou no corpo do aviso, o app abre diretamente o Calendário.
+
+## [2.0.42] - 26/10/2026
+
+- Notificações e calendário restritos a contas admin, inclusive em segundo plano e após reiniciar o celular.
+- Avisos agendados e já exibidos são cancelados ao sair da conta ou entrar como usuário comum.
+- Calendário móvel passa a exigir sessão admin no ERP; o token compartilhado do aplicativo não autoriza a consulta.
+- O menu de notificações e o sino ficam disponíveis somente para admins.
+
+## [2.0.41] - 26/10/2026
+
+### Visual e navegação
+
+- Home, cabeçalhos, pedidos, entregas e análises ganharam uma apresentação mais limpa, com ações consistentes e melhor leitura em telas pequenas.
+- A tela de lançamento mantém importação do WhatsApp, seleção de cliente e data, catálogo, quantidade, preço, rascunhos e envio ao ERP.
+
+### Cobranças Novo Tempo
+
+- Alertas de vendas pendentes ficam disponíveis apenas para administradores e notificam após 24 horas nos horários locais de 08h, 12h, 16h e 20h.
+- A notificação consulta o estado atual no ERP e deixa de incluir vendas marcadas como pagas.
+- Corrigida a troca entre as abas da carteira de boletos para preservar os filtros.
 
 As versoes 2.x representam a linha estavel atual do APK Android. Historicos antigos permanecem apenas como registro funcional, sem indicar estado de refatoracao ou versao experimental.
 
@@ -13,13 +43,58 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - O `versionCode` interno do Android sempre aumenta a cada APK publicado.
 - Uma versao publicada nunca deve ser reutilizada para outro APK.
 
-## [2.0.33] - 20/10/2026
+## [2.0.40] - 22/10/2026
 
-### Entrada por voz no estoque
+### Carteira de boletos
 
-- No cliente ESTOQUE, Macaxeira a Vácuo e alho sao registrados por unidade, mesmo se a fala for interpretada inicialmente como KG.
-- O nome generico "Alho" e normalizado para o produto existente Alho 250g, sem criar uma variacao nova.
-- A conversao e restrita ao cliente ESTOQUE; os demais clientes e Alho KG permanecem inalterados.
+- Botoes de pagina anterior/próxima ficaram identificados e com contraste claro.
+- Cada boleto permite cadastrar ou alterar o vencimento e marcar como pago ou reabrir como pendente.
+
+## [2.0.39] - 22/10/2026
+
+### Carteira de boletos
+
+- Carteira e selecao de empresas agora mostram no maximo 20 itens por pagina, com busca, filtros e navegacao.
+- O acesso para configurar clientes aparece antes da lista de boletos, e a tela informa quantas empresas estao selecionadas para notificacoes.
+- Datas nulas deixam de aparecer como "null"; quando o ERP ainda nao tem vencimento cadastrado, isso fica indicado claramente.
+
+## [2.0.38] - 22/10/2026
+
+### Carteira de boletos
+
+- Separadas a carteira de boletos e a configuração dos clientes acompanhados, conforme a proposta visual aprovada.
+- A carteira ganhou abas de pendentes, vencidos e pagos, busca por cliente/NF e resumo financeiro.
+- A configuração agora tem busca, filtros de clientes e alternância de alertas numa tela própria.
+
+## [2.0.37] - 22/10/2026
+
+### Boletos e conexao com a API
+
+- A tela de boletos agora identifica quando o servidor retorna HTML no lugar de JSON e informa que a API está indisponível, sem exibir a exceção técnica de conversão.
+
+## [2.0.36] - 22/10/2026
+
+### Boletos e alertas por cliente
+
+- Contas admin podem consultar boletos vencidos e configurar no APK as mesmas empresas selecionadas no ERP.
+- Alertas de atraso respeitam a seleção compartilhada e podem ser ativados ou desativados pelo administrador.
+- Endpoints móveis de configuração e consulta exigem sessão admin.
+
+## [2.0.35] - 22/10/2026
+
+### Consulta de produtos e precos
+
+- Nova opcao Produtos em Analises, com busca e consulta somente leitura dos precos ativos do ERP.
+- Produtos variaveis exibem a faixa de preco cadastrada; nenhum valor pode ser alterado pelo APK.
+- Na Entrega por voz, produto e quantidade com unidade podem ser ditos em qualquer ordem, como "50 kg de macaxeira" ou "macaxeira 50 kg".
+
+## [2.0.34] - 22/10/2026
+
+### Revisao e entrada de estoque por voz
+
+- Itens reconhecidos por voz podem ser corrigidos no rascunho sem reiniciar a nota.
+- Antes de enviar para o cliente ESTOQUE, o APK mostra os produtos e as unidades que serao somados ao estoque da Menina dos Raios.
+- Alho e Macaxeira a Vacuo mantem a conversao por unidade na confirmacao e na entrada de estoque.
 
 ## [2.0.32] - 20/10/2026
 
@@ -28,7 +103,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Pesos falados com decimal em gramas, como "cenoura 100 kg virgula 45 g", sao registrados como 100,45 kg.
 - Unidades contaveis, como macos, unidades, caixas e sacos, passam a preencher Quantidade nas Notas APP.
 - Notas antigas com unidade contavel mostram a quantidade correta mesmo quando o campo original estava vazio.
-- No cliente ESTOQUE, alho por unidade ou identificado como embalagem de 250 g e normalizado para Alho 250g em UN; outros clientes nao recebem essa conversao.
 
 ## [2.0.31] - 19/10/2026
 

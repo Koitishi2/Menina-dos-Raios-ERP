@@ -11,8 +11,8 @@ Versao estavel atual: `2.0.43`.
 - O aviso do celular destaca que se refere a vendas entregues pendentes.
 - A programação dos avisos é restabelecida ao reiniciar o celular e ao atualizar o APK.
 - O ERP exige que todos os itens da nota estejam entregues antes de liberar o alerta.
-
-## [2.0.42] - 26/10/2026
+- Notificações do Calendário mostram data em formato local e incluem acesso direto ao calendário e a ação "Parar hoje".
+- Ao tocar em "Abrir calendário" ou no corpo do aviso, o app abre diretamente o Calendário.
 
 ## [2.0.42] - 26/10/2026
 
