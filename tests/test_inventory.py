@@ -68,7 +68,7 @@ def test_stock_starts_empty_and_tracks_manual_entry_and_sale(isolated_app):
     assert "Cliente Teste" in sale_movement["notes"]
 
 
-def test_generic_uva_vitoria_sales_use_previous_github_conversion_factor(isolated_app):
+def test_generic_uva_vitoria_sales_are_converted_from_units_to_cases(isolated_app):
     token = _login(isolated_app.client)
     headers = _headers(token)
     product = next(
@@ -93,44 +93,19 @@ def test_generic_uva_vitoria_sales_use_previous_github_conversion_factor(isolate
 
     snapshot = isolated_app.client.get("/api/stock?module=estrada", headers=headers).json()
     converted = next(item for item in snapshot["products"] if item["id"] == product["id"])
-    assert converted["sale_quantity_factor"] == 0.2
-    assert converted["sold_quantity"] == 20
-    assert converted["balance"] == -20
-    assert converted["min_sale_quantity"] == 8
-    assert converted["max_sale_quantity"] == 12
+    assert converted["sold_quantity"] == 10
+    assert converted["balance"] == -10
+    assert converted["min_sale_quantity"] == 4
+    assert converted["max_sale_quantity"] == 6
     assert converted["sales_revenue"] == 750
 
     sale_rows = isolated_app.client.get(
         f"/api/stock/products/{product['id']}/sales?module=estrada", headers=headers
     ).json()["sales"]
     assert [(row["reference"], row["quantity"], row["unit"], row["total"]) for row in sale_rows] == [
-        ("NF-124", 8, "CX", 300),
-        ("NF-125", 12, "CX", 450),
+        ("NF-124", 4, "CX", 300),
+        ("NF-125", 6, "CX", 450),
     ]
-    assert sale_rows[1]["sale_quantity"] == 60
-    assert sale_rows[1]["sale_quantity_factor"] == 0.2
-
-
-def test_inventory_migrates_conversion_factor_and_applies_existing_product_seed(tmp_path):
-    from inventory import init_inventory_schema
-
-    db_path = tmp_path / "stock.db"
-    conn = sqlite3.connect(db_path)
-    init_inventory_schema(conn)
-    conn.execute(
-        "UPDATE stock_products SET sale_quantity_factor=1 WHERE sku='UVA-VITORIA-5KG'"
-    )
-    conn.commit()
-    conn.close()
-
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    init_inventory_schema(conn)
-    product = conn.execute(
-        "SELECT sale_quantity_factor FROM stock_products WHERE sku='UVA-VITORIA-5KG'"
-    ).fetchone()
-    assert product["sale_quantity_factor"] == 0.2
-    conn.close()
 
 
 def test_stock_rejects_unknown_module_and_negative_entry(isolated_app):
