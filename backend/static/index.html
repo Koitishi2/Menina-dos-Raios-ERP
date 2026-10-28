@@ -4987,7 +4987,6 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
       <button class="wa-sub-btn" data-view="autoreply" onclick="switchWaSubView('autoreply')">🤖 Auto respostas</button>
       <button class="wa-sub-btn" data-view="templates" onclick="switchWaSubView('templates')">📦 Modelos</button>
       <button class="wa-sub-btn" data-view="bot" onclick="switchWaSubView('bot')">⚙ Bot</button>
-      <button class="wa-sub-btn" data-view="update" onclick="switchWaSubView('update')">↻ Atualizar Baileys</button>
     </div>
 
     <div id="wa-view-main">
@@ -5002,7 +5001,6 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
             <option value="zapi">Z-API</option>
             <option value="evolution">Evolution API</option>
             <option value="evolution_go">Evolution GO (integrado)</option>
-            <option value="baileys">Baileys (local / gratuito)</option>
           </select>
         </div>
         <div><label id="wa-api-url-label">URL da API</label><input id="wa-api-url" type="url" placeholder="https://api.ultramsg.com"></div>
@@ -5012,19 +5010,7 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
       </div>
       <div id="wa-provider-hint" style="margin-top:10px;font-size:11px;color:var(--muted);padding:8px;background:var(--card2);border-radius:6px;display:none"></div>
       <div role="note" style="margin-top:8px;padding:9px 10px;border-left:3px solid #e5a11a;background:var(--card2);color:var(--text);font-size:11px;line-height:1.45">
-        <b>Atenção:</b> salvar Evolution GO como provedor troca os próximos envios do sistema para essa conexão. Faça isso somente depois de conectar e verificar a instância com o número correto. A sessão Baileys permanece guardada.
-      </div>
-      <!-- Painel QR Baileys — visível apenas quando provider = baileys -->
-      <div id="wa-baileys-panel" style="display:none;margin-top:12px;padding:14px;background:var(--card2);border-radius:8px;border:1px solid var(--border)">
-        <div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:8px">📱 Conexão Baileys</div>
-        <div id="wa-baileys-status" style="font-size:12px;color:var(--muted);margin-bottom:8px">Verificando status...</div>
-        <div id="wa-baileys-qr" style="text-align:center;display:none;margin:10px 0"></div>
-        <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px">
-          <button class="btn btn-secondary btn-sm" onclick="waLoadBaileysStatus()">↻ Verificar</button>
-          <button id="wa-baileys-reconnect" class="btn btn-primary btn-sm" onclick="waBaileysConnection('reconnect')">Reconectar</button>
-          <button id="wa-baileys-disconnect" class="btn btn-danger btn-sm" onclick="waBaileysConnection('disconnect')">Desconectar e gerar novo QR</button>
-        </div>
-        <div style="font-size:10px;color:var(--muted);margin-top:8px">Use Reconectar para preservar a sessao. Use Desconectar somente quando precisar vincular a conta novamente pelo QR Code.</div>
+        <b>Atenção:</b> salvar Evolution GO como provedor troca os próximos envios do sistema para essa conexão. Faça isso somente depois de conectar e verificar a instância com o número correto. A conexão Evolution GO atual permanece ativa até você alterá-la.
       </div>
       <div id="wa-evolution-go-panel" style="display:none;margin-top:12px;padding:14px;background:var(--card2);border-radius:8px;border:1px solid var(--border)">
         <div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:8px">Evolution GO · conexão</div>
@@ -5150,25 +5136,6 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
       </div>
 
     </div><!-- /wa-view-bot -->
-
-    <div id="wa-view-update" style="display:none">
-      <div class="wa-card">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap">
-          <div style="font-size:12px;font-weight:700;color:var(--g800)">Atualização do Baileys</div>
-          <button class="btn btn-secondary btn-sm" onclick="loadWaBaileysUpdate(true)">↻ Verificar versão</button>
-        </div>
-        <div class="wa-maint-grid">
-          <div class="wa-maint-cell"><div class="wa-maint-label">Instalada</div><div id="wa-update-installed" class="wa-maint-value">Verificando...</div></div>
-          <div class="wa-maint-cell"><div class="wa-maint-label">Aprovada</div><div id="wa-update-approved" class="wa-maint-value">Verificando...</div></div>
-          <div class="wa-maint-cell"><div class="wa-maint-label">Canal legacy</div><div id="wa-update-legacy" class="wa-maint-value">Verificar</div></div>
-          <div class="wa-maint-cell"><div class="wa-maint-label">Pré-lançamento</div><div id="wa-update-latest" class="wa-maint-value">Verificar</div></div>
-        </div>
-        <div id="wa-update-state" class="wa-maint-state">Carregando estado do serviço...</div>
-        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;flex-wrap:wrap">
-          <button id="wa-update-apply" class="btn btn-primary" onclick="applyWaBaileysUpdate()" disabled>Atualizar versão aprovada</button>
-        </div>
-      </div>
-    </div><!-- /wa-view-update -->
 
   </div><!-- /wa-section -->
   </div><!-- /cfg-whatsapp -->
@@ -6107,7 +6074,10 @@ async function stockOpenSales(productId){
     const data=await api('/api/stock/products/'+encodeURIComponent(productId)+'/sales?module='+encodeURIComponent(stockSnapshot.module));
     tbody.innerHTML=(data.sales||[]).length?data.sales.map(function(sale){
       const sourceAttrs='data-stock-open-module="'+stockEscape(stockSnapshot.module)+'" data-stock-open-nf="'+stockEscape(sale.reference||'')+'" data-stock-open-client="'+stockEscape(sale.client||'')+'" data-stock-open-date="'+stockEscape(sale.date||'')+'"';
-      return '<tr style="border-bottom:1px solid var(--border)"><td style="padding:10px;font-weight:700">'+(sale.reference?'NF '+stockEscape(sale.reference):stockEscape(sale.sale_type))+'</td><td>'+stockEscape(sale.date)+'</td><td>'+stockEscape(sale.client||'Cliente não informado')+'</td><td>'+stockFormatQty(sale.quantity)+' '+stockEscape(sale.unit)+'</td><td>'+stockMoney(sale.total)+'</td><td><button class="btn btn-secondary" type="button" '+sourceAttrs+'>Abrir</button></td></tr>';
+      const quantityText=Number(sale.sale_quantity_factor)===1
+        ?stockFormatQty(sale.sale_quantity)+' '+stockEscape(sale.unit)
+        :stockFormatQty(sale.sale_quantity)+' na venda → '+stockFormatQty(sale.quantity)+' '+stockEscape(sale.unit)+' no estoque';
+      return '<tr style="border-bottom:1px solid var(--border)"><td style="padding:10px;font-weight:700">'+(sale.reference?'NF '+stockEscape(sale.reference):stockEscape(sale.sale_type))+'</td><td>'+stockEscape(sale.date)+'</td><td>'+stockEscape(sale.client||'Cliente não informado')+'</td><td>'+quantityText+'</td><td>'+stockMoney(sale.total)+'</td><td><button class="btn btn-secondary" type="button" '+sourceAttrs+'>Abrir</button></td></tr>';
     }).join(''):'<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">Nenhuma venda encontrada.</td></tr>';
   }catch(error){tbody.innerHTML='<tr><td colspan="6" style="padding:20px;color:#b42318">'+stockEscape(error.message||'Falha ao buscar vendas.')+'</td></tr>';}
 }
@@ -6374,6 +6344,12 @@ function switchTab(btn,name){
     if(first) return switchTab(first,'consolidado');
     return;
   }
+  if(document.querySelector('.modal-overlay.open')){
+    toast('Salve ou feche a janela aberta antes de trocar de aba.','error');
+    return;
+  }
+  closeStockApp();
+  if(document.getElementById('nav-drawer')?.classList.contains('open'))toggleMobileNav();
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-drawer-item').forEach(function(it){it.classList.toggle('active',it.dataset.tab===name);});
@@ -15728,7 +15704,6 @@ document.addEventListener('keydown', function(e){
 let waConfig  = {};
 let waToggles = { boleto: true, avaria: true, inativo: true };
 let waSectionLoaded = false;
-let waBaileysPoll = null;
 let waEvolutionGoPoll = null;
 let waEvolutionGoBusy = false;
 
@@ -15787,7 +15762,6 @@ async function loadWaConfig() {
 function waProviderHint() {
   const p = document.getElementById('wa-provider')?.value;
   const h = document.getElementById('wa-provider-hint');
-  const baileyPanel = document.getElementById('wa-baileys-panel');
   const evolutionPanel = document.getElementById('wa-evolution-go-panel');
   if (!h) return;
   const urlInput=document.getElementById('wa-api-url');
@@ -15797,7 +15771,6 @@ function waProviderHint() {
   const instanceLabel=document.getElementById('wa-instance-id-label');
   if(p==='evolution_go'&&urlInput&&(!urlInput.value||urlInput.value==='http://127.0.0.1:3001'))urlInput.value='http://127.0.0.1:8766';
   if(p==='evolution_go'&&instanceInput)instanceInput.placeholder='Nome exato da instância (ex.: menina-teste)';
-  if(p==='baileys'&&instanceInput)instanceInput.placeholder='Baileys não usa Instance ID';
   if(urlLabel)urlLabel.textContent='URL da API';
   if(tokenLabel)tokenLabel.textContent=p==='evolution_go'?'Chave global (GLOBAL_API_KEY)':'Token / API Key';
   if(instanceLabel)instanceLabel.textContent=p==='evolution_go'?'Nome da instância':'Instance ID';
@@ -15806,19 +15779,9 @@ function waProviderHint() {
     zapi:      '🔗 URL: https://api.z-api.io  |  Instance ID e Token gerados na conta Z-API.',
     evolution: '🔗 URL: seu servidor Evolution API  |  API Key configurada no painel Evolution.',
     evolution_go: 'Evolution GO: informe a URL e a GLOBAL_API_KEY, depois o nome exato da instância. Salve e use “Conectar / gerar QR”; o sistema vincula webhook e bot automaticamente. A chave interna da instância permanece no servidor.',
-    baileys:   '🔗 URL: http://127.0.0.1:3001 (serviço local — não altere)  |  Token: chave API_KEY do arquivo baileys-api/.env  |  Instance ID: deixe em branco.'
   };
   h.style.display = 'block';
   h.textContent   = hints[p] || '';
-  if (baileyPanel) {
-    if (p === 'baileys') {
-      baileyPanel.style.display = 'block';
-      waLoadBaileysStatus(false);
-    } else {
-      baileyPanel.style.display = 'none';
-      waStopBaileysPoll();
-    }
-  }
   if (evolutionPanel) {
     if (p === 'evolution_go') {
       evolutionPanel.style.display = 'block';
@@ -15882,91 +15845,6 @@ async function waEvolutionGoConnection(action){
   finally{document.querySelectorAll('#wa-evolution-go-panel button').forEach(b=>b.disabled=false);}
 }
 function waStopEvolutionGoPoll(){if(waEvolutionGoPoll){clearInterval(waEvolutionGoPoll);waEvolutionGoPoll=null;}}
-
-let _waLastQr = null;      // último QR renderizado (evita re-render/piscar)
-let _waStatusBusy = false; // evita chamadas concorrentes
-function waSetBaileysActionsBusy(busy){
-  const reconnectBtn=document.getElementById('wa-baileys-reconnect');
-  const disconnectBtn=document.getElementById('wa-baileys-disconnect');
-  if(reconnectBtn)reconnectBtn.disabled=!!busy;
-  if(disconnectBtn)disconnectBtn.disabled=!!busy;
-}
-function waSetBaileysDisconnectLabel(label){
-  const disconnectBtn=document.getElementById('wa-baileys-disconnect');
-  if(disconnectBtn)disconnectBtn.textContent=label;
-}
-// silent=true: chamada de fundo (polling) — não reseta o texto para "Verificando"
-// nem re-renderiza o QR sem necessidade, evitando o "piscar" da tela.
-async function waLoadBaileysStatus(silent) {
-  const statusEl = document.getElementById('wa-baileys-status');
-  const qrEl     = document.getElementById('wa-baileys-qr');
-  if (!statusEl) return;
-  if (_waStatusBusy) return;
-  _waStatusBusy = true;
-  if (!silent) {
-    statusEl.textContent = ' Verificando serviço Baileys...';
-    if (qrEl) { qrEl.style.display = 'none'; qrEl.innerHTML=''; }
-    _waLastQr = null;
-  }
-  try {
-    const r = await api('/api/whatsapp/baileys-status');
-    const checked=' Verificado às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})+'.';
-    if (r.connected) {
-      statusEl.innerHTML = '<span style="color:#22c55e;font-weight:700">✅ WhatsApp conectado</span><div style="font-size:10px;color:var(--muted);margin-top:3px">Pronto para enviar mensagens.'+checked+'</div>';
-      waSetBaileysActionsBusy(false);
-      waSetBaileysDisconnectLabel('Desconectar e gerar novo QR');
-      if (qrEl){ qrEl.style.display='none'; qrEl.innerHTML=''; }
-      _waLastQr = null;
-      clearInterval(waBaileysPoll);   // conectou: para o polling (não fica atualizando)
-    } else if (r.qr) {
-      statusEl.innerHTML = '<span style="color:#b45309;font-weight:700">📷 Aguardando leitura do QR Code</span><div style="font-size:10px;color:var(--muted);margin-top:3px">No celular: WhatsApp → Dispositivos conectados → Conectar dispositivo.'+checked+'</div>';
-      waSetBaileysActionsBusy(false);
-      waSetBaileysDisconnectLabel('Gerar outro QR');
-      if (qrEl) {
-        if (_waLastQr !== r.qr) {   // só re-renderiza a imagem se o QR mudou (evita piscar)
-          _waLastQr = r.qr;
-          const encoded = encodeURIComponent(r.qr);
-          qrEl.innerHTML = '<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data='+encoded+'" style="border-radius:8px;border:3px solid #fff;box-shadow:0 2px 12px rgba(0,0,0,.15)" alt="QR Code WhatsApp">';
-        }
-        qrEl.style.display = 'block';
-      }
-    } else {
-      statusEl.innerHTML = '<span style="color:#b45309;font-weight:700">⚠ WhatsApp desconectado</span><div style="font-size:10px;color:var(--muted);margin-top:3px">'+waLogEsc(r.message||'Sessao sem conexao. Tente reconectar ou gere um novo QR Code.')+checked+'</div>';
-      waSetBaileysActionsBusy(false);
-      waSetBaileysDisconnectLabel('Gerar novo QR');
-      if (qrEl){ qrEl.style.display='none'; qrEl.innerHTML=''; }
-      _waLastQr = null;
-    }
-  } catch(e) {
-    // Em polling silencioso não fica piscando o erro; só mostra na verificação manual.
-    if (!silent) statusEl.innerHTML = '<span style="color:var(--red)"> Baileys inacessível: ' + waLogEsc(e.message) + '</span>';
-    waSetBaileysActionsBusy(false);
-  } finally {
-    _waStatusBusy = false;
-  }
-}
-
-async function waBaileysConnection(action){
-  if(action==='disconnect'&&!confirm('Desconectar esta conta e apagar a sessao atual? Sera necessario escanear um novo QR Code.'))return;
-  const statusEl=document.getElementById('wa-baileys-status');
-  waSetBaileysActionsBusy(true);
-  if(statusEl)statusEl.innerHTML='<span style="color:var(--muted)">Processando '+(action==='disconnect'?'nova sessao':'reconexao')+'...</span>';
-  try{
-    const r=await api('/api/whatsapp/baileys-connection/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-    toast(r.message||'Comando enviado.');
-    // Primeira leitura imediata (não silenciosa) e depois polling silencioso e estável.
-    clearInterval(waBaileysPoll); _waLastQr=null; let attempts=0;
-    waLoadBaileysStatus(false);
-    waBaileysPoll=setInterval(function(){
-      attempts++;
-      waLoadBaileysStatus(true);           // silencioso: não pisca a tela
-      if(attempts>=24) clearInterval(waBaileysPoll);   // ~60s para escanear o QR
-    },2500);
-  }catch(e){if(statusEl)statusEl.innerHTML='<span style="color:var(--red)">Falha: '+waLogEsc(e.message)+'</span>';toast(e.message,'error');waSetBaileysActionsBusy(false);}
-}
-
-// Para o polling do Baileys quando sai da aba/troca de provedor (evita ficar rodando em fundo).
-function waStopBaileysPoll(){ if(waBaileysPoll){ clearInterval(waBaileysPoll); waBaileysPoll=null; } }
 
 async function saveWaConfig() {
   try {
@@ -16299,7 +16177,6 @@ function switchWaSubView(view){
   if(view==='autoreply') loadWaAutoRules();
   if(view==='templates') loadWaTemplates();
   if(view==='bot') loadWaBotSettings();
-  if(view==='update') loadWaBaileysUpdate(false);
 }
 
 // ── Auto Rules CRUD ──
@@ -16515,92 +16392,8 @@ async function waDeleteTemplate(id, name){
 }
 
 // ── Bot Settings ──
-var _waInboundModeState=null;
-
-function waInboundModeLabel(mode){
-  if(mode==='production')return 'Producao';
-  if(mode==='sandbox')return 'Sandbox';
-  return 'Indefinido';
-}
-
-function renderWaInboundModeCard(state,loading){
-  state=state||{};
-  if(state.mode==='evolution_go')return '<div><div class="wa-inbound-mode-title">Recebimento Evolution GO</div><div class="wa-inbound-mode-desc">As mensagens recebidas chegam ao mesmo bot. Ele só responde quando Auto respostas estiver ativado e respeita o modo sandbox, horário e limites definidos abaixo.</div></div><div class="wa-inbound-mode-actions"><span class="wa-inbound-badge production">Webhook integrado</span><button class="btn btn-secondary btn-sm" onclick="waLoadEvolutionGoStatus(false)">Verificar conexão</button></div>';
-  var resolvedMode=state.mode||state.runtime_mode||state.configured_mode;
-  var mode=(resolvedMode==='production'||resolvedMode==='sandbox')?resolvedMode:'unknown';
-  var nextMode=mode==='production'?'sandbox':'production';
-  var actionLabel=nextMode==='production'?'Desativar sandbox':'Ativar sandbox';
-  var desc=mode==='production'
-    ?'O bot inbound responde automaticamente para qualquer cliente que enviar mensagem.'
-    :'O bot inbound responde somente aos numeros autorizados na allowlist de sandbox.';
-  if(mode==='unknown')desc='Nao foi possivel confirmar o modo atual do Baileys. Verifique o servico antes de alternar.';
-  var service=state.requires_restart_service||'menina-baileys.service';
-  var disabled=loading||mode==='unknown';
-  return '<div><div class="wa-inbound-mode-title">Modo inbound automatico</div>'
-    +'<div class="wa-inbound-mode-desc">'+waLogEsc(desc)+'<br>Alterar este modo reinicia brevemente '+waLogEsc(service)+'.</div></div>'
-    +'<div class="wa-inbound-mode-actions">'
-    +'<span class="wa-inbound-badge '+mode+'">'+waLogEsc(waInboundModeLabel(mode))+'</span>'
-    +'<button class="btn btn-secondary btn-sm" onclick="loadWaInboundModeStatus()" '+(loading?'disabled':'')+'>Atualizar</button>'
-    +'<button class="btn btn-primary btn-sm" onclick="changeWaInboundMode(\''+nextMode+'\')" '+(disabled?'disabled':'')+'>'+actionLabel+'</button>'
-    +'</div>';
-}
-
-async function loadWaInboundModeStatus(){
-  var card=document.getElementById('wa-inbound-mode-card');
-  if(card)card.innerHTML=renderWaInboundModeCard(_waInboundModeState,true);
-  try{
-    _waInboundModeState=await api('/api/whatsapp/inbound-mode');
-    if(card)card.innerHTML=renderWaInboundModeCard(_waInboundModeState,false);
-    return _waInboundModeState;
-  }catch(e){
-    _waInboundModeState={mode:'unknown',requires_restart_service:'menina-baileys.service'};
-    if(card)card.innerHTML='<div><div class="wa-inbound-mode-title">Modo inbound automatico</div><div class="wa-inbound-mode-desc" style="color:#991b1b">'+waLogEsc(e.message)+'</div></div><div class="wa-inbound-mode-actions"><span class="wa-inbound-badge unknown">Indefinido</span><button class="btn btn-secondary btn-sm" onclick="loadWaInboundModeStatus()">Tentar novamente</button></div>';
-    return _waInboundModeState;
-  }
-}
-
-function confirmWaInboundModeChange(targetMode){
-  return new Promise(function(resolve){
-    var old=document.getElementById('wa-inbound-mode-modal');
-    if(old)old.remove();
-    var modal=document.createElement('div');
-    modal.id='wa-inbound-mode-modal';
-    modal.className='wa-modal-overlay';
-    var title=targetMode==='production'?'Ativar modo Producao?':'Voltar para Sandbox?';
-    var body=targetMode==='production'
-      ?'Em Producao, o bot respondera automaticamente a todos os clientes que enviarem mensagem. A lista de sandbox sera preservada, mas nao limitara o inbound enquanto o modo estiver em Producao.'
-      :'Em Sandbox, o bot respondera somente aos numeros autorizados para teste. A allowlist existente sera preservada.';
-    modal.innerHTML='<div class="wa-modal-box"><button class="wa-modal-close" type="button" data-wa-inbound-cancel>&times;</button>'
-      +'<h3>'+waLogEsc(title)+'</h3>'
-      +'<div style="font-size:12px;color:var(--g700);line-height:1.45;display:grid;gap:10px">'
-      +'<p style="margin:0">'+waLogEsc(body)+'</p>'
-      +'<p style="margin:0;color:#92400e">A mudanca reinicia brevemente menina-baileys.service para reconectar o WhatsApp. Nenhuma mensagem de teste sera enviada.</p>'
-      +'</div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap">'
-      +'<button class="btn btn-secondary" type="button" data-wa-inbound-cancel>Cancelar</button>'
-      +'<button class="btn btn-primary" type="button" data-wa-inbound-confirm>Confirmar</button>'
-      +'</div></div>';
-    function close(answer){modal.remove();resolve(answer);}
-    modal.addEventListener('click',function(ev){if(ev.target===modal||ev.target.hasAttribute('data-wa-inbound-cancel'))close(false);});
-    modal.querySelector('[data-wa-inbound-confirm]').addEventListener('click',function(){close(true);});
-    document.body.appendChild(modal);
-  });
-}
-
-async function changeWaInboundMode(targetMode){
-  if(targetMode!=='sandbox'&&targetMode!=='production')return;
-  var ok=await confirmWaInboundModeChange(targetMode);
-  if(!ok)return;
-  var card=document.getElementById('wa-inbound-mode-card');
-  if(card)card.innerHTML=renderWaInboundModeCard(_waInboundModeState,true);
-  try{
-    var result=await api('/api/whatsapp/inbound-mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:targetMode})});
-    _waInboundModeState=result.status||{mode:result.mode};
-    if(card)card.innerHTML=renderWaInboundModeCard(_waInboundModeState,false);
-    toast('Modo inbound alterado para '+waInboundModeLabel(result.mode)+'.');
-  }catch(e){
-    await loadWaInboundModeStatus();
-    toast(e.message,'error');
-  }
+function renderWaInboundModeCard(){
+  return '<div><div class="wa-inbound-mode-title">Recebimento Evolution GO</div><div class="wa-inbound-mode-desc">As mensagens recebidas chegam pelo webhook Evolution GO. O bot respeita as opções de auto resposta, sandbox, horário e limites configurados abaixo.</div></div><div class="wa-inbound-mode-actions"><span class="wa-inbound-badge production">Webhook integrado</span><button class="btn btn-secondary btn-sm" onclick="waLoadEvolutionGoStatus(false)">Verificar conexão</button></div>';
 }
 
 async function loadWaBotSettings(){
@@ -16608,9 +16401,6 @@ async function loadWaBotSettings(){
   if(!el) return;
   try{
     var s=await api('/api/whatsapp/bot-settings');
-    _waInboundModeState=waConfig.provider==='evolution_go'
-      ?{mode:'evolution_go',webhook_configured:true}
-      :await api('/api/whatsapp/inbound-mode').catch(function(){return {mode:'unknown',requires_restart_service:'menina-baileys.service'};});
     el.innerHTML='<div class="wa-bot-grid">'
       +'<div class="wa-bot-item"><label>🤖 Bot ativo</label><div class="wa-toggle-wrap"><input type="checkbox" id="wbs-bot-active"'+(s.bot_active==='1'?' checked':'')+'></div></div>'
       +'<div class="wa-bot-item"><label>💬 Auto respostas</label><div class="wa-toggle-wrap"><input type="checkbox" id="wbs-auto-reply-enabled"'+(s.auto_reply_enabled==='1'?' checked':'')+'></div></div>'
@@ -16621,7 +16411,7 @@ async function loadWaBotSettings(){
       +'<div class="wa-bot-item"><label> Horário fim</label><input type="time" id="wbs-auto-reply-to" value="'+(s.auto_reply_to||'19:00')+'"></div>'
       +'<div class="wa-bot-item"><label> Intervalo min (seg)</label><input type="number" id="wbs-min-interval" value="'+(s.min_interval_secs||'30')+'" min="1"></div>'
       +'<div class="wa-bot-item"><label>📊 Máx/dia/cliente</label><input type="number" id="wbs-max-per-day" value="'+(s.max_per_day_per_client||'10')+'" min="0"></div>'
-      +'<div class="wa-inbound-mode-card" id="wa-inbound-mode-card">'+renderWaInboundModeCard(_waInboundModeState,false)+'</div>'
+      +'<div class="wa-inbound-mode-card" id="wa-inbound-mode-card">'+renderWaInboundModeCard()+'</div>'
       +'</div>'
       +'<div style="display:grid;gap:10px;margin-top:14px">'
       +'<label class="wa-bot-message"><span>1. Aviso de atendimento automatizado</span><textarea id="wbs-order-disclosure" rows="2">'+waLogEsc(s.order_bot_disclosure_message||'')+'</textarea></label>'
@@ -16653,63 +16443,6 @@ async function saveWaBotSettings(){
     await api('/api/whatsapp/bot-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     toast('✅ Configurações do bot salvas!');
   }catch(e){ toast(e.message,'error'); }
-}
-
-function waUpdateText(id,value){
-  var el=document.getElementById(id);
-  if(el) el.textContent=value||'—';
-}
-
-async function loadWaBaileysUpdate(refresh){
-  var state=document.getElementById('wa-update-state');
-  var button=document.getElementById('wa-update-apply');
-  if(!state||!button) return;
-  state.className='wa-maint-state';
-  state.textContent=refresh?'Consultando versão disponível...':'Verificando serviço Baileys...';
-  button.disabled=true;
-  try{
-    var data=await api('/api/whatsapp/baileys-update-status'+(refresh?'?refresh=true':''));
-    waUpdateText('wa-update-installed',data.installed_version||'Não identificada');
-    waUpdateText('wa-update-approved',data.approved_version||'Não configurada');
-    waUpdateText('wa-update-legacy',data.legacy_version||'Não consultada');
-    waUpdateText('wa-update-latest',data.latest_version||'Não consultada');
-    var ready=data.connected&&data.listener_installed;
-    var inbound=data.inbound_enabled ? ('Inbound '+(data.inbound_mode||'ativo')) : 'Inbound desativado';
-    var detail=data.update_detail ? ' · '+data.update_detail : '';
-    if(data.update_status==='running'){
-      state.className='wa-maint-state warn';
-      state.textContent='Atualização em andamento · '+inbound;
-      setTimeout(function(){ loadWaBaileysUpdate(false); },5000);
-    }else if(data.update_status==='failed'){
-      state.className='wa-maint-state error';
-      state.textContent='Última atualização falhou'+detail+' · '+inbound;
-    }else if(!data.update_available&&data.installed_version&&data.installed_version===data.approved_version){
-      state.className='wa-maint-state '+(ready?'ok':'warn');
-      state.textContent='Versão aprovada já instalada · '+inbound+detail;
-    }else{
-      state.className='wa-maint-state '+(ready?'ok':'warn');
-      state.textContent=(ready?'Conectado e listener ativo':'Serviço requer atenção')+' · '+inbound+detail;
-    }
-    button.disabled=!data.can_update||data.update_status==='running';
-    button.textContent=data.update_available?'Atualizar versão aprovada':'Versão aprovada instalada';
-  }catch(e){
-    state.className='wa-maint-state error';
-    state.textContent=e.message;
-  }
-}
-
-async function applyWaBaileysUpdate(){
-  if(!confirm('Aplicar a versão aprovada do Baileys? A conexão será reiniciada por alguns segundos e a sessão será preservada.')) return;
-  var button=document.getElementById('wa-update-apply');
-  if(button) button.disabled=true;
-  try{
-    await api('/api/whatsapp/baileys-update',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-    toast('Atualização Baileys iniciada.');
-    setTimeout(function(){ loadWaBaileysUpdate(false); },3000);
-  }catch(e){
-    toast(e.message,'error');
-    loadWaBaileysUpdate(false);
-  }
 }
 
 // ─── fim WhatsApp ──────────────────────────────────────

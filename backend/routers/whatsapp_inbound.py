@@ -24,8 +24,8 @@ LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
 
 
-class BaileysInboundEvent(BaseModel):
-    provider: str = Field(pattern="^baileys$")
+class EvolutionGoInboundEvent(BaseModel):
+    provider: str = Field(pattern="^evolution_go$")
     instance: str = Field(min_length=1, max_length=100)
     event_id: str = Field(min_length=1, max_length=255)
     message_id: str = Field(min_length=1, max_length=255)
@@ -150,7 +150,7 @@ def create_whatsapp_inbound_router(get_db, company_key, valid_companies, require
             raise HTTPException(503, "Recebimento WhatsApp desativado.")
         raw = await _read_limited_json(request, settings["max_body"])
         try:
-            body = BaileysInboundEvent.model_validate(raw)
+            body = EvolutionGoInboundEvent.model_validate(raw)
         except ValidationError as exc:
             logger.warning("Evento WhatsApp interno invalido: %s", exc.error_count())
             raise HTTPException(422, "Evento WhatsApp invalido.") from exc

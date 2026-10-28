@@ -1,6 +1,6 @@
 # Evolution Go bootstrap
 
-This stack is isolated from the business backend and the existing Baileys service.
+Evolution Go is the sole WhatsApp transport used by the ERP.
 It builds upstream Evolution Go `0.7.2` at pinned commit
 `9337afc47e10b86cc896a6f432240e40fee95dd1` with a minimal Manager-login fix,
 keeps PostgreSQL private on its compose network, and publishes the Manager/API
@@ -56,8 +56,5 @@ That automatic endpoint treats the registered email as its proof of identity and
 does not require a second factor. Keep the email unset until the first manual
 registration is complete and do not expose the private `.env` or API key.
 
-Evolution Go remains unselected in the ERP until separately integrated and tested.
-The existing Baileys service and its QR/session data are not changed by this
-bootstrap. The Evolution Go usage notice must be visible to administrators and
-available in system documentation/settings before integrating it into the ERP.
+Evolution Go is integrated through the ERP provider selector and webhook. Keep its API bound to loopback and store credentials only in the server environment. Do not remove the named volumes `menina_evolution_go_*` during rollback.
 Do not delete the named volumes `menina_evolution_go_*` during rollback.

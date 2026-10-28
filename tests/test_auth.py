@@ -352,11 +352,10 @@ def test_android_session_uses_mobile_idle_policy_without_changing_web(isolated_a
             "SELECT client_type, expires_at FROM sessions WHERE token=?", (token,)
         ).fetchone()
         assert session["client_type"] == client_type
-        if client_type == "android":
-            conn.execute(
-                "UPDATE sessions SET last_seen=? WHERE token=?",
-                ((datetime.now() - timedelta(minutes=21)).strftime("%Y-%m-%d %H:%M:%S"), token),
-            )
+        conn.execute(
+            "UPDATE sessions SET last_seen=? WHERE token=?",
+            ((datetime.now() - timedelta(minutes=21)).strftime("%Y-%m-%d %H:%M:%S"), token),
+        )
     conn.commit()
     conn.close()
 

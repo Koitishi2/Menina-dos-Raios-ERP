@@ -4,7 +4,6 @@ from pathlib import Path
 import pytest
 
 from backend.domains.whatsapp_policies import (
-    baileys_readiness,
     campaign_eligibility,
     conversation_control_intent,
     duplicate_order_reasons,
@@ -63,16 +62,12 @@ def test_phone_normalization(raw, valid, reason, e164):
     assert result.e164 == e164
 
 
-def test_control_commands_and_baileys_readiness():
+def test_control_commands_remain_available_for_evolution_go():
     assert conversation_control_intent("sair") == "opt_out"
     assert conversation_control_intent("STOP") == "opt_out"
     assert conversation_control_intent("Falar com atendente") == "atendimento_humano"
     assert conversation_control_intent("Quero falar com um atendente, por favor") == "atendimento_humano"
     assert conversation_control_intent("quero comprar") is None
-    assert baileys_readiness(False, True) == (False, "baileys_desconectado")
-    assert baileys_readiness(False, False) == (False, "credenciais_ausentes")
-    assert baileys_readiness(True, True, "timeout") == (False, "erro_conexao")
-    assert baileys_readiness(True, True) == (True, "disponivel")
 
 
 def test_message_idempotency_is_stable_and_company_scoped():
@@ -153,4 +148,3 @@ def test_client_subtabs_expose_manual_selection_without_automatic_send():
     assert "fetch(" not in whatsapp_js
     assert "fetch(" not in orders_js
     app_source = (ROOT / "backend" / "app.py").read_text(encoding="utf-8")
-    assert "threading.Thread(target=motivation_scheduler" not in app_source

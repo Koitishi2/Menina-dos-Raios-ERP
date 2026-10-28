@@ -271,21 +271,6 @@ def validate_static_refs(source):
         raise PackageError("referencias JS/CSS ausentes no index.html: " + ", ".join(sorted(set(missing))))
 
 
-def validate_node_refs(source):
-    base = source / "baileys-api"
-    for name in ("server.js", "inbound.js", "security.js", "maintenance.js", "update-baileys-safe.sh", "package.json", "package-lock.json"):
-        if not (base / name).exists():
-            raise PackageError(f"Baileys runtime ausente: baileys-api/{name}")
-    for script in ("server.js", "inbound.js", "security.js", "maintenance.js"):
-        text = (base / script).read_text(encoding="utf-8")
-        refs = re.findall(r"""require\(["'](\./[^"']+)["']\)""", text)
-        for ref in refs:
-            target = (base / ref)
-            if not target.suffix:
-                target = target.with_suffix(".js")
-            if not target.exists():
-                raise PackageError(f"require local ausente em baileys-api/{script}: {ref}")
-
 
 def validate_migrations(source, sections):
     migrations = sections.get("migrations", [])
@@ -317,7 +302,6 @@ def validate_package(source, sections):
         scan_secrets(rel, path)
     validate_python_imports(source)
     validate_static_refs(source)
-    validate_node_refs(source)
     validate_migrations(source, sections)
     return files
 

@@ -54,20 +54,21 @@ test "$EXPECTED_SCRIPT_SHA256" != ""
 PACKAGE_PATH="$RUN_DIR/$PACKAGE_NAME"
 SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
 STAGED_BACKEND="$RUN_DIR/backend"
-STAGED_BAILEYS="$RUN_DIR/baileys-api"
 BAILEYS_DIR="/opt/menina/baileys-api"
 BAILEYS_SERVICE="menina-baileys"
+BAILEYS_UNIT_FILE="/etc/systemd/system/menina-baileys.service"
 SERVICE_PYTHON="/opt/menina/venv/bin/python3"
 CODE_DIR_NAMES=(domains repositories routers services migrations)
 STATIC_DIR_NAMES=(assets css js)
 BAILEYS_FILES=(server.js inbound.js security.js maintenance.js package.json package-lock.json update-baileys-safe.sh)
 BACKUP_READY=0
 BAILEYS_BACKUP_READY=0
+BAILEYS_WAS_ACTIVE=0
+BAILEYS_WAS_ENABLED=0
 
 command -v sha256sum >/dev/null
 command -v python3 >/dev/null
 command -v runuser >/dev/null
-command -v node >/dev/null
 command -v systemctl >/dev/null
 if [[ "${DRY_RUN:-0}" != "1" ]]; then
   : "${HEALTHCHECK_URL:?HEALTHCHECK_URL obrigatorio para aplicar}"
@@ -99,6 +100,7 @@ copy_baileys_code() {
   mkdir -p "$dst"
   for name in "${BAILEYS_FILES[@]}"; do
     item="$src/$name"
+    [[ ! -e "$item" ]] && continue
     [[ -f "$item" && ! -L "$item" ]] || {
       echo "BAILEYS_ALLOWLIST_FILE_INVALIDO: $item" >&2
       return 1
@@ -117,43 +119,6 @@ clear_baileys_code() {
     }
     [[ ! -f "$item" ]] || rm -f -- "$item"
   done
-}
-
-validate_baileys_code() {
-  local root="$1" name
-  for name in server.js inbound.js security.js maintenance.js; do
-    node --check "$root/$name"
-  done
-  bash -n "$root/update-baileys-safe.sh"
-  NODE_PATH="$BAILEYS_DIR/node_modules" node -e \
-    "require(process.argv[1]); require(process.argv[2]); require(process.argv[3]);" \
-    "$root/inbound.js" "$root/security.js" "$root/maintenance.js"
-  echo "BAILEYS_CODE_VALIDATION_OK"
-}
-
-validate_baileys_health() {
-  local attempt
-  for attempt in $(seq 1 30); do
-    if python3 - <<'PY'
-import json
-import urllib.request
-
-try:
-    with urllib.request.urlopen("http://127.0.0.1:3001/status", timeout=3) as response:
-        payload = json.load(response)
-except Exception:
-    raise SystemExit(1)
-if payload.get("connected") is not True or (payload.get("inbound") or {}).get("listenerInstalled") is not True:
-    raise SystemExit(1)
-print("BAILEYS_HEALTH_OK=connected_listener_installed")
-PY
-    then
-      return 0
-    fi
-    sleep 2
-  done
-  echo "BAILEYS_HEALTH_TIMEOUT" >&2
-  return 1
 }
 
 # Copia somente arquivos e diretorios explicitamente classificados como codigo.
@@ -331,7 +296,7 @@ PY
 rollback() {
   local original_status="${1:-$?}"
   local restore_status=0 baileys_restore_status=0 start_status=0 baileys_start_status=0
-  local final_status="unknown" baileys_final_status="unknown"
+  local final_status="unknown" baileys_final_status="inactive"
   set +e
   trap - ERR
   echo "ROLLBACK_INICIADO erro_original=$original_status" >&2
@@ -355,24 +320,36 @@ rollback() {
     if [[ "$baileys_restore_status" = "0" ]]; then
       copy_baileys_code "$BACKUP_DIR/baileys-api" "$BAILEYS_DIR" || baileys_restore_status=$?
     fi
-  else
-    echo "ROLLBACK_BAILEYS_RESTORE_NAO_EXECUTADO backup_indisponivel" >&2
+    if [[ -f "$BACKUP_DIR/menina-baileys.service" ]]; then
+      cp -p -- "$BACKUP_DIR/menina-baileys.service" "$BAILEYS_UNIT_FILE" || baileys_restore_status=$?
+      systemctl daemon-reload || baileys_restore_status=$?
+    fi
   fi
-  echo "ROLLBACK_BAILEYS_RESTORE_STATUS=$baileys_restore_status" >&2
+  echo "ROLLBACK_LEGACY_RUNTIME_RESTORE_STATUS=$baileys_restore_status" >&2
 
   systemctl start "$SERVICE"
   start_status=$?
   echo "ROLLBACK_START_STATUS=$start_status" >&2
-  systemctl start "$BAILEYS_SERVICE"
-  baileys_start_status=$?
-  echo "ROLLBACK_BAILEYS_START_STATUS=$baileys_start_status" >&2
+  if [[ "$BAILEYS_BACKUP_READY" = "1" && -f "$BAILEYS_UNIT_FILE" ]]; then
+    if [[ "$BAILEYS_WAS_ENABLED" = "1" ]]; then
+      systemctl enable "$BAILEYS_SERVICE" >/dev/null 2>&1 || baileys_start_status=$?
+    else
+      systemctl disable "$BAILEYS_SERVICE" >/dev/null 2>&1 || baileys_start_status=$?
+    fi
+    if [[ "$BAILEYS_WAS_ACTIVE" = "1" ]]; then
+      systemctl start "$BAILEYS_SERVICE" || baileys_start_status=$?
+    else
+      systemctl stop "$BAILEYS_SERVICE" >/dev/null 2>&1 || true
+    fi
+  fi
   sleep 5
   final_status="$(systemctl is-active "$SERVICE" 2>&1)"
-  baileys_final_status="$(systemctl is-active "$BAILEYS_SERVICE" 2>&1)"
+  if [[ "$BAILEYS_WAS_ACTIVE" = "1" ]]; then
+    baileys_final_status="$(systemctl is-active "$BAILEYS_SERVICE" 2>&1)"
+  fi
   echo "ROLLBACK_STATUS_FINAL=$final_status" >&2
-  echo "ROLLBACK_BAILEYS_STATUS_FINAL=$baileys_final_status" >&2
+  echo "ROLLBACK_LEGACY_RUNTIME_STATUS_FINAL=$baileys_final_status" >&2
   [[ "$final_status" = "active" ]] || systemctl status "$SERVICE" --no-pager -l >&2 || true
-  [[ "$baileys_final_status" = "active" ]] || systemctl status "$BAILEYS_SERVICE" --no-pager -l >&2 || true
   echo "ROLLBACK_CONCLUIDO" >&2
   return "$original_status"
 }
@@ -448,13 +425,6 @@ release = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 if not sys.argv[2] or release.get("commit") != sys.argv[2]:
     raise SystemExit("RELEASE_COMMIT_MISMATCH")
 PY
-test -d "$STAGED_BAILEYS"
-test -d "$BAILEYS_DIR/node_modules"
-test -d "$BAILEYS_DIR/auth_info_baileys"
-for name in "${BAILEYS_FILES[@]}"; do
-  test -f "$STAGED_BAILEYS/$name"
-  test ! -L "$STAGED_BAILEYS/$name"
-done
 ACTUAL_PY_COUNT="$(find "$STAGED_BACKEND" -maxdepth 1 -type f -name '*.py' | wc -l)"
 test "$ACTUAL_PY_COUNT" = "$EXPECTED_PY_COUNT"
 
@@ -473,8 +443,6 @@ if ! validate_python_as_service_user "$PREFLIGHT_DIR/backend" 1; then
 fi
 rm -rf -- "$PREFLIGHT_DIR"
 echo "STAGING_IMPORT_APP_OK"
-validate_baileys_code "$STAGED_BAILEYS"
-echo "STAGING_BAILEYS_OK"
 
 if [[ "${DRY_RUN:-0}" = "1" ]]; then
   status_phase "DRY_RUN_COMPLETE"
@@ -487,14 +455,28 @@ trap 'handle_signal 129' HUP
 trap 'handle_signal 130' INT
 trap 'handle_signal 143' TERM
 
-# Os servicos devem estar comprovadamente parados antes de qualquer leitura do codigo atual.
+status_phase "BACKUP"
+mkdir -p "$BACKUP_DIR/backend"
+copy_code_tree "$APP_DIR" "$BACKUP_DIR/backend" "$STAGED_BACKEND"
+BACKUP_READY=1
+mkdir -p "$BACKUP_DIR/baileys-api"
+if [[ -d "$BAILEYS_DIR" ]]; then copy_baileys_code "$BAILEYS_DIR" "$BACKUP_DIR/baileys-api"; fi
+if [[ -f "$BAILEYS_UNIT_FILE" && ! -L "$BAILEYS_UNIT_FILE" ]]; then
+  cp -p -- "$BAILEYS_UNIT_FILE" "$BACKUP_DIR/menina-baileys.service"
+fi
+BAILEYS_BACKUP_READY=1
+echo "BACKEND_AND_LEGACY_WHATSAPP_BACKUP_OK"
+
+# Both services are stopped only after the rollback sources have been saved.
 status_phase "SERVICE_STOP"
-systemctl stop "$BAILEYS_SERVICE"
+if systemctl is-active --quiet "$BAILEYS_SERVICE"; then BAILEYS_WAS_ACTIVE=1; fi
+if systemctl is-enabled --quiet "$BAILEYS_SERVICE"; then BAILEYS_WAS_ENABLED=1; fi
+systemctl stop "$BAILEYS_SERVICE" >/dev/null 2>&1 || true
 if systemctl is-active --quiet "$BAILEYS_SERVICE"; then
-  echo "BAILEYS_STOP_FAILED" >&2
+  echo "LEGACY_WHATSAPP_STOP_FAILED" >&2
   false
 fi
-echo "BAILEYS_STOPPED"
+echo "LEGACY_WHATSAPP_STOPPED"
 systemctl stop "$SERVICE"
 if systemctl is-active --quiet "$SERVICE"; then
   echo "SERVICE_STOP_FAILED" >&2
@@ -502,22 +484,11 @@ if systemctl is-active --quiet "$SERVICE"; then
 fi
 echo "SERVICE_STOPPED"
 
-status_phase "BACKUP"
-mkdir -p "$BACKUP_DIR/backend"
-copy_code_tree "$APP_DIR" "$BACKUP_DIR/backend" "$STAGED_BACKEND"
-BACKUP_READY=1
-mkdir -p "$BACKUP_DIR/baileys-api"
-copy_baileys_code "$BAILEYS_DIR" "$BACKUP_DIR/baileys-api"
-BAILEYS_BACKUP_READY=1
-echo "BACKEND_AND_BAILEYS_BACKUP_OK"
-
 status_phase "COPY"
 clear_code_tree "$APP_DIR" "$STAGED_BACKEND"
 copy_code_tree "$STAGED_BACKEND" "$APP_DIR" "$STAGED_BACKEND"
 chown_code_tree "$APP_DIR" "$STAGED_BACKEND"
 remove_code_pycache "$APP_DIR"
-clear_baileys_code "$BAILEYS_DIR"
-copy_baileys_code "$STAGED_BAILEYS" "$BAILEYS_DIR"
 
 test -d "$APP_DIR/repositories"
 test -d "$APP_DIR/routers"
@@ -527,24 +498,16 @@ test -f "$APP_DIR/repositories/sellers_repository.py"
 test -f "$APP_DIR/routers/sellers.py"
 test -f "$APP_DIR/services/sellers_service.py"
 validate_python_as_service_user "$APP_DIR" 0
-validate_baileys_code "$BAILEYS_DIR"
 
 status_phase "SERVICE_RESTART"
 systemctl start "$SERVICE"
-systemctl start "$BAILEYS_SERVICE"
 for attempt in $(seq 1 30); do
   FINAL_SERVICE_STATUS="$(systemctl is-active "$SERVICE" 2>&1 || true)"
-  BAILEYS_STATUS_FINAL="$(systemctl is-active "$BAILEYS_SERVICE" 2>&1 || true)"
-  if [[ "$FINAL_SERVICE_STATUS" = "active" && "$BAILEYS_STATUS_FINAL" = "active" ]]; then
-    break
-  fi
+  if [[ "$FINAL_SERVICE_STATUS" = "active" ]]; then break; fi
   sleep 2
 done
 echo "SERVICE_STATUS_FINAL=$FINAL_SERVICE_STATUS"
-echo "BAILEYS_STATUS_FINAL=$BAILEYS_STATUS_FINAL"
 test "$FINAL_SERVICE_STATUS" = "active"
-test "$BAILEYS_STATUS_FINAL" = "active"
-validate_baileys_health
 
 # Confirma que o processo responde pela rota da aplicacao, nao apenas pelo systemd.
 status_phase "HEALTHCHECK"
@@ -567,6 +530,24 @@ wait_for_release_health() {
 wait_for_release_health
 echo "HTTP_HEALTHCHECK_OK"
 
+status_phase "LEGACY_WHATSAPP_RETIREMENT"
+systemctl disable "$BAILEYS_SERVICE" >/dev/null 2>&1 || true
+systemctl stop "$BAILEYS_SERVICE" >/dev/null 2>&1 || true
+if systemctl is-active --quiet "$BAILEYS_SERVICE"; then
+  echo "LEGACY_WHATSAPP_STILL_ACTIVE" >&2
+  false
+fi
+if [[ -e "$BAILEYS_UNIT_FILE" ]]; then
+  [[ -f "$BAILEYS_UNIT_FILE" && ! -L "$BAILEYS_UNIT_FILE" ]] || {
+    echo "LEGACY_WHATSAPP_UNIT_PATH_INVALID" >&2
+    false
+  }
+  rm -f -- "$BAILEYS_UNIT_FILE"
+  systemctl daemon-reload
+fi
+clear_baileys_code "$BAILEYS_DIR"
+echo "LEGACY_WHATSAPP_RETIRED service=disabled unit=removed runtime_code=removed credentials_and_node_modules=preserved"
+
 trap - ERR HUP INT TERM
 status_phase "COMPLETE"
-echo "REMOTE_BACKEND_AND_BAILEYS_UPDATE_OK"
+echo "REMOTE_BACKEND_UPDATE_OK"

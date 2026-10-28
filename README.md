@@ -18,7 +18,7 @@ Dominios finalizados no ciclo atual:
 
 A funcionalidade de upload/importacao Excel foi removida por nao fazer mais parte do uso atual. Dados historicos, tabelas, compatibilidades e rotas auxiliares necessarias para registros antigos foram preservados quando aplicavel.
 
-Deploy controlado por pacote `.zip`, preservando configuracoes locais, bancos, uploads, logs, backups e sessoes de integracao. O componente WhatsApp/Baileys permanece no ciclo de producao validado com Baileys 6.7.x; Baileys 7 RC segue bloqueado para producao ate novo ciclo especifico.
+Deploy controlado por pacote `.zip`, preservando configuracoes locais, bancos, uploads, logs, backups e sessoes de integracao. Evolution GO e o unico transporte WhatsApp ativo no ERP, com acesso local por loopback e credenciais restritas ao servidor.
 
 ## Historico Operacional Recente
 
@@ -26,7 +26,7 @@ A linha `2.1.0` consolida os deploys controlados de setembro/2026 relacionados a
 
 Mudancas consolidadas nesta linha:
 
-- controle de modo inbound WhatsApp pela UI, alternando `sandbox` e `production` por helper root limitado, com backup do arquivo de ambiente e restart de `menina-baileys.service` somente quando o botao da UI e acionado;
+- controle de envio e recebimento WhatsApp integrado ao Evolution GO, com bloqueios de sandbox, permissao e consentimento;
 - painel de Pedidos com abas **Pendentes**, **Aprovados** e **Recusados**, mantendo a fila principal limpa;
 - acoes de **Aprovar pedido**, **Recusar pedido** e **Remover pedido** para pedidos vindos do WhatsApp;
 - notificacao formal ao cliente quando um pedido e aprovado ou recusado, respeitando as travas de outbound, sandbox, producao aprovada e idempotencia de clique;
@@ -34,7 +34,7 @@ Mudancas consolidadas nesta linha:
 - suporte a pedido com mais de um item usando a resposta `ADICIONAR`;
 - tratamento de opcoes numericas `1` a `6` como produtos durante o fluxo;
 - cadastro inicial de cliente WhatsApp novo, coletando nome e endereco antes do pedido;
-- suporte a eventos WhatsApp LID, incluindo uso de JID alternativo numerico quando o Baileys fornece esse dado;
+- suporte a eventos WhatsApp LID usando somente identificadores alternativos entregues pelo Evolution GO;
 - registro do telefone do cliente quando o evento LID trouxer JID numerico alternativo;
 - botao de remocao para pedidos pendentes, aprovados ou recusados, com exclusao do pedido e itens relacionados;
 - health checks resilientes nos aplicadores, aguardando o Uvicorn aceitar conexao antes de considerar falha real.
@@ -181,9 +181,9 @@ misturar arquivos do worktree. O manifesto autorizado fica em
 `scripts/build_deploy_package.py`.
 
 O fluxo local valida dependencias antes de gerar o `.zip`: modulos Python,
-referencias JS/CSS do frontend, dependencias locais do Baileys, ordem das
+referencias JS/CSS do frontend e ordem das
 migracoes, hashes conhecidos e ausencia de dados protegidos. O pacote nao deve
-conter `.env`, bancos, uploads, logs, backups, sessoes Baileys, QR Codes,
+conter `.env`, bancos, uploads, logs, backups, sessoes legadas, QR Codes,
 `node_modules`, temporarios ou scripts operacionais locais nao aprovados.
 
 O gerador nao executa SSH, SCP, deploy, migracao, restart ou envio de mensagem.
@@ -258,7 +258,7 @@ Scripts operacionais incluidos no repositorio devem ser revisados antes de uso e
 
 ## Clientes: WhatsApp e Pedidos
 
-A area **Clientes** possui as sub-abas **WhatsApp** e **Pedidos**. O recebimento pelo Baileys, o bot de pedidos e o envio de respostas ao cliente sao controlados por variaveis de ambiente, permissoes RBAC e pelo modo inbound configurado na UI. A confirmacao do cliente cria pedido em `aguardando_aprovacao`; aprovacao, recusa e remocao sao acoes humanas feitas no painel. Nao existe conversao automatica em venda nem alteracao automatica de estoque.
+A area **Clientes** possui as sub-abas **WhatsApp** e **Pedidos**. O recebimento pelo Evolution GO, o bot de pedidos e o envio de respostas ao cliente sao controlados por variaveis de ambiente, permissoes RBAC e configuracoes de sandbox. A confirmacao do cliente cria pedido em `aguardando_aprovacao`; aprovacao, recusa e remocao sao acoes humanas feitas no painel. Nao existe conversao automatica em venda nem alteracao automatica de estoque.
 
 O ambiente operacional atual usa pacotes controlados e backups incrementais para publicar mudancas. Deploys de codigo nao enviam mensagem WhatsApp. Mensagens reais sao disparadas apenas por fluxos explicitamente acionados depois do deploy, como o bot respondendo a uma mensagem recebida ou a notificacao de aprovacao/recusa pelo operador.
 
@@ -271,7 +271,7 @@ O ambiente operacional atual usa pacotes controlados e backups incrementais para
 - `backend/static/js/client_orders.js`: estados, filtros e estado vazio da sub-aba Pedidos;
 - `backend/static/css/client_whatsapp.css` e `backend/static/css/client_orders.css`: layout responsivo das novas sub-abas.
 
-O servico Baileys existente em `baileys-api/server.js` continua sendo a unica conexao WhatsApp. O listener `messages.upsert` e instalado no mesmo `sock`; nenhuma segunda instancia, sessao ou rotina de QR Code e criada.
+O ERP usa Evolution GO para conexao, envio e recebimento WhatsApp. O webhook validado encaminha os eventos ao bot existente; nao ha servico Baileys no runtime do ERP.
 
 ### Bot de pedidos
 
@@ -287,9 +287,9 @@ qualquer mensagem inicial -> cadastro inicial se cliente novo -> escolha do prod
 
 Os produtos aceitos sao Macaxeira com casca, Macaxeira a vacuo, Alho descascado 250g, Alho descascado 1kg, Macaxeira chips e Macaxeira pre-cozida. O cliente pode responder pelo numero de 1 a 6 ou pelo nome. A unidade e validada conforme o produto e a avaria nao pode superar a quantidade solicitada. A resposta `ADICIONAR` permite incluir outro item no mesmo atendimento antes da confirmacao final.
 
-Quando o telefone/JID recebido ainda nao possui cliente cadastrado, o bot coleta como o cliente gostaria de ser chamado e o endereco antes de iniciar o pedido. Quando o evento vier por LID, o sistema tenta associar e gravar o telefone usando o JID numerico alternativo fornecido pelo Baileys; se esse dado nao existir no evento, o telefone real nao e inferido por heuristica.
+Quando o telefone/JID recebido ainda nao possui cliente cadastrado, o bot coleta como o cliente gostaria de ser chamado e o endereco antes de iniciar o pedido. Quando o evento vier por LID, o sistema tenta associar e gravar o telefone usando o JID numerico alternativo fornecido pelo Evolution GO; se esse dado nao existir no evento, o telefone real nao e inferido por heuristica.
 
-O bot somente responde quando todas as travas estiverem liberadas: canal inbound configurado, `bot_active=1`, `auto_reply_enabled=1`, horario permitido, provedor Baileys, outbound habilitado e modo inbound coerente. Em modo `sandbox`, apenas numeros permitidos respondem. Em `production`, o inbound aceita clientes individuais validos, mas o envio continua dependente das travas de outbound. Falha de envio fica registrada e nao cria venda nem movimenta estoque.
+O bot somente responde quando todas as travas estiverem liberadas: canal inbound configurado, `bot_active=1`, `auto_reply_enabled=1`, horario permitido, provedor Evolution GO, outbound habilitado e modo inbound coerente. Em modo `sandbox`, apenas numeros permitidos respondem. Em `production`, o inbound aceita clientes individuais validos, mas o envio continua dependente das travas de outbound. Falha de envio fica registrada e nao cria venda nem movimenta estoque.
 
 O atendimento iniciado pelo cliente usa a origem `cliente_iniciou_contato` e nao depende de consentimento de marketing. `SAIR`, `STOP`, `PARAR` ou `CANCELAR` registram opt-out e bloqueiam novas respostas automaticas. Pedidos de atendente mudam a conversa para `atendimento_humano`. A pontuacao de completude e sua composicao ficam registradas na memoria de calculo do pedido; um pedido confirmado com todos os dados recebe 100 pontos.
 
@@ -335,7 +335,7 @@ Limitação SQLite: `ALTER TABLE ADD COLUMN IF NOT EXISTS` e rollback fisico de 
 
 ### Fluxos previstos
 
-Uma mensagem recebida devera ser identificada por empresa, ID externo, JID, horario e hash do evento. A chave de idempotencia e deterministica e inclui a empresa, impedindo que o mesmo evento seja tratado como novo em repeticoes do Baileys. Antes de criar um pedido, o servico futuro devera verificar mensagem processada, pedido aberto na conversa, chave repetida, confirmacao anterior e pedido recente do cliente. Uma ocorrencia suspeita deve ficar em `duplicado_suspeito` para revisao humana.
+Uma mensagem recebida devera ser identificada por empresa, ID externo, JID, horario e hash do evento. A chave de idempotencia e deterministica e inclui a empresa, impedindo que o mesmo evento seja tratado como novo em repeticoes do Evolution GO. Antes de criar um pedido, o servico futuro devera verificar mensagem processada, pedido aberto na conversa, chave repetida, confirmacao anterior e pedido recente do cliente. Uma ocorrencia suspeita deve ficar em `duplicado_suspeito` para revisao humana.
 
 Estados de conversa preparados:
 
@@ -417,7 +417,7 @@ No RBAC atual, as capacidades sao representadas pelos modulos `clientes_whatsapp
 
 #### Decisoes de dados
 
-- Telefone armazenado para integracao: E.164 com `+55`; JID separado no formato usado pelo Baileys. Prefixos `00` sao removidos e numeros nacionais de 10 ou 11 digitos recebem `55`.
+- Telefone armazenado para integracao: E.164 com `+55`; JID separado no formato usado pelo Evolution GO. Prefixos `00` sao removidos e numeros nacionais de 10 ou 11 digitos recebem `55`.
 - Nono digito: nenhum digito e criado ou removido por heuristica. Casos antigos/ambiguos ficam `PENDENTE` de regra e revisao manual.
 - Telefone invalido: evento rejeitado antes da escrita. Dois clientes ativos com o mesmo telefone normalizado tambem impedem associacao automatica.
 - Unicidade de mensagem: `(company_key, instance_key, external_message_id)` e `(company_key, idempotency_key)` sao unicos. Repeticao retorna o registro existente sem nova conversa, evento ou pedido.
@@ -431,35 +431,11 @@ No RBAC atual, as capacidades sao representadas pelos modulos `clientes_whatsapp
 
 O backup incremental deste ciclo fica em `backups/client_whatsapp_orders_cycle2_20260914_220931/`. O manifesto inclui hashes e restauracao seletiva sem invalidar o backup anterior.
 
-### Canal interno de recebimento
+### Recebimento por webhook Evolution GO
 
-O adaptador `baileys-api/inbound.js` recebe `messages.upsert` do socket existente e encaminha somente um contrato minimo para `POST /internal/whatsapp/events`. O endereco padrao usa HTTP em loopback; URLs externas ou rotas diferentes sao recusadas pelo adaptador. O backend tambem exige origem local direta, rejeita cabecalhos de proxy e autentica o header `x-whatsapp-inbound-token` com comparacao constante.
+O ERP recebe mensagens pelo webhook do Evolution GO, valida o segredo associado à empresa e confere a instância antes de normalizar e processar cada evento. Eventos repetidos são identificados para impedir mensagens e conversas duplicadas. O bot conserva as regras de sandbox, consentimento, horário, limites e bloqueio de grupos.
 
-O segredo existe apenas no ambiente dos dois processos. Nunca deve ser colocado no repositorio, frontend ou log. Configuracao local:
-
-```ini
-WHATSAPP_INBOUND_ENABLED=false
-WHATSAPP_INBOUND_TOKEN=
-WHATSAPP_INBOUND_INSTANCE=
-WHATSAPP_INBOUND_COMPANY=
-WHATSAPP_INBOUND_MODE=sandbox
-WHATSAPP_INBOUND_SANDBOX_NUMBERS=
-WHATSAPP_INBOUND_URL=http://127.0.0.1:8765/internal/whatsapp/events
-WHATSAPP_INBOUND_TIMEOUT_MS=5000
-WHATSAPP_INBOUND_MAX_ATTEMPTS=3
-WHATSAPP_INBOUND_MAX_QUEUE=100
-WHATSAPP_INBOUND_MAX_BODY_BYTES=32768
-```
-
-`WHATSAPP_INBOUND_MODE` operacional aceita `sandbox` e `production` na UI atual. Em `sandbox`, somente os numeros de `WHATSAPP_INBOUND_SANDBOX_NUMBERS` sao encaminhados; em `production`, toda mensagem individual valida e encaminhada (o backend aplica as travas de bot, outbound e horario). Qualquer outro valor deve falhar fechado e exigir correcao operacional.
-
-O padrao e desligado. Quando habilitado, a instancia e associada no backend a uma empresa configurada; o Node nao escolhe empresa nem cliente. O corpo JSON aceito contem `provider`, `instance`, `event_id`, `message_id`, `remote_jid`, `from_me`, `message_type`, `text`, `timestamp` e `raw_type` opcional. Payload bruto nao e persistido.
-
-O diretorio de autenticacao do Baileys e definido somente pelo ambiente e permanece ignorado pelo Git, assim como artefatos locais de QR Code. O valor real e as credenciais da sessao nao devem ser documentados, copiados para backups de codigo ou exibidos em logs.
-
-Grupos, mensagens proprias, mensagens de sistema, JID invalido e telefone invalido ficam bloqueados e auditados. Numeros sem um unico cliente ativo ficam `nao_identificado`. Eventos repetidos incrementam `duplicate_count` no registro existente e nao criam nova mensagem ou conversa. Mensagens diretas validas sao registradas transacionalmente; opt-out atualiza conversa e consentimento sem resposta automatica.
-
-Se o FastAPI estiver indisponivel, o adaptador usa fila em memoria limitada, timeout e no maximo tres tentativas com backoff. Nao ha retry infinito e a conexao Baileys nao e encerrada. A fila nao e duravel: reiniciar o processo pode perder eventos ainda nao entregues, risco que exige decisao antes de uma futura fila persistente.
+O webhook não persiste o payload bruto. Falhas de validação ficam auditadas sem criar pedido, venda ou movimento de estoque. O recebimento depende da instância e do webhook configurados no painel Evolution GO.
 
 ### Sugestoes e envio exclusivamente manual
 
@@ -482,7 +458,7 @@ O usuario seleciona clientes, prepara um lote, revisa a mensagem personalizada e
 
 A criacao do lote aceita uma `request_id` local gerada pela interface. Repetir a mesma requisicao retorna o mesmo lote; reutilizar a chave com clientes, filtros ou mensagem diferentes e recusado. Isso protege repeticoes de clique ou de rede sem impedir que o usuario inicie conscientemente um novo lote com uma nova chave.
 
-O agendador diario de mensagens motivacionais e iniciado junto com o backend. Ele usa `motivation_enabled` e `motivation_time` do banco (padrao 07:00, fuso `America/Manaus`), tenta durante uma janela de duas horas e registra o resultado por contato em `whatsapp_log`. A tentativa diaria e protegida por transacao SQLite para evitar duplicidade quando houver mais de um worker. A tela de WhatsApp mostra se o agendador esta ativo, se o provedor tem configuracao e a data da ultima tentativa/sucesso. O envio continua sujeito a `WHATSAPP_OUTBOUND_ENABLED` e ao modo do provedor Baileys.
+O agendador diario de mensagens motivacionais e iniciado junto com o backend. Ele usa `motivation_enabled` e `motivation_time` do banco (padrao 07:00, fuso `America/Manaus`), tenta durante uma janela de duas horas e registra o resultado por contato em `whatsapp_log`. A tentativa diaria e protegida por transacao SQLite para evitar duplicidade quando houver mais de um worker. A tela de WhatsApp mostra se o agendador esta ativo, se o provedor tem configuracao e a data da ultima tentativa/sucesso. O envio continua sujeito a `WHATSAPP_OUTBOUND_ENABLED` e aos controles de sandbox/producao do ERP.
 
 O envio permanece protegido por duas travas independentes:
 
@@ -494,34 +470,13 @@ WHATSAPP_OUTBOUND_PRODUCTION_APPROVED=false
 WHATSAPP_OUTBOUND_DEDUPE_DAYS=7
 ```
 
-Os modos aceitos sao `disabled`, `sandbox` e `production`. `sandbox` aceita somente numeros explicitamente permitidos. `production` ainda exige `WHATSAPP_OUTBOUND_PRODUCTION_APPROVED=true`, permissao RBAC e provedor Baileys configurado. Nenhuma dessas variaveis e ativada pelos testes.
+Os modos aceitos sao `disabled`, `sandbox` e `production`. `sandbox` aceita somente numeros explicitamente permitidos. `production` ainda exige `WHATSAPP_OUTBOUND_PRODUCTION_APPROVED=true`, permissao RBAC e provedor Evolution GO configurado. Nenhuma dessas variaveis e ativada pelos testes.
 
 O endpoint legado local `/send` permanece por compatibilidade, mas opera com falha fechada: `API_KEY` e obrigatoria, a comparacao e constante e chave ausente ou incorreta recusa a requisicao. Mesmo com chave correta, o endpoint continua bloqueado enquanto `WHATSAPP_OUTBOUND_ENABLED=false`. A chave nunca e registrada em log ou resposta.
 
-### Modo inbound WhatsApp pela UI
+### Recebimento WhatsApp via Evolution GO
 
-Em **Configuracoes > WhatsApp > Bot**, o painel exibe o modo inbound atual e permite alternar entre **Sandbox** e **Producao**. A leitura do modo consulta o backend e o status local do Baileys; quando a aplicacao nao consegue confirmar o modo, a interface mostra estado indefinido e recomenda verificar o servico antes de alternar.
-
-A troca usa um helper privilegiado limitado para alterar somente `WHATSAPP_INBOUND_MODE` no arquivo de ambiente operacional e reiniciar brevemente apenas `menina-baileys.service`. O deploy do codigo nao altera esse arquivo e nao reinicia o Baileys por causa desse recurso. O restart do Baileys acontece somente quando o operador aciona o botao da UI para mudar o modo.
-
-O helper deve:
-
-- aceitar apenas `sandbox` ou `production`;
-- criar backup do arquivo de ambiente antes da escrita;
-- trocar a linha `WHATSAPP_INBOUND_MODE` de forma atomica;
-- preservar dono, grupo e permissao do arquivo;
-- aguardar `/status` do Baileys confirmar o modo solicitado;
-- restaurar o backup e reiniciar novamente o Baileys se a verificacao falhar.
-
-Os logs de auditoria registram a troca de modo de forma sanitizada, sem numeros, tokens, allowlists ou conteudo de mensagens.
-
-### Atualizacao interna do Baileys
-
-A sub-aba `Configuracoes > WhatsApp > Atualizar Baileys` consulta o servico local autenticado e exibe as versoes instalada, aprovada e disponivel. A interface nunca aceita comandos, caminhos ou versoes informados pelo navegador. O botao aplica somente a versao exata previamente versionada em `baileys-api/package.json` e `package-lock.json`.
-
-O helper `baileys-api/update-baileys-safe.sh` prepara `npm ci` em staging, valida os modulos, para apenas `menina-baileys`, troca somente `node_modules`, religa o servico e verifica `/status`. Em caso de falha, restaura o `node_modules` anterior e tenta religar o servico. `.env`, `auth_info_baileys`, QR Codes, bancos e arquivos do backend nao participam da atualizacao. O disparo e feito por uma unit transitoria do systemd e exige que o helper remoto seja arquivo regular, pertencente a root e sem permissao de escrita para grupo ou terceiros.
-
-O listener de pedidos continua fechado por padrao. Atualizar a biblioteca nao ativa entrada nem saida real; `WHATSAPP_INBOUND_ENABLED`, `WHATSAPP_OUTBOUND_ENABLED` e seus modos permanecem controles independentes.
+O Evolution GO encaminha mensagens pelo webhook integrado. O ERP valida segredo, empresa e instancia antes de processar o evento; o bot mantem seus bloqueios de sandbox, consentimento, horario e idempotencia. O serviço e os controles de Baileys foram removidos do runtime e do painel. Os caminhos de credenciais antigas permanecem excluidos dos pacotes de deploy durante a retirada segura.
 
 ### Migracao, teste e desligamento
 
@@ -535,19 +490,12 @@ Validacao local:
 
 ```bat
 python -m py_compile backend\app.py backend\routers\whatsapp_inbound.py backend\routers\whatsapp_campaigns.py backend\services\whatsapp_inbound_service.py backend\services\whatsapp_campaign_service.py
-node --check baileys-api\server.js
-node --check baileys-api\inbound.js
-node --check baileys-api\security.js
-node --check baileys-api\maintenance.js
-node tests\js\test_baileys_inbound.js
-node tests\js\test_baileys_security.js
-node tests\js\test_baileys_maintenance.js
 node tests\js\test_client_whatsapp_foundation.js
 python -X faulthandler -m pytest -q tests\test_whatsapp_inbound_campaigns.py
 python -X faulthandler -m pytest -q tests\test_cycle5_blockers.py
 ```
 
-Os backups incrementais locais preservam arquivos anteriores e incluem manifesto, hashes e restauracao seletiva. Eles nao sao pacotes de deploy e nao devem conter `.env`, sessao Baileys, tokens, bancos ou mensagens reais.
+Os backups incrementais locais preservam arquivos anteriores e incluem manifesto, hashes e restauracao seletiva. Eles nao sao pacotes de deploy e nao devem conter `.env`, credenciais legadas de integracao, tokens, bancos ou mensagens reais.
 
 Limitacoes conhecidas antes de qualquer futura ativacao: a fila inbound nao e persistente e nao possui dead-letter; nao ha politica automatica de retencao de mensagens; consentimento e retomada apos opt-out exigem governanca operacional; a politica de multiplos pedidos abertos permanece pendente; lotes interrompidos em `processando` nao possuem recuperacao automatica; vendas ainda sao relacionadas ao cliente por nome em parte da elegibilidade; e os avisos de depreciacao do ecossistema Python devem ser acompanhados separadamente de falhas reais.
 

@@ -1,5 +1,5 @@
-version_commit=621ed74673213d0685e296b330110075957655a7
-branch=feat/clientes-whatsapp-pedidos
+version_commit=426d2e924fb5053893a7067042556f0079078e8a
+branch=main
 
 [runtime]
 README.md
@@ -50,13 +50,6 @@ backend/static/js/client_orders.js
 backend/static/js/client_whatsapp.js
 backend/static/login-inspirador.png
 backend/static/logo.png
-baileys-api/package.json
-baileys-api/package-lock.json
-baileys-api/server.js
-baileys-api/inbound.js
-baileys-api/security.js
-baileys-api/maintenance.js
-baileys-api/update-baileys-safe.sh
 
 [migrations]
 backend/migrations/20260826_rbac_roles.sql
@@ -86,19 +79,12 @@ WHATSAPP_INBOUND_INSTANCE
 WHATSAPP_INBOUND_COMPANY
 WHATSAPP_OUTBOUND_ENABLED=false
 WHATSAPP_OUTBOUND_MODE=disabled
-API_KEY
 
 [services]
 menina
-menina-baileys
 
 [smoke_tests]
 python -m py_compile backend/*.py backend/domains/*.py backend/repositories/*.py backend/routers/*.py backend/services/*.py
-node --check baileys-api/server.js
-node --check baileys-api/inbound.js
-node --check baileys-api/security.js
-node --check baileys-api/maintenance.js
-bash -n baileys-api/update-baileys-safe.sh
 GET /health
 
 [rollback]

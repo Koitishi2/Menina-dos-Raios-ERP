@@ -82,6 +82,7 @@ def _mark_duplicate(conn, row):
 
 
 def _first_valid_phone_jid(*values):
+    first_invalid = None
     for value in values:
         text = str(value or "").strip().lower()
         if not text:
@@ -89,7 +90,9 @@ def _first_valid_phone_jid(*values):
         phone = normalize_brazil_phone(text.split("@", 1)[0].split(":", 1)[0])
         if phone.valid:
             return text, phone
-    return "", normalize_brazil_phone("")
+        if first_invalid is None and phone.reason:
+            first_invalid = phone
+    return "", first_invalid or normalize_brazil_phone("")
 
 
 def process_inbound_event(conn, company_key, payload, sender=None, outbound=None):
@@ -126,7 +129,7 @@ def process_inbound_event(conn, company_key, payload, sender=None, outbound=None
 
     record_id = duplicate["id"] if retry_incomplete else str(uuid.uuid4())
     base = (
-        record_id, company_key, str(payload.get("provider") or "baileys"), instance_key, event_id, external_id, jid,
+        record_id, company_key, str(payload.get("provider") or "evolution_go"), instance_key, event_id, external_id, jid,
         phone.e164 or None, message_type, raw_type, text[:500], received_at,
     )
     try:

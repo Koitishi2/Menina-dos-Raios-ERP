@@ -52,13 +52,6 @@ def _minimal_source(tmp_path):
     _write(source / "backend" / "static" / "index.html", '<link href="css/client_whatsapp.css"><script src="js/client_orders.js"></script>')
     _write(source / "backend" / "static" / "css" / "client_whatsapp.css", "")
     _write(source / "backend" / "static" / "js" / "client_orders.js", "")
-    _write(source / "baileys-api" / "server.js", "require('./inbound')\nrequire('./security')\nrequire('./maintenance')\n")
-    _write(source / "baileys-api" / "inbound.js", "")
-    _write(source / "baileys-api" / "security.js", "")
-    _write(source / "baileys-api" / "maintenance.js", "")
-    _write(source / "baileys-api" / "update-baileys-safe.sh", "#!/usr/bin/env bash\n")
-    _write(source / "baileys-api" / "package.json", "{}")
-    _write(source / "baileys-api" / "package-lock.json", "{}")
     for migration in (
         "20260914_whatsapp_orders_up.sql",
         "20260914_whatsapp_orders_down.sql",
@@ -82,11 +75,6 @@ def test_manifest_lists_runtime_dependencies_without_protected_data():
         "backend/repositories/sellers_repository.py",
         "backend/services/sellers_service.py",
         "backend/routers/sellers.py",
-        "baileys-api/server.js",
-        "baileys-api/inbound.js",
-        "baileys-api/security.js",
-        "baileys-api/maintenance.js",
-        "baileys-api/update-baileys-safe.sh",
         "backend/migrations/20260914_whatsapp_orders_up.sql",
         "backend/migrations/20260914_whatsapp_inbound_up.sql",
         "backend/migrations/20260916_sellers_up.sql",
@@ -145,14 +133,12 @@ def test_packager_blocks_missing_static_reference(tmp_path):
         builder.validate_static_refs(source)
 
 
-def test_packager_blocks_missing_baileys_dependency(tmp_path):
+def test_packager_has_no_baileys_runtime_validation():
     builder = _load_builder()
-    source = _minimal_source(tmp_path)
-    (source / "baileys-api" / "inbound.js").unlink()
-
-    with pytest.raises(builder.PackageError, match="Baileys runtime ausente|require local ausente"):
-        builder.validate_node_refs(source)
-
+    assert not hasattr(builder, "validate_node_refs")
+    manifest = (ROOT / "deploy" / "whatsapp_sellers_manifest.txt").read_text(encoding="utf-8")
+    assert "menina-baileys" not in manifest
+    assert "baileys-api/" not in manifest
 
 def test_packager_blocks_protected_paths_and_secret_patterns(tmp_path):
     builder = _load_builder()

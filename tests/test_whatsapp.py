@@ -37,6 +37,18 @@ def _add_contact(db_path, name, phone, active=1):
     return contact_id
 
 
+def _clear_motivation_templates(db_path):
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "DELETE FROM whatsapp_templates WHERE LOWER(COALESCE(category,'')) LIKE '%motiv%' "
+            "OR LOWER(COALESCE(name,'')) LIKE '%motiv%'"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def _add_template(db_path, name="Motivacao Teste", content="Foco e constancia."):
     template_id = str(uuid.uuid4())
     conn = sqlite3.connect(db_path)
@@ -325,13 +337,13 @@ def test_wa_failure_hint_current_keyword_mapping_and_precedence(isolated_app):
 def test_wa_log_response_current_json_fields_defaults_unicode_and_missing_values(isolated_app):
     log_response = isolated_app.module._wa_log_response
 
-    sent = log_response({"ok": True, "response": "mensagem enviada"}, {"provider": "baileys"})
+    sent = log_response({"ok": True, "response": "mensagem enviada"}, {"provider": "evolution_go"})
     assert sent == json.dumps(
-        {"provider": "baileys", "response": "mensagem enviada", "hint": ""},
+        {"provider": "evolution_go", "response": "mensagem enviada", "hint": ""},
         ensure_ascii=False,
     )
     assert json.loads(sent) == {
-        "provider": "baileys",
+        "provider": "evolution_go",
         "response": "mensagem enviada",
         "hint": "",
     }
@@ -388,14 +400,14 @@ def test_whatsapp_config_save_success_preserves_response_and_values(isolated_app
     response = isolated_app.client.put(
         "/api/whatsapp/config",
         headers=_headers(token),
-        json={"provider": "baileys", "api_url": "http://baileys.local", "ignored": "fora"},
+        json={"provider": "evolution_go", "api_url": "http://evolution-go.local", "ignored": "fora"},
     )
 
     assert response.status_code == 200
     assert response.json() == {"ok": True}
     cfg = _get_config(isolated_app.db_paths["raios"])
-    assert cfg["provider"] == "baileys"
-    assert cfg["api_url"] == "http://baileys.local"
+    assert cfg["provider"] == "evolution_go"
+    assert cfg["api_url"] == "http://evolution-go.local"
     assert "ignored" not in cfg
 
 
@@ -432,7 +444,7 @@ def test_whatsapp_config_save_commits_and_closes_on_success(isolated_app, monkey
     state = _install_tracked_db(monkeypatch, isolated_app)
 
     result = isolated_app.module.save_wa_config(
-        {"provider": "baileys", "api_url": "http://baileys.local"},
+        {"provider": "evolution_go", "api_url": "http://evolution-go.local"},
         x_token="token",
     )
 
@@ -441,8 +453,8 @@ def test_whatsapp_config_save_commits_and_closes_on_success(isolated_app, monkey
     assert state["config_commits"] == 1
     assert state["config_write_closes"] == 1
     cfg = _get_config(isolated_app.db_paths["raios"])
-    assert cfg["provider"] == "baileys"
-    assert cfg["api_url"] == "http://baileys.local"
+    assert cfg["provider"] == "evolution_go"
+    assert cfg["api_url"] == "http://evolution-go.local"
 
 
 def test_whatsapp_config_save_rolls_back_and_closes_when_second_write_fails(isolated_app, monkeypatch):
@@ -451,7 +463,7 @@ def test_whatsapp_config_save_rolls_back_and_closes_when_second_write_fails(isol
 
     with pytest.raises(sqlite3.OperationalError, match="falha controlada na escrita config"):
         isolated_app.module.save_wa_config(
-            {"provider": "baileys", "api_url": "http://baileys.local"},
+            {"provider": "evolution_go", "api_url": "http://evolution-go.local"},
             x_token="token",
         )
 
@@ -471,7 +483,7 @@ def test_whatsapp_config_save_rolls_back_and_closes_when_commit_fails(isolated_a
     state = _install_tracked_db(monkeypatch, isolated_app, fail_commit=True)
 
     with pytest.raises(sqlite3.OperationalError, match="falha controlada no commit"):
-        isolated_app.module.save_wa_config({"provider": "baileys"}, x_token="token")
+        isolated_app.module.save_wa_config({"provider": "evolution_go"}, x_token="token")
 
     assert state["open"] == 0
     assert state["config_commits"] == 1
@@ -897,181 +909,10 @@ def test_whatsapp_test_message_preserves_send_exception_after_config_connection_
     assert state["config_closes"] == 1
 
 
-def test_whatsapp_baileys_status_closes_config_connection_before_external_call(isolated_app, monkeypatch):
-    token = _login(isolated_app.client)
-    _set_config(isolated_app.db_paths["raios"], "api_url", "http://baileys.local")
-    _set_config(isolated_app.db_paths["raios"], "api_token", "token-teste")
-    state = _install_tracked_db(monkeypatch, isolated_app)
-    calls = []
-
-    class FakeResponse:
-        status_code = 200
-        text = '{"connected": true, "qr": null}'
-
-        def json(self):
-            return {"connected": True, "qr": None}
-
-    import httpx
-
-    def fake_get(url, headers=None, timeout=None):
-        assert state["open"] == 0
-        calls.append((url, headers, timeout))
-        return FakeResponse()
-
-    monkeypatch.setattr(httpx, "get", fake_get)
-
-    response = isolated_app.client.get("/api/whatsapp/baileys-status", headers=_headers(token))
-
-    assert response.status_code == 200
-    assert response.json() == {"connected": True, "qr": None}
-    assert calls == [("http://baileys.local/qr", {"x-api-key": "token-teste"}, 5)]
-    assert state["open"] == 0
-    assert state["config_closes"] == 1
-
-
-def test_whatsapp_baileys_status_closes_connection_when_config_read_fails(isolated_app, monkeypatch):
-    token = _login(isolated_app.client)
-    state = _install_tracked_db(monkeypatch, isolated_app, fail_config_select=True)
-    calls = []
-
-    import httpx
-
-    def forbidden_get(url, headers=None, timeout=None):
-        calls.append((url, headers, timeout))
-        raise AssertionError("httpx.get nao deveria ser chamado")
-
-    monkeypatch.setattr(httpx, "get", forbidden_get)
-
-    with pytest.raises(sqlite3.OperationalError, match="falha controlada na config"):
-        isolated_app.client.get("/api/whatsapp/baileys-status", headers=_headers(token))
-
-    assert calls == []
-    assert state["open"] == 0
-    assert state["config_closes"] == 1
-
-
-def test_whatsapp_baileys_connection_closes_config_connection_before_external_call(isolated_app, monkeypatch):
-    token = _login(isolated_app.client)
-    _set_config(isolated_app.db_paths["raios"], "provider", "baileys")
-    _set_config(isolated_app.db_paths["raios"], "api_url", "http://baileys.local")
-    _set_config(isolated_app.db_paths["raios"], "api_token", "token-teste")
-    state = _install_tracked_db(monkeypatch, isolated_app)
-    calls = []
-
-    class FakeResponse:
-        status_code = 200
-        text = '{"ok": true}'
-
-        def json(self):
-            return {"ok": True}
-
-    import httpx
-
-    def fake_post(url, headers=None, timeout=None):
-        assert state["open"] == 0
-        calls.append((url, headers, timeout))
-        return FakeResponse()
-
-    monkeypatch.setattr(httpx, "post", fake_post)
-
-    response = isolated_app.client.post("/api/whatsapp/baileys-connection/reconnect", headers=_headers(token))
-
-    assert response.status_code == 200
-    assert response.json() == {"ok": True}
-    assert calls == [("http://baileys.local/reconnect", {"x-api-key": "token-teste"}, 12)]
-    assert state["open"] == 0
-    assert state["config_closes"] == 1
-
-
-def test_whatsapp_baileys_disconnect_requests_a_new_session_without_real_connection(isolated_app, monkeypatch):
-    token = _login(isolated_app.client)
-    _set_config(isolated_app.db_paths["raios"], "provider", "baileys")
-    _set_config(isolated_app.db_paths["raios"], "api_url", "http://baileys.local")
-    _set_config(isolated_app.db_paths["raios"], "api_token", "token-teste")
-    state = _install_tracked_db(monkeypatch, isolated_app)
-    calls = []
-
-    class FakeResponse:
-        status_code = 200
-        text = '{"ok": true, "message": "nova sessao solicitada"}'
-
-        def json(self):
-            return {"ok": True, "message": "nova sessao solicitada"}
-
-    import httpx
-
-    def fake_post(url, headers=None, timeout=None):
-        assert state["open"] == 0
-        calls.append((url, headers, timeout))
-        return FakeResponse()
-
-    monkeypatch.setattr(httpx, "post", fake_post)
-
-    response = isolated_app.client.post(
-        "/api/whatsapp/baileys-connection/disconnect",
-        headers=_headers(token),
-    )
-
-    assert response.status_code == 200
-    assert response.json() == {"ok": True, "message": "nova sessao solicitada"}
-    assert calls == [("http://baileys.local/disconnect", {"x-api-key": "token-teste"}, 12)]
-    assert state["open"] == 0
-    assert state["config_closes"] == 1
-
-
-def test_whatsapp_frontend_keeps_new_qr_action_available_when_disconnected(isolated_app):
-    html = (isolated_app.temp_backend / "static" / "index.html").read_text(encoding="utf-8")
-
-    assert 'id="wa-baileys-reconnect"' in html
-    assert "waSetBaileysDisconnectLabel('Gerar novo QR')" in html
-    assert "waSetBaileysDisconnectLabel('Gerar outro QR')" in html
-    assert "waSetBaileysActionsBusy(true);" in html
-    assert "waSetBaileysActionsBusy(false);" in html
-    assert "if(disconnectBtn)disconnectBtn.disabled=true;" not in html
-
-
-def test_whatsapp_baileys_connection_closes_connection_when_config_read_fails(isolated_app, monkeypatch):
-    token = _login(isolated_app.client)
-    state = _install_tracked_db(monkeypatch, isolated_app, fail_config_select=True)
-    calls = []
-
-    import httpx
-
-    def forbidden_post(url, headers=None, timeout=None):
-        calls.append((url, headers, timeout))
-        raise AssertionError("httpx.post nao deveria ser chamado")
-
-    monkeypatch.setattr(httpx, "post", forbidden_post)
-
-    with pytest.raises(sqlite3.OperationalError, match="falha controlada na config"):
-        isolated_app.client.post("/api/whatsapp/baileys-connection/reconnect", headers=_headers(token))
-
-    assert calls == []
-    assert state["open"] == 0
-    assert state["config_closes"] == 1
-
-
-def test_whatsapp_baileys_connection_invalid_action_still_validates_before_config_connection(isolated_app, monkeypatch):
-    opened = []
-
-    def forbidden_get_db(company=None):
-        opened.append(company)
-        raise AssertionError("get_db nao deveria ser chamado")
-
-    monkeypatch.setattr(isolated_app.module, "get_db", forbidden_get_db)
-    monkeypatch.setattr(isolated_app.module, "require_admin", lambda token: {"username": "admin", "role": "admin"})
-
-    with pytest.raises(isolated_app.module.HTTPException) as excinfo:
-        isolated_app.module.wa_baileys_connection("restart", x_token="token")
-
-    assert excinfo.value.status_code == 400
-    assert excinfo.value.detail == "Acao de conexao invalida."
-    assert opened == []
-
-
 def test_daily_motivation_send_now_separates_db_from_provider_and_logs_results(isolated_app, monkeypatch):
     token = _login(isolated_app.client)
     db_path = isolated_app.db_paths["raios"]
+    _clear_motivation_templates(db_path)
     _add_template(db_path, content="Atenda com energia, {cliente}.")
     _add_contact(db_path, "Contato A", "559566666661", active=1)
     _add_contact(db_path, "Contato B", "559566666662", active=1)
@@ -1183,6 +1024,7 @@ def test_daily_motivation_force_false_does_not_send_after_scheduled_window(isola
 
 def test_daily_motivation_without_contacts_preserves_current_no_contacts_result(isolated_app, monkeypatch):
     db_path = isolated_app.db_paths["raios"]
+    _clear_motivation_templates(db_path)
     _add_template(db_path)
     monkeypatch.setattr(
         isolated_app.module,

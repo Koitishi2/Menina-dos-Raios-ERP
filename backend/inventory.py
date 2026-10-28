@@ -30,6 +30,7 @@ SEED_PRODUCTS = [
         "name": "Uva Vitória - Caixa 5 kg",
         "unit": "CX",
         "aliases": ["UVA VITORIA CX 5 KG", "UVA VITORIA CAIXA 5 KG", "Uva Vitoria"],
+        "sale_quantity_factor": 0.2,
     },
 ]
 
@@ -44,6 +45,7 @@ def init_inventory_schema(conn):
             name TEXT NOT NULL,
             unit TEXT NOT NULL DEFAULT 'UND',
             aliases_json TEXT NOT NULL DEFAULT '[]',
+            sale_quantity_factor REAL NOT NULL DEFAULT 1,
             active INTEGER NOT NULL DEFAULT 1,
             tracking_after TEXT NOT NULL,
             created_at TEXT NOT NULL,
@@ -69,6 +71,9 @@ def init_inventory_schema(conn):
         CREATE INDEX IF NOT EXISTS idx_stock_movements_product_date ON stock_movements(product_id, movement_date DESC);
         """
     )
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(stock_products)")}
+    if "sale_quantity_factor" not in columns:
+        conn.execute("ALTER TABLE stock_products ADD COLUMN sale_quantity_factor REAL NOT NULL DEFAULT 1")
     now = datetime.now().astimezone().isoformat(timespec="seconds")
     for item in SEED_PRODUCTS:
         conn.execute(
@@ -85,6 +90,10 @@ def init_inventory_schema(conn):
                 now,
                 now,
             ),
+        )
+        conn.execute(
+            "UPDATE stock_products SET aliases_json=?,sale_quantity_factor=? WHERE module_key='estrada' AND sku=?",
+            (json.dumps(item["aliases"], ensure_ascii=False), item.get("sale_quantity_factor", 1), item["sku"]),
         )
     conn.commit()
 
@@ -200,12 +209,7 @@ def _normalized(value):
 
 def _stock_sale_quantity(product, sale):
     quantity = float(sale["quantity"] or 0)
-    if (
-        product["sku"] == "UVA-VITORIA-5KG"
-        and _normalized(sale["product"]) == _normalized("Uva Vitoria")
-    ):
-        return quantity / 10
-    return quantity
+    return quantity * float(product.get("sale_quantity_factor") or 1)
 
 
 def _normalized_stock_unit(value):
@@ -292,7 +296,13 @@ def inventory_snapshot(stock_conn, source_conn, module_key):
                 "movement_date": sale["sale_date"],
                 "reference": sale["nf_number"] or "",
                 "client": sale["client"] or "",
-                "notes": f"Saída por venda · {sale['client'] or 'Cliente não informado'}",
+                "notes": (
+                    f"Saída por venda · {sale['client'] or 'Cliente não informado'}"
+                    + (f" · {float(sale['quantity'] or 0):g} na venda → {quantity:g} {product['unit']} no estoque"
+                       if float(product.get("sale_quantity_factor") or 1) != 1 else "")
+                ),
+                "sale_quantity": float(sale["quantity"] or 0),
+                "sale_quantity_factor": float(product.get("sale_quantity_factor") or 1),
                 "source": "sale",
                 "source_id": str(sale["id"]),
                 "total": float(sale["total"] or 0),
@@ -385,7 +395,9 @@ def inventory_product_sales(source_conn, module_key, product):
             "id": str(sale["id"]), "reference": str(sale["nf_number"] or ""),
             "date": str(sale["sale_date"] or ""), "client": str(sale["client"] or ""),
             "sale_type": str(sale["sale_type"] or "NF") if module_key != "monteiro" else "NF",
-            "quantity": quantity, "unit": product["unit"], "total": float(sale["total"] or 0),
+            "quantity": quantity, "sale_quantity": float(sale["quantity"] or 0),
+            "sale_quantity_factor": float(product.get("sale_quantity_factor") or 1),
+            "unit": product["unit"], "total": float(sale["total"] or 0),
         })
     rows.sort(key=lambda row: (
         0 if _nf_number(row["reference"]) is not None else 1,

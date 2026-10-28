@@ -38,7 +38,7 @@ def _conn():
         [
             ("bot_active", "1"),
             ("auto_reply_enabled", "1"),
-            ("provider", "baileys"),
+            ("provider", "evolution_go"),
         ],
     )
     conn.execute("INSERT INTO clients(id,name,phone,active) VALUES('c1','Adriano','5595999999999',1)")

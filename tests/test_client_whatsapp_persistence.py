@@ -455,7 +455,7 @@ def test_whatsapp_pending_order_replies_and_novo_starts_independent_flow(isolate
     conn.row_factory = sqlite3.Row
     try:
         for key, value in {
-            "provider": "baileys",
+            "provider": "evolution_go",
             "bot_active": "1",
             "auto_reply_enabled": "1",
             "auto_reply_from": "00:00",
@@ -519,7 +519,7 @@ def test_whatsapp_pending_order_replies_and_novo_starts_independent_flow(isolate
             outbound={**outbound, "sandbox_numbers": set()},
         )
         assert lid["status"] == "processado"
-        assert lid["bot"]["state"] == "identificando_produto"
+        assert lid["bot"]["state"] == "aguardando_resposta"
         assert sent[-1]["phone"] == "1234567890@lid"
 
         conversations_before = conn.execute("SELECT COUNT(*) FROM whatsapp_conversations").fetchone()[0]

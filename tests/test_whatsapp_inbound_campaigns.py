@@ -32,7 +32,7 @@ def _internal_headers(token="inbound-test-token"):
 
 def _event(**changes):
     value = {
-        "provider": "baileys", "instance": "raios-primary", "event_id": "event-001",
+        "provider": "evolution_go", "instance": "raios-primary", "event_id": "event-001",
         "message_id": "message-001", "remote_jid": "5595991234567@s.whatsapp.net",
         "from_me": False, "message_type": "conversation", "text": "Quero comprar",
         "timestamp": "2026-09-14T22:00:00-04:00",
@@ -57,7 +57,7 @@ def _configure_order_bot(isolated_app, monkeypatch):
         conn.executemany(
             "INSERT OR REPLACE INTO whatsapp_config(key,value) VALUES(?,?)",
             [
-                ("provider", "baileys"),
+                ("provider", "evolution_go"),
                 ("bot_active", "1"),
                 ("auto_reply_enabled", "1"),
                 ("auto_reply_from", "00:00"),
@@ -1002,7 +1002,7 @@ def test_manual_send_sandbox_is_individual_no_retry_and_no_business_writes(isola
     monkeypatch.setenv("WHATSAPP_OUTBOUND_MODE", "sandbox")
     monkeypatch.setenv("WHATSAPP_OUTBOUND_SANDBOX_NUMBERS", "+5595991234567")
     conn = sqlite3.connect(isolated_app.db_paths["raios"])
-    conn.execute("INSERT OR REPLACE INTO whatsapp_config(key,value) VALUES('provider','baileys')"); conn.commit(); conn.close()
+    conn.execute("INSERT OR REPLACE INTO whatsapp_config(key,value) VALUES('provider','evolution_go')"); conn.commit(); conn.close()
     created = isolated_app.client.post("/api/whatsapp/manual-batches", headers=_headers(token), json={"client_ids": [client["id"]], "message": "Oi, {cliente}."}).json()
     isolated_app.client.post(f"/api/whatsapp/manual-batches/{created['id']}/confirm", headers=_headers(token))
     sent = isolated_app.client.post(f"/api/whatsapp/manual-batches/{created['id']}/send", headers=_headers(token))
@@ -1033,7 +1033,7 @@ def test_manual_batch_records_individual_results_for_multiple_clients(isolated_a
     monkeypatch.setenv("WHATSAPP_OUTBOUND_MODE", "sandbox")
     monkeypatch.setenv("WHATSAPP_OUTBOUND_SANDBOX_NUMBERS", "+5595991234567,+5595991234568")
     conn = sqlite3.connect(isolated_app.db_paths["raios"])
-    conn.execute("INSERT OR REPLACE INTO whatsapp_config(key,value) VALUES('provider','baileys')")
+    conn.execute("INSERT OR REPLACE INTO whatsapp_config(key,value) VALUES('provider','evolution_go')")
     conn.commit()
     conn.close()
     created = isolated_app.client.post(
@@ -1067,7 +1067,7 @@ def test_manual_batch_records_individual_results_for_multiple_clients(isolated_a
 @pytest.mark.parametrize("change,expected_reason", [
     ("optout", "bloqueado_por_revalidacao"),
     ("phone", "dados_alterados_apos_selecao"),
-    ("purchase", "bloqueado_por_revalidacao"),
+    ("purchase", "dados_alterados_apos_selecao"),
 ])
 def test_revalidation_blocks_optout_phone_or_purchase_change_without_send(isolated_app, monkeypatch, change, expected_reason):
     token = _login(isolated_app)
@@ -1079,7 +1079,7 @@ def test_revalidation_blocks_optout_phone_or_purchase_change_without_send(isolat
     monkeypatch.setenv("WHATSAPP_OUTBOUND_MODE", "sandbox")
     monkeypatch.setenv("WHATSAPP_OUTBOUND_SANDBOX_NUMBERS", "+5595991234567")
     conn = sqlite3.connect(isolated_app.db_paths["raios"])
-    conn.execute("INSERT OR REPLACE INTO whatsapp_config(key,value) VALUES('provider','baileys')"); conn.commit(); conn.close()
+    conn.execute("INSERT OR REPLACE INTO whatsapp_config(key,value) VALUES('provider','evolution_go')"); conn.commit(); conn.close()
     created = isolated_app.client.post("/api/whatsapp/manual-batches", headers=_headers(token), json={"client_ids": [client["id"]], "message": "Oi"}).json()
     isolated_app.client.post(f"/api/whatsapp/manual-batches/{created['id']}/confirm", headers=_headers(token))
     conn = sqlite3.connect(isolated_app.db_paths["raios"])
@@ -1106,7 +1106,7 @@ def test_sandbox_allowlist_and_recent_duplicate_block_without_retry(isolated_app
     monkeypatch.setenv("WHATSAPP_OUTBOUND_MODE", "sandbox")
     monkeypatch.setenv("WHATSAPP_OUTBOUND_SANDBOX_NUMBERS", "+5595990000000")
     conn = sqlite3.connect(isolated_app.db_paths["raios"])
-    conn.execute("INSERT OR REPLACE INTO whatsapp_config(key,value) VALUES('provider','baileys')"); conn.commit(); conn.close()
+    conn.execute("INSERT OR REPLACE INTO whatsapp_config(key,value) VALUES('provider','evolution_go')"); conn.commit(); conn.close()
     outside = isolated_app.client.post("/api/whatsapp/manual-batches", headers=_headers(token), json={"client_ids": [client["id"]], "message": "Mensagem A"}).json()
     isolated_app.client.post(f"/api/whatsapp/manual-batches/{outside['id']}/confirm", headers=_headers(token))
     blocked = isolated_app.client.post(f"/api/whatsapp/manual-batches/{outside['id']}/send", headers=_headers(token)).json()

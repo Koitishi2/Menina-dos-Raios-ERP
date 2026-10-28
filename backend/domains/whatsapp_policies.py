@@ -135,17 +135,3 @@ def order_contract_issues(
 
 def user_can(permission: str, granted_permissions: Iterable[str]) -> bool:
     return str(permission or "").strip() in frozenset(granted_permissions or ())
-
-
-def baileys_readiness(
-    connected: bool,
-    credentials_available: bool,
-    connection_error: Optional[str] = None,
-) -> tuple[bool, str]:
-    if connection_error:
-        return False, "erro_conexao"
-    if not credentials_available:
-        return False, "credenciais_ausentes"
-    if not connected:
-        return False, "baileys_desconectado"
-    return True, "disponivel"

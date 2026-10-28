@@ -28,33 +28,20 @@ def test_whatsapp_migrations_are_versionable_and_unchanged():
         assert ignored.returncode == 1
 
 
-def test_baileys_session_and_qr_artifacts_are_ignored():
-    ignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
-    assert "baileys-api/auth_info_baileys/" in ignore
-    assert "**/auth_info_baileys/" in ignore
-    assert "baileys-api/qr*.png" in ignore
-    assert "baileys-api/qr*.txt" in ignore
-    ignored = subprocess.run(
-        ["git", "check-ignore", "-q", "--no-index", "baileys-api/auth_info_baileys/creds.json"],
-        cwd=ROOT, check=False,
-    )
-    assert ignored.returncode == 0
+def test_evolution_go_is_the_only_whatsapp_runtime_in_manifest():
+    manifest = (ROOT / "deploy" / "whatsapp_sellers_manifest.txt").read_text(encoding="utf-8")
+    assert "menina-baileys" not in manifest
+    assert "baileys-api/" not in manifest
+    assert "services/evolution_go.py" in manifest
 
-
-def test_new_runtime_sources_do_not_embed_secret_assignments():
-    sources = [
-        ROOT / "baileys-api/security.js",
-        ROOT / "baileys-api/server.js",
-        ROOT / "backend/static/js/client_whatsapp.js",
-    ]
-    forbidden = re.compile(r"(?i)(api_key|token|password|secret)\s*[:=]\s*['\"][^'\"]{12,}['\"]")
-    for source in sources:
-        assert not forbidden.search(source.read_text(encoding="utf-8")), source
-
-
-def test_legacy_send_route_is_fail_closed_before_handler():
-    server = (ROOT / "baileys-api/server.js").read_text(encoding="utf-8")
-    assert 'app.post("/send", checkLegacySend' in server
-    assert 'app.post("/send", checkAuth' not in server
-    assert "authorizeLegacySend(API_KEY" in server
-    assert "WHATSAPP_OUTBOUND_ENABLED" in server
+def test_frontend_and_backend_have_no_baileys_runtime_controls():
+    html = (ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
+    app = (ROOT / "backend" / "app.py").read_text(encoding="utf-8")
+    updater = (ROOT / "atualizar_backend_seguro.sh").read_text(encoding="utf-8")
+    assert "baileys" not in html.lower()
+    assert "/api/whatsapp/baileys-" not in app
+    assert "menina-baileys.service" not in app
+    assert 'test -d "$STAGED_BAILEYS"' not in updater
+    assert 'systemctl disable "$BAILEYS_SERVICE"' in updater
+    assert 'clear_baileys_code "$BAILEYS_DIR"' in updater
+    assert 'credentials_and_node_modules=preserved' in updater
