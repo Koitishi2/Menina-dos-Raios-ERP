@@ -511,6 +511,12 @@ header{background:var(--g800);color:#fff;padding:0 16px;height:56px;display:flex
 .header-center .btn-stock-header:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.35);transform:scale(1.04)}
 .stock-content-grid{display:grid;grid-template-columns:minmax(280px,.85fr) minmax(360px,1.5fr);gap:16px;align-items:start}
 .stock-forms{display:grid;gap:12px;min-width:0}
+#stock-app .stock-archived-toggle{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;font-size:12px;color:var(--muted);cursor:pointer}
+#stock-app .stock-archived-toggle input[type="checkbox"]{appearance:auto;flex:0 0 16px;width:16px;min-width:16px;height:16px;min-height:16px;margin:0;padding:0;accent-color:var(--g800);cursor:pointer}
+#stock-app .stock-actions{display:flex;align-items:center;gap:5px;white-space:nowrap}
+#stock-app .stock-actions .btn{width:auto;min-width:0;min-height:30px;padding:5px 8px;font-size:11px;line-height:1.2;justify-content:center}
+#stock-app dialog[open]{position:fixed!important;top:50%!important;left:50%!important;right:auto!important;bottom:auto!important;transform:translate(-50%,-50%)!important;margin:0!important;max-height:calc(100dvh - 32px)!important;overflow:auto}
+#stock-app dialog::backdrop{background:rgba(12,20,16,.42)}
 @media(max-width:760px){.stock-content-grid{grid-template-columns:minmax(0,1fr)}#stock-app{inset:52px 0 0!important;padding:12px!important}.stock-forms{order:2}.stock-focus-card{grid-template-columns:minmax(0,1fr)!important;gap:14px!important}.stock-focus-stats{gap:8px!important}}
 .header-center .btn-company-switch{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.28);padding:6px 16px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .2s;backdrop-filter:blur(4px)}
 .header-center .btn-company-switch:hover{background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.42);transform:scale(1.04)}
@@ -3482,9 +3488,14 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
       </div>
     </div>
     <div id="stock-alerts" role="status" aria-live="polite" hidden style="margin:0 0 14px;padding:12px 14px;border:1px solid #f1b5ae;border-left:4px solid #c2413b;border-radius:8px;background:#fff5f3;color:#8f241c"></div>
-    <div id="stock-products" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px;margin-bottom:18px"></div>
-    <div class="stock-content-grid">
-      <div class="stock-forms">
+    <div role="tablist" aria-label="Seções do estoque" style="display:flex;gap:8px;border-bottom:1px solid var(--border);margin-bottom:16px">
+      <button id="stock-tab-summary" type="button" role="tab" aria-selected="true" aria-controls="stock-summary-pane" class="btn btn-primary" onclick="switchStockTab('summary')">Resumo</button>
+      <button id="stock-tab-products" type="button" role="tab" aria-selected="false" aria-controls="stock-products-pane" class="btn btn-secondary" onclick="switchStockTab('products')">Produtos</button>
+    </div>
+    <div id="stock-summary-pane" role="tabpanel" aria-labelledby="stock-tab-summary">
+      <div id="stock-products" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px;margin-bottom:18px"></div>
+      <div class="stock-content-grid">
+        <div class="stock-forms">
       <form id="stock-movement-form" onsubmit="submitStockMovement(event)" style="background:var(--card,#fff);border:1px solid var(--border);border-radius:8px;padding:16px;display:grid;gap:10px">
         <h3 style="margin:0 0 4px;color:var(--g800)">Registrar movimentação</h3>
         <label style="font-size:12px;font-weight:700">Produto<select id="stock-product" class="form-input" required></select></label>
@@ -3495,24 +3506,50 @@ body.today-active #sum-grid,body.today-active #mobile-period-switcher{display:no
         <label style="font-size:12px;font-weight:700">Observação<input id="stock-notes" class="form-input" maxlength="500" placeholder="Opcional"></label>
         <button class="btn btn-primary" type="submit">Salvar movimentação</button>
       </form>
-      <form id="stock-product-form" onsubmit="submitStockProduct(event)" style="background:var(--card,#fff);border:1px solid var(--border);border-radius:8px;padding:16px;display:grid;gap:10px">
-        <h3 style="margin:0 0 4px;color:var(--g800)">Cadastrar produto no módulo</h3>
-        <label style="font-size:12px;font-weight:700">Nome<input id="stock-new-name" class="form-input" required maxlength="120"></label>
-        <label style="font-size:12px;font-weight:700">Código interno (SKU)<input id="stock-new-sku" class="form-input" required maxlength="60" placeholder="Ex.: UVA-ITALIA-5KG"></label>
-        <label style="font-size:12px;font-weight:700">Unidade de controle<input id="stock-new-unit" class="form-input" required maxlength="20" value="CX" placeholder="CX, KG, UN, MAÇO"></label>
-        <label style="font-size:12px;font-weight:700">Nomes usados nas vendas<input id="stock-new-aliases" class="form-input" placeholder="Separados por vírgula"></label>
-        <button class="btn btn-secondary" type="submit">Adicionar produto</button>
-      </form>
-      </div>
-      <div style="background:var(--card,#fff);border:1px solid var(--border);border-radius:8px;padding:16px;min-width:0">
+        </div>
+        <div style="background:var(--card,#fff);border:1px solid var(--border);border-radius:8px;padding:16px;min-width:0">
         <h3 style="margin:0 0 12px;color:var(--g800)">Histórico e origem das baixas</h3>
         <div style="overflow:auto;max-height:560px"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:660px"><thead><tr style="text-align:left;color:var(--muted);border-bottom:1px solid var(--border)"><th style="padding:9px">Data</th><th>Produto</th><th>Movimento</th><th>Qtd.</th><th>Referência / origem</th><th></th></tr></thead><tbody id="stock-movements"><tr><td colspan="6" style="padding:18px;text-align:center;color:var(--muted)">Carregando estoque…</td></tr></tbody></table></div>
+        </div>
+      </div>
+    </div>
+    <div id="stock-products-pane" role="tabpanel" aria-labelledby="stock-tab-products" hidden style="display:none">
+      <form id="stock-product-form" onsubmit="submitStockProduct(event)" style="background:var(--card,#fff);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:14px">
+        <h3 style="margin:0 0 12px;color:var(--g800)">Adicionar produto ao estoque</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:10px;align-items:end">
+          <label style="font-size:12px;font-weight:700">Nome<input id="stock-new-name" class="form-input" required maxlength="120"></label>
+          <label style="font-size:12px;font-weight:700">Código (SKU)<input id="stock-new-sku" class="form-input" required maxlength="60" placeholder="Ex.: UVA-ITALIA-5KG"></label>
+          <label style="font-size:12px;font-weight:700">Unidade de estoque<input id="stock-new-unit" class="form-input" required maxlength="20" value="UND" placeholder="CX, KG, UN, MAÇO"></label>
+          <label style="font-size:12px;font-weight:700">Nome usado nas vendas<input id="stock-new-aliases" class="form-input" placeholder="Opcional"></label>
+          <label style="font-size:12px;font-weight:700">Saldo físico atual<input id="stock-new-balance" class="form-input" type="number" min="0" step="0.001" value="0" required></label>
+          <button class="btn btn-primary" type="submit">Adicionar produto</button>
+        </div>
+      </form>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+        <input id="stock-product-search" class="form-input" type="search" placeholder="Buscar produto ou código" oninput="renderStockCatalog()" style="max-width:340px">
+        <label class="stock-archived-toggle"><input id="stock-show-archived" type="checkbox" onchange="loadStock()"> Mostrar arquivados</label>
+        <span id="stock-product-count" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+      <div style="background:var(--card,#fff);border:1px solid var(--border);border-radius:8px;overflow:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:780px"><thead><tr style="text-align:left;color:var(--muted);background:var(--bg,#f3f7f4);border-bottom:1px solid var(--border)"><th style="padding:11px">Produto</th><th>Código</th><th>Unidade</th><th>Saldo atual</th><th>Status</th><th>Ações</th></tr></thead><tbody id="stock-catalog-rows"></tbody></table>
       </div>
     </div>
   </div>
   <dialog id="stock-sales-dialog" style="width:min(920px,calc(100vw - 28px));max-height:82vh;padding:0;border:1px solid var(--border);border-radius:10px;background:var(--card,#fff);color:var(--ink);box-shadow:0 20px 60px #10241b40">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--border)"><div><h3 id="stock-sales-title" style="margin:0;color:var(--g800)">Vendas do produto</h3><div id="stock-sales-subtitle" style="font-size:12px;color:var(--muted);margin-top:4px"></div></div><button type="button" class="btn btn-secondary" aria-label="Fechar vendas" onclick="document.getElementById('stock-sales-dialog').close()">Fechar</button></div>
     <div style="padding:12px 18px;overflow:auto;max-height:calc(82vh - 78px)"><table style="width:100%;border-collapse:collapse;font-size:13px;min-width:600px"><thead><tr style="text-align:left;color:var(--muted);background:var(--bg)"><th style="padding:10px">NF</th><th>Data</th><th>Cliente</th><th>Quantidade</th><th>Valor</th><th></th></tr></thead><tbody id="stock-sales-rows"></tbody></table></div>
+  </dialog>
+  <dialog id="stock-edit-dialog" style="width:min(560px,calc(100vw - 28px));border:1px solid var(--border);border-radius:10px;padding:0;color:var(--ink);box-shadow:0 18px 60px #10251b33">
+    <form id="stock-edit-form" onsubmit="saveStockEdit(event)" style="padding:20px;display:grid;gap:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><h3 id="stock-edit-title" style="margin:0;color:var(--g800)">Editar produto</h3><button class="btn btn-secondary" type="button" onclick="document.getElementById('stock-edit-dialog').close()" aria-label="Fechar">×</button></div>
+      <input id="stock-edit-id" type="hidden">
+      <label style="font-size:12px;font-weight:700">Nome<input id="stock-edit-name" class="form-input" required maxlength="120"></label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><label style="font-size:12px;font-weight:700">Código<input id="stock-edit-sku" class="form-input" required maxlength="60"></label><label style="font-size:12px;font-weight:700">Unidade<input id="stock-edit-unit" class="form-input" required maxlength="20"></label></div>
+      <label style="font-size:12px;font-weight:700">Aliases usados em vendas<input id="stock-edit-aliases" class="form-input" placeholder="Separados por vírgula"></label>
+      <label style="font-size:12px;font-weight:700">Saldo físico atual<input id="stock-edit-balance" class="form-input" type="number" step="0.001" required></label>
+      <div style="font-size:11px;color:var(--muted)">O saldo será ajustado pela diferença e as vendas futuras continuarão sendo baixadas automaticamente.</div>
+      <div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-secondary" type="button" onclick="document.getElementById('stock-edit-dialog').close()">Cancelar</button><button class="btn btn-primary" type="submit">Salvar alterações</button></div>
+    </form>
   </dialog>
 </section>
 
@@ -5904,6 +5941,17 @@ function stockEscape(value){return String(value??'').replace(/[&<>"']/g,function
 function stockFormatQty(value){return new Intl.NumberFormat('pt-BR',{maximumFractionDigits:3}).format(Number(value)||0);}
 function stockMoney(value){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(value)||0);}
 function stockToday(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function switchStockTab(tab){
+  const summary=tab==='summary';
+  const summaryPane=document.getElementById('stock-summary-pane'),productsPane=document.getElementById('stock-products-pane');
+  summaryPane.hidden=!summary;productsPane.hidden=summary;
+  summaryPane.style.display=summary?'block':'none';productsPane.style.display=summary?'none':'block';
+  document.getElementById('stock-tab-summary').setAttribute('aria-selected',String(summary));
+  document.getElementById('stock-tab-products').setAttribute('aria-selected',String(!summary));
+  document.getElementById('stock-tab-summary').className='btn '+(summary?'btn-primary':'btn-secondary');
+  document.getElementById('stock-tab-products').className='btn '+(!summary?'btn-primary':'btn-secondary');
+  if(!summary)renderStockCatalog();
+}
 function syncStockPanelViewport(){
   const panel=document.getElementById('stock-app');
   if(!panel||panel.style.display==='none')return;
@@ -5960,8 +6008,10 @@ async function loadStock(){
   const movementEl=document.getElementById('stock-movements');
   if(productsEl)productsEl.innerHTML='<div class="card" style="padding:18px;color:var(--muted)">Carregando saldos…</div>';
   try{
-    stockSnapshot=await api('/api/stock?module='+encodeURIComponent(module));
+    const includeArchived=document.getElementById('stock-show-archived')?.checked;
+    stockSnapshot=await api('/api/stock?module='+encodeURIComponent(module)+(includeArchived?'&include_archived=true':''));
     renderStock();
+    renderStockCatalog();
   }catch(error){
     if(productsEl)productsEl.innerHTML='<div class="card" style="padding:18px;color:var(--red)">'+stockEscape(error.message||'Não foi possível carregar o estoque.')+'</div>';
     if(movementEl)movementEl.innerHTML='<tr><td colspan="6" style="padding:18px;color:var(--red)">Falha ao carregar histórico.</td></tr>';
@@ -5969,7 +6019,7 @@ async function loadStock(){
 }
 function renderStock(){
   if(!stockSnapshot)return;
-  const products=stockSnapshot.products||[];
+  const products=(stockSnapshot.products||[]).filter(product=>Number(product.active)!==0);
   const alerts=products.filter(function(product){return Number(product.balance)<=0;});
   const alertsEl=document.getElementById('stock-alerts');
   if(alertsEl){
@@ -6004,6 +6054,53 @@ function renderStock(){
     return '<tr style="border-bottom:1px solid var(--border)"><td style="padding:9px;white-space:nowrap">'+stockEscape(dateText)+'</td><td>'+stockEscape(movement.product_name||'')+'</td><td>'+label+(sale?' · '+stockEscape(movement.notes||''):'')+'</td><td style="font-weight:700;color:'+(delta<0?'#b42318':'#14733c')+'">'+(delta>0?'+':'')+stockFormatQty(delta)+' '+stockEscape(movement.unit||'')+'</td><td>'+stockEscape(reference)+'</td><td>'+button+'</td></tr>';
   }).join(''):'<tr><td colspan="6" style="padding:18px;text-align:center;color:var(--muted)">Ainda não há movimentações ou vendas reconhecidas para este módulo.</td></tr>';
 }
+function renderStockCatalog(){
+  if(!stockSnapshot)return;
+  const query=(document.getElementById('stock-product-search')?.value||'').trim().toLocaleLowerCase('pt-BR');
+  const products=(stockSnapshot.products||[]).filter(product=>(document.getElementById('stock-show-archived')?.checked||Number(product.active)!==0)&&(!query||[product.name,product.sku,...(product.aliases||[])].some(value=>String(value||'').toLocaleLowerCase('pt-BR').includes(query))));
+  const rows=document.getElementById('stock-catalog-rows'),count=document.getElementById('stock-product-count');
+  if(count)count.textContent=products.length+' produto(s)';
+  if(!rows)return;
+  rows.innerHTML=products.length?products.map(product=>{
+    const archived=Number(product.active)===0;
+    return '<tr style="border-bottom:1px solid var(--border);'+(archived?'opacity:.65':'')+'"><td style="padding:11px"><strong>'+stockEscape(product.name)+'</strong>'+(product.aliases?.length?'<div style="font-size:11px;color:var(--muted);margin-top:3px">Venda reconhecida por: '+stockEscape(product.aliases.slice(0,3).join(', '))+'</div>':'')+'</td><td>'+stockEscape(product.sku)+'</td><td>'+stockEscape(product.unit)+'</td><td><strong style="color:'+(Number(product.balance)<0?'#b42318':'var(--g800)')+'">'+stockFormatQty(product.balance)+' '+stockEscape(product.unit)+'</strong></td><td>'+(archived?'Arquivado':Number(product.balance)>0?'Em estoque':'Sem saldo')+'</td><td><div class="stock-actions"><button class="btn btn-secondary" type="button" data-stock-action="edit" data-stock-id="'+stockEscape(product.id)+'">Editar / saldo</button><button class="btn btn-secondary" type="button" data-stock-action="'+(archived?'restore':'archive')+'" data-stock-id="'+stockEscape(product.id)+'">'+(archived?'Reativar':'Remover')+'</button></div></td></tr>';
+  }).join(''):'<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">Nenhum produto encontrado.</td></tr>';
+}
+document.getElementById('stock-catalog-rows')?.addEventListener('click',function(event){
+  const button=event.target.closest('button[data-stock-action]');if(!button)return;
+  const {stockAction:action,stockId:id}=button.dataset;
+  if(action==='edit')stockEditProduct(id);else if(action==='archive')stockArchiveProduct(id);else if(action==='restore')stockRestoreProduct(id);
+});
+function stockEditProduct(id){
+  const product=(stockSnapshot?.products||[]).find(item=>String(item.id)===String(id));if(!product)return;
+  document.getElementById('stock-edit-id').value=product.id;
+  document.getElementById('stock-edit-name').value=product.name||'';
+  document.getElementById('stock-edit-sku').value=product.sku||'';
+  document.getElementById('stock-edit-unit').value=product.unit||'UND';
+  document.getElementById('stock-edit-aliases').value=(product.aliases||[]).join(', ');
+  document.getElementById('stock-edit-balance').value=Number(product.balance)||0;
+  document.getElementById('stock-edit-dialog').showModal();
+}
+async function saveStockEdit(event){
+  event.preventDefault();const id=document.getElementById('stock-edit-id').value,module=document.getElementById('stock-module').value;
+  const aliases=document.getElementById('stock-edit-aliases').value.split(',').map(value=>value.trim()).filter(Boolean);
+  const body={module,name:document.getElementById('stock-edit-name').value.trim(),sku:document.getElementById('stock-edit-sku').value.trim(),unit:document.getElementById('stock-edit-unit').value.trim(),aliases};
+  try{
+    await api('/api/stock/products/'+encodeURIComponent(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    await api('/api/stock/products/'+encodeURIComponent(id)+'/balance',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({module,quantity:document.getElementById('stock-edit-balance').value})});
+    document.getElementById('stock-edit-dialog').close();toast('Produto e saldo atualizados.','success');await loadStock();
+  }catch(error){toast(error.message||'Não foi possível atualizar o produto.','error');}
+}
+async function stockArchiveProduct(id){
+  if(!confirm('Remover este produto da lista ativa? O histórico será preservado e o item poderá ser reativado.'))return;
+  try{await api('/api/stock/products/'+encodeURIComponent(id)+'?module='+encodeURIComponent(document.getElementById('stock-module').value),{method:'DELETE'});toast('Produto arquivado.','success');await loadStock();}
+  catch(error){toast(error.message||'Não foi possível arquivar o produto.','error');}
+}
+async function stockRestoreProduct(id){
+  const product=(stockSnapshot?.products||[]).find(item=>String(item.id)===String(id));if(!product)return;
+  try{await api('/api/stock/products/'+encodeURIComponent(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({module:product.module_key,name:product.name,sku:product.sku,unit:product.unit,aliases:product.aliases||[],active:true})});toast('Produto reativado.','success');await loadStock();}
+  catch(error){toast(error.message||'Não foi possível reativar o produto.','error');}
+}
 async function submitStockMovement(event){
   event.preventDefault();
   const module=document.getElementById('stock-module').value;
@@ -6020,8 +6117,10 @@ async function submitStockProduct(event){
   const aliases=document.getElementById('stock-new-aliases').value.split(',').map(value=>value.trim()).filter(Boolean);
   const payload={module:module,name:document.getElementById('stock-new-name').value.trim(),sku:document.getElementById('stock-new-sku').value.trim(),unit:document.getElementById('stock-new-unit').value.trim(),aliases:aliases};
   try{
-    await api('/api/stock/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    document.getElementById('stock-product-form').reset();document.getElementById('stock-new-unit').value='CX';
+    const created=await api('/api/stock/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const openingBalance=Number(document.getElementById('stock-new-balance').value)||0;
+    if(openingBalance>0)await api('/api/stock/products/'+encodeURIComponent(created.id)+'/balance',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({module,quantity:openingBalance})});
+    document.getElementById('stock-product-form').reset();document.getElementById('stock-new-unit').value='UND';document.getElementById('stock-new-balance').value='0';
     toast('Produto adicionado ao estoque.','success');await loadStock();
   }catch(error){toast(error.message||'Não foi possível cadastrar o produto.','error');}
 }

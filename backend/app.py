@@ -1246,6 +1246,10 @@ def _managed_route_permission(path:str,method:str):
     method=method.upper()
     if path=="/api/stock" and method=="GET":
         return (None,"produtos","view")
+    if re.fullmatch(r"/api/stock/products/[^/]+",path) and method in ("PUT","DELETE"):
+        return (None,"produtos","edit" if method=="PUT" else "delete")
+    if re.fullmatch(r"/api/stock/products/[^/]+/balance",path) and method=="PUT":
+        return (None,"produtos","edit")
     if re.fullmatch(r"/api/stock/products/[^/]+/sales",path) and method=="GET":
         return (None,"produtos","view")
     if path=="/api/stock/products" and method=="POST":
@@ -6230,7 +6234,7 @@ def _quote_totals(items, discount=0):
         raise HTTPException(400,"O orÃ§amento permite no mÃ¡ximo 20 itens.")
 
 @app.get("/api/stock")
-def get_stock(module: str = "estrada", x_token: str = Header("")):
+def get_stock(module: str = "estrada", include_archived: bool = False, x_token: str = Header("")):
     require_auth(x_token)
     if module not in STOCK_MODULES:
         raise HTTPException(400, "Módulo de estoque inválido.")
@@ -6245,7 +6249,7 @@ def get_stock(module: str = "estrada", x_token: str = Header("")):
                 "stock-count-stretch-film-20261016-6400",
                 "Contagem física 6.400 UN - 16/10/2026",
             )
-        return inventory_snapshot(stock_conn, source_conn, module)
+        return inventory_snapshot(stock_conn, source_conn, module, include_archived=include_archived)
     finally:
         source_conn.close()
         stock_conn.close()
@@ -6306,6 +6310,112 @@ def create_stock_product(body: dict, x_token: str = Header("")):
         conn.rollback()
         raise HTTPException(409, "Já existe um produto com esse código neste módulo.")
     finally:
+        conn.close()
+
+
+@app.put("/api/stock/products/{product_id}")
+def update_stock_product(product_id: str, body: dict, x_token: str = Header("")):
+    require_editor(x_token)
+    module = str(body.get("module") or "").strip().lower()
+    if module not in STOCK_MODULES:
+        raise HTTPException(400, "Módulo de estoque inválido.")
+    area = {"raios": "menina_dos_raios", "estrada": "menina_da_estrada", "monteiro": "monteiro"}[module]
+    require_module_action(x_token, area, "produtos", "edit")
+    name = str(body.get("name") or "").strip()[:120]
+    sku = str(body.get("sku") or "").strip().upper()[:60]
+    unit = str(body.get("unit") or "").strip().upper()[:20]
+    aliases = body.get("aliases", [])
+    if not name or not sku or not unit or not isinstance(aliases, list) or len(aliases) > 20:
+        raise HTTPException(400, "Informe nome, código, unidade e até 20 nomes equivalentes.")
+    conn = get_db("raios")
+    try:
+        product = conn.execute(
+            "SELECT name,aliases_json,active FROM stock_products WHERE id=? AND module_key=?",
+            (product_id, module),
+        ).fetchone()
+        if not product:
+            raise HTTPException(404, "Produto não encontrado.")
+        try:
+            previous_aliases = json.loads(product["aliases_json"] or "[]")
+        except (TypeError, ValueError):
+            previous_aliases = []
+        merged_aliases = list(dict.fromkeys([*previous_aliases, product["name"], *[str(value).strip() for value in aliases if str(value).strip()]]))
+        active = int(bool(body.get("active", product["active"])))
+        conn.execute(
+            "UPDATE stock_products SET name=?,sku=?,unit=?,aliases_json=?,active=? WHERE id=?",
+            (name, sku, unit, json.dumps(merged_aliases, ensure_ascii=False), active, product_id),
+        )
+        conn.commit()
+        return {"ok": True}
+    except sqlite3.IntegrityError:
+        conn.rollback()
+        raise HTTPException(409, "Já existe outro produto com esse código no módulo.")
+    finally:
+        conn.close()
+
+
+@app.delete("/api/stock/products/{product_id}")
+def archive_stock_product(product_id: str, module: str, x_token: str = Header("")):
+    require_editor(x_token)
+    module = str(module or "").strip().lower()
+    if module not in STOCK_MODULES:
+        raise HTTPException(400, "Módulo de estoque inválido.")
+    area = {"raios": "menina_dos_raios", "estrada": "menina_da_estrada", "monteiro": "monteiro"}[module]
+    require_module_action(x_token, area, "produtos", "delete")
+    conn = get_db("raios")
+    try:
+        cursor = conn.execute(
+            "UPDATE stock_products SET active=0 WHERE id=? AND module_key=? AND active=1",
+            (product_id, module),
+        )
+        if not cursor.rowcount:
+            raise HTTPException(404, "Produto não encontrado.")
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
+@app.put("/api/stock/products/{product_id}/balance")
+def set_stock_product_balance(product_id: str, body: dict, x_token: str = Header("")):
+    sess = require_editor(x_token)
+    module = str(body.get("module") or "").strip().lower()
+    if module not in STOCK_MODULES:
+        raise HTTPException(400, "Módulo de estoque inválido.")
+    area = {"raios": "menina_dos_raios", "estrada": "menina_da_estrada", "monteiro": "monteiro"}[module]
+    require_module_action(x_token, area, "produtos", "edit")
+    try:
+        target = float(body.get("quantity"))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Informe um saldo válido.")
+    if not math.isfinite(target) or target < 0:
+        raise HTTPException(400, "O saldo atual não pode ser negativo.")
+    conn = get_db("raios")
+    source_conn = get_db("raios" if module == "monteiro" else module)
+    try:
+        product = conn.execute(
+            "SELECT id,name,unit FROM stock_products WHERE id=? AND module_key=? AND active=1",
+            (product_id, module),
+        ).fetchone()
+        if not product:
+            raise HTTPException(404, "Produto não encontrado.")
+        snapshot = inventory_snapshot(conn, source_conn, module)
+        current = next((float(item["balance"]) for item in snapshot["products"] if item["id"] == product_id), 0.0)
+        delta = round(target - current, 6)
+        if abs(delta) < 0.000001:
+            return {"ok": True, "balance": round(target, 3), "unchanged": True}
+        conn.execute(
+            """INSERT INTO stock_movements
+               (id,product_id,movement_type,quantity_delta,movement_date,reference,notes,created_by,created_at)
+               VALUES(?,?,?,?,?,?,?,?,?)""",
+            (str(uuid.uuid4()), product_id, "adjustment", delta, datetime.now().date().isoformat(),
+             "Contagem de estoque", f"Saldo físico definido para {target:g} {product['unit']}.",
+             sess.get("username", ""), datetime.now().astimezone().isoformat(timespec="seconds")),
+        )
+        conn.commit()
+        return {"ok": True, "balance": round(target, 3)}
+    finally:
+        source_conn.close()
         conn.close()
 
 

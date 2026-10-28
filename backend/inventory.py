@@ -243,12 +243,12 @@ def _sale_rows(conn, module_key):
     ).fetchall()
 
 
-def inventory_snapshot(stock_conn, source_conn, module_key):
+def inventory_snapshot(stock_conn, source_conn, module_key, include_archived=False):
     if module_key not in MODULES:
         raise ValueError("Módulo de estoque inválido.")
     products = [dict(row) for row in stock_conn.execute(
-        "SELECT * FROM stock_products WHERE module_key=? AND active=1 ORDER BY name COLLATE NOCASE",
-        (module_key,),
+        "SELECT * FROM stock_products WHERE module_key=? AND (?=1 OR active=1) ORDER BY name COLLATE NOCASE",
+        (module_key, int(bool(include_archived))),
     ).fetchall()]
     manual_rows = stock_conn.execute(
         """SELECT m.*, p.name AS product_name, p.sku, p.unit
