@@ -29,8 +29,8 @@ android {
         applicationId 'br.com.meninadosraios.vendas'
         minSdk 23
         targetSdk 35
-        versionCode 70
-        versionName '2.0.42'
+        versionCode 71
+        versionName '2.0.43'
         buildConfigField 'String', 'SERVER_BASE_URL', "\"${serverBaseUrl}\""
         buildConfigField 'String', 'APP_NOTES_TOKEN', "\"${appNotesToken}\""
     }

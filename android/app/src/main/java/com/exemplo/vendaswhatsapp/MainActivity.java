@@ -2205,7 +2205,7 @@ public class MainActivity extends FragmentActivity {
         aberto.setText("Pendentes Novo Tempo\n" + pendentes + " · " + moeda.format(valorPendente));
         atraso.setText("Aguardando 24h\n" + aguardando + " · pagos " + pagos);
         destino.addView(texto("Novo Tempo · cobranças pendentes", 18, true));
-        destino.addView(texto("Avisos somente para admins: após 24h, às 08h, 12h, 16h e 20h, até a baixa.", 13, false));
+        destino.addView(texto("Somente notas entregues geram alertas. O primeiro aviso sai 24h após a entrega; depois às 08h, 12h, 16h e 20h, até a baixa. Notificações somente para admins.", 13, false));
         LinearLayout filtros = new LinearLayout(this);
         Button filtroPendentes = botaoFiltroBoleto("Pendentes (" + pendentes + ")", "pendente");
         Button filtroPagos = botaoFiltroBoleto("Pagos (" + pagos + ")", "pago");
@@ -2242,12 +2242,14 @@ public class MainActivity extends FragmentActivity {
         card.addView(texto(moeda.format(row.optDouble("total", 0)) + " · " + row.optInt("item_count", 0) + " item(ns)", 16, true));
         boolean pago = "pago".equalsIgnoreCase(row.optString("status", "pendente"));
         boolean iniciou = row.optBoolean("notifications_due", false);
-        String statusLinha = pago ? "PAGO" : iniciou ? "PENDENTE · " + row.optInt("hours_pending", 0) + "h" : "AGUARDANDO 24H";
+        boolean entregue = row.optBoolean("delivered", false);
+        String statusLinha = pago ? "PAGO" : !entregue ? "AGUARDANDO ENTREGA" : iniciou ? "PENDENTE · " + row.optInt("hours_pending", 0) + "h" : "AGUARDANDO 24H";
         TextView chip = texto(statusLinha, 12, true);
         chip.setTextColor(pago ? Color.rgb(21, 101, 52) : iniciou ? Color.rgb(180, 35, 24) : Color.rgb(130, 82, 0));
         card.addView(chip);
-        String alerta = iniciou ? "Próximo aviso " + dataHoraAlertaNovoTempo(row.optString("next_alert_at", ""))
-            : "Avisos começam " + dataHoraAlertaNovoTempo(row.optString("alert_starts_at", "")) + " · após 24h";
+        String alerta = !entregue ? "O prazo de 24h começa quando a nota for marcada como entregue."
+            : iniciou ? "Próximo aviso " + dataHoraAlertaNovoTempo(row.optString("next_alert_at", ""))
+            : "Avisos começam " + dataHoraAlertaNovoTempo(row.optString("alert_starts_at", "")) + " · 24h após a entrega";
         card.addView(texto(pago ? "Cobrança baixada" : alerta, 12, false));
         Button acao = botao(pago ? "Reabrir pendente" : "✓  Marcar como pago", pago ? Color.rgb(100, 116, 135) : Color.rgb(21, 101, 52));
         card.addView(acao);

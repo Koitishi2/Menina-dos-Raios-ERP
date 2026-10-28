@@ -141,11 +141,11 @@ public class NewTempoCollectionReceiver extends BroadcastReceiver {
         PendingIntent abrirApp = PendingIntent.getActivity(context, REQUEST_CODE + 1, abrir,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         String valor = NumberFormat.getCurrencyInstance(new Locale("pt", "BR")).format(total);
-        String texto = quantidade + (quantidade == 1 ? " venda pendente" : " vendas pendentes") + " · " + valor;
+            String texto = quantidade + (quantidade == 1 ? " venda entregue pendente" : " vendas entregues pendentes") + " · " + valor;
         Notification.Builder notification = Build.VERSION.SDK_INT >= 26
             ? new Notification.Builder(context, CHANNEL_ID) : new Notification.Builder(context);
         notification.setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("Cobrar vendas Novo Tempo")
+            .setContentTitle("Cobrança Novo Tempo · notas entregues")
             .setContentText(texto)
             .setStyle(new Notification.BigTextStyle().bigText(texto + (filiais.isEmpty() ? "" : "\n" + filiais)))
             .setContentIntent(abrirApp).setAutoCancel(true)

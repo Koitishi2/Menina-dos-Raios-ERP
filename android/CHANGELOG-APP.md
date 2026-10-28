@@ -2,7 +2,17 @@
 
 Este arquivo registra as alteracoes funcionais do aplicativo Android e da integracao com o sistema.
 
-Versao estavel atual: `2.0.42`.
+Versao estavel atual: `2.0.43`.
+
+## [2.0.43] - 27/10/2026
+
+- Alertas Novo Tempo agora incluem somente notas marcadas como entregues; o prazo de 24 horas conta da entrega.
+- Notas ainda nao entregues ficam identificadas como "Aguardando entrega" e nao geram notificacoes.
+- O aviso do celular destaca que se refere a vendas entregues pendentes.
+- A programação dos avisos é restabelecida ao reiniciar o celular e ao atualizar o APK.
+- O ERP exige que todos os itens da nota estejam entregues antes de liberar o alerta.
+
+## [2.0.42] - 26/10/2026
 
 ## [2.0.42] - 26/10/2026
 

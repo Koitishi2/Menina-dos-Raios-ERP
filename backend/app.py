@@ -4094,7 +4094,7 @@ def _new_tempo_collection_groups(company_key:str):
     conn=get_db(company_key)
     try:
         rows=conn.execute(
-            """SELECT id,client,sale_date,sale_time,nf_number,product,total
+            """SELECT id,client,sale_date,sale_time,nf_number,product,total,delivered,delivered_at
                FROM sales
                WHERE sale_type!='AVARIA' AND client IS NOT NULL
                  AND UPPER(client) LIKE '%NOVO TEMPO%'
@@ -4114,10 +4114,11 @@ def _new_tempo_collection_groups(company_key:str):
         group=groups.setdefault(collection_id,{
             "id":collection_id,"company_key":company_key,"client":client,
             "sale_date":sale_date,"sale_time":sale_time,"nf_number":nf,
-            "total":0.0,"item_count":0,"products":[],
+            "total":0.0,"item_count":0,"products":[],"_delivery_rows":[],
         })
         group["total"]+=float(row["total"] or 0)
         group["item_count"]+=1
+        group["_delivery_rows"].append((str(row["delivered"] or "").strip().casefold(),str(row["delivered_at"] or "").strip()))
         product=str(row["product"] or "").strip()
         if product and product not in group["products"]:
             group["products"].append(product)
@@ -4157,15 +4158,29 @@ def list_new_tempo_collections(x_token:str=Header("")):
                 continue
             saved=statuses.get((company_key,group["id"]),{})
             status=saved.get("status","pendente")
-            starts_at,next_alert=_new_tempo_alert_schedule(sold_at,now)
+            delivery_rows=group.pop("_delivery_rows",[])
+            delivered=bool(delivery_rows) and all(value=="sim" for value,_ in delivery_rows)
+            delivery_times=[]
+            if delivered:
+                for _,value in delivery_rows:
+                    if value:
+                        try:
+                            delivery_times.append(datetime.fromisoformat(value.replace("Z","+00:00")).replace(tzinfo=None))
+                        except ValueError:
+                            continue
+            delivered_at=max(delivery_times) if delivery_times else (sold_at if delivered else None)
+            alert_anchor=delivered_at or sold_at
+            starts_at,next_alert=_new_tempo_alert_schedule(alert_anchor,now)
             group.update({
                 "status":status,
+                "delivered":delivered,
+                "delivered_at":delivered_at.isoformat(timespec="minutes") if delivered_at else None,
                 "paid_at":saved.get("paid_at"),
                 "sold_at":sold_at.isoformat(timespec="minutes"),
                 "alert_starts_at":starts_at.isoformat(timespec="minutes"),
                 "next_alert_at":next_alert.isoformat(timespec="minutes"),
-                "notifications_due":status!="pago" and now>=starts_at,
-                "hours_pending":max(0,int((now-sold_at).total_seconds()//3600)),
+                "notifications_due":delivered and status!="pago" and now>=starts_at,
+                "hours_pending":max(0,int((now-alert_anchor).total_seconds()//3600)) if delivered else 0,
                 "total":round(group["total"],2),
             })
             result.append(group)
