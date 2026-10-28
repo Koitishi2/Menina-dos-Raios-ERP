@@ -304,7 +304,9 @@ def main(argv=None):
                 raise DeployError("CONFIG", "HEALTHCHECK_URL nao configurado no arquivo local")
             apply_env["HEALTHCHECK_URL"] = config["HEALTHCHECK_URL"]
         assignments = " ".join(f"{key}={safe_remote(value)}" for key, value in apply_env.items())
-        remote_call(config, f"{assignments} bash {safe_remote(remote_script)}", log, stage)
+        # Use the system Bash explicitly. A root PATH entry can resolve `bash`
+        # to a POSIX shell wrapper that rejects pipefail and Bash-only syntax.
+        remote_call(config, f"{assignments} /bin/bash {safe_remote(remote_script)}", log, stage)
         fetch_remote_diagnostics(config, run_dir, log)
 
         stage = "REMOTE-CLEANUP"

@@ -140,6 +140,13 @@ def test_packager_has_no_baileys_runtime_validation():
     assert "menina-baileys" not in manifest
     assert "baileys-api/" not in manifest
 
+
+def test_remote_apply_invokes_system_bash_explicitly():
+    deployer = (ROOT / "scripts" / "deploy_server.py").read_text(encoding="utf-8")
+
+    assert 'f"{assignments} /bin/bash {safe_remote(remote_script)}"' in deployer
+    assert 'f"{assignments} bash {safe_remote(remote_script)}"' not in deployer
+
 def test_packager_blocks_protected_paths_and_secret_patterns(tmp_path):
     builder = _load_builder()
     source = _minimal_source(tmp_path)
