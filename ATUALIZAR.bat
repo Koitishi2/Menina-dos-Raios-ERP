@@ -8,5 +8,5 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-start "Menina dos Raios - Atualizar" "%WINDIR%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -NoExit -File "%RUNNER%" -ProjectRoot "%PROJECT_ROOT%"
+start "Menina dos Raios - Atualizar" /normal "%WINDIR%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -NoExit -File "%RUNNER%" -ProjectRoot "%PROJECT_ROOT%"
 exit /b 0
