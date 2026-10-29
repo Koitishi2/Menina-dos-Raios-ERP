@@ -45,3 +45,10 @@ Follow this workflow whenever publishing this project to the server or publishin
 - In Windows PowerShell 5.1, `apksigner.bat` can emit Java restricted-method warnings that interact badly with `$ErrorActionPreference = 'Stop'`. Verify APK signature before the publication runner; do not rerun `apksigner` inside the SSH/SCP publication script. Treat native command exit codes (`$LASTEXITCODE`) as authoritative.
 - Compute SHA-256 with `[System.Security.Cryptography.SHA256]::Create()` and dispose the object (and any file stream); do not use `Get-FileHash` or `SHA256.HashData` on this machine.
 - Successful reference run on 2026-10-20: backend commit `7d9d0c3c2987cb36977f612ef36c1045ac281af1`, `RESULT=APPLY_OK`; APK `2.0.33`/61, SHA-256 `8adde04dbd32c5bc4a1a688cb4f1c101ba342da9368f73856976ed38cc7dbf13`, remote backup `/root/menina_apk_backup_20261020_2.0.33_8adde04d`. APK public GET and metadata/hash/size matched. The runner's nested-quote final grep failed after remote checksums and promotion; use public GET validation as described above and do not copy that grep implementation.
+
+## Local update launchers
+
+- `atualizar apk.bat` validates and publishes the official APK through an external Windows PowerShell 5.1 window.
+- `ATUALIZAR.bat` (the same filename as `atualizar.bat` on Windows) opens a menu for the APK or ERP server workflow.
+- `PUBLICAR_APK.bat` remains a compatibility shortcut to `atualizar apk.bat`.
+- The launchers copy their PowerShell runner to `%TEMP%`; enter SSH passwords only in the visible PowerShell window and confirm the matching remote success marker before reporting completion.
