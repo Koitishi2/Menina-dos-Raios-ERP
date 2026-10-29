@@ -23,6 +23,7 @@ import java.io.ByteArrayOutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
 
@@ -33,8 +34,19 @@ public class CalendarNotificationReceiver extends BroadcastReceiver {
     private static final String ACTION_STOP_TODAY = "br.com.meninadosraios.vendas.STOP_CALENDAR_TODAY";
     private static final String EXTRA_EVENT_ID = "event_id";
     private static final String ALL_EVENTS = "__all__";
+    private static final int[] HORARIOS = {9, 13, 17, 21};
 
     @Override public void onReceive(Context context, Intent intent) {
+        String action = intent == null ? null : intent.getAction();
+        if (Intent.ACTION_BOOT_COMPLETED.equals(action)
+            || Intent.ACTION_USER_UNLOCKED.equals(action)
+            || Intent.ACTION_TIME_CHANGED.equals(action)
+            || Intent.ACTION_TIMEZONE_CHANGED.equals(action)
+            || Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
+            if (MainActivity.tokenAdminParaAlertas(context).isEmpty()) cancelar(context);
+            else agendar(context);
+            return;
+        }
         String token = MainActivity.tokenAdminParaAlertas(context);
         if (token.isEmpty()) { cancelar(context); return; }
         if (intent != null && ACTION_STOP_TODAY.equals(intent.getAction())) {
@@ -63,9 +75,23 @@ public class CalendarNotificationReceiver extends BroadcastReceiver {
         Intent i = new Intent(context, CalendarNotificationReceiver.class);
         PendingIntent pi = PendingIntent.getBroadcast(context, REQUEST_CODE, i,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        long intervalo = 2L * 60L * 60L * 1000L;
-        long inicio = System.currentTimeMillis() + 60L * 1000L;
-        alarm.setInexactRepeating(AlarmManager.RTC_WAKEUP, inicio, intervalo, pi);
+        Calendar agora = Calendar.getInstance();
+        Calendar proximo = (Calendar) agora.clone();
+        for (int hora : HORARIOS) {
+            proximo.set(Calendar.HOUR_OF_DAY, hora);
+            proximo.set(Calendar.MINUTE, 0);
+            proximo.set(Calendar.SECOND, 0);
+            proximo.set(Calendar.MILLISECOND, 0);
+            if (proximo.after(agora)) break;
+        }
+        if (!proximo.after(agora)) {
+            proximo.add(Calendar.DAY_OF_MONTH, 1);
+            proximo.set(Calendar.HOUR_OF_DAY, HORARIOS[0]);
+            proximo.set(Calendar.MINUTE, 0);
+            proximo.set(Calendar.SECOND, 0);
+            proximo.set(Calendar.MILLISECOND, 0);
+        }
+        alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, proximo.getTimeInMillis(), pi);
     }
 
     public static void cancelar(Context context) {

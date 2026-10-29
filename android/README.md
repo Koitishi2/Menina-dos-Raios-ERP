@@ -1,7 +1,7 @@
 # Menina dos Raios — aplicativo Android
 
 Fontes oficiais centralizados neste repositório, na branch `main`, junto com o ERP.
-A versão preparada é 2.0.44 (versionCode 72). O histórico funcional está em `CHANGELOG-APP.md`.
+A versão preparada é 2.0.45 (versionCode 72). O histórico funcional está em `CHANGELOG-APP.md`.
 
 ## Compilação
 

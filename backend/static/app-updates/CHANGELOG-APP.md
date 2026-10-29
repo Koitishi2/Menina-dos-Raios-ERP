@@ -2,7 +2,12 @@
 
 Este arquivo registra as alteracoes funcionais do aplicativo Android e da integracao com o sistema.
 
-Versao estavel atual: `2.0.44`.
+Versao estavel atual: `2.0.45`.
+
+## [2.0.45] - 29/10/2026
+
+- Alertas do Calendário agendados às 09h, 13h, 17h e 21h, em horários separados das cobranças Novo Tempo.
+- Agendamentos de Calendário e Novo Tempo restaurados no receiver correto após reinício, desbloqueio e mudança de horário.
 
 ## [2.0.44] - 29/10/2026
 
@@ -717,12 +722,4 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - O publicador valida a assinatura e calcula o SHA-256 automaticamente.
 - O `ATUALIZAR.bat` passou a oferecer a publicaÃ§Ã£o do APK apÃ³s atualizar o site.
 - O changelog passa a ser atualizado e enviado ao servidor durante cada publicaÃ§Ã£o.
-
-
-
-
-
-
-
-
 
