@@ -1,58 +1,49 @@
 # Menina dos Raios ERP
 
-Aplicacao de gestao operacional para vendas, entregas, boletos, notas, orcamentos, pagamentos, calendario e integracoes de comunicacao.
+Sistema de gestao operacional com ERP web e aplicativo Android para vendas, entregas, estoque, boletos, calendario, analises e comunicacao.
 
-Versao atual do servidor: `2.1.0`
+## Estado do projeto
 
-Este repositorio contem a versao estavel da aplicacao, atualmente na linha de servidor `2.1.0`. O foco desta versao e manter os modulos atuais operando com seguranca, preservando contratos existentes, dados persistentes, sessoes de integracao e o fluxo operacional controlado por backups e rollback.
+O branch `main` contem o codigo-fonte mais recente do ERP e do Android. A versao de servidor exibida pelo ERP permanece `2.1.0`; esse identificador, sozinho, nao informa qual commit esta ativo em producao. Para confirmar uma publicacao do backend, confira o commit retornado pelo health check e o log de deploy.
 
-## Estado da Versao Estavel
+APK oficial publicado em 29/10/2026:
 
-Dominios finalizados no ciclo atual:
+| Campo | Valor |
+| --- | --- |
+| Versao | `2.0.45` (`versionCode` `73`) |
+| Pacote | `br.com.meninadosraios.vendas` |
+| Tamanho | `2.759.094` bytes |
+| SHA-256 | `808b5a6c26fe6095e013616ec08d8cf5aa0590486922e1994e6310541fe77504` |
 
-- Notas APP;
-- Calendario APP;
-- WhatsApp;
-- Boletos e Pagamentos;
-- remocao da funcionalidade de Import Excel.
+Esse registro descreve o APK; a publicacao do APK e a implantacao do backend sao processos separados.
 
-A funcionalidade de upload/importacao Excel foi removida por nao fazer mais parte do uso atual. Dados historicos, tabelas, compatibilidades e rotas auxiliares necessarias para registros antigos foram preservados quando aplicavel.
+## Modulos do ERP
 
-Deploy controlado por pacote `.zip`, preservando configuracoes locais, bancos, uploads, logs, backups e sessoes de integracao. Evolution GO e o unico transporte WhatsApp ativo no ERP, com acesso local por loopback e credenciais restritas ao servidor.
+- **Hoje e Consolidado:** indicadores de faturamento, notas, produtor rural, avulsos, ticket medio e avarias, com filtros por periodo.
+- **Vendas e notas:** lancamento e edicao de vendas/NF, consulta de itens e historico, clientes, vendedores e entregadores.
+- **Entregas por voz:** interpreta produto e quantidade em qualquer ordem, incluindo pesos decimais com virgula; itens e valores sao apresentados no resumo da entrega.
+- **Estoque:** abas de resumo e produtos, saldos e movimentacoes rastreados por venda/NF. Os cartoes de produtos abrem o historico de vendas por NF; o modal central permite consultar e abrir a venda correspondente.
+- **Analises:** Projecao, Avarias e Produtividade.
+- **Boletos:** filtros por vencimento e status, edicao de vencimento, baixa/reabertura como pago ou pendente, selecao de clientes acompanhados e paginacao.
+- **Clientes e pedidos:** atendimento integrado ao Evolution GO, com fila de pedidos pendentes, aprovados e recusados e acoes humanas de aprovacao.
+- **Orcamentos e configuracoes:** catalogos, precos e regras de acesso por perfil.
 
-## Historico Operacional Recente
+O Evolution GO e o transporte WhatsApp ativo. O runtime do ERP nao usa Baileys.
 
-A linha `2.1.0` consolida os deploys controlados de setembro/2026 relacionados ao atendimento WhatsApp, pedidos e operacao do bot. Os pacotes foram aplicados por SSH/SCP com validacao de SHA-256, allowlist de arquivos, backup antes da copia, reinicio apenas dos servicos declarados e rollback automatico em caso de falha.
+## Modulos do APK
 
-Mudancas consolidadas nesta linha:
+O aplicativo Android compartilha o login do ERP e oferece fluxos moveis de entregas/notas, analises e acesso aos modulos conforme o perfil. As contas admin podem consultar boletos e configurar empresas acompanhadas. Notificacoes de cobranca e calendario ficam restritas a admins.
 
-- controle de envio e recebimento WhatsApp integrado ao Evolution GO, com bloqueios de sandbox, permissao e consentimento;
-- painel de Pedidos com abas **Pendentes**, **Aprovados** e **Recusados**, mantendo a fila principal limpa;
-- acoes de **Aprovar pedido**, **Recusar pedido** e **Remover pedido** para pedidos vindos do WhatsApp;
-- notificacao formal ao cliente quando um pedido e aprovado ou recusado, respeitando as travas de outbound, sandbox, producao aprovada e idempotencia de clique;
-- bot de pedidos iniciando por qualquer mensagem recebida quando nao houver fluxo ativo;
-- suporte a pedido com mais de um item usando a resposta `ADICIONAR`;
-- tratamento de opcoes numericas `1` a `6` como produtos durante o fluxo;
-- cadastro inicial de cliente WhatsApp novo, coletando nome e endereco antes do pedido;
-- suporte a eventos WhatsApp LID usando somente identificadores alternativos entregues pelo Evolution GO;
-- registro do telefone do cliente quando o evento LID trouxer JID numerico alternativo;
-- botao de remocao para pedidos pendentes, aprovados ou recusados, com exclusao do pedido e itens relacionados;
-- health checks resilientes nos aplicadores, aguardando o Uvicorn aceitar conexao antes de considerar falha real.
+- **Cobrancas Novo Tempo:** considera somente vendas marcadas como entregues; o primeiro aviso ocorre 24 horas depois da entrega e os lembretes repetem as 08h, 12h, 16h e 20h ate a baixa.
+- **Calendario:** notificacoes em horarios distintos, as 09h, 13h, 17h e 21h; os avisos abrem o evento/calendario correspondente.
+- **Boletos:** carteira com busca, filtros, selecao de clientes acompanhados, vencimento, status e paginacao de 20 itens.
+- **Produtos e analises:** consulta de produtos e valores, alem dos paineis moveis disponiveis no app.
 
-Os deploys dessas mudancas nao executam envio de mensagem durante o apply. Mensagens ao cliente ocorrem apenas em acoes funcionais posteriores, como aprovacao ou recusa de pedido pela UI, e continuam sujeitas as configuracoes de outbound.
+Consulte [android/README.md](android/README.md) para compilacao e publicacao, e [CHANGELOG-APP.md](CHANGELOG-APP.md) para o historico de versoes Android.
 
-## Qualidade e Validacao
+## Validacao
 
-A linha de base validada antes deste ciclo registra:
-
-- `327 passed` na suite completa de testes;
-- duas execucoes consecutivas bem-sucedidas;
-- validacao de sintaxe dos modulos Python relevantes;
-- verificacao de integridade com `git diff --check`.
-
-Os testes usam ambiente temporario e bloqueiam chamadas externas reais quando aplicavel.
-
-As correcoes locais dos bloqueios do ciclo 5 elevaram a cobertura para `331 passed`, novamente em duas execucoes completas consecutivas. Essa validacao continuou exclusivamente local, sem staging, deploy ou envio real.
+O repositorio possui testes automatizados para backend e componentes de interface. Execute os testes definidos para o modulo alterado antes de publicar; nao use resultados historicos de outra revisao como evidencia da revisao atual. O fluxo de deploy do servidor inclui preflight, backup, checksum, promocao e health check.
 
 ## Arquitetura Geral
 
@@ -89,7 +80,7 @@ Em alto nivel, o aplicativo permite:
 
 ### Estrutura do app
 
-O codigo-fonte do aplicativo Android e mantido no projeto Gradle `VendasWhatsApp`, separado deste repositorio de backend.
+O codigo-fonte Android fica em `android/`, neste mesmo repositorio e branch `main` do ERP.
 
 O APK oficial compilado usa o nome padrao:
 
@@ -103,13 +94,7 @@ O arquivo APK pode ou nao estar versionado no Git, conforme a politica operacion
 
 O APK deve ser compilado localmente com Android Studio ou Gradle, em uma maquina autorizada. A assinatura do aplicativo usa uma chave privada mantida apenas nas maquinas dos desenvolvedores autorizados.
 
-Depois da compilacao e assinatura, o APK e publicado em um servidor de atualizacoes usado pelo proprio app. O projeto possui um script de publicacao, por exemplo `PUBLICAR_APK.bat`, que executa o fluxo operacional de alto nivel:
-
-1. localiza o APK oficial gerado;
-2. extrai `versionName`, `versionCode` e identificador do pacote;
-3. calcula o hash SHA-256 do APK;
-4. atualiza o catalogo de versao usado pelo app;
-5. envia o APK e os metadados para o servidor de atualizacoes via SSH/SCP.
+Depois da compilacao e assinatura, publique o APK oficial pelo `atualizar_apk.bat`. O fluxo pre-valida pacote, versao, certificado, catalogos, tamanho e SHA-256; cria backup remoto; envia APK e metadados a um staging; valida o checksum remoto; promove os arquivos; e confirma os metadados e o APK baixado publicamente. A verificacao final repete o GET com cache-busting quando a resposta vier incompleta e so aprova tamanho e SHA-256 correspondentes.
 
 Detalhes de infraestrutura, como servidor, usuario, portas, caminhos remotos, provedor, senhas e chaves, nao devem aparecer no README nem ser versionados.
 
@@ -147,11 +132,9 @@ Falhas temporarias de rede durante a validacao nao apagam o token nem a preferen
 
 Vales com assinatura sao gravados no armazenamento local antes do envio. Se o servidor estiver indisponivel, o vale permanece pendente; a tela apresenta o detalhe do erro e o app tenta sincronizar os pendentes ao entrar novamente. Notas de produtos tambem possuem fila local e reenvio manual pela tela de pendencias.
 
-## Pacote de Atualizacao
+## Publicacao e atualizacao
 
-O `ATUALIZAR.bat` gera cada pacote a partir de um commit publicado e inclui
-manifesto, checksum e identificacao da release. O fluxo operacional e os logs
-estao descritos em [GUIA_ATUALIZACOES.md](GUIA_ATUALIZACOES.md).
+Use `atualizar_apk.bat` para publicar o APK oficial. Use `ATUALIZAR.bat` para abrir o menu operacional do ERP; a implantacao do backend e independente da publicacao Android. O processo do servidor exige o commit aprovado no `main`, preflight, backup, checksum e health check. Consulte [AGENTS.md](AGENTS.md) para os procedimentos locais vigentes.
 
 O pacote publicado nao deve conter:
 
@@ -163,42 +146,11 @@ O pacote publicado nao deve conter:
 
 O checksum SHA-256 deve ser publicado junto ao pacote quando o arquivo for disponibilizado.
 
-## Atualizador Seguro
+Os launchers nao armazenam senhas nem chaves privadas. A autenticacao SSH ocorre interativamente na janela externa do PowerShell; nao publique configuracoes locais ou segredos.
 
-O `atualizarrefatorado.bat` e o procedimento legado de uma versao estavel
-anterior. Para novas releases, use `ATUALIZAR.bat`.
+## Integracao WhatsApp
 
-O script nao deve conter credenciais, caminhos privados ou comandos de servico
-na versao publica. Detalhes de infraestrutura devem ser preenchidos apenas por
-operador autorizado em copia operacional local.
-
-## Pacote WhatsApp, Pedidos e Vendedores
-
-O pacote local dos ciclos WhatsApp/Pedidos e Vendedores/Produtividade deve ser
-gerado somente a partir de commit publicado, usando `git archive`, para evitar
-misturar arquivos do worktree. O manifesto autorizado fica em
-`deploy/whatsapp_sellers_manifest.txt` e o gerador local fica em
-`scripts/build_deploy_package.py`.
-
-O fluxo local valida dependencias antes de gerar o `.zip`: modulos Python,
-referencias JS/CSS do frontend e ordem das
-migracoes, hashes conhecidos e ausencia de dados protegidos. O pacote nao deve
-conter `.env`, bancos, uploads, logs, backups, sessoes legadas, QR Codes,
-`node_modules`, temporarios ou scripts operacionais locais nao aprovados.
-
-O gerador nao executa SSH, SCP, deploy, migracao, restart ou envio de mensagem.
-As variaveis de envio WhatsApp continuam desligadas por padrao:
-
-```ini
-WHATSAPP_OUTBOUND_ENABLED=false
-WHATSAPP_OUTBOUND_MODE=disabled
-```
-
-No estado atual, a geracao do pacote deve permanecer bloqueada enquanto houver
-segredo ou valor sensivel hardcoded em arquivo de runtime incluido no pacote,
-especialmente em `backend/app.py`. Nao ignore esse bloqueio; remova o valor
-sensivel em um ciclo local separado, valide novamente e gere um novo pacote a
-partir do commit publicado corrigido.
+O Evolution GO e o transporte WhatsApp ativo. O ERP recebe eventos pelo webhook, aplica controles de empresa, permissao, sandbox, consentimento e idempotencia, e apresenta pedidos para decisao humana. A aprovacao ou recusa e feita no painel; o pedido recebido nao se transforma automaticamente em venda nem altera o estoque. O runtime e o painel nao usam Baileys.
 
 ## Tokens Dos Apps Moveis
 

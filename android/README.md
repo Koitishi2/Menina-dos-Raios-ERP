@@ -1,7 +1,7 @@
 # Menina dos Raios — aplicativo Android
 
-Fontes oficiais centralizados neste repositório, na branch `main`, junto com o ERP.
-A versão preparada é 2.0.45 (versionCode 72). O histórico funcional está em `CHANGELOG-APP.md`.
+O código-fonte Android é mantido em `android/` neste repositório e acompanha o ERP no branch `main`.
+O APK oficial publicado é a versão `2.0.45` (`versionCode` `73`). O histórico funcional está em [`../CHANGELOG-APP.md`](../CHANGELOG-APP.md).
 
 ## Compilação
 
@@ -15,9 +15,9 @@ O projeto anterior em `Documentos/vendas APK` foi preservado com sua configuraç
 
 ## Publicação
 
-Siga `../AGENTS.md`: confira assinatura, identidade, versão, hash e catálogos; publique com backup e staging no PowerShell externo.
-Backend e APK têm validação independente. A versão preparada contém os alertas de Novo Tempo limitados a notas entregues e o Calendário com ação de abertura direta.
+Use `../atualizar_apk.bat` como launcher padrão. Ele valida assinatura, identidade, versão, hash e catálogos; publica com backup e staging no PowerShell externo; e confirma o download público por tamanho e SHA-256 com tentativas limitadas e cache-busting.
+Backend e APK têm validação independente. A versão `2.0.45` restringe notificações a admins, agenda cobranças Novo Tempo de vendas entregues e notificações de calendário em horários separados.
 
-Artefato compilado: `br.com.meninadosraios.vendas`, 2.756.287 bytes.
-SHA-256 do APK: `7c9d4bb285c493675b7b512c45a76a1b63bbf6b429953759eb268ddadd9d4883`.
+Artefato oficial publicado: `br.com.meninadosraios.vendas`, 2.759.094 bytes.
+SHA-256 do APK: `808b5a6c26fe6095e013616ec08d8cf5aa0590486922e1994e6310541fe77504`.
 SHA-256 do certificado oficial: `d9e833244c3a3db92428e83b6badb63a88058064fc1a2ee3996c799e60a16d3f`.
