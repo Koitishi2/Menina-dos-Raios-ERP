@@ -1,12 +1,12 @@
 {
-  "versionName": "2.0.43",
-  "versionCode": 71,
+  "versionName": "2.0.44",
+  "versionCode": 72,
   "packageName": "br.com.meninadosraios.vendas",
-  "sha256": "7c9d4bb285c493675b7b512c45a76a1b63bbf6b429953759eb268ddadd9d4883",
-  "releaseNotes": "Calendário com aviso expandido, data localizada, abertura direta e opção Parar hoje. Alertas Novo Tempo somente para notas entregues, após 24 horas.",
-  "notes": "Calendário com aviso expandido, data localizada, abertura direta e opção Parar hoje. Alertas Novo Tempo somente para notas entregues, após 24 horas.",
+  "sha256": "e7823c20d8b19979aef3fff6821438b2db9da0d2d723cbf99a5343ddefcda749",
+  "releaseNotes": "Alertas Novo Tempo registram o resultado das verificações e indicam bloqueios de permissão ou falhas de conexão; abas reorganizadas para leitura.",
+  "notes": "Alertas Novo Tempo registram o resultado das verificações e indicam bloqueios de permissão ou falhas de conexão; abas reorganizadas para leitura.",
   "apkFile": "Menina-dos-Raios-Vendas-OFICIAL.apk",
   "apkUrl": "https://sistema.meninadosraios.com.br/app-updates/Menina-dos-Raios-Vendas-OFICIAL.apk",
-  "sizeBytes": 2756287,
-  "publishedAt": "2026-10-27T20:59:41-04:00"
+  "sizeBytes": 2758733,
+  "publishedAt": "2026-10-29T12:34:03-04:00"
 }

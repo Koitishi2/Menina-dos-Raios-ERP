@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.Manifest;
+import android.app.NotificationManager;
+import android.app.NotificationChannel;
 import android.content.ActivityNotFoundException;
 import android.content.ClipboardManager;
 import android.content.Intent;
@@ -2052,16 +2054,27 @@ public class MainActivity extends FragmentActivity {
         indicadores.addView(totalAtraso, indicador2);
         conteudo.addView(indicadores);
 
-        LinearLayout abas = new LinearLayout(this);
-        abas.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout abas = coluna();
+        LinearLayout primeiraLinhaAbas = new LinearLayout(this);
+        LinearLayout segundaLinhaAbas = new LinearLayout(this);
+        primeiraLinhaAbas.setOrientation(LinearLayout.HORIZONTAL);
+        segundaLinhaAbas.setOrientation(LinearLayout.HORIZONTAL);
         Button pendentes = botaoFiltroBoleto("Pendentes", "pendente");
         Button vencidos = botaoFiltroBoleto("Vencidos", "vencido");
         Button pagos = botaoFiltroBoleto("Pagos", "pago");
         Button alertasNovoTempo = botaoFiltroBoleto("Alertas", "alertas");
-        abas.addView(pendentes, new LinearLayout.LayoutParams(0, dp(44), 1));
-        abas.addView(vencidos, new LinearLayout.LayoutParams(0, dp(44), 1));
-        abas.addView(pagos, new LinearLayout.LayoutParams(0, dp(44), 1));
-        abas.addView(alertasNovoTempo, new LinearLayout.LayoutParams(0, dp(44), 1));
+        for (Button tab : new Button[]{pendentes, vencidos, pagos, alertasNovoTempo}) {
+            tab.setTextSize(12);
+            tab.setMinWidth(0);
+            tab.setPadding(dp(6), 0, dp(6), 0);
+            tab.setMaxLines(2);
+        }
+        primeiraLinhaAbas.addView(pendentes, new LinearLayout.LayoutParams(0, dp(46), 1));
+        primeiraLinhaAbas.addView(vencidos, new LinearLayout.LayoutParams(0, dp(46), 1));
+        segundaLinhaAbas.addView(pagos, new LinearLayout.LayoutParams(0, dp(46), 1));
+        segundaLinhaAbas.addView(alertasNovoTempo, new LinearLayout.LayoutParams(0, dp(46), 1));
+        abas.addView(primeiraLinhaAbas);
+        abas.addView(segundaLinhaAbas);
         conteudo.addView(abas);
 
         EditText busca = campo("Buscar cliente ou NF", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
@@ -2221,6 +2234,7 @@ public class MainActivity extends FragmentActivity {
         atraso.setText("Aguardando 24h\n" + aguardando + " · pagos " + pagos);
         destino.addView(texto("Novo Tempo · cobranças pendentes", 18, true));
         destino.addView(texto("Somente notas entregues geram alertas. O primeiro aviso sai 24h após a entrega; depois às 08h, 12h, 16h e 20h, até a baixa. Notificações somente para admins.", 13, false));
+        adicionarEstadoNotificacoesNovoTempo(destino);
         LinearLayout filtros = new LinearLayout(this);
         Button filtroPendentes = botaoFiltroBoleto("Pendentes (" + pendentes + ")", "pendente");
         Button filtroPagos = botaoFiltroBoleto("Pagos (" + pagos + ")", "pago");
@@ -6116,6 +6130,42 @@ public class MainActivity extends FragmentActivity {
         if (!adminNotificacoes()) return;
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 410);
+        }
+    }
+
+    private void adicionarEstadoNotificacoesNovoTempo(LinearLayout destino) {
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        boolean habilitadas = manager != null && manager.areNotificationsEnabled();
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            habilitadas = false;
+        }
+        if (Build.VERSION.SDK_INT >= 26 && manager != null) {
+            NotificationChannel channel = manager.getNotificationChannel("cobrancas_novo_tempo_v1");
+            if (channel != null && channel.getImportance() == NotificationManager.IMPORTANCE_NONE) habilitadas = false;
+        }
+        TextView estado = texto(NewTempoCollectionReceiver.estadoUltimaVerificacao(this), 12, false);
+        estado.setPadding(dp(12), dp(9), dp(12), dp(9));
+        estado.setBackground(fundoComBorda(habilitadas ? Color.rgb(237, 247, 239) : Color.rgb(255, 244, 230),
+            habilitadas ? Color.rgb(193, 222, 199) : Color.rgb(242, 194, 120), 9));
+        LinearLayout.LayoutParams estadoParams = new LinearLayout.LayoutParams(-1, -2);
+        estadoParams.setMargins(0, dp(8), 0, dp(4));
+        destino.addView(estado, estadoParams);
+        if (!habilitadas) {
+            Button configurar = botao("Ativar notificações neste celular", Color.rgb(21, 101, 52));
+            destino.addView(configurar);
+            configurar.setOnClickListener(v -> abrirConfiguracoesNotificacoes());
+        }
+    }
+
+    private void abrirConfiguracoesNotificacoes() {
+        try {
+            Intent intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
+            startActivity(intent);
+        } catch (Exception e) {
+            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.parse("package:" + getPackageName()));
+            startActivity(intent);
         }
     }
 

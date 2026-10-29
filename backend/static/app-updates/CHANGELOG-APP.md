@@ -1,8 +1,14 @@
-﻿# Changelog - Menina dos Raios Vendas
+# Changelog - Menina dos Raios Vendas
 
 Este arquivo registra as alteracoes funcionais do aplicativo Android e da integracao com o sistema.
 
-Versao estavel atual: `2.0.43`.
+Versao estavel atual: `2.0.44`.
+
+## [2.0.44] - 29/10/2026
+
+- Alertas Novo Tempo exibem o resultado da última verificação e explicam falhas de sessão, rede ou permissão.
+- Agendamento recomposto no receiver correto após desbloqueio, reinício e mudança de horário.
+- Abas da carteira de boletos reorganizadas em duas linhas para impedir que Pendentes fique cortado.
 
 ## [2.0.43] - 27/10/2026
 
@@ -711,6 +717,7 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - O publicador valida a assinatura e calcula o SHA-256 automaticamente.
 - O `ATUALIZAR.bat` passou a oferecer a publicaÃ§Ã£o do APK apÃ³s atualizar o site.
 - O changelog passa a ser atualizado e enviado ao servidor durante cada publicaÃ§Ã£o.
+
 
 
 

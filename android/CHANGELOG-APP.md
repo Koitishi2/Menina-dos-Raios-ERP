@@ -2,7 +2,15 @@
 
 Este arquivo registra as alteracoes funcionais do aplicativo Android e da integracao com o sistema.
 
-Versao estavel atual: `2.0.43`.
+Versao estavel atual: `2.0.44`.
+
+## [2.0.44] - 29/10/2026
+
+- A tela de cobranças Novo Tempo mostra a última verificação em segundo plano e explica falhas de sessão, rede ou permissão.
+- Quando o Android bloqueia notificações, a tela oferece acesso direto às configurações do aplicativo e do canal.
+- O APK registra diagnóstico do agendamento e da consulta de cobranças, sem ignorar silenciosamente erros.
+- O agendamento é recomposto ao desbloquear o celular e quando data ou fuso horário mudam.
+- As abas da carteira de boletos foram organizadas em duas linhas para manter "Pendentes" e os demais rótulos legíveis em telas estreitas.
 
 ## [2.0.43] - 27/10/2026
 
