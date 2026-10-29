@@ -37,14 +37,33 @@ try {
         throw 'Metadados públicos divergem do APK promovido.'
     }
     $downloadPath = Join-Path $env:TEMP ('menina-apk-public-' + $ReleaseId + '.apk')
-    Invoke-WebRequest -Uri "$publicBase/$apkName?release=$ReleaseId" -OutFile $downloadPath -UseBasicParsing -TimeoutSec 60
-    $hash = [System.Security.Cryptography.SHA256]::Create()
-    $stream = [System.IO.File]::OpenRead($downloadPath)
-    try { $downloadHash = ([BitConverter]::ToString($hash.ComputeHash($stream))).Replace('-', '').ToLowerInvariant() }
-    finally { $stream.Dispose(); $hash.Dispose() }
-    if ((Get-Item -LiteralPath $downloadPath).Length -ne [long]$expected.sizeBytes -or $downloadHash -ne $expected.sha256) {
-        throw 'GET público diverge em tamanho ou SHA-256.'
+    $downloadVerified = $false
+    for ($attempt = 1; $attempt -le 4; $attempt++) {
+        $cacheBust = [guid]::NewGuid().ToString('N')
+        $downloadUri = "$publicBase/$apkName`?release=$ReleaseId&attempt=$attempt&check=$cacheBust"
+        Write-Host "GET público do APK: tentativa $attempt/4." -ForegroundColor Cyan
+        $httpStatus = & curl.exe --fail --location --silent --show-error --retry 2 --retry-all-errors --retry-delay 2 --output $downloadPath --write-out '%{http_code}' $downloadUri
+        $curlExit = $LASTEXITCODE
+
+        if ($curlExit -eq 0 -and [string]$httpStatus -eq '200' -and (Test-Path -LiteralPath $downloadPath)) {
+            $downloadFile = Get-Item -LiteralPath $downloadPath
+            $hash = [System.Security.Cryptography.SHA256]::Create()
+            $stream = [System.IO.File]::OpenRead($downloadPath)
+            try { $downloadHash = ([BitConverter]::ToString($hash.ComputeHash($stream))).Replace('-', '').ToLowerInvariant() }
+            finally { $stream.Dispose(); $hash.Dispose() }
+
+            if ($downloadFile.Length -eq [long]$expected.sizeBytes -and $downloadHash -eq $expected.sha256) {
+                $downloadVerified = $true
+                break
+            }
+            Write-Host ("GET incompleto/divergente: recebido={0} bytes; esperado={1}." -f $downloadFile.Length,$expected.sizeBytes) -ForegroundColor Yellow
+        }
+        else {
+            Write-Host "GET público falhou (curl exit=$curlExit, HTTP=$httpStatus)." -ForegroundColor Yellow
+        }
+        if ($attempt -lt 4) { Start-Sleep -Seconds 2 }
     }
+    if (-not $downloadVerified) { throw 'GET público não confirmou tamanho e SHA-256 após 4 tentativas.' }
     Write-Host ("APK_PUBLISH_OK version={0} code={1} size={2} sha256={3} PUBLIC_GET=OK" -f $expected.versionName,$expected.versionCode,$expected.sizeBytes,$expected.sha256) -ForegroundColor Green
     Write-Host "BACKUP_REMOTO=$remoteBackup"
     Write-Host "PUBLICACAO_REMOTA=OK versao=$($expected.versionName) sha256_validado=sim"

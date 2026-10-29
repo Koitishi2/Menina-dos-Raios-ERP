@@ -48,7 +48,9 @@ Follow this workflow whenever publishing this project to the server or publishin
 
 ## Local update launchers
 
-- `atualizar apk.bat` validates and publishes the official APK through an external Windows PowerShell 5.1 window.
+- `atualizar_apk.bat` is the canonical launcher for every Android APK publication. It validates and publishes only the official APK through an external Windows PowerShell 5.1 window; use it for future APK sends.
+- `atualizar apk.bat` remains a compatibility alias to `atualizar_apk.bat`.
 - `ATUALIZAR.bat` (the same filename as `atualizar.bat` on Windows) opens a menu for the APK or ERP server workflow.
 - `PUBLICAR_APK.bat` remains a compatibility shortcut to `atualizar apk.bat`.
 - The launchers copy their PowerShell runner to `%TEMP%`; enter SSH passwords only in the visible PowerShell window and confirm the matching remote success marker before reporting completion.
+- Public APK validation must tolerate transiently truncated GET responses: use `curl.exe` with bounded retries and a cache-busting query on each attempt; only accept HTTP 200 when both expected file size and SHA-256 match. A failed first GET is not publication failure if a later retry verifies; report failure if all retries fail.
