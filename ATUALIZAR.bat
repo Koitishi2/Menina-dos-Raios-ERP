@@ -1,6 +1,6 @@
 @echo off
 setlocal
-set "PROJECT_ROOT=%~dp0"
+set "PROJECT_ROOT=%~dp0."
 set "RUNNER=%TEMP%\menina-atualizar-%RANDOM%-%RANDOM%.ps1"
 copy /y "%~dp0scripts\atualizar.ps1" "%RUNNER%" >nul
 if errorlevel 1 (
