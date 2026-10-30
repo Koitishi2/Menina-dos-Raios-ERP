@@ -6093,6 +6093,9 @@ public class MainActivity extends FragmentActivity {
         LinearLayout lista = coluna();
         lista.setPadding(dp(12), dp(6), dp(12), dp(6));
         scroll.addView(lista);
+        TextView estadoNotificacao = texto(CalendarNotificationReceiver.estadoUltimaVerificacao(this), 12, false);
+        estadoNotificacao.setPadding(dp(10), dp(8), dp(10), dp(8));
+        lista.addView(estadoNotificacao);
         if (eventos.length() == 0) {
             lista.addView(texto("Nenhuma notificação pendente para os próximos dias.", 15, false));
         }

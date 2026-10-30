@@ -14,6 +14,7 @@ import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
+import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -21,6 +22,7 @@ import org.json.JSONObject;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.net.HttpURLConnection;
+import java.io.IOException;
 import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
@@ -35,6 +37,8 @@ public class CalendarNotificationReceiver extends BroadcastReceiver {
     private static final String EXTRA_EVENT_ID = "event_id";
     private static final String ALL_EVENTS = "__all__";
     private static final int[] HORARIOS = {9, 13, 17, 21};
+    private static final String TAG = "CalendarNotifications";
+    private static final String STATUS_PREFS = "calendar_notification_status";
 
     @Override public void onReceive(Context context, Intent intent) {
         String action = intent == null ? null : intent.getAction();
@@ -60,10 +64,18 @@ public class CalendarNotificationReceiver extends BroadcastReceiver {
                 JSONArray eventos = baixarEventos(token);
                 JSONArray filtrados = filtrarEventosNotificaveis(context, eventos);
                 if (filtrados.length() > 0) {
-                    notificar(context, filtrados, token);
-                    registrarEnvios(context, filtrados);
+                    JSONArray enviados = notificar(context, filtrados, token);
+                    if (enviados.length() > 0) {
+                        registrarEnvios(context, enviados);
+                        registrarEstado(context, "Aviso enviado em " + horarioAgora() + ": " + enviados.length() + " evento(s) do calendário.");
+                    }
+                } else {
+                    registrarEstado(context, "Verificado em " + horarioAgora() + ": nenhum lembrete pendente neste horário.");
                 }
-            } catch (Exception ignored) { }
+            } catch (Exception error) {
+                registrarEstado(context, "Falha ao consultar o calendário em " + horarioAgora() + ". Confira a conexão e a sessão admin.");
+                Log.e(TAG, "Falha ao consultar notificações do calendário", error);
+            }
             finally { pending.finish(); }
         }).start();
     }
@@ -120,7 +132,7 @@ public class CalendarNotificationReceiver extends BroadcastReceiver {
             conexao.setRequestProperty("Cache-Control", "no-cache");
             conexao.setRequestProperty("x-token", token);
             int status = conexao.getResponseCode();
-            if (status < 200 || status >= 300) return new JSONArray();
+            if (status < 200 || status >= 300) throw new IOException("API do calendário respondeu HTTP " + status);
             String json = new String(ler(conexao), "UTF-8");
             JSONObject body = new JSONObject(json);
             JSONArray eventos = body.optJSONArray("events");
@@ -140,12 +152,26 @@ public class CalendarNotificationReceiver extends BroadcastReceiver {
         }
     }
 
-    private static void notificar(Context context, JSONArray eventos, String token) throws Exception {
-        if (!token.equals(MainActivity.tokenAdminParaAlertas(context))) return;
+    private static JSONArray notificar(Context context, JSONArray eventos, String token) throws Exception {
+        JSONArray enviados = new JSONArray();
+        if (!token.equals(MainActivity.tokenAdminParaAlertas(context))) {
+            registrarEstado(context, "Aviso cancelado: a sessão admin mudou durante a consulta.");
+            return enviados;
+        }
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        if (nm == null) return;
+        if (nm == null) {
+            registrarEstado(context, "Aviso não enviado: serviço de notificações indisponível.");
+            return enviados;
+        }
         if (Build.VERSION.SDK_INT >= 33 &&
-            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return;
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            registrarEstado(context, "Aviso não enviado: permissão de notificações desativada no Android.");
+            return enviados;
+        }
+        if (Build.VERSION.SDK_INT >= 24 && !nm.areNotificationsEnabled()) {
+            registrarEstado(context, "Aviso não enviado: notificações do APK estão bloqueadas nas configurações do celular.");
+            return enviados;
+        }
 
         Uri som = Settings.System.DEFAULT_NOTIFICATION_URI;
         if (Build.VERSION.SDK_INT >= 26) {
@@ -159,6 +185,11 @@ public class CalendarNotificationReceiver extends BroadcastReceiver {
                 .build());
             canal.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
             nm.createNotificationChannel(canal);
+            NotificationChannel canalAtual = nm.getNotificationChannel(CHANNEL_ID);
+            if (canalAtual != null && canalAtual.getImportance() == NotificationManager.IMPORTANCE_NONE) {
+                registrarEstado(context, "Aviso não enviado: canal Calendário está bloqueado nas configurações.");
+                return enviados;
+            }
         }
 
         for (int i = 0; i < eventos.length(); i++) {
@@ -204,9 +235,29 @@ public class CalendarNotificationReceiver extends BroadcastReceiver {
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
                 .addAction(android.R.drawable.ic_menu_view, "Abrir calendário", abrirCalendarioPi)
                 .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Parar hoje", pararPi);
-            if (!token.equals(MainActivity.tokenAdminParaAlertas(context))) return;
+            if (!token.equals(MainActivity.tokenAdminParaAlertas(context))) {
+                registrarEstado(context, "Aviso cancelado: a sessão admin mudou durante o envio.");
+                return enviados;
+            }
             nm.notify(notificationId, b.build());
+            enviados.put(evento);
         }
+        return enviados;
+    }
+
+    static String estadoUltimaVerificacao(Context context) {
+        return context.getSharedPreferences(STATUS_PREFS, Context.MODE_PRIVATE)
+            .getString("last_result", "Ainda não há verificação de notificações do calendário neste celular.");
+    }
+
+    private static void registrarEstado(Context context, String resultado) {
+        context.getSharedPreferences(STATUS_PREFS, Context.MODE_PRIVATE).edit()
+            .putString("last_result", resultado)
+            .apply();
+    }
+
+    private static String horarioAgora() {
+        return new SimpleDateFormat("dd/MM HH:mm", new Locale("pt", "BR")).format(new Date());
     }
 
     private static String resumo(JSONObject e) {

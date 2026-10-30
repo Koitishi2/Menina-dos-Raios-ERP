@@ -35,7 +35,7 @@ O Evolution GO e o transporte WhatsApp ativo. O runtime do ERP nao usa Baileys.
 O aplicativo Android compartilha o login do ERP e oferece fluxos moveis de entregas/notas, analises e acesso aos modulos conforme o perfil. As contas admin podem consultar boletos e configurar empresas acompanhadas. Notificacoes de cobranca e calendario ficam restritas a admins.
 
 - **Cobrancas Novo Tempo:** considera somente vendas marcadas como entregues; o primeiro aviso ocorre 24 horas depois da entrega e os lembretes repetem as 08h, 12h, 16h e 20h ate a baixa.
-- **Calendario:** notificacoes em horarios distintos, as 09h, 13h, 17h e 21h; os avisos abrem o evento/calendario correspondente.
+- **Calendario:** verificacoes as 09h, 13h, 17h e 21h, respeitando o limite diario de avisos configurado em cada evento; as notificacoes abrem o calendario correspondente.
 - **Boletos:** carteira com busca, filtros, selecao de clientes acompanhados, vencimento, status e paginacao de 20 itens.
 - **Produtos e analises:** consulta de produtos e valores, alem dos paineis moveis disponiveis no app.
 
