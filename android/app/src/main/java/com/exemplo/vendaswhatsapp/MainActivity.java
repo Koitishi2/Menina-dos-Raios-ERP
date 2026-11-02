@@ -6349,10 +6349,14 @@ public class MainActivity extends FragmentActivity {
         botoes.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
         botoes.setPadding(0, dp(16), 0, 0);
         Button depois = botao("Agora não", Color.rgb(100, 116, 139));
-        Button atualizar = botao("Baixar atualização", Color.rgb(21, 101, 52));
-        botoes.addView(depois);
-        LinearLayout.LayoutParams actionLp = new LinearLayout.LayoutParams(-2, -2);
-        actionLp.setMargins(dp(8), 0, 0, 0);
+        Button atualizar = botao("Baixar e instalar", Color.rgb(21, 101, 52));
+        depois.setTextSize(13);
+        atualizar.setTextSize(13);
+        LinearLayout.LayoutParams depoisLp = new LinearLayout.LayoutParams(0, dp(50), 1f);
+        depoisLp.setMargins(0, 0, dp(5), 0);
+        botoes.addView(depois, depoisLp);
+        LinearLayout.LayoutParams actionLp = new LinearLayout.LayoutParams(0, dp(50), 1f);
+        actionLp.setMargins(dp(5), 0, 0, 0);
         botoes.addView(atualizar, actionLp);
         raiz.addView(botoes);
         dialog.setContentView(raiz);

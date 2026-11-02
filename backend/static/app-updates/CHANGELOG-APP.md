@@ -2,7 +2,11 @@
 
 Este arquivo registra as alteracoes funcionais do aplicativo Android e da integracao com o sistema.
 
-Versao estavel atual: `2.0.48`.
+Versao estavel atual: `2.0.49`.
+
+## [2.0.49] - 02/11/2026
+
+- Botões “Agora não” e “Baixar e instalar” agora dividem o espaço igualmente e permanecem visíveis em telas estreitas.
 
 ## [2.0.48] - 02/11/2026
 

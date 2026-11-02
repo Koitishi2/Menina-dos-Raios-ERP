@@ -1,7 +1,7 @@
 # Menina dos Raios — aplicativo Android
 
 O código-fonte Android é mantido em `android/` neste repositório e acompanha o ERP no branch `main`.
-O código-fonte está preparado para a versão `2.0.48` (`versionCode` `76`); a publicação oficial só é atualizada após validar o APK e concluir o envio. O histórico funcional está em [`../CHANGELOG-APP.md`](../CHANGELOG-APP.md).
+O código-fonte está preparado para a versão `2.0.49` (`versionCode` `77`); a publicação oficial só é atualizada após validar o APK e concluir o envio. O histórico funcional está em [`../CHANGELOG-APP.md`](../CHANGELOG-APP.md).
 
 ## Compilação
 
