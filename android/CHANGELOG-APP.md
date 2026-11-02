@@ -2,7 +2,14 @@
 
 Este arquivo registra as alteracoes funcionais do aplicativo Android e da integracao com o sistema.
 
-Versao estavel atual: `2.0.47`.
+Versao estavel atual: `2.0.48`.
+
+## [2.0.48] - 02/11/2026
+
+- Corrigida a validação de administrador usada pelos serviços de notificação para também reconhecer a sessão legada quando o Android não consegue abrir o armazenamento criptografado.
+- Os atalhos “Novo produto” e “Gerenciar catálogo” foram movidos para a tela principal e continuam usando o catálogo e as ações existentes.
+- Cadastro e edição do catálogo não dependem mais de a tela de lançamento de entrega estar aberta.
+- Entrada de estoque por voz reconhece o cliente Estoque mesmo com pontuação no texto reconhecido e registra Macaxeira a Vácuo e Alho 250g como unidades (`UN`) somente nesse cliente.
 
 ## [2.0.47] - 02/11/2026
 

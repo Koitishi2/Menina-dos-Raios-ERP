@@ -1,12 +1,12 @@
 {
-  "versionName": "2.0.47",
-  "versionCode": 75,
+  "versionName": "2.0.48",
+  "versionCode": 76,
   "packageName": "br.com.meninadosraios.vendas",
-  "sha256": "0346ad18833b7c53bf3df8f6e807a8b34c579a9e7bc610a714a85b8b7cf087f9",
-  "releaseNotes": "Atualizador redesenhado com progresso e validação da assinatura; notificações usam horários exatos quando autorizados no Android.",
-  "notes": "Atualizador redesenhado com progresso e validação da assinatura; notificações usam horários exatos quando autorizados no Android.",
+  "sha256": "93767b6d177e4189847bbdf820c215c07dd0961006ced86018a6ca79cc375b0f",
+  "releaseNotes": "Sessão admin validada corretamente; atalhos do catálogo na tela principal; entrada de Macaxeira a Vácuo e Alho 250g como unidades para o cliente ESTOQUE.",
+  "notes": "Sessão admin validada corretamente; atalhos do catálogo na tela principal; entrada de Macaxeira a Vácuo e Alho 250g como unidades para o cliente ESTOQUE.",
   "apkFile": "Menina-dos-Raios-Vendas-OFICIAL.apk",
   "apkUrl": "https://sistema.meninadosraios.com.br/app-updates/Menina-dos-Raios-Vendas-OFICIAL.apk",
-  "sizeBytes": 2766755,
-  "publishedAt": "2026-11-02T16:47:10-04:00"
+  "sizeBytes": 2766809,
+  "publishedAt": "2026-11-02T17:27:25-04:00"
 }

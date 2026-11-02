@@ -21,7 +21,10 @@ def _clean_app_note(body: dict):
     if not isinstance(raw_items,list) or len(raw_items)>100:
         raise HTTPException(400,"Lista de itens invÃ¡lida (mÃ¡ximo 100).")
     items=[]; total=0.0
-    stock_intake = bool(body.get("stock_intake")) and client.casefold() == "estoque"
+    client_key = unicodedata.normalize("NFKD", client)
+    client_key = "".join(char for char in client_key if not unicodedata.combining(char))
+    client_key = re.sub(r"[^A-Z0-9]", "", client_key.upper())
+    stock_intake = bool(body.get("stock_intake")) and client_key == "ESTOQUE"
     for pos,raw in enumerate(raw_items):
         if not isinstance(raw,dict): continue
         product=str(raw.get("product") or "").strip()[:160]

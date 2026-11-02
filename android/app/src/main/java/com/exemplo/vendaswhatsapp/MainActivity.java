@@ -356,6 +356,26 @@ public class MainActivity extends FragmentActivity {
         buscaParams.setMargins(0, 0, 0, dp(16));
         raiz.addView(busca, buscaParams);
 
+        // Atalhos do catálogo ficam na tela principal para acesso rápido,
+        // sem disputar espaço com os campos do lançamento de entrega.
+        carregarProdutos();
+        LinearLayout atalhosCatalogo = new LinearLayout(this);
+        atalhosCatalogo.setOrientation(LinearLayout.HORIZONTAL);
+        atalhosCatalogo.setGravity(Gravity.CENTER_VERTICAL);
+        Button novoProdutoHome = botao("＋  Novo produto", Color.rgb(21, 101, 52));
+        novoProdutoHome.setTextSize(13);
+        novoProdutoHome.setOnClickListener(v -> cadastrarNovoProduto());
+        LinearLayout.LayoutParams novoProdutoHomeParams = new LinearLayout.LayoutParams(0, dp(52), 1);
+        novoProdutoHomeParams.setMargins(0, 0, dp(6), dp(14));
+        atalhosCatalogo.addView(novoProdutoHome, novoProdutoHomeParams);
+        Button gerenciarCatalogoHome = botao("▤  Gerenciar catálogo", Color.rgb(20, 83, 45));
+        gerenciarCatalogoHome.setTextSize(12);
+        gerenciarCatalogoHome.setOnClickListener(v -> gerenciarProdutos());
+        LinearLayout.LayoutParams gerenciarHomeParams = new LinearLayout.LayoutParams(0, dp(52), 1);
+        gerenciarHomeParams.setMargins(dp(6), 0, 0, dp(14));
+        atalhosCatalogo.addView(gerenciarCatalogoHome, gerenciarHomeParams);
+        raiz.addView(atalhosCatalogo);
+
         List<ModuloHome> modulos = new ArrayList<>();
         modulos.add(new ModuloHome("Entregas", "Lançar pedidos e acompanhar notas", "Operação", "EN", Color.rgb(245, 124, 0), () -> mostrarMenuEntregas()));
         modulos.add(new ModuloHome("Vale", "Solicitação com assinatura", "Operação", "VA", Color.rgb(202, 138, 4), () -> abrirModuloVale()));
@@ -1654,7 +1674,7 @@ public class MainActivity extends FragmentActivity {
     }
 
     private void enviarPedidoVoz() {
-        if ("ESTOQUE".equals(nomeClienteMaiusculo(clienteVoz))) {
+        if (clienteEhEstoque(clienteVoz)) {
             StringBuilder resumo = new StringBuilder("A nota será enviada e estes itens serão somados ao estoque da Menina dos Raios:\n\n");
             for (ItemInterpretado item : itensVoz) {
                 String produto = item.produto;
@@ -4264,11 +4284,19 @@ public class MainActivity extends FragmentActivity {
             SharedPreferences prefs = EncryptedSharedPreferences.create(contexto, "auth_sistema_seguro", masterKey,
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM);
-            if (!"admin".equalsIgnoreCase(prefs.getString("role", "").trim())) return "";
-            return prefs.getString("token", "").trim();
+            String role = prefs.getString("role", "").trim();
+            String token = prefs.getString("token", "").trim();
+            if ("admin".equalsIgnoreCase(role) && !token.isEmpty()) return token;
+            // authPrefs() deliberately falls back to the legacy store if Android
+            // cannot open EncryptedSharedPreferences on a device. Keep the
+            // receiver's check consistent with the active session in that case.
+            if (!token.isEmpty() || !role.isEmpty()) return "";
         } catch (Exception e) {
-            return "";
+            // Continue with the same legacy store used by authPrefs() fallback.
         }
+        SharedPreferences legado = contexto.getSharedPreferences("auth_sistema", Context.MODE_PRIVATE);
+        if (!"admin".equalsIgnoreCase(legado.getString("role", "").trim())) return "";
+        return legado.getString("token", "").trim();
     }
 
     private boolean adminNotificacoes() {
@@ -4580,25 +4608,6 @@ public class MainActivity extends FragmentActivity {
         atualizarDicaValor();
         raiz.addView(rotuloCampo("Produto"));
         raiz.addView(produto);
-        LinearLayout botoesCatalogo = new LinearLayout(this);
-        botoesCatalogo.setOrientation(LinearLayout.HORIZONTAL);
-        botoesCatalogo.setGravity(Gravity.CENTER_VERTICAL);
-        Button novoProduto = botao("+ Novo produto", Color.WHITE);
-        novoProduto.setTextColor(Color.rgb(20, 83, 45));
-        novoProduto.setBackground(fundoComBorda(Color.WHITE, Color.rgb(216, 227, 220), 10));
-        novoProduto.setOnClickListener(v -> cadastrarNovoProduto());
-        LinearLayout.LayoutParams novoParams = new LinearLayout.LayoutParams(0, dp(42), 1);
-        novoParams.setMargins(0, dp(2), dp(4), dp(2));
-        botoesCatalogo.addView(novoProduto, novoParams);
-        Button verProdutos = botao("Gerenciar catálogo", Color.WHITE);
-        verProdutos.setTextColor(Color.rgb(20, 83, 45));
-        verProdutos.setBackground(fundoComBorda(Color.WHITE, Color.rgb(216, 227, 220), 10));
-        verProdutos.setOnClickListener(v -> gerenciarProdutos());
-        verProdutos.setTextSize(12);
-        LinearLayout.LayoutParams verParams = new LinearLayout.LayoutParams(0, dp(42), 1);
-        verParams.setMargins(dp(4), dp(2), 0, dp(2));
-        botoesCatalogo.addView(verProdutos, verParams);
-        raiz.addView(botoesCatalogo);
         LinearLayout linhaMedidas = new LinearLayout(this);
         linhaMedidas.setOrientation(LinearLayout.HORIZONTAL);
         LinearLayout campoPeso = coluna();
@@ -5402,9 +5411,9 @@ public class MainActivity extends FragmentActivity {
                 ordenarProdutos();
                 getSharedPreferences("catalogo", MODE_PRIVATE).edit()
                     .putStringSet("produtos", new LinkedHashSet<>(produtos)).apply();
-                produtosAdapter.notifyDataSetChanged();
-                produto.setSelection(produtos.indexOf(nome));
-                atualizarDicaValor();
+                if (produtosAdapter != null) produtosAdapter.notifyDataSetChanged();
+                if (produto != null && produtos.contains(nome)) produto.setSelection(produtos.indexOf(nome));
+                if (produto != null) atualizarDicaValor();
             }).show();
     }
 
@@ -5412,7 +5421,7 @@ public class MainActivity extends FragmentActivity {
         ordenarProdutos();
         getSharedPreferences("catalogo", MODE_PRIVATE).edit()
             .putStringSet("produtos", new LinkedHashSet<>(produtos)).apply();
-        produtosAdapter.notifyDataSetChanged();
+        if (produtosAdapter != null) produtosAdapter.notifyDataSetChanged();
     }
 
     private void gerenciarProdutos() {
@@ -5470,7 +5479,9 @@ public class MainActivity extends FragmentActivity {
                 produtos.remove(nome);
                 getSharedPreferences("precos_produtos", MODE_PRIVATE).edit().remove(nome).apply();
                 getSharedPreferences("unidades_produtos", MODE_PRIVATE).edit().remove(nome).apply();
-                salvarProdutos(); atualizarDicaValor(); aviso("Produto excluído.");
+                salvarProdutos();
+                if (produto != null) atualizarDicaValor();
+                aviso("Produto excluído.");
             }).show();
     }
 
@@ -5562,6 +5573,11 @@ public class MainActivity extends FragmentActivity {
         return nome == null ? "" : nome.trim().toUpperCase(new Locale("pt", "BR"));
     }
 
+    private boolean clienteEhEstoque(String nome) {
+        String normalizado = normalizarNomeProduto(nome).replaceAll("[^A-Z0-9]", "");
+        return "ESTOQUE".equals(normalizado);
+    }
+
     private void prepararEnvioNota(String nomeCliente) {
         definirStatusEnvio("Verificando se já existe uma nota para evitar duplicidade...", Color.rgb(37, 99, 235));
         enviarSistemaButton.setEnabled(false);
@@ -5570,7 +5586,7 @@ public class MainActivity extends FragmentActivity {
         final JSONObject body;
         try {
             body = criarPayload(pedidoId, nomeCliente, data.getText().toString().trim(), itensEnvio);
-            if (envioOrigemVoz && "ESTOQUE".equals(nomeClienteMaiusculo(nomeCliente))) {
+            if (envioOrigemVoz && clienteEhEstoque(nomeCliente)) {
                 normalizarProdutosEstoque(body);
             }
         }
@@ -5623,7 +5639,7 @@ public class MainActivity extends FragmentActivity {
         try {
             body.put("merge_decided", true);
             body.put("merge_into_note_id", mergeIntoNoteId == null ? "" : mergeIntoNoteId);
-            body.put("stock_intake", envioOrigemVoz && "ESTOQUE".equals(nomeClienteMaiusculo(nomeCliente)));
+            body.put("stock_intake", envioOrigemVoz && clienteEhEstoque(nomeCliente));
         } catch (Exception e) {
             restaurarBotaoEnvio();
             definirStatusEnvio("Não foi possível iniciar o envio. A nota continua em edição.", Color.rgb(185, 28, 28));
