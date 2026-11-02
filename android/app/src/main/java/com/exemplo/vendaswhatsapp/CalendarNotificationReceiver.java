@@ -104,10 +104,14 @@ public class CalendarNotificationReceiver extends BroadcastReceiver {
             proximo.set(Calendar.MILLISECOND, 0);
         }
         try {
-            alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, proximo.getTimeInMillis(), pi);
+            boolean exato = Build.VERSION.SDK_INT < 31 || alarm.canScheduleExactAlarms();
+            if (exato) alarm.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, proximo.getTimeInMillis(), pi);
+            else alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, proximo.getTimeInMillis(), pi);
             context.getSharedPreferences(STATUS_PREFS, Context.MODE_PRIVATE).edit()
-                .putLong("next_alarm", proximo.getTimeInMillis()).apply();
+                .putLong("next_alarm", proximo.getTimeInMillis())
+                .putBoolean("exact_alarm", exato).apply();
             Log.i(TAG, "Próxima verificação agendada para " + new SimpleDateFormat("dd/MM HH:mm", new Locale("pt", "BR")).format(proximo.getTime()));
+            if (!exato) Log.w(TAG, "Acesso a alarmes exatos não autorizado; o Android pode atrasar a notificação.");
         } catch (RuntimeException error) {
             registrarEstado(context, "Falha ao agendar o calendário. Abra o APK e confira as permissões de bateria/notificações.");
             Log.e(TAG, "Falha ao agendar alarmes do calendário", error);
@@ -260,6 +264,9 @@ public class CalendarNotificationReceiver extends BroadcastReceiver {
         if (proximo > 0L && MainActivity.tokenAdminParaAlertas(context).length() > 0) {
             resultado += " Próxima verificação prevista: " + new SimpleDateFormat("dd/MM HH:mm", new Locale("pt", "BR")).format(new Date(proximo)) + ".";
         }
+        AlarmManager alarm = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (Build.VERSION.SDK_INT >= 31 && alarm != null && !alarm.canScheduleExactAlarms())
+            resultado += " Horários exatos desativados; o Android pode atrasar os avisos.";
         return resultado;
     }
 
@@ -297,6 +304,7 @@ public class CalendarNotificationReceiver extends BroadcastReceiver {
 
     private static void registrarEstado(Context context, String resultado) {
         context.getSharedPreferences(STATUS_PREFS, Context.MODE_PRIVATE).edit()
+            .putLong("last_check", System.currentTimeMillis())
             .putString("last_result", resultado)
             .apply();
     }

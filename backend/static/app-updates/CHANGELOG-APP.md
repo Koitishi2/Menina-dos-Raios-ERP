@@ -2,9 +2,14 @@
 
 Este arquivo registra as alteracoes funcionais do aplicativo Android e da integracao com o sistema.
 
-Versao estavel atual: `2.0.46`.
+Versao estavel atual: `2.0.47`.
 
-Versao estavel atual: `2.0.46`.
+## [2.0.47] - 02/11/2026
+
+- Tela de atualização redesenhada com progresso do download e validação de tamanho, SHA-256, pacote, versão e assinatura instalada.
+- Instalação encaminhada pelo PackageInstaller, solicitando o fluxo sem etapa extra quando o Android autorizar e respeitando qualquer confirmação exigida pelo sistema.
+- Alertas de Calendário e Novo Tempo usam alarmes exatos quando autorizados e mostram quando o Android poderá atrasá-los.
+- Diagnóstico dos alertas exibe horário da última verificação, próximo alarme e ações para testar e consultar novamente.
 
 ## [2.0.46] - 01/11/2026
 
@@ -18,9 +23,11 @@ Versao estavel atual: `2.0.46`.
 
 ## [2.0.44] - 29/10/2026
 
-- Alertas Novo Tempo exibem o resultado da última verificação e explicam falhas de sessão, rede ou permissão.
-- Agendamento recomposto no receiver correto após desbloqueio, reinício e mudança de horário.
-- Abas da carteira de boletos reorganizadas em duas linhas para impedir que Pendentes fique cortado.
+- A tela de cobranças Novo Tempo mostra a última verificação em segundo plano e explica falhas de sessão, rede ou permissão.
+- Quando o Android bloqueia notificações, a tela oferece acesso direto às configurações do aplicativo e do canal.
+- O APK registra diagnóstico do agendamento e da consulta de cobranças, sem ignorar silenciosamente erros.
+- O agendamento é recomposto ao desbloquear o celular e quando data ou fuso horário mudam.
+- As abas da carteira de boletos foram organizadas em duas linhas para manter "Pendentes" e os demais rótulos legíveis em telas estreitas.
 
 ## [2.0.43] - 27/10/2026
 
@@ -729,4 +736,3 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - O publicador valida a assinatura e calcula o SHA-256 automaticamente.
 - O `ATUALIZAR.bat` passou a oferecer a publicaÃ§Ã£o do APK apÃ³s atualizar o site.
 - O changelog passa a ser atualizado e enviado ao servidor durante cada publicaÃ§Ã£o.
-

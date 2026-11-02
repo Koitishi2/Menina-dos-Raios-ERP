@@ -61,13 +61,35 @@ public class NewTempoCollectionReceiver extends BroadcastReceiver {
     public static void agendar(Context context) {
         if (MainActivity.tokenAdminParaAlertas(context).isEmpty()) { cancelar(context); return; }
         AlarmManager alarm = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-        if (alarm == null) return;
+        if (alarm == null) {
+            registrarEstado(context, "Falha: serviço de alarmes indisponível neste celular.");
+            return;
+        }
         Intent intent = new Intent(context, NewTempoCollectionReceiver.class);
         PendingIntent pending = PendingIntent.getBroadcast(context, REQUEST_CODE, intent,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Calendar proximo = proximoHorario();
-        alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, proximo.getTimeInMillis(), pending);
-        Log.i(TAG, "Próxima verificação agendada para " + new SimpleDateFormat("dd/MM HH:mm", new Locale("pt", "BR")).format(proximo.getTime()));
+        try {
+            boolean exato = Build.VERSION.SDK_INT < 31 || alarm.canScheduleExactAlarms();
+            if (exato) alarm.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, proximo.getTimeInMillis(), pending);
+            else alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, proximo.getTimeInMillis(), pending);
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                .putLong("next_alarm", proximo.getTimeInMillis())
+                .putBoolean("exact_alarm", exato).apply();
+            Log.i(TAG, "Próxima verificação agendada para " + new SimpleDateFormat("dd/MM HH:mm", new Locale("pt", "BR")).format(proximo.getTime()));
+            if (!exato) Log.w(TAG, "Acesso a alarmes exatos não autorizado; o Android pode atrasar a notificação.");
+        } catch (RuntimeException error) {
+            registrarEstado(context, "Falha ao agendar alertas. Reabra o APK e confira as permissões de bateria.");
+            Log.e(TAG, "Falha ao programar o alarme de cobranças", error);
+        }
+    }
+
+    static void verificarAgora(Context context) {
+        if (MainActivity.tokenAdminParaAlertas(context).isEmpty()) {
+            registrarEstado(context, "Verificação manual indisponível: entre com uma conta admin no APK.");
+            return;
+        }
+        context.sendBroadcast(new Intent(context, NewTempoCollectionReceiver.class));
     }
 
     public static void cancelar(Context context) {
@@ -142,6 +164,7 @@ public class NewTempoCollectionReceiver extends BroadcastReceiver {
                     branches.append(row.optString("client", "Novo Tempo"));
                 }
             }
+            Log.i(TAG, "Consulta concluída: " + rows.length() + " cobrança(s) recebida(s), " + due + " aviso(s) no horário.");
             if (due == 0) {
                 registrarEstado(context, "Verificado em " + horarioAgora() + ": nenhuma cobrança entregue está no horário de aviso.");
             } else if (token.equals(MainActivity.tokenAdminParaAlertas(context))) {
@@ -155,6 +178,38 @@ public class NewTempoCollectionReceiver extends BroadcastReceiver {
         } finally {
             if (connection != null) connection.disconnect();
         }
+    }
+
+    static String testarNotificacao(Context context) {
+        if (MainActivity.tokenAdminParaAlertas(context).isEmpty())
+            return "Teste não enviado: entre no APK com uma conta administradora.";
+        if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+            return "Teste não enviado: permita notificações do APK nas configurações do Android.";
+        NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager == null || !manager.areNotificationsEnabled())
+            return "Teste não enviado: notificações do APK estão bloqueadas no Android.";
+        if (Build.VERSION.SDK_INT >= 26) {
+            NotificationChannel channel = manager.getNotificationChannel(CHANNEL_ID);
+            if (channel == null) {
+                channel = new NotificationChannel(CHANNEL_ID, "Cobranças Novo Tempo", NotificationManager.IMPORTANCE_HIGH);
+                channel.setDescription("Lembretes de vendas Novo Tempo ainda pendentes");
+                manager.createNotificationChannel(channel);
+                channel = manager.getNotificationChannel(CHANNEL_ID);
+            }
+            if (channel != null && channel.getImportance() == NotificationManager.IMPORTANCE_NONE)
+                return "Teste não enviado: o canal Cobranças Novo Tempo está bloqueado nas configurações.";
+        }
+        Notification.Builder notification = Build.VERSION.SDK_INT >= 26
+            ? new Notification.Builder(context, CHANNEL_ID) : new Notification.Builder(context);
+        notification.setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("Teste de cobrança Novo Tempo")
+            .setContentText("As notificações do APK estão autorizadas neste celular.")
+            .setAutoCancel(true).setPriority(Notification.PRIORITY_HIGH)
+            .setDefaults(Notification.DEFAULT_SOUND | Notification.DEFAULT_VIBRATE);
+        manager.notify(NOTIFICATION_ID + 1, notification.build());
+        String resultado = "Teste local enviado agora. Se não apareceu, confira o canal Cobranças Novo Tempo e o modo Não Perturbe.";
+        registrarEstado(context, resultado);
+        return resultado;
     }
 
     private static void notificar(Context context, int quantidade, double total, String filiais, String token) {
@@ -211,8 +266,14 @@ public class NewTempoCollectionReceiver extends BroadcastReceiver {
     static String estadoUltimaVerificacao(Context context) {
         long timestamp = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong("last_check", 0L);
         String resultado = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("last_result", "Ainda não há uma verificação de notificação registrada neste celular.");
-        if (timestamp == 0L) return resultado;
-        return "Última verificação " + new SimpleDateFormat("dd/MM HH:mm", new Locale("pt", "BR")).format(new Date(timestamp)) + " · " + resultado;
+        if (timestamp != 0L) resultado = "Última verificação " + new SimpleDateFormat("dd/MM HH:mm", new Locale("pt", "BR")).format(new Date(timestamp)) + " · " + resultado;
+        long next = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong("next_alarm", 0L);
+        if (next > 0L && !MainActivity.tokenAdminParaAlertas(context).isEmpty())
+            resultado += " Próxima verificação prevista: " + new SimpleDateFormat("dd/MM HH:mm", new Locale("pt", "BR")).format(new Date(next)) + ".";
+        AlarmManager alarm = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (Build.VERSION.SDK_INT >= 31 && alarm != null && !alarm.canScheduleExactAlarms())
+            resultado += " Horários exatos desativados; o Android pode atrasar os avisos.";
+        return resultado;
     }
 
     private static String horarioAgora() {

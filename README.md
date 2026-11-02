@@ -6,14 +6,14 @@ Sistema de gestao operacional com ERP web e aplicativo Android para vendas, entr
 
 O branch `main` contem o codigo-fonte mais recente do ERP e do Android. A versao de servidor exibida pelo ERP permanece `2.1.0`; esse identificador, sozinho, nao informa qual commit esta ativo em producao. Para confirmar uma publicacao do backend, confira o commit retornado pelo health check e o log de deploy.
 
-APK oficial publicado em 29/10/2026:
+APK oficial publicado em 02/11/2026:
 
 | Campo | Valor |
 | --- | --- |
-| Versao | `2.0.45` (`versionCode` `73`) |
+| Versao | `2.0.47` (`versionCode` `75`) |
 | Pacote | `br.com.meninadosraios.vendas` |
-| Tamanho | `2.759.094` bytes |
-| SHA-256 | `808b5a6c26fe6095e013616ec08d8cf5aa0590486922e1994e6310541fe77504` |
+| Tamanho | `2766755` bytes |
+| SHA-256 | `0346ad18833b7c53bf3df8f6e807a8b34c579a9e7bc610a714a85b8b7cf087f9` |
 
 Esse registro descreve o APK; a publicacao do APK e a implantacao do backend sao processos separados.
 

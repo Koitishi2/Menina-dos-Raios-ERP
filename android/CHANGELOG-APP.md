@@ -2,9 +2,14 @@
 
 Este arquivo registra as alteracoes funcionais do aplicativo Android e da integracao com o sistema.
 
-Versao estavel atual: `2.0.46`.
+Versao estavel atual: `2.0.47`.
 
-Versao estavel atual: `2.0.46`.
+## [2.0.47] - 02/11/2026
+
+- Tela de atualização redesenhada com progresso do download e validação de tamanho, SHA-256, pacote, versão e assinatura instalada.
+- Instalação encaminhada pelo PackageInstaller, solicitando o fluxo sem etapa extra quando o Android autorizar e respeitando qualquer confirmação exigida pelo sistema.
+- Alertas de Calendário e Novo Tempo usam alarmes exatos quando autorizados e mostram quando o Android poderá atrasá-los.
+- Diagnóstico dos alertas exibe horário da última verificação, próximo alarme e ações para testar e consultar novamente.
 
 ## [2.0.46] - 01/11/2026
 
@@ -731,4 +736,3 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - O publicador valida a assinatura e calcula o SHA-256 automaticamente.
 - O `ATUALIZAR.bat` passou a oferecer a publicaÃ§Ã£o do APK apÃ³s atualizar o site.
 - O changelog passa a ser atualizado e enviado ao servidor durante cada publicaÃ§Ã£o.
-

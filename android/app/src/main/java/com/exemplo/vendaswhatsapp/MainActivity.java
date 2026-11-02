@@ -1,10 +1,13 @@
 package com.exemplo.vendaswhatsapp;
 
 import android.app.Activity;
+import android.app.AlarmManager;
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
+import android.app.Dialog;
 import android.Manifest;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.NotificationChannel;
 import android.content.ActivityNotFoundException;
 import android.content.ClipboardManager;
@@ -12,6 +15,7 @@ import android.content.Intent;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.pm.PackageInstaller;
 import android.net.Uri;
 import android.content.ContentValues;
 import android.database.Cursor;
@@ -50,6 +54,7 @@ import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.Switch;
@@ -1055,6 +1060,12 @@ public class MainActivity extends FragmentActivity {
 
     @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 410) {
+            CalendarNotificationReceiver.agendar(this);
+            NewTempoCollectionReceiver.agendar(this);
+            if (grantResults.length == 0 || grantResults[0] != PackageManager.PERMISSION_GRANTED)
+                aviso("Sem essa permissão, o Android não pode mostrar os avisos. Ative notificações do Menina dos Raios nas configurações.");
+        }
         if (requestCode == PEDIDO_AUDIO_VOZ) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) iniciarEntregaPorVoz();
             else new AlertDialog.Builder(this).setTitle("Microfone não autorizado")
@@ -6106,6 +6117,14 @@ public class MainActivity extends FragmentActivity {
         TextView estadoNotificacao = texto(CalendarNotificationReceiver.estadoUltimaVerificacao(this), 12, false);
         estadoNotificacao.setPadding(dp(10), dp(8), dp(10), dp(8));
         lista.addView(estadoNotificacao);
+        if (Build.VERSION.SDK_INT >= 31) {
+            AlarmManager alarm = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+            if (alarm != null && !alarm.canScheduleExactAlarms()) {
+                Button horarioExato = botao("Permitir horários exatos", Color.rgb(21, 101, 52));
+                lista.addView(horarioExato);
+                horarioExato.setOnClickListener(v -> abrirConfiguracoesAlarmesExatos());
+            }
+        }
         if (eventos.length() == 0) {
             lista.addView(texto("Nenhuma notificação pendente para os próximos dias.", 15, false));
         }
@@ -6173,6 +6192,31 @@ public class MainActivity extends FragmentActivity {
             destino.addView(configurar);
             configurar.setOnClickListener(v -> abrirConfiguracoesNotificacoes());
         }
+        Button testar = botao("Testar notificação Novo Tempo", Color.rgb(21, 101, 52));
+        LinearLayout.LayoutParams acaoParams = new LinearLayout.LayoutParams(-1, -2);
+        acaoParams.setMargins(0, dp(5), 0, dp(3));
+        destino.addView(testar, acaoParams);
+        testar.setOnClickListener(v -> aviso(NewTempoCollectionReceiver.testarNotificacao(this)));
+
+        if (Build.VERSION.SDK_INT >= 31) {
+            AlarmManager alarm = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+            if (alarm != null && !alarm.canScheduleExactAlarms()) {
+                Button horarioExato = botao("Permitir horários exatos no Android", Color.rgb(71, 85, 105));
+                destino.addView(horarioExato);
+                horarioExato.setOnClickListener(v -> abrirConfiguracoesAlarmesExatos());
+            }
+        }
+
+        Button verificar = botao("Verificar cobranças agora", Color.rgb(37, 99, 235));
+        LinearLayout.LayoutParams verificarParams = new LinearLayout.LayoutParams(-1, -2);
+        verificarParams.setMargins(0, dp(3), 0, dp(8));
+        destino.addView(verificar, verificarParams);
+        verificar.setOnClickListener(v -> {
+            estado.setText("Consulta iniciada no servidor. Atualizando o resultado...");
+            NewTempoCollectionReceiver.verificarAgora(this);
+            aviso("Verificação solicitada. O resultado aparecerá abaixo em alguns segundos.");
+            estado.postDelayed(() -> estado.setText(NewTempoCollectionReceiver.estadoUltimaVerificacao(this)), 25000);
+        });
     }
 
     private void abrirConfiguracoesNotificacoes() {
@@ -6184,6 +6228,16 @@ public class MainActivity extends FragmentActivity {
             Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                 Uri.parse("package:" + getPackageName()));
             startActivity(intent);
+        }
+    }
+
+    private void abrirConfiguracoesAlarmesExatos() {
+        if (Build.VERSION.SDK_INT < 31) return;
+        try {
+            startActivity(new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                Uri.parse("package:" + getPackageName())));
+        } catch (Exception e) {
+            aviso("Abra Configurações > Aplicativos > Menina dos Raios > Alarmes e lembretes.");
         }
     }
 
@@ -6224,10 +6278,12 @@ public class MainActivity extends FragmentActivity {
                 int codigo = info.getInt("versionCode");
                 if (codigo > obterCodigoVersao()) {
                     String versao = info.optString("versionName", String.valueOf(codigo));
-                    String notas = info.optString("notes", "Nova versão disponível.");
+                    String notas = info.optString("releaseNotes", info.optString("notes", "Nova versão disponível."));
                     String apkUrl = info.getString("apkUrl");
                     String sha256 = info.getString("sha256");
-                    runOnUiThread(() -> mostrarAtualizacao(versao, notas, apkUrl, sha256));
+                    String pacote = info.optString("packageName", "");
+                    long tamanho = info.optLong("sizeBytes", -1L);
+                    runOnUiThread(() -> mostrarAtualizacao(versao, notas, apkUrl, sha256, pacote, codigo, tamanho));
                 } else if (mostrarResultado) {
                     runOnUiThread(() -> aviso("Você já está usando a versão mais recente (" + obterNomeVersao() + ")."));
                 }
@@ -6239,43 +6295,163 @@ public class MainActivity extends FragmentActivity {
         }).start();
     }
 
-    private void mostrarAtualizacao(String versao, String notas, String apkUrl, String sha256) {
-        new AlertDialog.Builder(this)
-            .setTitle("Nova atualização disponível")
-            .setMessage("Versão " + versao + "\n\n" + notas + "\n\nDeseja atualizar o aplicativo agora?")
-            .setNegativeButton("Agora não", null)
-            .setPositiveButton("Atualizar agora", (d, w) -> baixarAtualizacao(apkUrl, sha256))
-            .show();
+    private void mostrarAtualizacao(String versao, String notas, String apkUrl, String sha256,
+                                    String pacote, int codigo, long tamanhoEsperado) {
+        Dialog dialog = new Dialog(this);
+        LinearLayout raiz = coluna();
+        raiz.setPadding(dp(22), dp(20), dp(22), dp(18));
+        raiz.setBackground(fundoComBorda(Color.WHITE, Color.rgb(221, 231, 224), 22));
+        TextView titulo = texto("Atualizações", 23, true);
+        titulo.setTextColor(Color.rgb(20, 83, 45));
+        raiz.addView(titulo);
+        TextView atual = texto("VERSÃO ATUAL  " + obterNomeVersao() + "  ·  NOVA VERSÃO  " + versao,
+            12, true);
+        atual.setTextColor(COR_TEXTO_SUAVE);
+        atual.setPadding(0, dp(8), 0, dp(12));
+        raiz.addView(atual);
+        LinearLayout card = coluna();
+        card.setPadding(dp(15), dp(14), dp(15), dp(14));
+        card.setBackground(fundoComBorda(Color.rgb(246, 249, 246), Color.rgb(225, 234, 227), 16));
+        TextView status = texto("●  Atualização oficial disponível", 15, true);
+        status.setTextColor(Color.rgb(21, 101, 52));
+        card.addView(status);
+        TextView descricao = texto(notas == null || notas.trim().isEmpty() ? "Correções e melhorias." : notas,
+            14, false);
+        descricao.setPadding(0, dp(10), 0, 0);
+        card.addView(descricao);
+        raiz.addView(card);
+        ProgressBar progresso = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        progresso.setMax(100);
+        progresso.setProgress(0);
+        progresso.setVisibility(View.GONE);
+        LinearLayout.LayoutParams lpProgress = new LinearLayout.LayoutParams(-1, dp(8));
+        lpProgress.setMargins(0, dp(17), 0, dp(6));
+        raiz.addView(progresso, lpProgress);
+        TextView detalhe = texto("A instalação é validada antes de abrir a confirmação segura do Android.", 12, false);
+        raiz.addView(detalhe);
+        LinearLayout botoes = new LinearLayout(this);
+        botoes.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        botoes.setPadding(0, dp(16), 0, 0);
+        Button depois = botao("Agora não", Color.rgb(100, 116, 139));
+        Button atualizar = botao("Baixar atualização", Color.rgb(21, 101, 52));
+        botoes.addView(depois);
+        LinearLayout.LayoutParams actionLp = new LinearLayout.LayoutParams(-2, -2);
+        actionLp.setMargins(dp(8), 0, 0, 0);
+        botoes.addView(atualizar, actionLp);
+        raiz.addView(botoes);
+        dialog.setContentView(raiz);
+        dialog.setCancelable(true);
+        depois.setOnClickListener(v -> dialog.dismiss());
+        atualizar.setOnClickListener(v -> {
+            if (Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
+                detalhe.setText("Autorize a instalação pelo Menina dos Raios nas configurações e volte para tocar aqui novamente.");
+                Intent permissao = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:" + getPackageName()));
+                startActivity(permissao);
+                return;
+            }
+            atualizar.setEnabled(false);
+            depois.setEnabled(false);
+            progresso.setVisibility(View.VISIBLE);
+            detalhe.setText("Preparando download seguro…");
+            baixarAtualizacao(apkUrl, sha256, pacote, codigo, tamanhoEsperado, progresso, detalhe, atualizar, dialog);
+        });
+        dialog.show();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+            dialog.getWindow().setLayout(Math.min(getResources().getDisplayMetrics().widthPixels - dp(32), dp(520)),
+                android.view.WindowManager.LayoutParams.WRAP_CONTENT);
+        }
     }
 
-    private void baixarAtualizacao(String apkUrl, String sha256Esperado) {
-        aviso("Baixando atualização...");
+    private void baixarAtualizacao(String apkUrl, String sha256Esperado, String pacoteEsperado,
+                                   int codigoEsperado, long tamanhoEsperado, ProgressBar progresso,
+                                   TextView detalhe, Button acao, Dialog dialog) {
         new Thread(() -> {
             HttpURLConnection conexao = null;
             try {
+                URL url = new URL(apkUrl);
+                if (!"https".equalsIgnoreCase(url.getProtocol())
+                    || !"sistema.meninadosraios.com.br".equalsIgnoreCase(url.getHost())
+                    || !url.getPath().startsWith("/app-updates/"))
+                    throw new SecurityException("O endereço não pertence ao servidor oficial de atualizações.");
+                if (!getPackageName().equals(pacoteEsperado) || codigoEsperado <= obterCodigoVersao())
+                    throw new SecurityException("Os dados desta versão não correspondem a este aplicativo.");
+                if (sha256Esperado == null || !sha256Esperado.matches("(?i)[0-9a-f]{64}"))
+                    throw new SecurityException("O checksum informado é inválido.");
                 conexao = abrirConexao(apkUrl);
+                String hostFinal = conexao.getURL().getHost();
+                if (!"sistema.meninadosraios.com.br".equalsIgnoreCase(hostFinal))
+                    throw new SecurityException("O download saiu do servidor oficial.");
+                long totalBytes = conexao.getContentLength();
+                if (tamanhoEsperado > 0 && totalBytes > 0 && tamanhoEsperado != totalBytes)
+                    throw new SecurityException("O tamanho publicado não corresponde ao arquivo recebido.");
                 File pasta = new File(getCacheDir(), "updates");
                 if (!pasta.exists() && !pasta.mkdirs()) throw new Exception("Não foi possível preparar o download.");
                 File apk = new File(pasta, "Menina-dos-Raios-Vendas-atualizacao.apk");
                 MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                final long total = totalBytes;
+                final long[] baixados = {0};
                 try (BufferedInputStream entrada = new BufferedInputStream(conexao.getInputStream());
                      FileOutputStream saida = new FileOutputStream(apk)) {
                     byte[] buffer = new byte[16384]; int lidos;
                     while ((lidos = entrada.read(buffer)) != -1) {
-                        saida.write(buffer, 0, lidos); digest.update(buffer, 0, lidos);
+                        saida.write(buffer, 0, lidos); digest.update(buffer, 0, lidos); baixados[0] += lidos;
+                        if (total > 0) {
+                            int percentual = (int) Math.min(99, baixados[0] * 100 / total);
+                            runOnUiThread(() -> { progresso.setProgress(percentual); detalhe.setText("Baixando atualização… " + percentual + "%"); });
+                        }
                     }
                 }
+                if (tamanhoEsperado > 0 && apk.length() != tamanhoEsperado)
+                    throw new SecurityException("O tamanho final do APK não confere com o catálogo.");
                 String recebido = hexadecimal(digest.digest());
                 if (!recebido.equalsIgnoreCase(sha256Esperado.trim())) {
                     apk.delete(); throw new SecurityException("O arquivo baixado não passou na validação de segurança.");
                 }
-                runOnUiThread(() -> instalarAtualizacao(apk));
+                validarApkBaixado(apk, pacoteEsperado, codigoEsperado);
+                runOnUiThread(() -> {
+                    progresso.setProgress(100);
+                    detalhe.setText("Download verificado · abrindo a confirmação do Android…");
+                    instalarAtualizacao(apk, pacoteEsperado, dialog);
+                });
             } catch (Exception e) {
-                runOnUiThread(() -> aviso("Falha ao baixar atualização: " + e.getMessage()));
+                runOnUiThread(() -> {
+                    detalhe.setText("Não foi possível atualizar: " + (e.getMessage() == null ? "falha de validação" : e.getMessage()));
+                    progresso.setVisibility(View.GONE);
+                    acao.setEnabled(true);
+                    aviso("Atualização não instalada. " + (e.getMessage() == null ? "Verifique a conexão." : e.getMessage()));
+                });
             } finally {
                 if (conexao != null) conexao.disconnect();
             }
         }).start();
+    }
+
+    private void validarApkBaixado(File apk, String pacoteEsperado, int codigoEsperado) throws Exception {
+        android.content.pm.PackageInfo arquivado;
+        if (Build.VERSION.SDK_INT >= 28) {
+            arquivado = getPackageManager().getPackageArchiveInfo(apk.getAbsolutePath(), PackageManager.GET_SIGNING_CERTIFICATES);
+        } else {
+            arquivado = getPackageManager().getPackageArchiveInfo(apk.getAbsolutePath(), PackageManager.GET_SIGNATURES);
+        }
+        if (arquivado == null || !pacoteEsperado.equals(arquivado.packageName))
+            throw new SecurityException("O APK baixado não é o aplicativo esperado.");
+        long codigoArquivo = Build.VERSION.SDK_INT >= 28 ? arquivado.getLongVersionCode() : arquivado.versionCode;
+        if (codigoArquivo != codigoEsperado) throw new SecurityException("A versão do APK não corresponde ao catálogo.");
+        android.content.pm.PackageInfo instalado = getPackageManager().getPackageInfo(getPackageName(),
+            Build.VERSION.SDK_INT >= 28 ? PackageManager.GET_SIGNING_CERTIFICATES : PackageManager.GET_SIGNATURES);
+        android.content.pm.Signature[] assinaturasAtuais = Build.VERSION.SDK_INT >= 28
+            ? instalado.signingInfo.getApkContentsSigners() : instalado.signatures;
+        android.content.pm.Signature[] assinaturasArquivo = Build.VERSION.SDK_INT >= 28
+            ? arquivado.signingInfo.getApkContentsSigners() : arquivado.signatures;
+        if (assinaturasAtuais == null || assinaturasArquivo == null || assinaturasAtuais.length == 0 || assinaturasArquivo.length == 0)
+            throw new SecurityException("Não foi possível verificar a assinatura do aplicativo.");
+        boolean mesmaAssinatura = false;
+        for (android.content.pm.Signature atual : assinaturasAtuais)
+            for (android.content.pm.Signature nova : assinaturasArquivo)
+                if (atual.equals(nova)) mesmaAssinatura = true;
+        if (!mesmaAssinatura) throw new SecurityException("A assinatura digital não corresponde à versão instalada.");
     }
 
     private HttpURLConnection abrirConexao(String endereco) throws Exception {
@@ -6304,18 +6480,41 @@ public class MainActivity extends FragmentActivity {
         return resultado.toString();
     }
 
-    private void instalarAtualizacao(File apk) {
+    private void instalarAtualizacao(File apk, String pacote, Dialog dialog) {
         if (android.os.Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
-            aviso("Autorize este aplicativo a instalar atualizações e depois toque novamente em Verificar atualizações.");
+            if (dialog != null) dialog.dismiss();
+            aviso("Permita a instalação pelo Menina dos Raios e tente novamente.");
             Intent permissao = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                 Uri.parse("package:" + getPackageName()));
-            startActivity(permissao); return;
+            startActivity(permissao);
+            return;
         }
-        Uri uri = Uri.parse("content://" + getPackageName() + ".files/updates/" + apk.getName());
-        Intent instalar = new Intent(Intent.ACTION_VIEW);
-        instalar.setDataAndType(uri, "application/vnd.android.package-archive");
-        instalar.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
-        startActivity(instalar);
+        try {
+            PackageInstaller installer = getPackageManager().getPackageInstaller();
+            PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+            params.setAppPackageName(pacote);
+            params.setSize(apk.length());
+            if (Build.VERSION.SDK_INT >= 31)
+                params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED);
+            int id = installer.createSession(params);
+            try (PackageInstaller.Session session = installer.openSession(id);
+                 java.io.InputStream input = new java.io.FileInputStream(apk);
+                 java.io.OutputStream output = session.openWrite("base.apk", 0, apk.length())) {
+                byte[] buffer = new byte[65536]; int count;
+                while ((count = input.read(buffer)) >= 0) if (count > 0) output.write(buffer, 0, count);
+                session.fsync(output);
+                Intent callback = new Intent(this, AppInstallStatusReceiver.class);
+                callback.putExtra("dialog_message", "A atualização foi enviada ao instalador do Android.");
+                int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+                if (Build.VERSION.SDK_INT >= 31) flags |= PendingIntent.FLAG_MUTABLE;
+                PendingIntent result = PendingIntent.getBroadcast(this, id, callback, flags);
+                session.commit(result.getIntentSender());
+            }
+            if (dialog != null) dialog.dismiss();
+            aviso("Download validado. Confirme a instalação na tela do Android.");
+        } catch (Exception e) {
+            aviso("Não foi possível abrir o instalador: " + e.getMessage());
+        }
     }
 
     @SuppressWarnings("deprecation")
