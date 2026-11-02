@@ -622,6 +622,24 @@ def test_config_prices_history_audit_and_permissions(isolated_app):
     )
     assert rename.status_code == 200
     assert rename.json() == {"ok": True}
+    assert _fetch_one(
+        isolated_app.db_paths["raios"],
+        "SELECT label FROM product_prices WHERE key=?",
+        (product_key,),
+    ) == {"label": "Produto Config Preco Editado"}
+
+    missing_rename = isolated_app.client.put(
+        "/api/prices/label",
+        headers=_headers(editor_token),
+        json={"key": "MISSING_PRICE_KEY", "label": "Nome sem produto"},
+    )
+    assert missing_rename.status_code == 404
+    invalid_rename = isolated_app.client.put(
+        "/api/prices/label",
+        headers=_headers(editor_token),
+        json={"key": product_key, "label": "   "},
+    )
+    assert invalid_rename.status_code == 400
 
     add_history = isolated_app.client.post(
         "/api/prices/history",

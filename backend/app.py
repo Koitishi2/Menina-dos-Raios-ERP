@@ -2802,18 +2802,34 @@ def update_price(update:PriceUpdate,x_token:str=Header("")):
 @app.put("/api/prices/label")
 def update_label(body:dict,x_token:str=Header("")):
     sess=require_prices_access(x_token)
-    key=body.get("key",""); label=body.get("label","")
-    if not key or not label: raise HTTPException(400,"Dados invÃ¡lidos.")
+    key=str(body.get("key") or "").strip()
+    label=str(body.get("label") or "").strip()
+    if not key or not label or len(label)>120:
+        raise HTTPException(400,"Informe um nome de produto válido (até 120 caracteres).")
     conn=get_db()
-    old=conn.execute("SELECT label FROM product_prices WHERE key=?",(key,)).fetchone()
     try:
-        _require_product_action(sess,old["label"] if old else key,"edit")
-    except Exception:
-        conn.close()
+        old=conn.execute("SELECT label FROM product_prices WHERE key=?",(key,)).fetchone()
+        if not old:
+            raise HTTPException(404,"Produto não encontrado na lista de preços.")
+        _require_product_action(sess,old["label"],"edit")
+        conn.execute("UPDATE product_prices SET label=?,updated_at=datetime('now') WHERE key=?",(label,key))
+        log_action(conn,sess,"RENAME_PRODUCT",key,label,"label",old["label"],label,
+                   datetime.now().strftime("%Y-%m-%d"),"Nome do produto alterado")
+        conn.commit()
+    except HTTPException:
+        conn.rollback()
         raise
-    conn.execute("UPDATE product_prices SET label=? WHERE key=?",(label,key))
-    log_action(conn,sess,"RENAME_PRODUCT",key,label,"label",old["label"] if old else "","label",datetime.now().strftime("%Y-%m-%d"),"")
-    conn.commit(); conn.close(); return {"ok":True}
+    except sqlite3.Error as exc:
+        conn.rollback()
+        logger.exception("Falha ao renomear produto do catálogo (key=%s)",key)
+        raise HTTPException(503,"Não foi possível salvar o nome agora. Atualize a página e tente novamente.") from exc
+    finally:
+        conn.close()
+    try:
+        clear_price_cache()
+    except Exception:
+        logger.exception("Falha ao limpar cache de preços após renomear produto")
+    return {"ok":True}
 
 @app.delete("/api/prices/{key}")
 def delete_product(key:str,x_token:str=Header("")):

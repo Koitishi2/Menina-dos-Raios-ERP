@@ -8341,10 +8341,14 @@ function editLabel(key,el){
   const input=document.createElement('input');
   input.value=cur;input.style.cssText='border:1px solid var(--g600);border-radius:4px;padding:2px 6px;font-size:12px;font-weight:600;width:200px;background:var(--card);color:var(--ink)';
   el.replaceWith(input);input.focus();input.select();
-  const save=async()=>{const newLabel=input.value.trim();if(!newLabel||newLabel===cur){loadPrices();return;}
+  let saving=false,finished=false;
+  const save=async()=>{if(saving||finished)return;const newLabel=input.value.trim();if(!newLabel||newLabel===cur){finished=true;loadPrices();return;}
+    if(newLabel.length>120){finished=true;toast('O nome pode ter até 120 caracteres.','error');loadPrices();return;}
+    saving=true;
     try{await api('/api/prices/label',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,label:newLabel})});toast('✅ Nome atualizado!');loadPrices();}
-    catch(e){toast(e.message,'error');loadPrices();}};
-  input.onblur=save;input.onkeydown=e=>{if(e.key==='Enter')save();if(e.key==='Escape')loadPrices();};
+    catch(e){toast(e.message,'error');loadPrices();}
+    finally{finished=true;saving=false;}};
+  input.onblur=save;input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();save();}if(e.key==='Escape'){finished=true;loadPrices();}};
 }
 async function updatePrice(key,val,input){
   const price=parsePriceValue(val);
