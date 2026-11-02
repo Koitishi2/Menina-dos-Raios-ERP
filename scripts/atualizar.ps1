@@ -40,17 +40,78 @@ try {
         }
         $branch = (& git branch --show-current).Trim()
         if ($LASTEXITCODE -ne 0 -or $branch -ne 'main') { throw 'O atualizador do servidor exige a branch main.' }
-        $commit = (& git rev-parse HEAD).Trim()
-        if ($LASTEXITCODE -ne 0) { throw 'Não foi possível identificar o commit atual.' }
-        $dirty = & git status --porcelain --untracked-files=no
-        if ($LASTEXITCODE -ne 0 -or $dirty) { throw 'Existem alterações rastreadas sem commit; o servidor não foi atualizado.' }
         & git fetch origin main
         if ($LASTEXITCODE -ne 0) { throw 'Não foi possível atualizar a referência origin/main.' }
+        $commit = (& git rev-parse HEAD).Trim()
+        if ($LASTEXITCODE -ne 0) { throw 'Não foi possível identificar o commit atual.' }
         $originMain = (& git rev-parse origin/main).Trim()
-        if ($originMain -ne $commit) { throw 'O commit local não corresponde a origin/main; publique o main antes do envio.' }
+        if ($LASTEXITCODE -ne 0) { throw 'Não foi possível identificar origin/main.' }
+
+        $releasePaths = @(& git diff --name-only HEAD)
+        if ($LASTEXITCODE -ne 0) { throw 'Não foi possível identificar os arquivos alterados.' }
+        $newBackendPaths = @(& git ls-files --others --exclude-standard -- backend tests)
+        if ($LASTEXITCODE -ne 0) { throw 'Não foi possível identificar novos arquivos de backend/testes.' }
+        $releasePaths = @($releasePaths + $newBackendPaths | Where-Object { $_ } | Sort-Object -Unique)
+        $allowedReleasePath = '^(backend/|tests/|scripts/atualizar\.ps1$|scripts/deploy_server\.py$|ATUALIZAR\.bat$|atualizar\.bat$|README\.md$|AGENTS\.md$)'
+        $unsupportedPaths = @($releasePaths | Where-Object { $_ -notmatch $allowedReleasePath })
+        if ($unsupportedPaths.Count -gt 0) {
+            throw ('Há arquivos alterados fora do escopo do ERP. Eles foram preservados: ' + ($unsupportedPaths -join ', '))
+        }
+
+        if ($releasePaths.Count -gt 0) {
+            if ($originMain -ne $commit) {
+                throw 'O main local diverge de origin/main enquanto há alterações. Atualize o checkout antes de preparar o envio.'
+            }
+            Write-Host 'Arquivos ERP/testes que serão salvos no main:' -ForegroundColor Cyan
+            $releasePaths | ForEach-Object { Write-Host ('  ' + $_) }
+            $confirmCommit = Read-Host 'Confirma criar um commit com exatamente estes arquivos e publicar no main? (s/N)'
+            if ($confirmCommit.Trim().ToLowerInvariant() -ne 's') { throw 'Commit cancelado; nenhum arquivo foi enviado.' }
+            & git add -- $releasePaths
+            if ($LASTEXITCODE -ne 0) { throw 'Não foi possível preparar os arquivos ERP selecionados.' }
+            $defaultMessage = 'ERP update ' + (Get-Date -Format 'yyyy-MM-dd HH:mm')
+            $commitMessage = Read-Host "Mensagem do commit (Enter usa: $defaultMessage)"
+            if ([string]::IsNullOrWhiteSpace($commitMessage)) { $commitMessage = $defaultMessage }
+            & git commit -m $commitMessage
+            if ($LASTEXITCODE -ne 0) { throw 'O commit falhou; revise a mensagem e os arquivos selecionados.' }
+            $commit = (& git rev-parse HEAD).Trim()
+            if ($LASTEXITCODE -ne 0) { throw 'Não foi possível identificar o commit criado.' }
+            Write-Host "Publicando commit $commit no origin/main..." -ForegroundColor Cyan
+            & git push origin main
+            if ($LASTEXITCODE -ne 0) { throw 'O commit foi criado localmente, mas o push para origin/main falhou; o servidor não foi atualizado.' }
+        }
+        else {
+            $worktreeChanges = & git status --porcelain --untracked-files=no
+            if ($LASTEXITCODE -ne 0 -or $worktreeChanges) { throw 'Há mudanças rastreadas que não puderam ser selecionadas para o envio.' }
+            if ($commit -ne $originMain) {
+                & git merge-base --is-ancestor origin/main HEAD
+                $isAhead = ($LASTEXITCODE -eq 0)
+                if (-not $isAhead) {
+                    & git merge-base --is-ancestor HEAD origin/main
+                    if ($LASTEXITCODE -eq 0) {
+                        & git merge --ff-only origin/main
+                        if ($LASTEXITCODE -ne 0) { throw 'Não foi possível atualizar main em fast-forward.' }
+                        $commit = (& git rev-parse HEAD).Trim()
+                    }
+                    else { throw 'main local e origin/main divergem; resolva a divergência antes do envio.' }
+                }
+                if ($isAhead) {
+                    Write-Host "Publicando os commits locais de main (HEAD $commit) em origin/main..." -ForegroundColor Cyan
+                    & git push origin main
+                    if ($LASTEXITCODE -ne 0) { throw 'O push para origin/main falhou; o servidor não foi atualizado.' }
+                }
+            }
+        }
+        $originMain = (& git rev-parse origin/main).Trim()
+        if ($LASTEXITCODE -ne 0 -or $originMain -ne $commit) { throw 'O commit local não corresponde a origin/main; não é seguro atualizar o servidor.' }
+
         Write-Host 'Executando os testes focados do backend...' -ForegroundColor Cyan
-        python -m pytest tests/test_new_tempo_collections.py -q
-        if ($LASTEXITCODE -ne 0) { throw "Testes focados falharam (exit $LASTEXITCODE)." }
+        $testTargets = @()
+        if ($releasePaths -match 'boletos|backend/app\.py|backend/static/index\.html') { $testTargets += 'tests/test_boletos.py' }
+        if ($releasePaths -match 'whatsapp|new_tempo') { $testTargets += 'tests/test_new_tempo_collections.py' }
+        if ($testTargets.Count -eq 0) { $testTargets = @('tests/test_new_tempo_collections.py') }
+        $testTargets = @($testTargets | Sort-Object -Unique)
+        python -m pytest @testTargets -q
+        if ($LASTEXITCODE -ne 0) { throw "Testes focados falharam (exit $LASTEXITCODE); o commit está no GitHub, mas o deploy foi interrompido." }
         Write-Host 'Validando o pacote do servidor antes da conexão...' -ForegroundColor Cyan
         python scripts/deploy_server.py --check
         if ($LASTEXITCODE -ne 0) { throw "Preflight do servidor falhou (exit $LASTEXITCODE)." }
