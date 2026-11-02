@@ -11733,7 +11733,7 @@ async function loadBoletos(){
     //       a lista corresponda ao resumo do card (que conta sem filtro de mês)
     //       Também mapeia 'vencidos'/'hoje' → 'pendente' na API, já que o
     //       backend não conhece esses status — a filtragem extra é feita abaixo.
-    const apiStatus = (status==='vencidos'||status==='hoje') ? 'pendente' : status;
+    const apiStatus = (status==='vencidos'||status==='hoje'||status==='') ? 'pendente' : status;
     const qs = ['status='+encodeURIComponent(apiStatus),
                 'search='+encodeURIComponent(search)];
     if(status!=='vencidos' && status!=='hoje'){
@@ -11755,7 +11755,7 @@ async function loadBoletos(){
       : bols;
     debugLog('[boletos] frontend filtro: %d -> %d boletos', bols.length, filteredBols.length);
     // REGRA: lista principal NÃO mostra pagos (vão para a aba "Boletos Pagos")
-    const pendentesOnly = filteredBols.filter(function(b){ return b.status!=='pago'; });
+    const pendentesOnly = filteredBols.filter(function(b){ return b.status==='pendente'; });
     // Filtro adicional do dropdown: vencidos / vence hoje
     const statusFilter = status;
     const todayStr = bolTodayIso();

@@ -3887,6 +3887,9 @@ def list_boletos(period:str="",status:str="",search:str="",
     """
     require_auth(x_token); conn=get_db()
     try:
+        # Boletos finalizados são consultados pela rota /api/boletos/paid.
+        # A lista principal contém somente cobranças que continuam pendentes.
+        status=(status or "pendente").strip().lower()
         # Monta WHERE parametrizado (sem f-string para evitar SQL injection / mÃ¡ prÃ¡tica)
         where_parts = ["sale_type != 'AVARIA'", "client IS NOT NULL", "client != ''"]
         args = []
@@ -3964,7 +3967,7 @@ def list_boletos(period:str="",status:str="",search:str="",
             bpaid   = meta.get('paid_date')
             bnotes  = meta.get('notes')
 
-            if status and bstatus != status: continue
+            if status != "__all__" and bstatus != status: continue
             if search and search.lower() not in cl.lower(): continue
 
             is_overdue   = bool(bdue and bdue < today and bstatus == 'pendente')
@@ -4352,7 +4355,8 @@ def boleto_summary(x_token:str=Header("")):
     # venda correspondente) que a lista nÃ£o consegue exibir. Assim o card
     # "Em atraso" sempre bate com o que aparece na lista.
     require_auth(x_token)
-    allb = list_boletos(x_token=x_token)
+    # O resumo contabiliza pendentes e pagos; a lista principal usa somente pendentes.
+    allb = list_boletos(status="__all__",x_token=x_token)
     today = datetime.now().strftime('%Y-%m-%d')
     cur_month = datetime.now().strftime('%Y-%m')
     def _m(d): return (d or '')[:7]

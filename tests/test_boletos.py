@@ -350,7 +350,9 @@ def test_boletos_list_filters_summary_paid_and_items(isolated_app):
     )
 
     all_rows = _list_boletos(isolated_app.client, token, query="?year=2026&month=8")
-    assert len(all_rows) == 4
+    assert len(all_rows) == 3
+    assert {row["status"] for row in all_rows} == {"pendente"}
+    assert "Cliente Boleto Pago" not in {row["client"] for row in all_rows}
 
     pending_rows = _list_boletos(
         isolated_app.client,
