@@ -4056,31 +4056,55 @@ def _collect_debtor_report_rows():
             conn.close()
     return grouped
 
+def _debtor_client_family(client:str):
+    """Use the text before a branch separator as the customer network name."""
+    name=str(client or "").strip()
+    parts=re.split(r"\s+[-–—]\s+",name,maxsplit=1)
+    family=parts[0].strip() if parts and parts[0].strip() else name
+    return _normalize_name(family),family
+
 @app.get("/api/boletos/debtor-report/clients")
 def debtor_report_clients(x_token:str=Header("")):
     require_admin(x_token)
-    clients=[]
+    families={}
     for group in _collect_debtor_report_rows().values():
-        invoices=group["invoices"]
-        clients.append({"name":group["name"],"companies":[{"key":key,"name":name} for key,name in group["companies"].items()],
+        family_key,family_name=_debtor_client_family(group["name"])
+        family=families.setdefault(family_key,{"key":family_key,"name":family_name,"members":set(),"companies":{},"invoices":[]})
+        family["members"].add(group["name"])
+        family["companies"].update(group["companies"])
+        family["invoices"].extend(group["invoices"])
+    clients=[]
+    for family in families.values():
+        invoices=family["invoices"]
+        clients.append({"key":family["key"],"name":family["name"],"members":sorted(family["members"],key=str.casefold),
+            "companies":[{"key":key,"name":name} for key,name in family["companies"].items()],
             "invoice_count":len(invoices),"balance":round(sum(row["balance"] for row in invoices),2)})
     return sorted(clients,key=lambda row:row["name"].casefold())
 
 @app.get("/api/boletos/debtor-report")
 def debtor_report(client:str,companies:str="",x_token:str=Header("")):
     require_admin(x_token)
-    client_key=_normalize_name(client)
-    group=_collect_debtor_report_rows().get(client_key)
-    if not group:
+    selected_key=_debtor_client_family(client)[0]
+    all_groups=_collect_debtor_report_rows()
+    members=[group for group in all_groups.values() if _debtor_client_family(group["name"])[0]==selected_key]
+    if not members:
         raise HTTPException(404,"Cliente sem saldo devedor em aberto.")
+    family_name=_debtor_client_family(members[0]["name"])[1]
     requested={item.strip() for item in companies.split(",") if item.strip()}
     if requested and not requested.issubset({"raios","estrada"}):
         raise HTTPException(400,"Seleção de empresas inválida.")
-    invoices=[row for row in group["invoices"] if not requested or row["company_key"] in requested]
+    invoices=[row for group in members for row in group["invoices"] if not requested or row["company_key"] in requested]
     if not invoices:
         raise HTTPException(404,"Não há saldo devedor nas empresas selecionadas.")
     invoices.sort(key=lambda row:(row["company"],row["sale_date"],row["nf_number"]))
-    return {"client":group["name"],"companies":sorted({row["company_key"] for row in invoices}),
+    company_totals=[]
+    for company_key,company_name in (("raios","Menina dos Raios"),("estrada","Menina da Estrada")):
+        company_rows=[row for row in invoices if row["company_key"]==company_key]
+        if company_rows:
+            company_totals.append({"key":company_key,"name":company_name,"invoice_count":len(company_rows),
+                "total":round(sum(row["balance"] for row in company_rows),2)})
+    return {"client":family_name,"members":sorted({row["client"] for row in invoices},key=str.casefold),
+        "companies":sorted({row["company_key"] for row in invoices}),"company_totals":company_totals,
         "invoices":invoices,"invoice_count":len(invoices),"total":round(sum(row["balance"] for row in invoices),2)}
 
 @app.get("/api/mobile/boletos/config")

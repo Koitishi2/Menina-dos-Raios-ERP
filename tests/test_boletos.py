@@ -537,6 +537,40 @@ def test_debtor_report_is_admin_only(isolated_app):
     assert response.status_code == 403
 
 
+@pytest.mark.parametrize("network,branches", [
+    ("GAVIÃO", ("GAVIÃO - SÃO PEDRO", "GAVIÃO - CIDADE SATÉLITE")),
+    ("GOIANA", ("GOIANA - CENTRO", "GOIANA - BAIRRO NOVO")),
+    ("NOVO TEMPO", ("NOVO TEMPO - SÃO FRANCISCO", "NOVO TEMPO - MECEJANA")),
+])
+def test_debtor_report_can_select_and_consolidate_client_network(isolated_app, network, branches):
+    token = _login(isolated_app.client)
+    _create_sale(isolated_app.client, token, "raios", client=branches[0], nf_number=f"{network}-R1", total=100)
+    _create_sale(isolated_app.client, token, "estrada", client=branches[1], nf_number=f"{network}-E1", total=250)
+    _create_sale(isolated_app.client, token, "raios", client="OUTRA REDE - CENTRO", nf_number="OUTRA-1", total=90)
+
+    clients_response = isolated_app.client.get("/api/boletos/debtor-report/clients", headers=_headers(token))
+    assert clients_response.status_code == 200
+    clients = clients_response.json()
+    selected = next(row for row in clients if row["name"] == network)
+    assert set(selected["members"]) == set(branches)
+    assert selected["invoice_count"] == 2
+    assert selected["balance"] == 350
+
+    report = isolated_app.client.get(
+        "/api/boletos/debtor-report",
+        headers=_headers(token),
+        params={"client": selected["key"]},
+    )
+    assert report.status_code == 200
+    body = report.json()
+    assert body["client"] == network
+    assert set(body["members"]) == set(branches)
+    assert body["invoice_count"] == 2
+    assert body["total"] == 350
+    assert {row["company_key"] for row in body["invoices"]} == {"raios", "estrada"}
+    assert {row["key"]: row["total"] for row in body["company_totals"]} == {"raios": 100, "estrada": 250}
+
+
 def test_mobile_boleto_config_shares_client_selection_and_filters_overdue(isolated_app):
     token = _login(isolated_app.client)
     for client, nf in (("Cliente Alerta A", "ALERTA-1"), ("Cliente Alerta B", "ALERTA-2")):
