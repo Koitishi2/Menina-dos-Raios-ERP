@@ -17,6 +17,27 @@ try {
     }
     elseif ($choice -eq '2') {
         Set-Location -LiteralPath $ProjectRoot
+        if (-not (Get-Command git.exe -ErrorAction SilentlyContinue)) {
+            $gitCandidates = @(
+                (Join-Path $env:ProgramFiles 'Git\cmd'),
+                (Join-Path ${env:ProgramFiles(x86)} 'Git\cmd'),
+                (Join-Path $env:LOCALAPPDATA 'Programs\Git\cmd')
+            )
+            $runtimeRoot = Join-Path $env:USERPROFILE '.cache\codex-runtimes'
+            if (Test-Path -LiteralPath $runtimeRoot) {
+                $gitCandidates += Get-ChildItem -LiteralPath $runtimeRoot -Directory -ErrorAction SilentlyContinue |
+                    ForEach-Object { Join-Path $_.FullName 'dependencies\native\git\cmd' }
+            }
+            foreach ($candidate in $gitCandidates) {
+                if ($candidate -and (Test-Path -LiteralPath (Join-Path $candidate 'git.exe'))) {
+                    $env:PATH = $candidate + ';' + $env:PATH
+                    break
+                }
+            }
+        }
+        if (-not (Get-Command git.exe -ErrorAction SilentlyContinue)) {
+            throw 'Git não está no PATH e não foi encontrado nas instalações locais conhecidas.'
+        }
         $branch = (& git branch --show-current).Trim()
         if ($LASTEXITCODE -ne 0 -or $branch -ne 'main') { throw 'O atualizador do servidor exige a branch main.' }
         $commit = (& git rev-parse HEAD).Trim()
