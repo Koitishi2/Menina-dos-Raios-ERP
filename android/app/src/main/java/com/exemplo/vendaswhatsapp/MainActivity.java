@@ -220,6 +220,16 @@ public class MainActivity extends FragmentActivity {
         super.onDestroy();
     }
 
+    @Override protected void onResume() {
+        super.onResume();
+        // Recria os alarmes quando o admin volta das configurações do Android
+        // ou reabre o APK após o sistema ter encerrado o processo em segundo plano.
+        if (servicosPosLoginIniciados && adminNotificacoes()) {
+            CalendarNotificationReceiver.agendar(this);
+            NewTempoCollectionReceiver.agendar(this);
+        }
+    }
+
     @Override protected void onPause() {
         if ("pedido".equals(telaAtual) && rascunhoPronto) salvarRascunhoNota();
         if ("entrega_voz".equals(telaAtual)) guardarRascunhoVoz();
@@ -6118,7 +6128,12 @@ public class MainActivity extends FragmentActivity {
         new AlertDialog.Builder(this)
             .setTitle("Calendário de notificações")
             .setView(scroll)
-            .setPositiveButton("Fechar", null)
+            .setPositiveButton("Testar notificação", (dialog, which) -> {
+                String resultado = CalendarNotificationReceiver.testarNotificacao(this);
+                estadoNotificacao.setText(resultado);
+                aviso(resultado);
+            })
+            .setNegativeButton("Fechar", null)
             .show();
     }
 

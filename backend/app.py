@@ -4022,6 +4022,67 @@ def get_boleto_clients(x_token:str=Header("")):
         return {"configured": True, "clients":[{"name":c,"enabled":c in enabled} for c in all_clients]}
     return {"configured": False, "clients":[{"name":c,"enabled":True} for c in all_clients]}
 
+def _collect_debtor_report_rows():
+    """Read outstanding invoice balances from both operating-company databases."""
+    companies={"raios":"Menina dos Raios","estrada":"Menina da Estrada"}
+    grouped={}
+    for company_key,company_name in companies.items():
+        conn=get_db(company_key)
+        try:
+            sales=conn.execute("""SELECT TRIM(client) AS client,sale_date,nf_number,SUM(total) AS total_val
+                FROM sales WHERE sale_type!='AVARIA' AND client IS NOT NULL AND TRIM(client)!=''
+                GROUP BY TRIM(client) COLLATE NOCASE,sale_date,nf_number
+                ORDER BY TRIM(client) COLLATE NOCASE,sale_date,nf_number""").fetchall()
+            metadata={}
+            for row in conn.execute("SELECT client,sale_date,nf_number,total_val,due_date,status FROM boletos").fetchall():
+                key=(_normalize_name(row["client"]),str(row["sale_date"] or ""),str(row["nf_number"] or ""))
+                metadata[key]=dict(row)
+            for sale in sales:
+                client=str(sale["client"] or "").strip()
+                client_key=_normalize_name(client)
+                invoice_key=(client_key,str(sale["sale_date"] or ""),str(sale["nf_number"] or ""))
+                meta=metadata.get(invoice_key,{})
+                if str(meta.get("status") or "pendente").strip().lower()=="pago":
+                    continue
+                balance=meta.get("total_val")
+                if balance is None:
+                    balance=sale["total_val"]
+                item={"company_key":company_key,"company":company_name,"client":client,
+                    "sale_date":str(sale["sale_date"] or ""),"nf_number":str(sale["nf_number"] or "").strip(),
+                    "due_date":meta.get("due_date"),"balance":round(float(balance or 0),2)}
+                grouped.setdefault(client_key,{"name":client,"companies":{},"invoices":[]})["companies"].setdefault(company_key,company_name)
+                grouped[client_key]["invoices"].append(item)
+        finally:
+            conn.close()
+    return grouped
+
+@app.get("/api/boletos/debtor-report/clients")
+def debtor_report_clients(x_token:str=Header("")):
+    require_admin(x_token)
+    clients=[]
+    for group in _collect_debtor_report_rows().values():
+        invoices=group["invoices"]
+        clients.append({"name":group["name"],"companies":[{"key":key,"name":name} for key,name in group["companies"].items()],
+            "invoice_count":len(invoices),"balance":round(sum(row["balance"] for row in invoices),2)})
+    return sorted(clients,key=lambda row:row["name"].casefold())
+
+@app.get("/api/boletos/debtor-report")
+def debtor_report(client:str,companies:str="",x_token:str=Header("")):
+    require_admin(x_token)
+    client_key=_normalize_name(client)
+    group=_collect_debtor_report_rows().get(client_key)
+    if not group:
+        raise HTTPException(404,"Cliente sem saldo devedor em aberto.")
+    requested={item.strip() for item in companies.split(",") if item.strip()}
+    if requested and not requested.issubset({"raios","estrada"}):
+        raise HTTPException(400,"Seleção de empresas inválida.")
+    invoices=[row for row in group["invoices"] if not requested or row["company_key"] in requested]
+    if not invoices:
+        raise HTTPException(404,"Não há saldo devedor nas empresas selecionadas.")
+    invoices.sort(key=lambda row:(row["company"],row["sale_date"],row["nf_number"]))
+    return {"client":group["name"],"companies":sorted({row["company_key"] for row in invoices}),
+        "invoices":invoices,"invoice_count":len(invoices),"total":round(sum(row["balance"] for row in invoices),2)}
+
 @app.get("/api/mobile/boletos/config")
 def get_mobile_boleto_config(x_token:str=Header("")):
     require_admin(x_token)

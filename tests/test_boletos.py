@@ -483,6 +483,60 @@ def test_boletos_period_year_month_and_clients_config(isolated_app):
     assert [row["client"] for row in filtered] == ["Cliente Boleto Setembro"]
 
 
+def test_debtor_report_consolidates_same_client_across_both_companies(isolated_app):
+    token = _login(isolated_app.client)
+    _create_sale(isolated_app.client, token, "raios", client="Mercado Exemplo", nf_number="R-101", total=125)
+    _create_sale(isolated_app.client, token, "raios", client="Mercado Exemplo", nf_number="R-102", total=25)
+    _create_sale(isolated_app.client, token, "estrada", client="MERCADO EXEMPLO", nf_number="E-202", total=275)
+    _create_sale(isolated_app.client, token, "estrada", client="Mercado Exemplo", nf_number="E-203", total=50)
+
+    raios_boleto = next(row for row in _list_boletos(isolated_app.client, token, "raios") if row["nf_number"] == "R-102")
+    _update_boleto(isolated_app.client, token, raios_boleto["id"], "raios", status="pago")
+
+    clients = isolated_app.client.get("/api/boletos/debtor-report/clients", headers=_headers(token)).json()
+    client = next(row for row in clients if row["name"].casefold() == "mercado exemplo")
+    assert client["invoice_count"] == 3
+    assert client["balance"] == 450
+    assert {row["key"] for row in client["companies"]} == {"raios", "estrada"}
+
+    report = isolated_app.client.get(
+        "/api/boletos/debtor-report",
+        headers=_headers(token),
+        params={"client": "Mercado Exemplo"},
+    )
+    assert report.status_code == 200
+    body = report.json()
+    assert body["invoice_count"] == 3
+    assert body["total"] == 450
+    assert {row["company_key"] for row in body["invoices"]} == {"raios", "estrada"}
+    assert "R-102" not in {row["nf_number"] for row in body["invoices"]}
+
+    estrada_only = isolated_app.client.get(
+        "/api/boletos/debtor-report",
+        headers=_headers(token),
+        params={"client": "Mercado Exemplo", "companies": "estrada"},
+    )
+    assert estrada_only.status_code == 200
+    assert estrada_only.json()["invoice_count"] == 2
+    assert estrada_only.json()["total"] == 325
+
+
+def test_debtor_report_is_admin_only(isolated_app):
+    conn = isolated_app.module.get_control_db()
+    conn.execute(
+        "INSERT INTO users(id,username,password_hash,full_name,role,active) VALUES(?,?,?,?,?,1)",
+        ("debtor-viewer", "debtor-viewer", isolated_app.module.hash_password("viewer-debtor-pass"), "Viewer", "viewer"),
+    )
+    conn.commit()
+    conn.close()
+    token = _login(isolated_app.client, "debtor-viewer", "viewer-debtor-pass")
+    response = isolated_app.client.get(
+        "/api/boletos/debtor-report/clients",
+        headers=_headers(token),
+    )
+    assert response.status_code == 403
+
+
 def test_mobile_boleto_config_shares_client_selection_and_filters_overdue(isolated_app):
     token = _login(isolated_app.client)
     for client, nf in (("Cliente Alerta A", "ALERTA-1"), ("Cliente Alerta B", "ALERTA-2")):

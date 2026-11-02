@@ -2,7 +2,14 @@
 
 Este arquivo registra as alteracoes funcionais do aplicativo Android e da integracao com o sistema.
 
-Versao estavel atual: `2.0.45`.
+Versao estavel atual: `2.0.46`.
+
+Versao estavel atual: `2.0.46`.
+
+## [2.0.46] - 01/11/2026
+
+- O APK restaura os alarmes do Calendário quando o administrador volta ao aplicativo.
+- O Calendário informa o horário previsto da próxima verificação e oferece um teste imediato de notificação.
 
 ## [2.0.45] - 29/10/2026
 

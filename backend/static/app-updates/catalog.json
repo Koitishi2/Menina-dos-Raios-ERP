@@ -1,12 +1,12 @@
 {
-  "versionName": "2.0.45",
-  "versionCode": 73,
+  "versionName": "2.0.46",
+  "versionCode": 74,
   "packageName": "br.com.meninadosraios.vendas",
-  "sha256": "808b5a6c26fe6095e013616ec08d8cf5aa0590486922e1994e6310541fe77504",
-  "releaseNotes": "Calendário notifica às 09h, 13h, 17h e 21h; alertas Novo Tempo mantêm 08h, 12h, 16h e 20h. Diagnóstico de notificações e abas de boletos legíveis.",
-  "notes": "Calendário notifica às 09h, 13h, 17h e 21h; alertas Novo Tempo mantêm 08h, 12h, 16h e 20h. Diagnóstico de notificações e abas de boletos legíveis.",
+  "sha256": "81bfc59effac0a06ee1aa1aa8332df7fc917a50c79258d9577e98acdf29dec48",
+  "releaseNotes": "Calendário reforça o reagendamento dos avisos, mostra a próxima verificação e inclui teste imediato de notificação para diagnóstico.",
+  "notes": "Calendário reforça o reagendamento dos avisos, mostra a próxima verificação e inclui teste imediato de notificação para diagnóstico.",
   "apkFile": "Menina-dos-Raios-Vendas-OFICIAL.apk",
   "apkUrl": "https://sistema.meninadosraios.com.br/app-updates/Menina-dos-Raios-Vendas-OFICIAL.apk",
-  "sizeBytes": 2759094,
-  "publishedAt": "2026-10-29T12:35:14-04:00"
+  "sizeBytes": 2760315,
+  "publishedAt": "2026-11-01T00:00:00-04:00"
 }

@@ -103,7 +103,15 @@ public class CalendarNotificationReceiver extends BroadcastReceiver {
             proximo.set(Calendar.SECOND, 0);
             proximo.set(Calendar.MILLISECOND, 0);
         }
-        alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, proximo.getTimeInMillis(), pi);
+        try {
+            alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, proximo.getTimeInMillis(), pi);
+            context.getSharedPreferences(STATUS_PREFS, Context.MODE_PRIVATE).edit()
+                .putLong("next_alarm", proximo.getTimeInMillis()).apply();
+            Log.i(TAG, "Próxima verificação agendada para " + new SimpleDateFormat("dd/MM HH:mm", new Locale("pt", "BR")).format(proximo.getTime()));
+        } catch (RuntimeException error) {
+            registrarEstado(context, "Falha ao agendar o calendário. Abra o APK e confira as permissões de bateria/notificações.");
+            Log.e(TAG, "Falha ao agendar alarmes do calendário", error);
+        }
     }
 
     public static void cancelar(Context context) {
@@ -246,8 +254,45 @@ public class CalendarNotificationReceiver extends BroadcastReceiver {
     }
 
     static String estadoUltimaVerificacao(Context context) {
-        return context.getSharedPreferences(STATUS_PREFS, Context.MODE_PRIVATE)
-            .getString("last_result", "Ainda não há verificação de notificações do calendário neste celular.");
+        android.content.SharedPreferences prefs = context.getSharedPreferences(STATUS_PREFS, Context.MODE_PRIVATE);
+        String resultado = prefs.getString("last_result", "Ainda não há verificação de notificações do calendário neste celular.");
+        long proximo = prefs.getLong("next_alarm", 0L);
+        if (proximo > 0L && MainActivity.tokenAdminParaAlertas(context).length() > 0) {
+            resultado += " Próxima verificação prevista: " + new SimpleDateFormat("dd/MM HH:mm", new Locale("pt", "BR")).format(new Date(proximo)) + ".";
+        }
+        return resultado;
+    }
+
+    static String testarNotificacao(Context context) {
+        if (MainActivity.tokenAdminParaAlertas(context).isEmpty())
+            return "Teste não enviado: entre no APK com uma conta administradora.";
+        if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+            return "Teste não enviado: permita notificações do APK nas configurações do Android.";
+        NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager == null || !manager.areNotificationsEnabled())
+            return "Teste não enviado: notificações do APK estão bloqueadas no Android.";
+        if (Build.VERSION.SDK_INT >= 26) {
+            NotificationChannel channel = manager.getNotificationChannel(CHANNEL_ID);
+            if (channel == null) {
+                channel = new NotificationChannel(CHANNEL_ID, "Calendário Monteiro - avisos", NotificationManager.IMPORTANCE_HIGH);
+                channel.enableVibration(true);
+                manager.createNotificationChannel(channel);
+            }
+            channel = manager.getNotificationChannel(CHANNEL_ID);
+            if (channel != null && channel.getImportance() == NotificationManager.IMPORTANCE_NONE)
+                return "Teste não enviado: o canal Calendário está bloqueado nas configurações do Android.";
+        }
+        Notification.Builder notification = Build.VERSION.SDK_INT >= 26
+            ? new Notification.Builder(context, CHANNEL_ID) : new Notification.Builder(context);
+        notification.setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("Teste do calendário concluído")
+            .setContentText("As notificações do calendário estão autorizadas neste celular.")
+            .setAutoCancel(true).setPriority(Notification.PRIORITY_HIGH)
+            .setDefaults(Notification.DEFAULT_SOUND | Notification.DEFAULT_VIBRATE);
+        manager.notify(NOTIFICATION_BASE_ID - 1, notification.build());
+        String resultado = "Teste enviado agora. Se não apareceu, confira o modo Não Perturbe e as configurações do canal Calendário.";
+        registrarEstado(context, resultado);
+        return resultado;
     }
 
     private static void registrarEstado(Context context, String resultado) {
