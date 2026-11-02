@@ -4025,10 +4025,11 @@ def get_boleto_clients(x_token:str=Header("")):
         return {"configured": True, "clients":[{"name":c,"enabled":c in enabled} for c in all_clients]}
     return {"configured": False, "clients":[{"name":c,"enabled":True} for c in all_clients]}
 
-def _collect_debtor_report_rows():
+def _collect_debtor_report_rows(scope:str="open"):
     """Read outstanding invoice balances from both operating-company databases."""
     companies={"raios":"Menina dos Raios","estrada":"Menina da Estrada"}
     grouped={}
+    today=datetime.now().strftime('%Y-%m-%d')
     for company_key,company_name in companies.items():
         conn=get_db(company_key)
         try:
@@ -4045,14 +4046,20 @@ def _collect_debtor_report_rows():
                 client_key=_normalize_name(client)
                 invoice_key=(client_key,str(sale["sale_date"] or ""),str(sale["nf_number"] or ""))
                 meta=metadata.get(invoice_key,{})
-                if str(meta.get("status") or "pendente").strip().lower()=="pago":
+                status=str(meta.get("status") or "pendente").strip().lower()
+                due_date=meta.get("due_date")
+                if status!="pendente":
+                    continue
+                if scope=="overdue" and not (due_date and str(due_date) < today):
+                    continue
+                if scope=="today" and str(due_date or "") != today:
                     continue
                 balance=meta.get("total_val")
                 if balance is None:
                     balance=sale["total_val"]
                 item={"company_key":company_key,"company":company_name,"client":client,
                     "sale_date":str(sale["sale_date"] or ""),"nf_number":str(sale["nf_number"] or "").strip(),
-                    "due_date":meta.get("due_date"),"balance":round(float(balance or 0),2)}
+                    "due_date":due_date,"balance":round(float(balance or 0),2)}
                 grouped.setdefault(client_key,{"name":client,"companies":{},"invoices":[]})["companies"].setdefault(company_key,company_name)
                 grouped[client_key]["invoices"].append(item)
         finally:
@@ -4067,10 +4074,13 @@ def _debtor_client_family(client:str):
     return _normalize_name(family),family
 
 @app.get("/api/boletos/debtor-report/clients")
-def debtor_report_clients(x_token:str=Header("")):
+def debtor_report_clients(scope:str="open",x_token:str=Header("")):
     require_admin(x_token)
+    scope=(scope or "open").strip().lower()
+    if scope not in {"open","overdue","today"}:
+        raise HTTPException(400,"Filtro do relatório inválido.")
     families={}
-    for group in _collect_debtor_report_rows().values():
+    for group in _collect_debtor_report_rows(scope).values():
         family_key,family_name=_debtor_client_family(group["name"])
         family=families.setdefault(family_key,{"key":family_key,"name":family_name,"members":set(),"companies":{},"invoices":[]})
         family["members"].add(group["name"])
@@ -4081,14 +4091,17 @@ def debtor_report_clients(x_token:str=Header("")):
         invoices=family["invoices"]
         clients.append({"key":family["key"],"name":family["name"],"members":sorted(family["members"],key=str.casefold),
             "companies":[{"key":key,"name":name} for key,name in family["companies"].items()],
-            "invoice_count":len(invoices),"balance":round(sum(row["balance"] for row in invoices),2)})
+            "invoice_count":len(invoices),"balance":round(sum(row["balance"] for row in invoices),2),"scope":scope})
     return sorted(clients,key=lambda row:row["name"].casefold())
 
 @app.get("/api/boletos/debtor-report")
-def debtor_report(client:str,companies:str="",x_token:str=Header("")):
+def debtor_report(client:str,companies:str="",scope:str="open",x_token:str=Header("")):
     require_admin(x_token)
+    scope=(scope or "open").strip().lower()
+    if scope not in {"open","overdue","today"}:
+        raise HTTPException(400,"Filtro do relatório inválido.")
     selected_key=_debtor_client_family(client)[0]
-    all_groups=_collect_debtor_report_rows()
+    all_groups=_collect_debtor_report_rows(scope)
     members=[group for group in all_groups.values() if _debtor_client_family(group["name"])[0]==selected_key]
     if not members:
         raise HTTPException(404,"Cliente sem saldo devedor em aberto.")
@@ -4106,7 +4119,7 @@ def debtor_report(client:str,companies:str="",x_token:str=Header("")):
         if company_rows:
             company_totals.append({"key":company_key,"name":company_name,"invoice_count":len(company_rows),
                 "total":round(sum(row["balance"] for row in company_rows),2)})
-    return {"client":family_name,"members":sorted({row["client"] for row in invoices},key=str.casefold),
+    return {"client":family_name,"scope":scope,"members":sorted({row["client"] for row in invoices},key=str.casefold),
         "companies":sorted({row["company_key"] for row in invoices}),"company_totals":company_totals,
         "invoices":invoices,"invoice_count":len(invoices),"total":round(sum(row["balance"] for row in invoices),2)}
 
