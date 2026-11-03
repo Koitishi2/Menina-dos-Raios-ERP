@@ -31,6 +31,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
+import android.graphics.Rect;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
@@ -222,13 +223,6 @@ public class MainActivity extends FragmentActivity {
     private void mostrarAberturaAnimada(Runnable aoConcluir) {
         int variacao = new java.util.Random().nextInt(3);
         FrameLayout tela = new FrameLayout(this);
-        ImageView fundo = new ImageView(this);
-        fundo.setImageResource(R.drawable.login_storm_background);
-        fundo.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        tela.addView(fundo, new FrameLayout.LayoutParams(-1, -1));
-        View sombra = new View(this);
-        sombra.setBackgroundColor(Color.argb(46, 0, 12, 8));
-        tela.addView(sombra, new FrameLayout.LayoutParams(-1, -1));
         AberturaAnimadaView animacao = new AberturaAnimadaView(variacao);
         tela.addView(animacao, new FrameLayout.LayoutParams(-1, -1));
         getWindow().setStatusBarColor(Color.rgb(4, 34, 25));
@@ -236,7 +230,7 @@ public class MainActivity extends FragmentActivity {
         setContentView(tela);
 
         ValueAnimator andamento = ValueAnimator.ofFloat(0f, 1f);
-        andamento.setDuration(2700);
+        andamento.setDuration(3600);
         andamento.addUpdateListener(a -> animacao.setAndamento((Float) a.getAnimatedValue()));
         andamento.addListener(new AnimatorListenerAdapter() {
             private boolean concluido;
@@ -253,26 +247,15 @@ public class MainActivity extends FragmentActivity {
 
     private final class AberturaAnimadaView extends View {
         private final int variacao;
-        private final Bitmap logo;
-        private final Paint raio = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint brilho = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint marca = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        private final Bitmap quadros;
+        private final Paint arte = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
         private float andamento;
 
         AberturaAnimadaView(int variacao) {
             super(MainActivity.this);
             this.variacao = variacao;
-            this.logo = BitmapFactory.decodeResource(getResources(), R.drawable.logo);
-            raio.setColor(Color.rgb(71, 213, 255));
-            raio.setStyle(Paint.Style.STROKE);
-            raio.setStrokeCap(Paint.Cap.ROUND);
-            raio.setStrokeJoin(Paint.Join.ROUND);
-            raio.setStrokeWidth(dp(4));
-            brilho.setColor(Color.rgb(255, 191, 74));
-            brilho.setStyle(Paint.Style.STROKE);
-            brilho.setStrokeCap(Paint.Cap.ROUND);
-            brilho.setStrokeWidth(dp(2));
-            setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+            this.quadros = BitmapFactory.decodeResource(getResources(), R.drawable.intro_frames);
+            arte.setFilterBitmap(true);
         }
 
         void setAndamento(float valor) {
@@ -283,98 +266,39 @@ public class MainActivity extends FragmentActivity {
         @Override protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
             float w = getWidth(), h = getHeight();
-            float centroX = w * .5f, centroY = h * .46f;
-            float tamanho = Math.min(w * .78f, h * .40f);
             float progresso = Math.max(0f, Math.min(1f, andamento));
-            float ease = 1f - (float) Math.pow(1f - progresso, 3);
-            RectF area = new RectF(centroX - tamanho / 2, centroY - tamanho / 2,
-                centroX + tamanho / 2, centroY + tamanho / 2);
+            if (quadros == null || w <= 0 || h <= 0) return;
 
-            if (variacao == 0) desenharRaioRevela(canvas, centroX, centroY, tamanho, progresso);
-            else if (variacao == 1) desenharEnergiaMovimento(canvas, centroX, centroY, tamanho, progresso);
-            else desenharCeuSeAbre(canvas, centroX, centroY, tamanho, progresso);
+            final int colunas = 4, linhas = 3;
+            int larguraQuadro = quadros.getWidth() / colunas;
+            int alturaQuadro = quadros.getHeight() / linhas;
+            float posicaoQuadro = progresso * (colunas - 1);
+            int quadroAtual = Math.min(colunas - 1, (int) posicaoQuadro);
+            int proximoQuadro = Math.min(colunas - 1, quadroAtual + 1);
+            float mistura = quadroAtual == proximoQuadro ? 0f : posicaoQuadro - quadroAtual;
 
-            float escala = variacao == 1 ? .55f + .25f * ease : .80f + .12f * ease;
-            float deslocamentoX = variacao == 1 ? (1f - ease) * w * .72f : 0f;
-            float deslocamentoY = variacao == 1 ? (float) Math.sin(progresso * Math.PI * 2) * dp(8) : 0f;
-            int alpha = (int) (255 * Math.min(1f, Math.max(0f, (progresso - .12f) / .42f)));
-            float metade = tamanho * escala / 2f;
-            RectF logoArea = new RectF(centroX - metade + deslocamentoX, centroY - metade + deslocamentoY,
-                centroX + metade + deslocamentoX, centroY + metade + deslocamentoY);
-            marca.setAlpha(alpha);
-            int save = canvas.save();
-            if (variacao == 2) {
-                float revelacao = Math.min(1f, Math.max(.08f, progresso * 1.25f));
-                canvas.clipRect(logoArea.left, logoArea.top, logoArea.right,
-                    logoArea.top + logoArea.height() * revelacao);
+            float escala = Math.max(w / larguraQuadro, h / alturaQuadro) * (1.02f + .025f * progresso);
+            float largura = larguraQuadro * escala;
+            float altura = alturaQuadro * escala;
+            float deslocamentoX = (float) Math.sin(progresso * Math.PI) * w * .018f;
+            RectF destino = new RectF((w - largura) * .5f + deslocamentoX,
+                (h - altura) * .5f, (w + largura) * .5f + deslocamentoX, (h + altura) * .5f);
+            canvas.save();
+            canvas.clipRect(0, 0, w, h);
+            desenharQuadro(canvas, quadroAtual, larguraQuadro, alturaQuadro, destino, 255);
+            if (proximoQuadro != quadroAtual && mistura > 0f) {
+                desenharQuadro(canvas, proximoQuadro, larguraQuadro, alturaQuadro, destino,
+                    Math.round(255 * mistura));
             }
-            if (logo != null) canvas.drawBitmap(logo, null, logoArea, marca);
-            canvas.restoreToCount(save);
-
-            Paint texto = new Paint(Paint.ANTI_ALIAS_FLAG);
-            texto.setColor(Color.WHITE);
-            texto.setTextAlign(Paint.Align.CENTER);
-            texto.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
-            texto.setTextSize(dp(13));
-            texto.setAlpha((int) (230 * Math.min(1f, Math.max(0f, (progresso - .52f) * 3.2f))));
-            canvas.drawText("VENDAS · MENINA DOS RAIOS", centroX, Math.min(h - dp(48), logoArea.bottom + dp(35)), texto);
+            canvas.restore();
         }
 
-        private void desenharRaioRevela(Canvas canvas, float x, float y, float tamanho, float p) {
-            float raio = tamanho * .47f;
-            RectF circulo = new RectF(x - raio, y - raio, x + raio, y + raio);
-            Paint contorno = new Paint(this.raio);
-            contorno.setStrokeWidth(dp(4));
-            contorno.setShadowLayer(dp(14), 0, 0, Color.rgb(0, 191, 255));
-            canvas.drawArc(circulo, -90, 360 * p, false, contorno);
-            if (p > .2f) {
-                Path faísca = new Path();
-                float a = -1.3f + p * 6.2f;
-                float sx = x + (float) Math.cos(a) * raio;
-                float sy = y + (float) Math.sin(a) * raio;
-                faísca.moveTo(sx - dp(12), sy - dp(14));
-                faísca.lineTo(sx + dp(1), sy - dp(2));
-                faísca.lineTo(sx - dp(5), sy + dp(3));
-                faísca.lineTo(sx + dp(13), sy + dp(19));
-                canvas.drawPath(faísca, contorno);
-            }
-        }
-
-        private void desenharEnergiaMovimento(Canvas canvas, float x, float y, float tamanho, float p) {
-            float varredura = -tamanho * .75f + p * tamanho * 1.5f;
-            Path trilha = new Path();
-            trilha.moveTo(x + varredura - tamanho * .18f, y + tamanho * .40f);
-            trilha.cubicTo(x + varredura - tamanho * .08f, y + tamanho * .20f,
-                x + varredura + tamanho * .08f, y + tamanho * .58f,
-                x + varredura + tamanho * .20f, y + tamanho * .34f);
-            Paint luz = new Paint(raio);
-            luz.setStrokeWidth(dp(6));
-            luz.setShadowLayer(dp(18), 0, 0, Color.rgb(0, 191, 255));
-            canvas.drawPath(trilha, luz);
-            float pontoX = x + varredura + tamanho * .20f;
-            canvas.drawCircle(pontoX, y + tamanho * .34f, dp(6), luz);
-            if (p > .3f) {
-                brilho.setAlpha((int) (200 * Math.min(1f, p * 1.5f)));
-                canvas.drawArc(new RectF(x - tamanho * .38f, y - tamanho * .40f,
-                    x + tamanho * .38f, y + tamanho * .40f), 205, 130 * p, false, brilho);
-            }
-        }
-
-        private void desenharCeuSeAbre(Canvas canvas, float x, float y, float tamanho, float p) {
-            Paint luz = new Paint(raio);
-            luz.setStrokeWidth(dp(3));
-            luz.setAlpha((int) (210 * p));
-            luz.setShadowLayer(dp(16), 0, 0, Color.rgb(255, 179, 71));
-            float topo = y - tamanho * (.70f - .12f * p);
-            for (int i = -3; i <= 3; i++) {
-                float alvoX = x + i * tamanho * .12f;
-                Path feixe = new Path();
-                feixe.moveTo(x + i * dp(2), topo);
-                feixe.lineTo(alvoX, y - tamanho * .15f);
-                canvas.drawPath(feixe, luz);
-            }
-            brilho.setAlpha((int) (180 * p));
-            canvas.drawCircle(x, topo, dp(16) + dp(18) * p, brilho);
+        private void desenharQuadro(Canvas canvas, int coluna, int largura, int altura,
+                                     RectF destino, int alpha) {
+            Rect origem = new Rect(coluna * largura, variacao * altura,
+                (coluna + 1) * largura, (variacao + 1) * altura);
+            arte.setAlpha(alpha);
+            canvas.drawBitmap(quadros, origem, destino, arte);
         }
     }
 

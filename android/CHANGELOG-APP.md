@@ -2,7 +2,11 @@
 
 Este arquivo registra as alteracoes funcionais do aplicativo Android e da integracao com o sistema.
 
-Versao estavel atual: `2.0.53`.
+Versao estavel atual: `2.0.54`.
+
+## [2.0.54] - 03/11/2026
+
+- Abertura com três cenas ilustradas em movimento, sem logo fixa.
 
 ## [2.0.53] - 03/11/2026
 
