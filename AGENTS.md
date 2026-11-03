@@ -30,6 +30,8 @@ Follow this workflow whenever publishing this project to the server or publishin
 - The first run after introducing fingerprints seeds matching `sourceFingerprint` values for the currently published APK; later runs use this baseline. With unchanged source, check mode reports `APK_ALREADY_CURRENT` and does not republish.
 - Redirect Gradle outputs to `%TEMP%\menina-gradle-output` using `%TEMP%\menina-gradle-builddir.init.gradle`; OneDrive build outputs have failed with AccessDenied. Build only the signed `directRelease` flavor, never debug or Play.
 - When the APK updater rewrites `android/app/build.gradle`, write UTF-8 without BOM using .NET `UTF8Encoding($false)`. PowerShell 5.1 `Set-Content -Encoding UTF8` adds a BOM that Gradle rejects before `plugins {`.
+- Write generated `latest.json` and `catalog.json` as UTF-8 without BOM as well. A BOM at the start of the public JSON caused the post-promotion `Invoke-RestMethod` comparison to fail despite correct remote APK checksums.
+- In Android self-update, close every stream returned by `PackageInstaller.Session.openWrite()` before calling `Session.commit()`. Call `fsync()` while the output is open, close input/output, then commit; otherwise Android throws `SecurityException: Files still open`.
 
 ## External PowerShell Pattern
 

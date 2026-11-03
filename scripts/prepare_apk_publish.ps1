@@ -132,8 +132,9 @@ try {
             $publishedAt = (Get-Date).ToString("yyyy-MM-dd'T'HH:mm:sszzz")
             $release = [ordered]@{versionName=$newVersion;versionCode=$newCode;packageName='br.com.meninadosraios.vendas';sha256=$apkHash;releaseNotes=$releaseNotes;notes=$releaseNotes;apkFile='Menina-dos-Raios-Vendas-OFICIAL.apk';apkUrl='https://sistema.meninadosraios.com.br/app-updates/Menina-dos-Raios-Vendas-OFICIAL.apk';sizeBytes=$apkSize;publishedAt=$publishedAt;sourceFingerprint=$fingerprint}
             $json = $release | ConvertTo-Json -Depth 5
-            Set-Content -LiteralPath $metadataPath -Value $json -Encoding UTF8
-            Set-Content -LiteralPath $catalogPath -Value $json -Encoding UTF8
+            $jsonEncoding = New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false
+            [System.IO.File]::WriteAllText($metadataPath,$json,$jsonEncoding)
+            [System.IO.File]::WriteAllText($catalogPath,$json,$jsonEncoding)
             $changelog = Get-Content -LiteralPath $changelogPath -Raw
             $changelog = [regex]::Replace($changelog,'(?m)^Versao estavel atual: `[^`]+`\.',"Versao estavel atual: ``$newVersion``.",1)
             $entry = "## [$newVersion] - $((Get-Date).ToString('dd/MM/yyyy'))`r`n`r`n- $releaseNotes`r`n`r`n"
