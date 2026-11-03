@@ -1,13 +1,13 @@
 {
-  "versionName": "2.0.51",
-  "versionCode": 79,
-  "packageName": "br.com.meninadosraios.vendas",
-  "sha256": "0f9338e01d6f1a9d99b3782871e80322810ff03247f83dcb68344aba518286ff",
-  "releaseNotes": "Melhorias e correÃ§Ãµes do aplicativo.",
-  "notes": "Melhorias e correÃ§Ãµes do aplicativo.",
-  "apkFile": "Menina-dos-Raios-Vendas-OFICIAL.apk",
-  "apkUrl": "https://sistema.meninadosraios.com.br/app-updates/Menina-dos-Raios-Vendas-OFICIAL.apk",
-  "sizeBytes": 4157404,
-  "publishedAt": "2026-11-03T05:44:00-04:00",
-  "sourceFingerprint": "6f1fe45971e0054194c74641485031f832e9e632818d0c84c0afce25ca2ae815"
+    "versionName":  "2.0.52",
+    "versionCode":  80,
+    "packageName":  "br.com.meninadosraios.vendas",
+    "sha256":  "0891ca6502d4af3456a6b6ae447bafe7e3612226c72bfeada64a1f1c54baebac",
+    "releaseNotes":  "Melhorias e correÃ§Ãµes do aplicativo.",
+    "notes":  "Melhorias e correÃ§Ãµes do aplicativo.",
+    "apkFile":  "Menina-dos-Raios-Vendas-OFICIAL.apk",
+    "apkUrl":  "https://sistema.meninadosraios.com.br/app-updates/Menina-dos-Raios-Vendas-OFICIAL.apk",
+    "sizeBytes":  4157626,
+    "publishedAt":  "2026-11-03T05:55:59-04:00",
+    "sourceFingerprint":  "78d2c600dfa0d84dbed1cd8052db9678579233da61776f38444979cba7026400"
 }
