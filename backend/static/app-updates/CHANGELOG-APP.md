@@ -2,7 +2,12 @@
 
 Este arquivo registra as alteracoes funcionais do aplicativo Android e da integracao com o sistema.
 
-Versao estavel atual: `2.0.49`.
+Versao estavel atual: `2.0.50`.
+
+## [2.0.50] - 02/11/2026
+
+- Nova abertura animada a cada início do APK, escolhendo aleatoriamente entre três efeitos com a logo: aro elétrico, entrada com rastro de luz e revelação com feixes entre nuvens.
+- Login e entrada por biometria usam fundo ilustrado de nuvens e raios com painel translúcido para manter campos e ações legíveis.
 
 ## [2.0.49] - 02/11/2026
 
