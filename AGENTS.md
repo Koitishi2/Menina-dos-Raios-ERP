@@ -1,4 +1,4 @@
-# Deployment Workflow
+﻿# Deployment Workflow
 
 Follow this workflow whenever publishing this project to the server or publishing the Android APK.
 
@@ -64,3 +64,10 @@ Follow this workflow whenever publishing this project to the server or publishin
 - Public APK validation must tolerate transiently truncated GET responses: use `curl.exe` with bounded retries and a cache-busting query on each attempt; only accept HTTP 200 when both expected file size and SHA-256 match. A failed first GET is not publication failure if a later retry verifies; report failure if all retries fail.
 - Successful canonical launcher reference, 2026-10-29: `atualizar_apk.bat` published APK `2.0.45`/73. Backup `/root/menina_apk_backup_20261029_175348_2.0.45_808b5a6c`; remote staging checksum passed; public GET attempt 1/4 verified size `2759094` and SHA-256 `808b5a6c26fe6095e013616ec08d8cf5aa0590486922e1994e6310541fe77504`, ending with `APK_PUBLISH_OK ... PUBLIC_GET=OK` and `PUBLICACAO_REMOTA=OK`. Keep this launcher and retry policy as the standard for future APK sends.
 - Postmortem, 2026-11-02: Android source was advanced to 2.0.50/78 but the menu republished 2.0.49 because its APK path validated/published an existing binary without compiling from source. A debug build is not a substitute. The official direct release was rebuilt outside OneDrive and successfully published as 2.0.50/78, SHA-256 `13c4d320eb70b0935df56206d5cbe59d391e04827ca2fbc876ab26ed59be001a`, size `4157370`; backup `/root/menina_apk_backup_20261102_225321_2.0.50_13c4d320`, log `%TEMP%\menina-apk-publish-20261102_225321_2.0.50_13c4d320-status.txt`. A manual PowerShell launch failed because a path containing spaces was split into arguments. Quote the complete `-File` path and all path-valued parameters in `Start-Process -ArgumentList`; the canonical `.bat` launchers already quote `%PROJECT_ROOT%`.
+
+## APK installer and release safeguards (2026-11-03)
+
+- The updater in an already-installed APK cannot be repaired remotely. Devices still on 2.0.49 need a one-time installation of a newer signed APK before they can use later in-app updater fixes.
+- APK installation first verifies package, signature, size, and SHA-256, then tries PackageInstaller. If that fails synchronously, abandon the incomplete session and open Android's standard package installer using the app's read-granted content URI.
+- Keep `scripts/prepare_apk_publish.ps1` UTF-8 with BOM so Windows PowerShell 5.1 reads Portuguese release notes correctly. Read UTF-8 catalogs explicitly and write JSON/changelogs as UTF-8 without BOM.
+- Insert a release entry once, immediately before the first `## [` heading. Never use a global regex replacement for changelog insertion; it duplicated past releases.

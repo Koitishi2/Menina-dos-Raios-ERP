@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory = $true)] [string] $ProjectRoot,
     [switch] $ValidateOnly,
     [switch] $CheckOnly
@@ -58,8 +58,8 @@ try {
     $metadataPath = Join-Path $ProjectRoot 'backend\static\app-updates\latest.json'
     $catalogPath = Join-Path $ProjectRoot 'backend\static\app-updates\catalog.json'
     $changelogPath = Join-Path $ProjectRoot 'backend\static\app-updates\CHANGELOG-APP.md'
-    $metadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
-    $catalog = Get-Content -LiteralPath $catalogPath -Raw | ConvertFrom-Json
+    $metadata = Get-Content -LiteralPath $metadataPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $catalog = Get-Content -LiteralPath $catalogPath -Raw -Encoding UTF8 | ConvertFrom-Json
     foreach ($field in @('versionName','versionCode','packageName','sha256','sizeBytes','apkFile','apkUrl','sourceFingerprint')) {
         if ([string]$metadata.$field -ne [string]$catalog.$field) { throw "latest.json e catalog.json divergem em $field." }
     }
@@ -107,7 +107,7 @@ try {
             $gradleText = [regex]::Replace($gradleText,"(?m)^\s*versionName\s+'[^']*'\s*$", "        versionName '$newVersion'",1)
             $utf8NoBom = New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false
             [System.IO.File]::WriteAllText($gradleFile,$gradleText,$utf8NoBom)
-            $releaseNotes = 'Melhorias e correções do aplicativo.'
+            $releaseNotes = 'Instalação reforçada: sessão renovada e alternativa pelo instalador padrão do Android.'
 
             $sdk = Join-Path $env:LOCALAPPDATA 'Android\Sdk'
             $buildTools = Get-ChildItem -LiteralPath (Join-Path $sdk 'build-tools') -Directory | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
@@ -135,13 +135,16 @@ try {
             $jsonEncoding = New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false
             [System.IO.File]::WriteAllText($metadataPath,$json,$jsonEncoding)
             [System.IO.File]::WriteAllText($catalogPath,$json,$jsonEncoding)
-            $changelog = Get-Content -LiteralPath $changelogPath -Raw
+            $changelog = Get-Content -LiteralPath $changelogPath -Raw -Encoding UTF8
             $changelog = [regex]::Replace($changelog,'(?m)^Versao estavel atual: `[^`]+`\.',"Versao estavel atual: ``$newVersion``.",1)
             $entry = "## [$newVersion] - $((Get-Date).ToString('dd/MM/yyyy'))`r`n`r`n- $releaseNotes`r`n`r`n"
-            $changelog = [regex]::Replace($changelog,'(?m)^## \[',[System.Text.RegularExpressions.MatchEvaluator]{ param($m) $entry + $m.Value },1)
-            Set-Content -LiteralPath $changelogPath -Value $changelog -Encoding UTF8
+            $firstRelease = [regex]::Match($changelog,'(?m)^## \[')
+            if (-not $firstRelease.Success) { throw 'Changelog sem cabeçalho de release; publicação interrompida.' }
+            $changelog = $changelog.Insert($firstRelease.Index,$entry)
+            $utf8NoBom = New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false
+            [System.IO.File]::WriteAllText($changelogPath,$changelog,$utf8NoBom)
             $androidChangelog = Join-Path $ProjectRoot 'android\CHANGELOG-APP.md'
-            if (Test-Path -LiteralPath $androidChangelog) { Set-Content -LiteralPath $androidChangelog -Value $changelog -Encoding UTF8 }
+            if (Test-Path -LiteralPath $androidChangelog) { [System.IO.File]::WriteAllText($androidChangelog,$changelog,$utf8NoBom) }
 
             $releasePaths = @('android/app/build.gradle','backend/static/app-updates/latest.json','backend/static/app-updates/catalog.json','backend/static/app-updates/CHANGELOG-APP.md','android/CHANGELOG-APP.md')
             $dirty = @(& $git status --porcelain --untracked-files=all)
@@ -159,8 +162,8 @@ try {
             Write-Host "Enviando a versão $newVersion para origin/main (commit $head)." -ForegroundColor Cyan
             & $git push origin main
             if ($LASTEXITCODE -ne 0) { throw 'Commit criado, mas push para origin/main falhou; publicação interrompida antes do servidor.' }
-            $metadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
-            $catalog = Get-Content -LiteralPath $catalogPath -Raw | ConvertFrom-Json
+            $metadata = Get-Content -LiteralPath $metadataPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            $catalog = Get-Content -LiteralPath $catalogPath -Raw -Encoding UTF8 | ConvertFrom-Json
             $candidateDir = Join-Path $env:TEMP ('menina-apk-release-build-' + $newVersion)
             New-Item -ItemType Directory -Path $candidateDir -Force | Out-Null
             $freshApk = Join-Path $candidateDir $metadata.apkFile
@@ -212,5 +215,5 @@ try {
     Start-Process -FilePath $powershell -WindowStyle Normal -ArgumentList $argumentLine
     Write-Host 'Janela externa de publicação aberta. O backup, SCP, checksum e GET público são verificados em etapas separadas.' -ForegroundColor Green
 }
-catch { Write-Host "PREPARACAO_APK=FALHOU $($_.Exception.Message)" -ForegroundColor Red }
+catch { Write-Host "PREPARACAO_APK=FALHOU $($_.Exception.Message)" -ForegroundColor Red; throw }
 finally { Write-Host "Log de preparação: $transcript"; Stop-Transcript | Out-Null }
