@@ -71,7 +71,7 @@ try {
             $defaultMessage = 'ERP update ' + (Get-Date -Format 'yyyy-MM-dd HH:mm')
             $commitMessage = Read-Host "Mensagem do commit (Enter usa: $defaultMessage)"
             if ([string]::IsNullOrWhiteSpace($commitMessage)) { $commitMessage = $defaultMessage }
-            & git commit -m $commitMessage
+            & git commit --only -m $commitMessage -- $releasePaths
             if ($LASTEXITCODE -ne 0) { throw 'O commit falhou; revise a mensagem e os arquivos selecionados.' }
             $commit = (& git rev-parse HEAD).Trim()
             if ($LASTEXITCODE -ne 0) { throw 'Não foi possível identificar o commit criado.' }
