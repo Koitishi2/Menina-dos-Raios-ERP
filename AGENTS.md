@@ -32,6 +32,7 @@ Follow this workflow whenever publishing this project to the server or publishin
 - When the APK updater rewrites `android/app/build.gradle`, write UTF-8 without BOM using .NET `UTF8Encoding($false)`. PowerShell 5.1 `Set-Content -Encoding UTF8` adds a BOM that Gradle rejects before `plugins {`.
 - Write generated `latest.json` and `catalog.json` as UTF-8 without BOM as well. A BOM at the start of the public JSON caused the post-promotion `Invoke-RestMethod` comparison to fail despite correct remote APK checksums.
 - In Android self-update, close every stream returned by `PackageInstaller.Session.openWrite()` before calling `Session.commit()`. Call `fsync()` while the output is open, close input/output, then commit; otherwise Android throws `SecurityException: Files still open`.
+- The 2.0.51 fix still reproduced on a device. After writing, fsync and close the writer session, reopen the same session ID, and call `commit()` from that fresh session so no writer file descriptors remain attached.
 
 ## External PowerShell Pattern
 

@@ -6710,6 +6710,9 @@ public class MainActivity extends FragmentActivity {
                     while ((count = input.read(buffer)) >= 0) if (count > 0) output.write(buffer, 0, count);
                     session.fsync(output);
                 }
+            }
+            // Commit from a fresh session after the writer session and all of its file descriptors close.
+            try (PackageInstaller.Session session = installer.openSession(id)) {
                 Intent callback = new Intent(this, AppInstallStatusReceiver.class);
                 callback.putExtra("dialog_message", "A atualização foi enviada ao instalador do Android.");
                 int flags = PendingIntent.FLAG_UPDATE_CURRENT;
