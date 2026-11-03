@@ -249,6 +249,9 @@ public class MainActivity extends FragmentActivity {
         private final int variacao;
         private final Bitmap quadros;
         private final Paint arte = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        private final Paint nomeContorno = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint nomeTexto = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint riscoLuz = new Paint(Paint.ANTI_ALIAS_FLAG);
         private float andamento;
 
         AberturaAnimadaView(int variacao) {
@@ -256,6 +259,20 @@ public class MainActivity extends FragmentActivity {
             this.variacao = variacao;
             this.quadros = BitmapFactory.decodeResource(getResources(), R.drawable.intro_frames);
             arte.setFilterBitmap(true);
+            nomeContorno.setColor(Color.rgb(4, 40, 29));
+            nomeContorno.setStyle(Paint.Style.STROKE);
+            nomeContorno.setStrokeJoin(Paint.Join.ROUND);
+            nomeContorno.setStrokeWidth(dp(5));
+            nomeContorno.setTypeface(android.graphics.Typeface.create("sans-serif-black", android.graphics.Typeface.BOLD));
+            nomeTexto.setColor(Color.WHITE);
+            nomeTexto.setTextAlign(Paint.Align.CENTER);
+            nomeTexto.setTypeface(android.graphics.Typeface.create("sans-serif-black", android.graphics.Typeface.BOLD));
+            nomeTexto.setShadowLayer(dp(8), 0, dp(3), Color.BLACK);
+            riscoLuz.setColor(Color.rgb(65, 211, 255));
+            riscoLuz.setStyle(Paint.Style.STROKE);
+            riscoLuz.setStrokeCap(Paint.Cap.ROUND);
+            riscoLuz.setStrokeWidth(dp(3));
+            riscoLuz.setShadowLayer(dp(10), 0, 0, Color.rgb(0, 191, 255));
         }
 
         void setAndamento(float valor) {
@@ -290,6 +307,36 @@ public class MainActivity extends FragmentActivity {
                 desenharQuadro(canvas, proximoQuadro, larguraQuadro, alturaQuadro, destino,
                     Math.round(255 * mistura));
             }
+            desenharNomeAnimado(canvas, w, h, progresso);
+            canvas.restore();
+        }
+
+        private void desenharNomeAnimado(Canvas canvas, float largura, float altura, float progresso) {
+            if (progresso <= .55f) return;
+            float entrada = Math.min(1f, (progresso - .55f) / .25f);
+            float suavizado = entrada * entrada * (3f - 2f * entrada);
+            int alpha = Math.round(255 * suavizado);
+            float centroX = largura * .5f;
+            float escala = .88f + .12f * suavizado;
+            canvas.save();
+            canvas.translate(centroX, altura * .84f + (1f - suavizado) * dp(20));
+            canvas.scale(escala, escala);
+
+            nomeContorno.setTextSize(dp(18));
+            nomeContorno.setAlpha(alpha);
+            nomeTexto.setTextSize(dp(18));
+            nomeTexto.setAlpha(alpha);
+            canvas.drawText("MENINA DOS", 0, 0, nomeContorno);
+            canvas.drawText("MENINA DOS", 0, 0, nomeTexto);
+
+            nomeContorno.setTextSize(dp(30));
+            nomeTexto.setTextSize(dp(30));
+            canvas.drawText("RAIOS", 0, dp(34), nomeContorno);
+            canvas.drawText("RAIOS", 0, dp(34), nomeTexto);
+
+            riscoLuz.setAlpha(alpha);
+            float meiaLinha = Math.min(largura * .23f, dp(82)) * suavizado;
+            canvas.drawLine(-meiaLinha, dp(42), meiaLinha, dp(42), riscoLuz);
             canvas.restore();
         }
 
