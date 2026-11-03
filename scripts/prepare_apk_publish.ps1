@@ -107,7 +107,7 @@ try {
             $gradleText = [regex]::Replace($gradleText,"(?m)^\s*versionName\s+'[^']*'\s*$", "        versionName '$newVersion'",1)
             $utf8NoBom = New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false
             [System.IO.File]::WriteAllText($gradleFile,$gradleText,$utf8NoBom)
-            $releaseNotes = 'Instalação reforçada: sessão renovada e alternativa pelo instalador padrão do Android.'
+            $releaseNotes = 'Abertura com três cenas ilustradas em movimento, sem logo fixa.'
 
             $sdk = Join-Path $env:LOCALAPPDATA 'Android\Sdk'
             $buildTools = Get-ChildItem -LiteralPath (Join-Path $sdk 'build-tools') -Directory | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
