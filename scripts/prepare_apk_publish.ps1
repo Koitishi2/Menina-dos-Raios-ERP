@@ -105,7 +105,8 @@ try {
             }
             $gradleText = [regex]::Replace($gradleText,"(?m)^\s*versionCode\s+\d+\s*$", "        versionCode $newCode",1)
             $gradleText = [regex]::Replace($gradleText,"(?m)^\s*versionName\s+'[^']*'\s*$", "        versionName '$newVersion'",1)
-            Set-Content -LiteralPath $gradleFile -Value $gradleText -Encoding UTF8
+            $utf8NoBom = New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false
+            [System.IO.File]::WriteAllText($gradleFile,$gradleText,$utf8NoBom)
             $releaseNotes = 'Melhorias e correções do aplicativo.'
 
             $sdk = Join-Path $env:LOCALAPPDATA 'Android\Sdk'

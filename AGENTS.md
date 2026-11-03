@@ -29,6 +29,7 @@ Follow this workflow whenever publishing this project to the server or publishin
 - `atualizar.bat` → APK and `atualizar_apk.bat` run `scripts/prepare_apk_publish.ps1`, which compares a normalized SHA-256 fingerprint of Android app source/Gradle configuration against `sourceFingerprint` in both catalogs. Ignore versionCode/versionName in that fingerprint. If the source changed, increment patch versionName and versionCode, build `:app:assembleDirectRelease`, update catalogs/changelog, verify the official certificate, commit only APK release paths on `main`, push `origin/main`, and then invoke the canonical remote publisher. Never publish a stale APK just because it still matches an old catalog.
 - The first run after introducing fingerprints seeds matching `sourceFingerprint` values for the currently published APK; later runs use this baseline. With unchanged source, check mode reports `APK_ALREADY_CURRENT` and does not republish.
 - Redirect Gradle outputs to `%TEMP%\menina-gradle-output` using `%TEMP%\menina-gradle-builddir.init.gradle`; OneDrive build outputs have failed with AccessDenied. Build only the signed `directRelease` flavor, never debug or Play.
+- When the APK updater rewrites `android/app/build.gradle`, write UTF-8 without BOM using .NET `UTF8Encoding($false)`. PowerShell 5.1 `Set-Content -Encoding UTF8` adds a BOM that Gradle rejects before `plugins {`.
 
 ## External PowerShell Pattern
 
