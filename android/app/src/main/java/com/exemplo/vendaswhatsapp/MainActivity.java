@@ -6703,12 +6703,13 @@ public class MainActivity extends FragmentActivity {
             if (Build.VERSION.SDK_INT >= 31)
                 params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED);
             int id = installer.createSession(params);
-            try (PackageInstaller.Session session = installer.openSession(id);
-                 java.io.InputStream input = new java.io.FileInputStream(apk);
-                 java.io.OutputStream output = session.openWrite("base.apk", 0, apk.length())) {
-                byte[] buffer = new byte[65536]; int count;
-                while ((count = input.read(buffer)) >= 0) if (count > 0) output.write(buffer, 0, count);
-                session.fsync(output);
+            try (PackageInstaller.Session session = installer.openSession(id)) {
+                try (java.io.InputStream input = new java.io.FileInputStream(apk);
+                     java.io.OutputStream output = session.openWrite("base.apk", 0, apk.length())) {
+                    byte[] buffer = new byte[65536]; int count;
+                    while ((count = input.read(buffer)) >= 0) if (count > 0) output.write(buffer, 0, count);
+                    session.fsync(output);
+                }
                 Intent callback = new Intent(this, AppInstallStatusReceiver.class);
                 callback.putExtra("dialog_message", "A atualização foi enviada ao instalador do Android.");
                 int flags = PendingIntent.FLAG_UPDATE_CURRENT;

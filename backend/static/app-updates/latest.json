@@ -1,13 +1,13 @@
-{
-  "versionName": "2.0.50",
-  "versionCode": 78,
-  "packageName": "br.com.meninadosraios.vendas",
-  "sha256": "13c4d320eb70b0935df56206d5cbe59d391e04827ca2fbc876ab26ed59be001a",
-  "releaseNotes": "Abertura animada aleatoria com tres movimentos da logo; login e biometria com fundo de nuvens e raios.",
-  "notes": "Abertura animada aleatoria com tres movimentos da logo; login e biometria com fundo de nuvens e raios.",
-  "apkFile": "Menina-dos-Raios-Vendas-OFICIAL.apk",
-  "apkUrl": "https://sistema.meninadosraios.com.br/app-updates/Menina-dos-Raios-Vendas-OFICIAL.apk",
-  "sizeBytes": 4157370,
-  "publishedAt": "2026-11-02T22:51:35-04:00",
-  "sourceFingerprint": "70fa3f70562b52eb710f25db80ed7abe3a3287fb253f0e55798088ff3b064e1f"
+﻿{
+    "versionName":  "2.0.51",
+    "versionCode":  79,
+    "packageName":  "br.com.meninadosraios.vendas",
+    "sha256":  "0f9338e01d6f1a9d99b3782871e80322810ff03247f83dcb68344aba518286ff",
+    "releaseNotes":  "Melhorias e correÃ§Ãµes do aplicativo.",
+    "notes":  "Melhorias e correÃ§Ãµes do aplicativo.",
+    "apkFile":  "Menina-dos-Raios-Vendas-OFICIAL.apk",
+    "apkUrl":  "https://sistema.meninadosraios.com.br/app-updates/Menina-dos-Raios-Vendas-OFICIAL.apk",
+    "sizeBytes":  4157404,
+    "publishedAt":  "2026-11-03T05:44:00-04:00",
+    "sourceFingerprint":  "6f1fe45971e0054194c74641485031f832e9e632818d0c84c0afce25ca2ae815"
 }

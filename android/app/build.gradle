@@ -29,8 +29,8 @@ android {
         applicationId 'br.com.meninadosraios.vendas'
         minSdk 23
         targetSdk 35
-        versionCode 78
-        versionName '2.0.50'
+        versionCode 79
+        versionName '2.0.51'
         buildConfigField 'String', 'SERVER_BASE_URL', "\"${serverBaseUrl}\""
         buildConfigField 'String', 'APP_NOTES_TOKEN', "\"${appNotesToken}\""
     }
@@ -75,3 +75,4 @@ dependencies {
     implementation 'androidx.biometric:biometric:1.1.0'
     implementation 'androidx.security:security-crypto:1.1.0-alpha06'
 }
+
