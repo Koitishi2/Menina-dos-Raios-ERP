@@ -3,9 +3,12 @@ package com.exemplo.vendaswhatsapp;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.net.Uri;
 import android.content.pm.PackageInstaller;
 import android.os.Build;
 import android.widget.Toast;
+
+import java.io.File;
 
 /** Recebe apenas o resultado do PackageInstaller enviado à PendingIntent desta instalação. */
 public class AppInstallStatusReceiver extends BroadcastReceiver {
@@ -33,7 +36,33 @@ public class AppInstallStatusReceiver extends BroadcastReceiver {
             return;
         }
         String detail = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
+        String apkName = intent.getStringExtra("update_apk_name");
+        if (abrirInstaladorPadrao(context, apkName)) {
+            Toast.makeText(context, "A instalação interna falhou. Abrimos a confirmação padrão do Android.", Toast.LENGTH_LONG).show();
+            return;
+        }
         Toast.makeText(context, "O Android não concluiu a instalação" +
             (detail == null || detail.trim().isEmpty() ? "." : ": " + detail), Toast.LENGTH_LONG).show();
+    }
+
+    private boolean abrirInstaladorPadrao(Context context, String apkName) {
+        if (apkName == null || apkName.contains("/") || apkName.contains("\\") || apkName.contains("..")) return false;
+        File apk = new File(new File(context.getCacheDir(), "updates"), apkName);
+        if (!apk.isFile() || apk.length() == 0) return false;
+        Uri uri = new Uri.Builder()
+            .scheme("content")
+            .authority(context.getPackageName() + ".files")
+            .appendPath("updates")
+            .appendPath(apkName)
+            .build();
+        Intent install = new Intent(Intent.ACTION_INSTALL_PACKAGE);
+        install.setData(uri);
+        install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            context.startActivity(install);
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 }

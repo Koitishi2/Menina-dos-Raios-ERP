@@ -1,198 +1,89 @@
-﻿# Changelog - Menina dos Raios Vendas
+# Changelog - Menina dos Raios Vendas
 
 Este arquivo registra as alteracoes funcionais do aplicativo Android e da integracao com o sistema.
 
-Versao estavel atual: `2.0.52`.
+Versao estavel atual: `2.0.53`.
+
+## [2.0.53] - 03/11/2026
+
+- Instalação reforçada: sessão renovada e alternativa pelo instalador padrão do Android.
 
 ## [2.0.52] - 03/11/2026
 
-- Melhorias e correÃ§Ãµes do aplicativo.
+- Sessão de instalação fechada e reaberta antes da confirmação pelo Android.
 
 ## [2.0.51] - 03/11/2026
 
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
+- Fluxo interno de instalação fecha os arquivos do APK antes de enviar a sessão ao Android.
 ## [2.0.50] - 02/11/2026
 
-- Nova abertura animada a cada inÃ­cio do APK, escolhendo aleatoriamente entre trÃªs efeitos com a logo: aro elÃ©trico, entrada com rastro de luz e revelaÃ§Ã£o com feixes entre nuvens.
-- Login e entrada por biometria usam fundo ilustrado de nuvens e raios com painel translÃºcido para manter campos e aÃ§Ãµes legÃ­veis.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
+- Nova abertura animada a cada início do APK, escolhendo aleatoriamente entre três efeitos com a logo: aro elétrico, entrada com rastro de luz e revelação com feixes entre nuvens.
+- Login e entrada por biometria usam fundo ilustrado de nuvens e raios com painel translúcido para manter campos e ações legíveis.
 
 ## [2.0.49] - 02/11/2026
 
-- BotÃµes â€œAgora nÃ£oâ€ e â€œBaixar e instalarâ€ agora dividem o espaÃ§o igualmente e permanecem visÃ­veis em telas estreitas.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
+- Botões “Agora não” e “Baixar e instalar” agora dividem o espaço igualmente e permanecem visíveis em telas estreitas.
 
 ## [2.0.48] - 02/11/2026
 
-- Corrigida a validaÃ§Ã£o de administrador usada pelos serviÃ§os de notificaÃ§Ã£o para tambÃ©m reconhecer a sessÃ£o legada quando o Android nÃ£o consegue abrir o armazenamento criptografado.
-- Os atalhos â€œNovo produtoâ€ e â€œGerenciar catÃ¡logoâ€ foram movidos para a tela principal e continuam usando o catÃ¡logo e as aÃ§Ãµes existentes.
-- Cadastro e ediÃ§Ã£o do catÃ¡logo nÃ£o dependem mais de a tela de lanÃ§amento de entrega estar aberta.
-- Entrada de estoque por voz reconhece o cliente Estoque mesmo com pontuaÃ§Ã£o no texto reconhecido e registra Macaxeira a VÃ¡cuo e Alho 250g como unidades (`UN`) somente nesse cliente.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
+- Corrigida a validação de administrador usada pelos serviços de notificação para também reconhecer a sessão legada quando o Android não consegue abrir o armazenamento criptografado.
+- Os atalhos “Novo produto” e “Gerenciar catálogo” foram movidos para a tela principal e continuam usando o catálogo e as ações existentes.
+- Cadastro e edição do catálogo não dependem mais de a tela de lançamento de entrega estar aberta.
+- Entrada de estoque por voz reconhece o cliente Estoque mesmo com pontuação no texto reconhecido e registra Macaxeira a Vácuo e Alho 250g como unidades (`UN`) somente nesse cliente.
 
 ## [2.0.47] - 02/11/2026
 
-- Tela de atualizaÃ§Ã£o redesenhada com progresso do download e validaÃ§Ã£o de tamanho, SHA-256, pacote, versÃ£o e assinatura instalada.
-- InstalaÃ§Ã£o encaminhada pelo PackageInstaller, solicitando o fluxo sem etapa extra quando o Android autorizar e respeitando qualquer confirmaÃ§Ã£o exigida pelo sistema.
-- Alertas de CalendÃ¡rio e Novo Tempo usam alarmes exatos quando autorizados e mostram quando o Android poderÃ¡ atrasÃ¡-los.
-- DiagnÃ³stico dos alertas exibe horÃ¡rio da Ãºltima verificaÃ§Ã£o, prÃ³ximo alarme e aÃ§Ãµes para testar e consultar novamente.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
+- Tela de atualização redesenhada com progresso do download e validação de tamanho, SHA-256, pacote, versão e assinatura instalada.
+- Instalação encaminhada pelo PackageInstaller, solicitando o fluxo sem etapa extra quando o Android autorizar e respeitando qualquer confirmação exigida pelo sistema.
+- Alertas de Calendário e Novo Tempo usam alarmes exatos quando autorizados e mostram quando o Android poderá atrasá-los.
+- Diagnóstico dos alertas exibe horário da última verificação, próximo alarme e ações para testar e consultar novamente.
 
 ## [2.0.46] - 01/11/2026
 
-- O APK restaura os alarmes do CalendÃ¡rio quando o administrador volta ao aplicativo.
-- O CalendÃ¡rio informa o horÃ¡rio previsto da prÃ³xima verificaÃ§Ã£o e oferece um teste imediato de notificaÃ§Ã£o.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
+- O APK restaura os alarmes do Calendário quando o administrador volta ao aplicativo.
+- O Calendário informa o horário previsto da próxima verificação e oferece um teste imediato de notificação.
 
 ## [2.0.45] - 29/10/2026
 
-- Alertas do CalendÃ¡rio agendados Ã s 09h, 13h, 17h e 21h, em horÃ¡rios separados das cobranÃ§as Novo Tempo.
-- Agendamentos de CalendÃ¡rio e Novo Tempo restaurados no receiver correto apÃ³s reinÃ­cio, desbloqueio e mudanÃ§a de horÃ¡rio.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
+- Alertas do Calendário agendados às 09h, 13h, 17h e 21h, em horários separados das cobranças Novo Tempo.
+- Agendamentos de Calendário e Novo Tempo restaurados no receiver correto após reinício, desbloqueio e mudança de horário.
 
 ## [2.0.44] - 29/10/2026
 
-- A tela de cobranÃ§as Novo Tempo mostra a Ãºltima verificaÃ§Ã£o em segundo plano e explica falhas de sessÃ£o, rede ou permissÃ£o.
-- Quando o Android bloqueia notificaÃ§Ãµes, a tela oferece acesso direto Ã s configuraÃ§Ãµes do aplicativo e do canal.
-- O APK registra diagnÃ³stico do agendamento e da consulta de cobranÃ§as, sem ignorar silenciosamente erros.
-- O agendamento Ã© recomposto ao desbloquear o celular e quando data ou fuso horÃ¡rio mudam.
-- As abas da carteira de boletos foram organizadas em duas linhas para manter "Pendentes" e os demais rÃ³tulos legÃ­veis em telas estreitas.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
+- A tela de cobranças Novo Tempo mostra a última verificação em segundo plano e explica falhas de sessão, rede ou permissão.
+- Quando o Android bloqueia notificações, a tela oferece acesso direto às configurações do aplicativo e do canal.
+- O APK registra diagnóstico do agendamento e da consulta de cobranças, sem ignorar silenciosamente erros.
+- O agendamento é recomposto ao desbloquear o celular e quando data ou fuso horário mudam.
+- As abas da carteira de boletos foram organizadas em duas linhas para manter "Pendentes" e os demais rótulos legíveis em telas estreitas.
 
 ## [2.0.43] - 27/10/2026
 
 - Alertas Novo Tempo agora incluem somente notas marcadas como entregues; o prazo de 24 horas conta da entrega.
 - Notas ainda nao entregues ficam identificadas como "Aguardando entrega" e nao geram notificacoes.
 - O aviso do celular destaca que se refere a vendas entregues pendentes.
-- A programaÃ§Ã£o dos avisos Ã© restabelecida ao reiniciar o celular e ao atualizar o APK.
+- A programação dos avisos é restabelecida ao reiniciar o celular e ao atualizar o APK.
 - O ERP exige que todos os itens da nota estejam entregues antes de liberar o alerta.
-- NotificaÃ§Ãµes do CalendÃ¡rio mostram data em formato local e incluem acesso direto ao calendÃ¡rio e a aÃ§Ã£o "Parar hoje".
-- Ao tocar em "Abrir calendÃ¡rio" ou no corpo do aviso, o app abre diretamente o CalendÃ¡rio.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
+- Notificações do Calendário mostram data em formato local e incluem acesso direto ao calendário e a ação "Parar hoje".
+- Ao tocar em "Abrir calendário" ou no corpo do aviso, o app abre diretamente o Calendário.
 
 ## [2.0.42] - 26/10/2026
 
-- NotificaÃ§Ãµes e calendÃ¡rio restritos a contas admin, inclusive em segundo plano e apÃ³s reiniciar o celular.
-- Avisos agendados e jÃ¡ exibidos sÃ£o cancelados ao sair da conta ou entrar como usuÃ¡rio comum.
-- CalendÃ¡rio mÃ³vel passa a exigir sessÃ£o admin no ERP; o token compartilhado do aplicativo nÃ£o autoriza a consulta.
-- O menu de notificaÃ§Ãµes e o sino ficam disponÃ­veis somente para admins.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
+- Notificações e calendário restritos a contas admin, inclusive em segundo plano e após reiniciar o celular.
+- Avisos agendados e já exibidos são cancelados ao sair da conta ou entrar como usuário comum.
+- Calendário móvel passa a exigir sessão admin no ERP; o token compartilhado do aplicativo não autoriza a consulta.
+- O menu de notificações e o sino ficam disponíveis somente para admins.
 
 ## [2.0.41] - 26/10/2026
 
-### Visual e navegaÃ§Ã£o
+### Visual e navegação
 
-- Home, cabeÃ§alhos, pedidos, entregas e anÃ¡lises ganharam uma apresentaÃ§Ã£o mais limpa, com aÃ§Ãµes consistentes e melhor leitura em telas pequenas.
-- A tela de lanÃ§amento mantÃ©m importaÃ§Ã£o do WhatsApp, seleÃ§Ã£o de cliente e data, catÃ¡logo, quantidade, preÃ§o, rascunhos e envio ao ERP.
+- Home, cabeçalhos, pedidos, entregas e análises ganharam uma apresentação mais limpa, com ações consistentes e melhor leitura em telas pequenas.
+- A tela de lançamento mantém importação do WhatsApp, seleção de cliente e data, catálogo, quantidade, preço, rascunhos e envio ao ERP.
 
-### CobranÃ§as Novo Tempo
+### Cobranças Novo Tempo
 
-- Alertas de vendas pendentes ficam disponÃ­veis apenas para administradores e notificam apÃ³s 24 horas nos horÃ¡rios locais de 08h, 12h, 16h e 20h.
-- A notificaÃ§Ã£o consulta o estado atual no ERP e deixa de incluir vendas marcadas como pagas.
+- Alertas de vendas pendentes ficam disponíveis apenas para administradores e notificam após 24 horas nos horários locais de 08h, 12h, 16h e 20h.
+- A notificação consulta o estado atual no ERP e deixa de incluir vendas marcadas como pagas.
 - Corrigida a troca entre as abas da carteira de boletos para preservar os filtros.
 
 As versoes 2.x representam a linha estavel atual do APK Android. Historicos antigos permanecem apenas como registro funcional, sem indicar estado de refatoracao ou versao experimental.
@@ -204,36 +95,12 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - O `versionCode` interno do Android sempre aumenta a cada APK publicado.
 - Uma versao publicada nunca deve ser reutilizada para outro APK.
 
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
 ## [2.0.40] - 22/10/2026
 
 ### Carteira de boletos
 
-- Botoes de pagina anterior/prÃ³xima ficaram identificados e com contraste claro.
+- Botoes de pagina anterior/próxima ficaram identificados e com contraste claro.
 - Cada boleto permite cadastrar ou alterar o vencimento e marcar como pago ou reabrir como pendente.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
 
 ## [2.0.39] - 22/10/2026
 
@@ -243,75 +110,27 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - O acesso para configurar clientes aparece antes da lista de boletos, e a tela informa quantas empresas estao selecionadas para notificacoes.
 - Datas nulas deixam de aparecer como "null"; quando o ERP ainda nao tem vencimento cadastrado, isso fica indicado claramente.
 
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
 ## [2.0.38] - 22/10/2026
 
 ### Carteira de boletos
 
-- Separadas a carteira de boletos e a configuraÃ§Ã£o dos clientes acompanhados, conforme a proposta visual aprovada.
+- Separadas a carteira de boletos e a configuração dos clientes acompanhados, conforme a proposta visual aprovada.
 - A carteira ganhou abas de pendentes, vencidos e pagos, busca por cliente/NF e resumo financeiro.
-- A configuraÃ§Ã£o agora tem busca, filtros de clientes e alternÃ¢ncia de alertas numa tela prÃ³pria.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
+- A configuração agora tem busca, filtros de clientes e alternância de alertas numa tela própria.
 
 ## [2.0.37] - 22/10/2026
 
 ### Boletos e conexao com a API
 
-- A tela de boletos agora identifica quando o servidor retorna HTML no lugar de JSON e informa que a API estÃ¡ indisponÃ­vel, sem exibir a exceÃ§Ã£o tÃ©cnica de conversÃ£o.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
+- A tela de boletos agora identifica quando o servidor retorna HTML no lugar de JSON e informa que a API está indisponível, sem exibir a exceção técnica de conversão.
 
 ## [2.0.36] - 22/10/2026
 
 ### Boletos e alertas por cliente
 
 - Contas admin podem consultar boletos vencidos e configurar no APK as mesmas empresas selecionadas no ERP.
-- Alertas de atraso respeitam a seleÃ§Ã£o compartilhada e podem ser ativados ou desativados pelo administrador.
-- Endpoints mÃ³veis de configuraÃ§Ã£o e consulta exigem sessÃ£o admin.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
+- Alertas de atraso respeitam a seleção compartilhada e podem ser ativados ou desativados pelo administrador.
+- Endpoints móveis de configuração e consulta exigem sessão admin.
 
 ## [2.0.35] - 22/10/2026
 
@@ -321,18 +140,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Produtos variaveis exibem a faixa de preco cadastrada; nenhum valor pode ser alterado pelo APK.
 - Na Entrega por voz, produto e quantidade com unidade podem ser ditos em qualquer ordem, como "50 kg de macaxeira" ou "macaxeira 50 kg".
 
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
 ## [2.0.34] - 22/10/2026
 
 ### Revisao e entrada de estoque por voz
@@ -340,18 +147,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Itens reconhecidos por voz podem ser corrigidos no rascunho sem reiniciar a nota.
 - Antes de enviar para o cliente ESTOQUE, o APK mostra os produtos e as unidades que serao somados ao estoque da Menina dos Raios.
 - Alho e Macaxeira a Vacuo mantem a conversao por unidade na confirmacao e na entrada de estoque.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
 
 ## [2.0.32] - 20/10/2026
 
@@ -361,18 +156,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Unidades contaveis, como macos, unidades, caixas e sacos, passam a preencher Quantidade nas Notas APP.
 - Notas antigas com unidade contavel mostram a quantidade correta mesmo quando o campo original estava vazio.
 
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
 ## [2.0.31] - 19/10/2026
 
 ### Entrada automatica de estoque pela Entrega por voz
@@ -381,35 +164,11 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Produtos novos sao cadastrados automaticamente; Macaxeira a Vacuo e Alho Descascado 250 g recebem nomes padronizados.
 - Reenvios da mesma nota nao duplicam entradas, e unidades diferentes permanecem em saldos separados.
 
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
 ## [2.0.30] - 13/10/2026
 
 ### Identificacao de clientes
 
 - Os nomes de clientes passam a ser exibidos e mantidos em letras maiusculas no APK.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
 
 ## [2.0.29] - 12/10/2026
 
@@ -421,18 +180,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Rascunhos de nota digitada e por voz sao recuperaveis, incluindo a etapa da pergunta sobre produto novo.
 - O envio informa verificacao, andamento, sucesso ou pendencia, e preserva a nota em fila local quando o servidor nao conclui o recebimento.
 
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
 ## [2.0.28] - 12/10/2026
 
 ### Preservacao da tela de nota e continuidade por voz
@@ -441,37 +188,13 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Depois do envio confirmado pelo servidor, a Entrega por voz inicia uma nova nota na mesma tela, sem voltar ao formulario digitado.
 - Se o envio falhar, a nota continua salva em pendentes e o usuario recebe a orientacao de reenvio.
 
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
 ## [2.0.27] - 11/10/2026
 
 ### Um item por fala na Entrega por voz
 
-- Cada Ã¡udio registra um produto; em seguida o app pergunta apenas "PrÃ³ximo item?".
-- Ã‰ possÃ­vel ditar o item seguinte diretamente ou dizer "nÃ£o" para revisar o pedido.
-- "MarÃ§o" reconhecido apÃ³s a quantidade passa a ser aceito como a unidade maÃ§o (MC), por exemplo "alface, um maÃ§o".
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
+- Cada áudio registra um produto; em seguida o app pergunta apenas "Próximo item?".
+- É possível ditar o item seguinte diretamente ou dizer "não" para revisar o pedido.
+- "Março" reconhecido após a quantidade passa a ser aceito como a unidade maço (MC), por exemplo "alface, um maço".
 
 ## [2.0.26] - 10/10/2026
 
@@ -480,18 +203,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Ao tocar em FALAR, a voz sintetizada e interrompida imediatamente para iniciar a escuta.
 - Perguntas e confirmacoes repetidas foram encurtadas; a revisao final continua lendo produtos, quantidades e unidades.
 - A tela protege a escuta contra temporizadores antigos e informa quando o tempo de reconhecimento termina.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
 
 ## [2.0.25] - 10/10/2026
 
@@ -504,18 +215,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - A Entrega por voz aceita varios produtos e quantidades no mesmo audio, separando-os pela fala e exibindo todos para conferencia antes do envio.
 - O reconhecimento permite uma fala mais longa e nao envia o lote se algum produto mencionado nao puder ser interpretado.
 
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
 ## [2.0.17] - 14/08/2026
 
 ### Correcao da sincronizacao de Vales
@@ -525,18 +224,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Mensagem para falha de sincronizacao foi ajustada para nao exibir erro tecnico como "Method Not Allowed" ao usuario final.
 - O vale continua sendo salvo primeiro no aparelho e depois sincronizado com o servidor.
 - Login compartilhado, biometria, remocao do PIN, Dados local, Entregas, dashboards e atualizacao automatica foram preservados.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
 
 ## [2.0.16] - 14/08/2026
 
@@ -555,18 +242,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Assinatura do Vale continua sem rolar a tela durante o desenho.
 - Login compartilhado, biometria, remocao do PIN, Entregas, modulos de dashboard e atualizacao automatica foram preservados.
 
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
 ## [2.0.15] - 14/08/2026
 
 ### Acesso do app sem PIN local
@@ -581,18 +256,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - O modulo Vale continua vinculado ao usuario autenticado e preserva a assinatura sem rolar a tela.
 - Login compartilhado, Home, Entregas, Vale, graficos, atualizacao automatica e assinatura do APK foram preservados.
 
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
 ## [2.0.14] - 14/08/2026
 
 ### Ajustes no modulo Vale
@@ -605,18 +268,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Confirmacao de sucesso agora informa solicitante, valor, data e ID do vale quando o backend retornar.
 - Em caso de erro, valor, data e assinatura permanecem na tela para nova tentativa.
 - Login, PIN, Home, Entregas, demais modulos, atualizacao automatica e configuracoes sensiveis foram preservados.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
 
 ## [2.0.13] - 14/08/2026
 
@@ -631,18 +282,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Como nao foi encontrado endpoint existente de vale no backend local, o backend ainda precisa implementar essa rota para salvar os dados.
 - Login, PIN, Entregas, graficos, atualizacao automatica, assinatura do APK e configuracoes sensiveis foram preservados.
 
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
 ## [2.0.12] - 12/08/2026
 
 ### Entregas unificada ao tema escuro
@@ -653,18 +292,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Cards de entregas pendentes e concluidas agora usam fundo escuro, borda por status, sombra e animacao de toque.
 - Botoes de acao de Entregas foram mantidos no padrao visual atual do app.
 - A logica de lancar, listar, concluir entregas, notas pendentes, login, PIN, graficos e atualizacao automatica foi preservada.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
 
 ## [2.0.11] - 12/08/2026
 
@@ -680,18 +307,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Eixos, textos, grades e legendas foram ajustados para o tema escuro/grafite.
 - Login, PIN, Entregas, Home, navegacao, atualizacao automatica e normalizacao de acentuacao foram preservados.
 
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
 ## [2.0.10] - 12/08/2026
 
 ### Padronizacao de botoes, cards e filtros
@@ -703,18 +318,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Todos os botoes/cards principais mantem animacao leve ao toque, com escala e opacidade.
 - Login, PIN, Entregas, modulos, atualizacao automatica e acentuacao foram preservados.
 
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
 ## [2.0.9] - 12/08/2026
 
 ### Refinamento visual, tema escuro e acentuacao
@@ -725,20 +328,8 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Produtividade ganhou resumo visual, grafico de comparacao com media esperada e barras por periodo/dia.
 - Avarias ganhou resumo visual e cards mais legiveis em tema escuro.
 - Consolidado ganhou comparativo visual de receita/objetivo e barra de impacto das avarias.
-- Adicionada normalizacao de textos quebrados vindos do app/backend, corrigindo casos como `Macaxeira a Vacuo`, `Pre-Cozida`, `Ã¢â‚¬` e `Ã¢â€ Â` antes de exibir.
+- Adicionada normalizacao de textos quebrados vindos do app/backend, corrigindo casos como `Macaxeira a Vacuo`, `Pre-Cozida`, `â€` e `â†` antes de exibir.
 - Login, PIN, Entregas, navegacao, assinatura, atualizacao automatica e PUBLICAR_APK.bat foram preservados.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
 
 ## [2.0.8] - 12/08/2026
 
@@ -751,18 +342,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Criada tela Projecao com filtros de periodo, produto, fonte e visualizacao.
 - Projecao consome `/api/projecao/producao` com o token x-token e exibe KPIs, ranking, tendencia diaria e risco de ruptura em cards mobile.
 - Login, PIN, Entregas e atualizacao automatica foram preservados.
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
 ## [2.0.7] - 12/08/2026
 
 ### Base dos modulos de leitura
@@ -773,18 +352,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Consolidado passou a exibir KPIs simples por periodo e lista resumida por dia.
 - As telas usam o token x-token do login compartilhado e mantem navegacao de volta para Home.
 - Login, PIN, Entregas, Notas/Pedido e atualizacao automatica foram preservados.
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
 ## [2.0.6] - 12/08/2026
 
 ### Correcao de acentuacao e UTF-8
@@ -793,18 +360,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - O arquivo MainActivity.java foi normalizado em UTF-8 sem BOM.
 - A compilacao Java passou a declarar encoding UTF-8 no Gradle.
 - A logica de login, PIN, navegacao, atualizacao automatica, endpoints e PUBLICAR_APK.bat foi preservada.
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
 ## [2.0.5] - 12/08/2026
 
 ### Home em grade e atualizacao centralizada
@@ -814,18 +369,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - A tela de pedido/Entregas deixou de exibir o botao de atualizacao do APK.
 - O botao Atualizar entregas foi mantido na lista de Entregas, pois serve apenas para recarregar as entregas.
 - Login, PIN, navegacao, PUBLICAR_APK.bat e leitura do catalogo de atualizacao foram preservados.
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
 ## [2.0.4] - 12/08/2026
 
 ### Cabecalho da tela Entregas
@@ -834,18 +377,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - O novo botao retorna diretamente para a Home de modulos.
 - O comportamento atual do botao voltar do Android foi mantido.
 - O botao inferior "Voltar para Entregas" continua retornando para o menu do modulo Entregas.
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
 ## [2.0.3] - 12/08/2026
 
 ### PIN com janela de confianca
@@ -854,18 +385,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Depois de desbloquear, o PIN fica liberado por 15 minutos neste aparelho.
 - Se o app ficar parado por mais tempo, for fechado ou a sessao expirar, o PIN volta a ser solicitado.
 - Login compartilhado, validacao de sessao e seguranca local do PIN foram preservados.
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
 ## [2.0.2] - 12/08/2026
 
 ### Home de modulos no app
@@ -878,198 +397,90 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - O botao Voltar do Android retorna para a Home quando o usuario esta dentro de um modulo.
 - Login compartilhado, PIN, atualizacao automatica, colagem do WhatsApp, notas pendentes, recibos, calendario e Entregas 2.0.1 foram preservados.
 
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
 ## [2.0.1] - 12/08/2026
 
-### MÃƒÆ’Ã‚Â³dulo Entregas no app
+### MÃƒÂ³dulo Entregas no app
 
-- Adicionado botÃƒÆ’Ã‚Â£o "Entregas" na tela principal do aplicativo.
-- Criada tela prÃƒÆ’Ã‚Â³pria para listar entregas pendentes e concluÃƒÆ’Ã‚Â­das.
+- Adicionado botÃƒÂ£o "Entregas" na tela principal do aplicativo.
+- Criada tela prÃƒÂ³pria para listar entregas pendentes e concluÃƒÂ­das.
 - O app busca as notas fiscais do sistema via `/api/sales` usando o token do login compartilhado.
-- As entregas sÃƒÆ’Ã‚Â£o agrupadas por data, cliente, NF e entregador para evitar poluiÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o visual quando uma nota tem vÃƒÆ’Ã‚Â¡rios produtos.
+- As entregas sÃƒÂ£o agrupadas por data, cliente, NF e entregador para evitar poluiÃƒÂ§ÃƒÂ£o visual quando uma nota tem vÃƒÂ¡rios produtos.
 - Cada entrega mostra cliente, data, NF, quantidade de produtos, total, entregador, placa e resumo dos itens.
-- Adicionada aÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o "Concluir" para marcar a entrega como realizada pelo celular.
-- A conclusÃƒÆ’Ã‚Â£o usa o endpoint existente `/api/sales/bulk-delivered`, preservando o fluxo do site.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
+- Adicionada aÃƒÂ§ÃƒÂ£o "Concluir" para marcar a entrega como realizada pelo celular.
+- A conclusÃƒÂ£o usa o endpoint existente `/api/sales/bulk-delivered`, preservando o fluxo do site.
 
 ## [2.0.0] - 12/08/2026
 
 ### Login compartilhado + PIN local
 
-- O app passou a exigir login com o mesmo usuÃƒÆ’Ã‚Â¡rio e senha do sistema web.
-- A autenticaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o usa o backend oficial em `/api/auth/login` e guarda o token `x-token` no aparelho.
-- Ao abrir novamente, o app pede PIN local de 4 dÃƒÆ’Ã‚Â­gitos antes de liberar a tela principal.
-- O PIN fica somente no celular, com hash local, e nÃƒÆ’Ã‚Â£o ÃƒÆ’Ã‚Â© enviado ao backend.
-- Depois do PIN, o app valida a sessÃƒÆ’Ã‚Â£o no servidor por `/api/auth/me`.
-- Adicionado botÃƒÆ’Ã‚Â£o "Sair da conta" para remover login e PIN do aparelho.
-- As funÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes atuais de pedido, colagem do WhatsApp, notas pendentes, recibos, calendÃƒÆ’Ã‚Â¡rio e atualizaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o automÃƒÆ’Ã‚Â¡tica foram preservadas.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
+- O app passou a exigir login com o mesmo usuÃƒÂ¡rio e senha do sistema web.
+- A autenticaÃƒÂ§ÃƒÂ£o usa o backend oficial em `/api/auth/login` e guarda o token `x-token` no aparelho.
+- Ao abrir novamente, o app pede PIN local de 4 dÃƒÂ­gitos antes de liberar a tela principal.
+- O PIN fica somente no celular, com hash local, e nÃƒÂ£o ÃƒÂ© enviado ao backend.
+- Depois do PIN, o app valida a sessÃƒÂ£o no servidor por `/api/auth/me`.
+- Adicionado botÃƒÂ£o "Sair da conta" para remover login e PIN do aparelho.
+- As funÃƒÂ§ÃƒÂµes atuais de pedido, colagem do WhatsApp, notas pendentes, recibos, calendÃƒÂ¡rio e atualizaÃƒÂ§ÃƒÂ£o automÃƒÂ¡tica foram preservadas.
 
 ## [1.0.27] - 25/07/2026
 
-### ImportaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o de pedidos do WhatsApp no app
+### ImportaÃƒÂ§ÃƒÂ£o de pedidos do WhatsApp no app
 
-- Adicionado botÃƒÆ’Ã‚Â£o "Colar pedido do WhatsApp" no app Android.
+- Adicionado botÃƒÂ£o "Colar pedido do WhatsApp" no app Android.
 - Ao abrir o app, se existir um pedido copiado no celular, o app pergunta se deseja colar e interpretar.
 - O app passa a ler pedidos copiados do WhatsApp e identificar automaticamente produto, medida e unidade.
-- CompatÃƒÆ’Ã‚Â­vel com formatos como `produto = 18kg`, `02 caixas de cenoura`, `10 kg de melÃƒÆ’Ã‚Â£o` e `Abacaxi 2 und`.
-- IncluÃƒÆ’Ã‚Â­das interpretaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes para variaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes com maiÃƒÆ’Ã‚Âºsculas, minÃƒÆ’Ã‚Âºsculas, acentos, `und`, `cx`, `mÃƒÆ’Ã‚Â§`, `mc`, `sc`, `kg`, `caixa`, `maÃƒÆ’Ã‚Â§o` e `saco`.
-- ApÃƒÆ’Ã‚Â³s importar, o app pergunta para qual cliente/unidade enviar e confirma antes de mandar para o sistema.
-- Produtos importados sem valor unitÃƒÆ’Ã‚Â¡rio continuam sendo enviados sem preÃƒÆ’Ã‚Â§o, para o sistema usar o valor atual cadastrado.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
+- CompatÃƒÂ­vel com formatos como `produto = 18kg`, `02 caixas de cenoura`, `10 kg de melÃƒÂ£o` e `Abacaxi 2 und`.
+- IncluÃƒÂ­das interpretaÃƒÂ§ÃƒÂµes para variaÃƒÂ§ÃƒÂµes com maiÃƒÂºsculas, minÃƒÂºsculas, acentos, `und`, `cx`, `mÃƒÂ§`, `mc`, `sc`, `kg`, `caixa`, `maÃƒÂ§o` e `saco`.
+- ApÃƒÂ³s importar, o app pergunta para qual cliente/unidade enviar e confirma antes de mandar para o sistema.
+- Produtos importados sem valor unitÃƒÂ¡rio continuam sendo enviados sem preÃƒÂ§o, para o sistema usar o valor atual cadastrado.
 
 ## [1.0.26] - 17/07/2026
 
-### OrÃƒÂ§amentos dentro do Monteiro
+### OrÃ§amentos dentro do Monteiro
 
-- A ÃƒÂ¡rea de OrÃƒÂ§amentos deixou de aparecer como aba principal do sistema.
-- O acesso aos orÃƒÂ§amentos fica somente dentro do Monteiro, no site/desktop.
-- O botÃƒÂ£o roxo OrÃƒÂ§amentos agora abre a tela de orÃƒÂ§amento dentro do prÃƒÂ³prio Monteiro, sem sair para outra aba principal.
-- OrÃƒÂ§amentos foi removido do menu lateral e da matriz de permissÃƒÂµes de abas principais.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
+- A Ã¡rea de OrÃ§amentos deixou de aparecer como aba principal do sistema.
+- O acesso aos orÃ§amentos fica somente dentro do Monteiro, no site/desktop.
+- O botÃ£o roxo OrÃ§amentos agora abre a tela de orÃ§amento dentro do prÃ³prio Monteiro, sem sair para outra aba principal.
+- OrÃ§amentos foi removido do menu lateral e da matriz de permissÃµes de abas principais.
 
 ## [1.0.25] - 17/07/2026
 
-### OrÃƒÂ§amentos somente no site desktop
+### OrÃ§amentos somente no site desktop
 
-- O atalho roxo OrÃƒÂ§amentos no cabeÃƒÂ§alho do Monteiro passa a aparecer apenas no site/desktop.
-- O botÃƒÂ£o fica oculto no layout mobile para nÃƒÂ£o confundir com aÃƒÂ§ÃƒÂµes do celular.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
+- O atalho roxo OrÃ§amentos no cabeÃ§alho do Monteiro passa a aparecer apenas no site/desktop.
+- O botÃ£o fica oculto no layout mobile para nÃ£o confundir com aÃ§Ãµes do celular.
 
 ## [1.0.24] - 17/07/2026
 
-### Atalho de OrÃƒÂ§amentos no Monteiro
+### Atalho de OrÃ§amentos no Monteiro
 
-- Adicionado botÃƒÂ£o roxo OrÃƒÂ§amentos no cabeÃƒÂ§alho do Monteiro, ao lado de LanÃƒÂ§ar Venda.
-- O botÃƒÂ£o fica separado visualmente para nÃƒÂ£o confundir orÃƒÂ§amento com venda.
-- Ao clicar, o Monteiro fecha e abre diretamente a aba OrÃƒÂ§amento.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
+- Adicionado botÃ£o roxo OrÃ§amentos no cabeÃ§alho do Monteiro, ao lado de LanÃ§ar Venda.
+- O botÃ£o fica separado visualmente para nÃ£o confundir orÃ§amento com venda.
+- Ao clicar, o Monteiro fecha e abre diretamente a aba OrÃ§amento.
 
 ## [1.0.23] - 17/07/2026
 
-### OrÃƒÂ§amento com duas empresas emissoras
+### OrÃ§amento com duas empresas emissoras
 
-- A aba OrÃƒÂ§amento ganhou seleÃƒÂ§ÃƒÂ£o da empresa emissora: Menina da Estrada ou Menina dos Raios.
-- Adicionados dados em portuguÃƒÂªs da Menina dos Raios LTDA, CNPJ, endereÃƒÂ§o, email, WhatsApp e logo.
-- O cabeÃƒÂ§alho e a impressÃƒÂ£o/PDF do orÃƒÂ§amento mudam automaticamente conforme a empresa escolhida.
-- Cada proposta salva passa a guardar qual empresa emitiu o orÃƒÂ§amento.
+- A aba OrÃ§amento ganhou seleÃ§Ã£o da empresa emissora: Menina da Estrada ou Menina dos Raios.
+- Adicionados dados em portuguÃªs da Menina dos Raios LTDA, CNPJ, endereÃ§o, email, WhatsApp e logo.
+- O cabeÃ§alho e a impressÃ£o/PDF do orÃ§amento mudam automaticamente conforme a empresa escolhida.
+- Cada proposta salva passa a guardar qual empresa emitiu o orÃ§amento.
 - A lista de propostas salvas mostra a empresa emissora.
-- A proposta passa a permitir no mÃƒÂ¡ximo 20 itens.
-- Ao salvar, produtos digitados sem cadastro disparam a pergunta: produto nÃƒÂ£o cadastrado, deseja cadastrar?
-- Produtos cadastrados na aba OrÃƒÂ§amento continuam separados da aba Produtos principal.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
+- A proposta passa a permitir no mÃ¡ximo 20 itens.
+- Ao salvar, produtos digitados sem cadastro disparam a pergunta: produto nÃ£o cadastrado, deseja cadastrar?
+- Produtos cadastrados na aba OrÃ§amento continuam separados da aba Produtos principal.
 
 ## [1.0.22] - 17/07/2026
 
-### Aba OrÃƒÂ§amento - Menina da Estrada
+### Aba OrÃ§amento - Menina da Estrada
 
-- Criada a nova aba OrÃƒÂ§amento no sistema.
-- Adicionado modelo de proposta baseado no PDF de referÃƒÂªncia, com dados fixos da empresa Menina da Estrada / J. M. de Lima.
-- IncluÃƒÂ­da a logo da Menina da Estrada no modelo e na impressÃƒÂ£o da proposta.
-- Criado cadastro separado de produtos para orÃƒÂ§amento, sem misturar com a aba Produtos atual.
-- Criado banco separado para propostas, itens da proposta e produtos de orÃƒÂ§amento.
-- A proposta salva mantÃƒÂ©m cliente, dados cadastrais, produtos, descontos, forma de pagamento, observaÃƒÂ§ÃƒÂµes, validade e total.
-- Adicionado botÃƒÂ£o para imprimir ou salvar a proposta como PDF pelo navegador.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
+- Criada a nova aba OrÃ§amento no sistema.
+- Adicionado modelo de proposta baseado no PDF de referÃªncia, com dados fixos da empresa Menina da Estrada / J. M. de Lima.
+- IncluÃ­da a logo da Menina da Estrada no modelo e na impressÃ£o da proposta.
+- Criado cadastro separado de produtos para orÃ§amento, sem misturar com a aba Produtos atual.
+- Criado banco separado para propostas, itens da proposta e produtos de orÃ§amento.
+- A proposta salva mantÃ©m cliente, dados cadastrais, produtos, descontos, forma de pagamento, observaÃ§Ãµes, validade e total.
+- Adicionado botÃ£o para imprimir ou salvar a proposta como PDF pelo navegador.
 
 ## [1.0.21] - 14/07/2026
 
@@ -1079,18 +490,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Total Consolidado, NF-e, Produtor Rural, Avulso, Ticket Medio e Avarias agora resetam automaticamente a cada mes.
 - A API de resumo passou a aceitar filtro por mes e ano, mantendo compatibilidade com consultas anuais.
 - Os rotulos dos cards foram ajustados para indicar que os valores exibidos sao mensais.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
 
 ## [1.0.20] - 12/07/2026
 
@@ -1109,18 +508,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Se houver 10 notificacoes no dia, o Android exibira 10 cards distintos para leitura.
 - O botao Parar hoje passa a silenciar somente a notificacao escolhida.
 
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
 ## [1.0.19] - 12/07/2026
 
 ### Recibos das notas enviadas no app
@@ -1130,18 +517,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Cada nota enviada pode emitir recibo dentro do app.
 - O recibo pode ser compartilhado diretamente pelo WhatsApp.
 
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
 ## [1.0.18] - 12/07/2026
 
 ### Notificacoes sonoras no celular
@@ -1150,18 +525,6 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - A notificacao aparece como aviso do celular e pode ser descartada normalmente.
 - Adicionado botao Parar hoje para interromper os lembretes daquele dia sem concluir a notificacao no site.
 - O app respeita o limite de avisos por dia configurado no Calendario APP.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
 
 ## [1.0.17] - 12/07/2026
 
@@ -1175,422 +538,228 @@ As versoes 2.x representam a linha estavel atual do APK Android. Historicos anti
 - Ao marcar uma notificacao como concluida no site, ela para de aparecer para o celular.
 - O Calendario APP passa a ter permissao propria no painel de Administracao: admin por padrao, com opcao de liberar editor ou visualizador.
 
-## [2.0.52] - 03/11/2026
+## [1.0.16] â€” 11/07/2026
 
-- Melhorias e correÃ§Ãµes do aplicativo.
+### CorreÃ§Ã£o das unidades automÃ¡ticas
 
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [1.0.16] Ã¢â‚¬â€ 11/07/2026
-
-### CorreÃƒÂ§ÃƒÂ£o das unidades automÃƒÂ¡ticas
-
-- MaÃƒÂ§ÃƒÂ£ passa a usar automaticamente a unidade CX.
+- MaÃ§Ã£ passa a usar automaticamente a unidade CX.
 - Melancia passa a usar sempre UN e exibe Unidade (UN), nunca Peso.
-- Toda a tabela de produtos predefinidos foi revisada conforme a relaÃƒÂ§ÃƒÂ£o fornecida.
-- Os nomes sÃƒÂ£o normalizados para evitar erros causados por acentos, como MaÃƒÂ§ÃƒÂ£, MelÃƒÂ£o, LimÃƒÂ£o, AÃƒÂ§afrÃƒÂ£o e PimentÃƒÂ£o.
-- A unidade oficial dos produtos predefinidos tem prioridade sobre configuraÃƒÂ§ÃƒÂµes antigas salvas no celular.
-- Unidades salvas continuam sendo usadas normalmente para produtos novos cadastrados pelo usuÃƒÂ¡rio.
+- Toda a tabela de produtos predefinidos foi revisada conforme a relaÃ§Ã£o fornecida.
+- Os nomes sÃ£o normalizados para evitar erros causados por acentos, como MaÃ§Ã£, MelÃ£o, LimÃ£o, AÃ§afrÃ£o e PimentÃ£o.
+- A unidade oficial dos produtos predefinidos tem prioridade sobre configuraÃ§Ãµes antigas salvas no celular.
+- Unidades salvas continuam sendo usadas normalmente para produtos novos cadastrados pelo usuÃ¡rio.
 
 ### Recibo das Notas APP no site
 
-- Adicionado botÃƒÂ£o Recibo em cada nota enviada pelo celular, tanto pendente quanto concluÃƒÂ­da.
-- O recibo apresenta cliente, data, situaÃƒÂ§ÃƒÂ£o, produtos, tipo de medida, valores e total.
-- IncluÃƒÂ­da versÃƒÂ£o prÃƒÂ³pria para impressÃƒÂ£o em papel A4, com ÃƒÂ¡reas de assinatura.
-- O documento identifica que se trata de comprovante interno de pedido e nÃƒÂ£o substitui documento fiscal.
-- Notas sem valor informado pelo celular passam a usar dinamicamente o preÃƒÂ§o atual da aba Produtos do Monteiro.
-- Valores trazidos do catÃƒÂ¡logo sÃƒÂ£o identificados na tela e no recibo, e o total ÃƒÂ© recalculado automaticamente.
+- Adicionado botÃ£o Recibo em cada nota enviada pelo celular, tanto pendente quanto concluÃ­da.
+- O recibo apresenta cliente, data, situaÃ§Ã£o, produtos, tipo de medida, valores e total.
+- IncluÃ­da versÃ£o prÃ³pria para impressÃ£o em papel A4, com Ã¡reas de assinatura.
+- O documento identifica que se trata de comprovante interno de pedido e nÃ£o substitui documento fiscal.
+- Notas sem valor informado pelo celular passam a usar dinamicamente o preÃ§o atual da aba Produtos do Monteiro.
+- Valores trazidos do catÃ¡logo sÃ£o identificados na tela e no recibo, e o total Ã© recalculado automaticamente.
 
-## [2.0.52] - 03/11/2026
+## [1.0.15] â€” 11/07/2026
 
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [1.0.15] Ã¢â‚¬â€ 11/07/2026
-
-### Unidade automÃƒÂ¡tica por produto
+### Unidade automÃ¡tica por produto
 
 - Cada produto passa a selecionar automaticamente sua unidade cadastrada.
 - Ao selecionar um produto, o foco segue diretamente para o campo de medida com a unidade identificada, como Peso (KG).
-- O seletor manual de unidade foi retirado da tela principal, deixando o formulÃƒÂ¡rio mais curto e fluido.
-- Abacaxi, Alface e Melancia usam UN; Cheiro Verde, Couve e ManjericÃƒÂ£o usam MC; Laranja usa SC; os demais produtos informados usam KG.
+- O seletor manual de unidade foi retirado da tela principal, deixando o formulÃ¡rio mais curto e fluido.
+- Abacaxi, Alface e Melancia usam UN; Cheiro Verde, Couve e ManjericÃ£o usam MC; Laranja usa SC; os demais produtos informados usam KG.
 - O cadastro de novo produto agora solicita a unidade KG, UN, CX, MC ou SC e guarda a escolha no celular.
-- Ao renomear um produto, sua unidade cadastrada ÃƒÂ© preservada; ao excluir, ela tambÃƒÂ©m ÃƒÂ© removida.
+- Ao renomear um produto, sua unidade cadastrada Ã© preservada; ao excluir, ela tambÃ©m Ã© removida.
 
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [1.0.14] Ã¢â‚¬â€ 11/07/2026
+## [1.0.14] â€” 11/07/2026
 
 ### Unidade destacada e resumo de produtos
 
-- O seletor Unidade foi movido para antes do campo Peso/medida, logo abaixo dos botÃƒÂµes do catÃƒÂ¡logo.
-- A ÃƒÂ¡rea Unidade recebeu fundo amarelo e borda destacada para facilitar sua identificaÃƒÂ§ÃƒÂ£o.
+- O seletor Unidade foi movido para antes do campo Peso/medida, logo abaixo dos botÃµes do catÃ¡logo.
+- A Ã¡rea Unidade recebeu fundo amarelo e borda destacada para facilitar sua identificaÃ§Ã£o.
 - O teclado passa a ser recolhido automaticamente ao tocar em Adicionar produto.
 - O resumo final informa dinamicamente quantos produtos foram adicionados ao pedido.
 
-## [2.0.52] - 03/11/2026
+## [1.0.13] â€” 11/07/2026
 
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [1.0.13] Ã¢â‚¬â€ 11/07/2026
-
-### RemoÃƒÂ§ÃƒÂ£o do campo Quantidade
+### RemoÃ§Ã£o do campo Quantidade
 
 - Removido o campo Quantidade da montagem do pedido.
-- Os itens agora usam somente Produto, Peso/medida, Unidade e Valor unitÃƒÂ¡rio opcional.
-- Quantidade tambÃƒÂ©m deixou de aparecer na lista de itens e no conteÃƒÂºdo enviado ao sistema.
-- A ediÃƒÂ§ÃƒÂ£o de produtos passa a posicionar o cursor diretamente no campo Peso/medida.
+- Os itens agora usam somente Produto, Peso/medida, Unidade e Valor unitÃ¡rio opcional.
+- Quantidade tambÃ©m deixou de aparecer na lista de itens e no conteÃºdo enviado ao sistema.
+- A ediÃ§Ã£o de produtos passa a posicionar o cursor diretamente no campo Peso/medida.
 
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [1.0.12] Ã¢â‚¬â€ 11/07/2026
+## [1.0.12] â€” 11/07/2026
 
 ### Fila offline de notas
 
-- Notas que nÃƒÂ£o puderem ser enviadas por falta ou instabilidade de internet ficam salvas no celular.
-- Adicionada a opÃƒÂ§ÃƒÂ£o Notas pendentes de envio, com contador de notas aguardando transmissÃƒÂ£o.
-- Cada pendÃƒÂªncia mostra cliente, data e quantidade de produtos.
-- Ãƒâ€° possÃƒÂ­vel reenviar individualmente quando o sinal retornar ou excluir uma pendÃƒÂªncia apÃƒÂ³s confirmaÃƒÂ§ÃƒÂ£o.
+- Notas que nÃ£o puderem ser enviadas por falta ou instabilidade de internet ficam salvas no celular.
+- Adicionada a opÃ§Ã£o Notas pendentes de envio, com contador de notas aguardando transmissÃ£o.
+- Cada pendÃªncia mostra cliente, data e quantidade de produtos.
+- Ã‰ possÃ­vel reenviar individualmente quando o sinal retornar ou excluir uma pendÃªncia apÃ³s confirmaÃ§Ã£o.
 - A nota permanece salva quando uma nova tentativa falha.
-- Cada nota conserva seu identificador ÃƒÂºnico para impedir duplicaÃƒÂ§ÃƒÂµes no servidor.
-- ApÃƒÂ³s salvar offline, o formulÃƒÂ¡rio ÃƒÂ© liberado para montar outro pedido sem perder o anterior.
+- Cada nota conserva seu identificador Ãºnico para impedir duplicaÃ§Ãµes no servidor.
+- ApÃ³s salvar offline, o formulÃ¡rio Ã© liberado para montar outro pedido sem perder o anterior.
 
-## [2.0.52] - 03/11/2026
+## [1.0.11] â€” 11/07/2026
 
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [1.0.11] Ã¢â‚¬â€ 11/07/2026
-
-### Fluxo Pendente e ConcluÃƒÂ­do
+### Fluxo Pendente e ConcluÃ­do
 
 - Notas APP novas passam a ser criadas com status Pendente.
-- Criadas sub-abas Pendentes e ConcluÃƒÂ­das.
-- Adicionada aÃƒÂ§ÃƒÂ£o Concluir para finalizar uma nota.
-- Notas concluÃƒÂ­das podem ser editadas ou devolvidas para Pendente.
-- Um novo envio para cliente/data jÃƒÂ¡ concluÃƒÂ­dos acrescenta os produtos e reabre a nota como Pendente.
-- Cliente no cartÃƒÂ£o tornou-se clicÃƒÂ¡vel e abre uma janela detalhada com todos os produtos.
-- Adicionado botÃƒÂ£o Ver para abrir os detalhes sem entrar na ediÃƒÂ§ÃƒÂ£o.
-- O sino principal passou a contabilizar tambÃƒÂ©m Notas APP pendentes.
+- Criadas sub-abas Pendentes e ConcluÃ­das.
+- Adicionada aÃ§Ã£o Concluir para finalizar uma nota.
+- Notas concluÃ­das podem ser editadas ou devolvidas para Pendente.
+- Um novo envio para cliente/data jÃ¡ concluÃ­dos acrescenta os produtos e reabre a nota como Pendente.
+- Cliente no cartÃ£o tornou-se clicÃ¡vel e abre uma janela detalhada com todos os produtos.
+- Adicionado botÃ£o Ver para abrir os detalhes sem entrar na ediÃ§Ã£o.
+- O sino principal passou a contabilizar tambÃ©m Notas APP pendentes.
 - O painel do sino identifica separadamente Notas APP e notas de entrega.
 - Adicionado contador vermelho diretamente na aba Notas APP.
-- As notificaÃƒÂ§ÃƒÂµes de Notas APP sÃƒÂ£o atualizadas periodicamente a cada 30 segundos.
+- As notificaÃ§Ãµes de Notas APP sÃ£o atualizadas periodicamente a cada 30 segundos.
 
-## [2.0.52] - 03/11/2026
+## [1.0.10] â€” 11/07/2026
 
-- Melhorias e correÃ§Ãµes do aplicativo.
+### VisualizaÃ§Ã£o dinÃ¢mica dos produtos no site
 
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [1.0.10] Ã¢â‚¬â€ 11/07/2026
-
-### VisualizaÃƒÂ§ÃƒÂ£o dinÃƒÂ¢mica dos produtos no site
-
-- Cada nota passou a ser exibida como um cartÃƒÂ£o independente com Data, Cliente, quantidade de produtos e Total do dia.
-- Cada produto agora ocupa uma linha prÃƒÂ³pria dentro da nota.
-- InformaÃƒÂ§ÃƒÂµes separadas em colunas: Produto, Quantidade, Tipo, Medida, Valor unitÃƒÂ¡rio e Subtotal.
-- O tipo de medida ÃƒÂ© exibido como identificador visual: Peso, Unidade, Caixa, MaÃƒÂ§o ou Saco.
-- Quantidade e preÃƒÂ§o ausentes aparecem como `NÃƒÂ£o informado`, facilitando identificar o que precisa ser completado.
-- Adicionado subtotal individual por produto quando existe valor unitÃƒÂ¡rio.
+- Cada nota passou a ser exibida como um cartÃ£o independente com Data, Cliente, quantidade de produtos e Total do dia.
+- Cada produto agora ocupa uma linha prÃ³pria dentro da nota.
+- InformaÃ§Ãµes separadas em colunas: Produto, Quantidade, Tipo, Medida, Valor unitÃ¡rio e Subtotal.
+- O tipo de medida Ã© exibido como identificador visual: Peso, Unidade, Caixa, MaÃ§o ou Saco.
+- Quantidade e preÃ§o ausentes aparecem como `NÃ£o informado`, facilitando identificar o que precisa ser completado.
+- Adicionado subtotal individual por produto quando existe valor unitÃ¡rio.
 - A tabela interna possui rolagem horizontal em telas pequenas, preservando a leitura.
-- Itens acumulados do mesmo cliente/dia continuam dentro do mesmo cartÃƒÂ£o.
+- Itens acumulados do mesmo cliente/dia continuam dentro do mesmo cartÃ£o.
 
-## [2.0.52] - 03/11/2026
+## [1.0.9] â€” 11/07/2026
 
-- Melhorias e correÃ§Ãµes do aplicativo.
+### ConsolidaÃ§Ã£o diÃ¡ria por cliente
 
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [1.0.9] Ã¢â‚¬â€ 11/07/2026
-
-### ConsolidaÃƒÂ§ÃƒÂ£o diÃƒÂ¡ria por cliente
-
-- Envios do mesmo cliente na mesma data agora sÃƒÂ£o reunidos em uma ÃƒÂºnica Nota APP.
-- Novos itens sÃƒÂ£o acrescentados ÃƒÂ  nota diÃƒÂ¡ria jÃƒÂ¡ existente.
-- O valor total do cliente no dia ÃƒÂ© recalculado automaticamente apÃƒÂ³s cada envio.
-- Reenvios com o mesmo identificador continuam protegidos contra duplicaÃƒÂ§ÃƒÂ£o.
-- Notas antigas duplicadas do mesmo cliente e dia sÃƒÂ£o consolidadas automaticamente na migraÃƒÂ§ÃƒÂ£o.
+- Envios do mesmo cliente na mesma data agora sÃ£o reunidos em uma Ãºnica Nota APP.
+- Novos itens sÃ£o acrescentados Ã  nota diÃ¡ria jÃ¡ existente.
+- O valor total do cliente no dia Ã© recalculado automaticamente apÃ³s cada envio.
+- Reenvios com o mesmo identificador continuam protegidos contra duplicaÃ§Ã£o.
+- Notas antigas duplicadas do mesmo cliente e dia sÃ£o consolidadas automaticamente na migraÃ§Ã£o.
 - A tabela passou a exibir Itens acumulados e Total do dia.
 - O indicador financeiro da aba passou a se chamar Total consolidado.
-- Clientes sem nome nÃƒÂ£o sÃƒÂ£o unidos automaticamente, evitando misturar pedidos desconhecidos.
+- Clientes sem nome nÃ£o sÃ£o unidos automaticamente, evitando misturar pedidos desconhecidos.
 
-## [2.0.52] - 03/11/2026
+## [1.0.8] â€” 11/07/2026
 
-- Melhorias e correÃ§Ãµes do aplicativo.
+### Teclado e visualizaÃ§Ã£o dos valores
 
-## [2.0.51] - 03/11/2026
+- A tela agora Ã© redimensionada quando o teclado Ã© aberto.
+- Quantidade, Peso/Medida e Valor unitÃ¡rio rolam automaticamente para uma posiÃ§Ã£o visÃ­vel ao receber foco.
+- O campo Valor unitÃ¡rio permanece acima do teclado durante a digitaÃ§Ã£o.
+- Valores digitados com ponto ou vÃ­rgula podem ser acompanhados em tempo real.
 
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [1.0.8] Ã¢â‚¬â€ 11/07/2026
-
-### Teclado e visualizaÃƒÂ§ÃƒÂ£o dos valores
-
-- A tela agora ÃƒÂ© redimensionada quando o teclado ÃƒÂ© aberto.
-- Quantidade, Peso/Medida e Valor unitÃƒÂ¡rio rolam automaticamente para uma posiÃƒÂ§ÃƒÂ£o visÃƒÂ­vel ao receber foco.
-- O campo Valor unitÃƒÂ¡rio permanece acima do teclado durante a digitaÃƒÂ§ÃƒÂ£o.
-- Valores digitados com ponto ou vÃƒÂ­rgula podem ser acompanhados em tempo real.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [1.0.7] Ã¢â‚¬â€ 11/07/2026
+## [1.0.7] â€” 11/07/2026
 
 ### Produtos e campos opcionais
 
-- Produtos novos agora sÃƒÂ£o inseridos em ordem alfabÃƒÂ©tica junto ao catÃƒÂ¡logo existente.
-- Quantidade deixou de ser obrigatÃƒÂ³ria ao adicionar um item.
-- Valor unitÃƒÂ¡rio pode ficar vazio mesmo quando o produto ainda nÃƒÂ£o possui preÃƒÂ§o salvo.
-- Peso/Medida continua obrigatÃƒÂ³rio para permitir pedidos como `100 KG de COLORAU`.
-- Quantidade e Valor nÃƒÂ£o informados sÃƒÂ£o enviados ao sistema como campos vazios, nÃƒÂ£o como zero.
-- A lista do pedido e a aba Notas APP exibem `Ã¢â‚¬â€` para informaÃƒÂ§ÃƒÂµes que ainda serÃƒÂ£o completadas.
-- Valores jÃƒÂ¡ salvos continuam sendo usados automaticamente quando o campo Valor unitÃƒÂ¡rio fica vazio.
+- Produtos novos agora sÃ£o inseridos em ordem alfabÃ©tica junto ao catÃ¡logo existente.
+- Quantidade deixou de ser obrigatÃ³ria ao adicionar um item.
+- Valor unitÃ¡rio pode ficar vazio mesmo quando o produto ainda nÃ£o possui preÃ§o salvo.
+- Peso/Medida continua obrigatÃ³rio para permitir pedidos como `100 KG de COLORAU`.
+- Quantidade e Valor nÃ£o informados sÃ£o enviados ao sistema como campos vazios, nÃ£o como zero.
+- A lista do pedido e a aba Notas APP exibem `â€”` para informaÃ§Ãµes que ainda serÃ£o completadas.
+- Valores jÃ¡ salvos continuam sendo usados automaticamente quando o campo Valor unitÃ¡rio fica vazio.
 
-## [2.0.52] - 03/11/2026
+## [1.0.6] â€” 11/07/2026
 
-- Melhorias e correÃ§Ãµes do aplicativo.
+### PreÃ§os dos produtos
 
-## [2.0.51] - 03/11/2026
+- O valor unitÃ¡rio passou a ser salvo individualmente para cada produto no aparelho.
+- Quando o campo Valor unitÃ¡rio fica vazio, o aplicativo usa automaticamente o preÃ§o atual salvo.
+- Quando um novo valor Ã© digitado, o preÃ§o atual do produto Ã© atualizado para os prÃ³ximos pedidos.
+- O campo mostra o preÃ§o atual do produto selecionado como referÃªncia.
+- Produtos sem preÃ§o cadastrado solicitam o valor somente na primeira utilizaÃ§Ã£o.
+- Ao renomear um produto, seu preÃ§o salvo acompanha o novo nome.
+- Ao excluir um produto, seu preÃ§o salvo tambÃ©m Ã© removido.
 
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [1.0.6] Ã¢â‚¬â€ 11/07/2026
-
-### PreÃƒÂ§os dos produtos
-
-- O valor unitÃƒÂ¡rio passou a ser salvo individualmente para cada produto no aparelho.
-- Quando o campo Valor unitÃƒÂ¡rio fica vazio, o aplicativo usa automaticamente o preÃƒÂ§o atual salvo.
-- Quando um novo valor ÃƒÂ© digitado, o preÃƒÂ§o atual do produto ÃƒÂ© atualizado para os prÃƒÂ³ximos pedidos.
-- O campo mostra o preÃƒÂ§o atual do produto selecionado como referÃƒÂªncia.
-- Produtos sem preÃƒÂ§o cadastrado solicitam o valor somente na primeira utilizaÃƒÂ§ÃƒÂ£o.
-- Ao renomear um produto, seu preÃƒÂ§o salvo acompanha o novo nome.
-- Ao excluir um produto, seu preÃƒÂ§o salvo tambÃƒÂ©m ÃƒÂ© removido.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [1.0.5] Ã¢â‚¬â€ 11/07/2026
+## [1.0.5] â€” 11/07/2026
 
 ### Assinatura oficial e Google Play
 
 - Definido o identificador definitivo `br.com.meninadosraios.vendas`.
 - Criada chave permanente de assinatura release da Menina dos Raios.
-- Criada variante Direct Release para distribuiÃƒÂ§ÃƒÂ£o pelo servidor prÃƒÂ³prio.
+- Criada variante Direct Release para distribuiÃ§Ã£o pelo servidor prÃ³prio.
 - Criada variante Google Play em formato Android App Bundle (AAB).
-- A variante Google Play nÃƒÂ£o solicita permissÃƒÂ£o para instalar outros APKs.
-- A atualizaÃƒÂ§ÃƒÂ£o externa foi desativada na variante Google Play; atualizaÃƒÂ§ÃƒÂµes nessa versÃƒÂ£o serÃƒÂ£o feitas pela prÃƒÂ³pria loja.
-- A variante direta mantÃƒÂ©m a consulta e instalaÃƒÂ§ÃƒÂ£o de atualizaÃƒÂ§ÃƒÂµes pelo servidor.
-- Preparada configuraÃƒÂ§ÃƒÂ£o reproduzÃƒÂ­vel para que todas as prÃƒÂ³ximas versÃƒÂµes usem a mesma identidade criptogrÃƒÂ¡fica.
+- A variante Google Play nÃ£o solicita permissÃ£o para instalar outros APKs.
+- A atualizaÃ§Ã£o externa foi desativada na variante Google Play; atualizaÃ§Ãµes nessa versÃ£o serÃ£o feitas pela prÃ³pria loja.
+- A variante direta mantÃ©m a consulta e instalaÃ§Ã£o de atualizaÃ§Ãµes pelo servidor.
+- Preparada configuraÃ§Ã£o reproduzÃ­vel para que todas as prÃ³ximas versÃµes usem a mesma identidade criptogrÃ¡fica.
 
 ### Pedido e medidas
 
 - Adicionado o campo Peso/Medida abaixo de Quantidade.
-- Ordem dos campos alterada para Quantidade, Peso/Medida e Valor unitÃƒÂ¡rio.
+- Ordem dos campos alterada para Quantidade, Peso/Medida e Valor unitÃ¡rio.
 - O nome da medida muda em tempo real conforme a unidade selecionada.
-- Unidades disponÃƒÂ­veis limitadas a `KG` (Peso), `UN` (Unidade), `CX` (Caixa), `MC` (MaÃƒÂ§o) e `SC` (Saco).
-- Removidas as unidades antigas que nÃƒÂ£o pertencem ÃƒÂ  nova lista.
-- Campos de quantidade, medida e valor unitÃƒÂ¡rio agora aceitam ponto ou vÃƒÂ­rgula decimal, incluindo valores como `22,50`.
-- O total do item passa a usar Peso/Medida multiplicado pelo Valor unitÃƒÂ¡rio.
-- Quantidade e Peso/Medida sÃƒÂ£o armazenados separadamente no banco Notas APP.
-- A ediÃƒÂ§ÃƒÂ£o e a visualizaÃƒÂ§ÃƒÂ£o no site foram adaptadas para mostrar ambos os valores.
+- Unidades disponÃ­veis limitadas a `KG` (Peso), `UN` (Unidade), `CX` (Caixa), `MC` (MaÃ§o) e `SC` (Saco).
+- Removidas as unidades antigas que nÃ£o pertencem Ã  nova lista.
+- Campos de quantidade, medida e valor unitÃ¡rio agora aceitam ponto ou vÃ­rgula decimal, incluindo valores como `22,50`.
+- O total do item passa a usar Peso/Medida multiplicado pelo Valor unitÃ¡rio.
+- Quantidade e Peso/Medida sÃ£o armazenados separadamente no banco Notas APP.
+- A ediÃ§Ã£o e a visualizaÃ§Ã£o no site foram adaptadas para mostrar ambos os valores.
 
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [1.0.4] Ã¢â‚¬â€ 11/07/2026
+## [1.0.4] â€” 11/07/2026
 
 ### Aplicativo Android
 
-- Removida do subtÃƒÂ­tulo a referÃƒÂªncia antiga ao compartilhamento pelo WhatsApp.
+- Removida do subtÃ­tulo a referÃªncia antiga ao compartilhamento pelo WhatsApp.
 - O texto da tela inicial agora informa: `Monte o pedido e envie para o sistema.`
 
-## [2.0.52] - 03/11/2026
+## [1.0.3] â€” 11/07/2026
 
-- Melhorias e correÃ§Ãµes do aplicativo.
+### AtualizaÃ§Ã£o automÃ¡tica
 
-## [2.0.51] - 03/11/2026
+- Confirmada a verificaÃ§Ã£o automÃ¡tica de atualizaÃ§Ã£o sempre que o aplicativo Ã© aberto.
+- O aviso agora mostra claramente o nÃºmero e as novidades da versÃ£o encontrada.
+- Adicionada a pergunta direta se o usuÃ¡rio deseja atualizar naquele momento.
+- Renomeadas as aÃ§Ãµes para `Atualizar agora` e `Agora nÃ£o`.
+- Mantido o botÃ£o manual Verificar atualizaÃ§Ãµes como alternativa.
+- Confirmado que o catÃ¡logo de atualizaÃ§Ãµes do servidor estÃ¡ online e acessÃ­vel pelo aplicativo.
 
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [1.0.3] Ã¢â‚¬â€ 11/07/2026
-
-### AtualizaÃƒÂ§ÃƒÂ£o automÃƒÂ¡tica
-
-- Confirmada a verificaÃƒÂ§ÃƒÂ£o automÃƒÂ¡tica de atualizaÃƒÂ§ÃƒÂ£o sempre que o aplicativo ÃƒÂ© aberto.
-- O aviso agora mostra claramente o nÃƒÂºmero e as novidades da versÃƒÂ£o encontrada.
-- Adicionada a pergunta direta se o usuÃƒÂ¡rio deseja atualizar naquele momento.
-- Renomeadas as aÃƒÂ§ÃƒÂµes para `Atualizar agora` e `Agora nÃƒÂ£o`.
-- Mantido o botÃƒÂ£o manual Verificar atualizaÃƒÂ§ÃƒÂµes como alternativa.
-- Confirmado que o catÃƒÂ¡logo de atualizaÃƒÂ§ÃƒÂµes do servidor estÃƒÂ¡ online e acessÃƒÂ­vel pelo aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [1.0.2] Ã¢â‚¬â€ 11/07/2026
+## [1.0.2] â€” 11/07/2026
 
 ### Sistema web
 
 - Movida a aba Notas APP para depois da aba Pagamentos.
-- Corrigida a estrutura HTML para que Notas APP pertenÃƒÂ§a ao contÃƒÂªiner rolÃƒÂ¡vel principal do Monteiro.
-- Removido o grande espaÃƒÂ§o vazio que empurrava as informaÃƒÂ§ÃƒÂµes para o final da pÃƒÂ¡gina.
-- O conteÃƒÂºdo de Notas APP agora comeÃƒÂ§a imediatamente abaixo da navegaÃƒÂ§ÃƒÂ£o, de cima para baixo.
-- Preservadas as estruturas das abas Painel, LanÃƒÂ§amentos, Produtos, Clientes e Pagamentos.
+- Corrigida a estrutura HTML para que Notas APP pertenÃ§a ao contÃªiner rolÃ¡vel principal do Monteiro.
+- Removido o grande espaÃ§o vazio que empurrava as informaÃ§Ãµes para o final da pÃ¡gina.
+- O conteÃºdo de Notas APP agora comeÃ§a imediatamente abaixo da navegaÃ§Ã£o, de cima para baixo.
+- Preservadas as estruturas das abas Painel, LanÃ§amentos, Produtos, Clientes e Pagamentos.
 
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.51] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [2.0.52] - 03/11/2026
-
-- Melhorias e correÃ§Ãµes do aplicativo.
-
-## [1.0.1] Ã¢â‚¬â€ 11/07/2026
+## [1.0.1] â€” 11/07/2026
 
 ### Aplicativo Android
 
-- SubstituÃƒÂ­do o compartilhamento pelo WhatsApp pelo envio direto ao sistema.
-- Adicionado envio de notas por cliente com data, produtos, quantidades, unidades, preÃƒÂ§os e total.
-- Adicionado identificador ÃƒÂºnico para impedir notas duplicadas quando houver repetiÃƒÂ§ÃƒÂ£o de envio.
-- O pedido permanece no celular quando o servidor nÃƒÂ£o confirma o recebimento.
-- O pedido sÃƒÂ³ ÃƒÂ© limpo apÃƒÂ³s a confirmaÃƒÂ§ÃƒÂ£o do servidor.
+- SubstituÃ­do o compartilhamento pelo WhatsApp pelo envio direto ao sistema.
+- Adicionado envio de notas por cliente com data, produtos, quantidades, unidades, preÃ§os e total.
+- Adicionado identificador Ãºnico para impedir notas duplicadas quando houver repetiÃ§Ã£o de envio.
+- O pedido permanece no celular quando o servidor nÃ£o confirma o recebimento.
+- O pedido sÃ³ Ã© limpo apÃ³s a confirmaÃ§Ã£o do servidor.
 - Adicionados clientes predefinidos: PALADAR DISTRITO, PALADAR BASE, SESAU, MATERNIDADE e HGR.
-- Adicionada a opÃƒÂ§ÃƒÂ£o OUTRO com preenchimento manual do cliente.
-- Adicionada confirmaÃƒÂ§ÃƒÂ£o para continuar quando cliente, data ou produtos estiverem vazios.
-- Melhorados alinhamento, espaÃƒÂ§amento e aparÃƒÂªncia dos botÃƒÂµes.
-- Produtos adicionados passaram a ser exibidos em cartÃƒÂµes com aÃƒÂ§ÃƒÂµes alinhadas.
-- Adicionada verificaÃƒÂ§ÃƒÂ£o automÃƒÂ¡tica de atualizaÃƒÂ§ÃƒÂµes pelo servidor.
-- Adicionado botÃƒÂ£o manual Verificar atualizaÃƒÂ§ÃƒÂµes.
-- Downloads de atualizaÃƒÂ§ÃƒÂ£o agora sÃƒÂ£o validados por SHA-256 antes da instalaÃƒÂ§ÃƒÂ£o.
+- Adicionada a opÃ§Ã£o OUTRO com preenchimento manual do cliente.
+- Adicionada confirmaÃ§Ã£o para continuar quando cliente, data ou produtos estiverem vazios.
+- Melhorados alinhamento, espaÃ§amento e aparÃªncia dos botÃµes.
+- Produtos adicionados passaram a ser exibidos em cartÃµes com aÃ§Ãµes alinhadas.
+- Adicionada verificaÃ§Ã£o automÃ¡tica de atualizaÃ§Ãµes pelo servidor.
+- Adicionado botÃ£o manual Verificar atualizaÃ§Ãµes.
+- Downloads de atualizaÃ§Ã£o agora sÃ£o validados por SHA-256 antes da instalaÃ§Ã£o.
 
 ### Sistema web
 
 - Criada a aba Monteiro > Notas APP.
-- Criado banco independente `app_notes.db` para nÃƒÂ£o interferir nas vendas e pagamentos existentes.
-- Adicionados filtros de notas por cliente, mÃƒÂªs e ano.
+- Criado banco independente `app_notes.db` para nÃ£o interferir nas vendas e pagamentos existentes.
+- Adicionados filtros de notas por cliente, mÃªs e ano.
 - Adicionados indicadores de quantidade de notas, clientes e valor total.
-- Adicionada visualizaÃƒÂ§ÃƒÂ£o detalhada dos itens enviados pelo celular.
-- Adicionadas funÃƒÂ§ÃƒÂµes para editar e remover notas.
-- Administradores e editores podem alterar ou remover notas; outros usuÃƒÂ¡rios podem consultar.
+- Adicionada visualizaÃ§Ã£o detalhada dos itens enviados pelo celular.
+- Adicionadas funÃ§Ãµes para editar e remover notas.
+- Administradores e editores podem alterar ou remover notas; outros usuÃ¡rios podem consultar.
 
-### PublicaÃƒÂ§ÃƒÂ£o e servidor
+### PublicaÃ§Ã£o e servidor
 
-- Criada pasta pÃƒÂºblica `backend/static/app-updates`.
+- Criada pasta pÃºblica `backend/static/app-updates`.
 - Criados `PUBLICAR_APK.bat` e `PUBLICAR_APK.ps1`.
-- O publicador identifica a versÃƒÂ£o do APK automaticamente.
+- O publicador identifica a versÃ£o do APK automaticamente.
 - O publicador valida a assinatura e calcula o SHA-256 automaticamente.
-- O `ATUALIZAR.bat` passou a oferecer a publicaÃƒÂ§ÃƒÂ£o do APK apÃƒÂ³s atualizar o site.
-- O changelog passa a ser atualizado e enviado ao servidor durante cada publicaÃƒÂ§ÃƒÂ£o.
-
-
+- O `ATUALIZAR.bat` passou a oferecer a publicaÃ§Ã£o do APK apÃ³s atualizar o site.
+- O changelog passa a ser atualizado e enviado ao servidor durante cada publicaÃ§Ã£o.

@@ -6695,14 +6695,15 @@ public class MainActivity extends FragmentActivity {
             startActivity(permissao);
             return;
         }
+        PackageInstaller installer = getPackageManager().getPackageInstaller();
+        int id = -1;
         try {
-            PackageInstaller installer = getPackageManager().getPackageInstaller();
             PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
             params.setAppPackageName(pacote);
             params.setSize(apk.length());
             if (Build.VERSION.SDK_INT >= 31)
                 params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED);
-            int id = installer.createSession(params);
+            id = installer.createSession(params);
             try (PackageInstaller.Session session = installer.openSession(id)) {
                 try (java.io.InputStream input = new java.io.FileInputStream(apk);
                      java.io.OutputStream output = session.openWrite("base.apk", 0, apk.length())) {
@@ -6715,6 +6716,7 @@ public class MainActivity extends FragmentActivity {
             try (PackageInstaller.Session session = installer.openSession(id)) {
                 Intent callback = new Intent(this, AppInstallStatusReceiver.class);
                 callback.putExtra("dialog_message", "A atualização foi enviada ao instalador do Android.");
+                callback.putExtra("update_apk_name", apk.getName());
                 int flags = PendingIntent.FLAG_UPDATE_CURRENT;
                 if (Build.VERSION.SDK_INT >= 31) flags |= PendingIntent.FLAG_MUTABLE;
                 PendingIntent result = PendingIntent.getBroadcast(this, id, callback, flags);
@@ -6723,7 +6725,33 @@ public class MainActivity extends FragmentActivity {
             if (dialog != null) dialog.dismiss();
             aviso("Download validado. Confirme a instalação na tela do Android.");
         } catch (Exception e) {
+            if (id >= 0) {
+                try { installer.abandonSession(id); } catch (Exception ignored) { }
+            }
+            if (abrirInstaladorPadrao(apk)) {
+                if (dialog != null) dialog.dismiss();
+                aviso("O fluxo interno falhou; abrimos a confirmação padrão do Android para instalar a atualização.");
+                return;
+            }
             aviso("Não foi possível abrir o instalador: " + e.getMessage());
+        }
+    }
+
+    private boolean abrirInstaladorPadrao(File apk) {
+        try {
+            Uri uri = new Uri.Builder()
+                .scheme("content")
+                .authority(getPackageName() + ".files")
+                .appendPath("updates")
+                .appendPath(apk.getName())
+                .build();
+            Intent intent = new Intent(Intent.ACTION_INSTALL_PACKAGE);
+            intent.setData(uri);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            return true;
+        } catch (Exception ignored) {
+            return false;
         }
     }
 

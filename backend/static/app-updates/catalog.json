@@ -1,13 +1,13 @@
 {
-    "versionName":  "2.0.52",
-    "versionCode":  80,
+    "versionName":  "2.0.53",
+    "versionCode":  81,
     "packageName":  "br.com.meninadosraios.vendas",
-    "sha256":  "0891ca6502d4af3456a6b6ae447bafe7e3612226c72bfeada64a1f1c54baebac",
-    "releaseNotes":  "Melhorias e correÃ§Ãµes do aplicativo.",
-    "notes":  "Melhorias e correÃ§Ãµes do aplicativo.",
+    "sha256":  "28c1ce5900ceff126d4ce875db200dc0ec855c90bde980e5508b40a66774f0ee",
+    "releaseNotes":  "Instalação reforçada: sessão renovada e alternativa pelo instalador padrão do Android.",
+    "notes":  "Instalação reforçada: sessão renovada e alternativa pelo instalador padrão do Android.",
     "apkFile":  "Menina-dos-Raios-Vendas-OFICIAL.apk",
     "apkUrl":  "https://sistema.meninadosraios.com.br/app-updates/Menina-dos-Raios-Vendas-OFICIAL.apk",
-    "sizeBytes":  4157626,
-    "publishedAt":  "2026-11-03T05:55:59-04:00",
-    "sourceFingerprint":  "78d2c600dfa0d84dbed1cd8052db9678579233da61776f38444979cba7026400"
+    "sizeBytes":  4157911,
+    "publishedAt":  "2026-11-03T06:05:35-04:00",
+    "sourceFingerprint":  "96f997da5d4bdc7e2a9dd9cc37ab5288b4008ac4f3a4f8e2a1379d69df8d6ee3"
 }
