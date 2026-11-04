@@ -6,7 +6,7 @@ Versao estavel atual: `2.0.57`.
 
 ## [2.0.57] - 04/11/2026
 
-- Abertura animada com três cenas ilustradas e o nome Menina dos Raios em destaque.
+- Layout atualizado: atalhos compactos, pedido em etapas e telas de projeção, avarias, produtividade e consolidado reorganizadas.
 
 ## [2.0.56] - 04/11/2026
 
