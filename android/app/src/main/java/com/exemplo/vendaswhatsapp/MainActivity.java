@@ -430,8 +430,10 @@ public class MainActivity extends FragmentActivity {
             NewTempoCollectionReceiver.cancelar(this);
         }
         if (!servicosPosLoginIniciados) {
+            solicitarPermissaoNotificacoes();
+            android.content.SharedPreferences motivacao = getSharedPreferences("daily_motivation", MODE_PRIVATE);
+            if (adminNotificacoes() && motivacao.getBoolean("enabled", false)) DailyMotivationReceiver.agendar(this, motivacao.getString("time", "07:00"));
             if (adminNotificacoes()) {
-                solicitarPermissaoNotificacoes();
                 CalendarNotificationReceiver.agendar(this);
                 NewTempoCollectionReceiver.agendar(this);
             }
@@ -487,6 +489,16 @@ public class MainActivity extends FragmentActivity {
         TextView apoio = texto("Acesse uma operação ou acompanhe os resultados.", 13, false);
         apoio.setPadding(0, 0, 0, dp(12));
         raiz.addView(apoio);
+        TextView mensagemDoDia = texto("Carregando mensagem do dia...", 14, true);
+        mensagemDoDia.setPadding(dp(14), dp(12), dp(14), dp(12));
+        mensagemDoDia.setBackground(fundoComBorda(Color.rgb(240, 248, 242), Color.rgb(205, 225, 209), 12));
+        LinearLayout.LayoutParams mensagemParams = new LinearLayout.LayoutParams(-1, -2);
+        mensagemParams.setMargins(0, 0, 0, dp(12));
+        raiz.addView(mensagemDoDia, mensagemParams);
+        carregarMensagemMotivacional(mensagem -> {
+            if (!"home".equals(telaAtual)) return;
+            mensagemDoDia.setText(mensagem.isEmpty() ? "Mensagem motivacional indisponível no ERP hoje." : "Mensagem do dia\n" + mensagem);
+        });
         EditText busca = campo("Buscar módulo", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         LinearLayout.LayoutParams buscaParams = new LinearLayout.LayoutParams(-1, dp(48));
         buscaParams.setMargins(0, 0, 0, dp(16));
@@ -516,6 +528,7 @@ public class MainActivity extends FragmentActivity {
         modulos.add(new ModuloHome("Entregas", "Lançar pedidos e acompanhar notas", "Operação", "EN", Color.rgb(245, 124, 0), () -> mostrarMenuEntregas()));
         modulos.add(new ModuloHome("Vale", "Solicitação com assinatura", "Operação", "VA", Color.rgb(202, 138, 4), () -> abrirModuloVale()));
         modulos.add(new ModuloHome("Dados dos vales", "Consultar solicitações", "Operação", "DV", Color.rgb(14, 165, 233), () -> abrirModuloDadosVales("")));
+        modulos.add(new ModuloHome("Estoque", "Consultar saldos e registrar entradas", "Operação", "ES", Color.rgb(21, 128, 61), () -> abrirModuloEstoque("raios")));
         if ("admin".equalsIgnoreCase(authPrefs().getString("role", "").trim())) {
             modulos.add(new ModuloHome("Boletos", "Atrasos e clientes acompanhados", "Operação", "BO", Color.rgb(22, 101, 58), () -> abrirModuloBoletos()));
         }
@@ -566,10 +579,20 @@ public class MainActivity extends FragmentActivity {
             LinearLayout.LayoutParams tituloParams = new LinearLayout.LayoutParams(-1, -2);
             tituloParams.setMargins(0, dp(6), 0, dp(4));
             destino.addView(tituloCategoria, tituloParams);
-            for (ModuloHome modulo : visiveis) {
-                LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(-1, dp(76));
-                itemParams.setMargins(0, dp(4), 0, dp(4));
-                destino.addView(cartaoModuloHome(modulo), itemParams);
+            int colunas = getResources().getConfiguration().screenWidthDp >= 600 ? 2 : 1;
+            for (int i = 0; i < visiveis.size(); i += colunas) {
+                LinearLayout linha = new LinearLayout(this);
+                linha.setOrientation(LinearLayout.HORIZONTAL);
+                for (int coluna = 0; coluna < colunas && i + coluna < visiveis.size(); coluna++) {
+                    ModuloHome modulo = visiveis.get(i + coluna);
+                    LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(0, dp(76), 1);
+                    itemParams.setMargins(coluna == 0 ? 0 : dp(6), dp(4), coluna == 0 && colunas == 2 ? dp(6) : 0, dp(4));
+                    linha.addView(cartaoModuloHome(modulo), itemParams);
+                }
+                if (colunas == 2 && visiveis.size() % 2 == 1 && i + 1 >= visiveis.size()) {
+                    linha.addView(new View(this), new LinearLayout.LayoutParams(0, dp(76), 1));
+                }
+                destino.addView(linha);
             }
         }
         if (encontrados == 0) {
@@ -1810,26 +1833,6 @@ public class MainActivity extends FragmentActivity {
     }
 
     private void enviarPedidoVoz() {
-        if (clienteEhEstoque(clienteVoz)) {
-            StringBuilder resumo = new StringBuilder("A nota será enviada e estes itens serão somados ao estoque da Menina dos Raios:\n\n");
-            for (ItemInterpretado item : itensVoz) {
-                String produto = item.produto;
-                String unidade = item.unidade;
-                String normalizado = normalizarNomeProduto(produto).replaceAll("[^A-Z0-9]", "");
-                if (normalizado.matches("ALHO(DESCASCADO)?(250(G|GR|GRAMAS))?")) { produto = "Alho 250g"; unidade = "UN"; }
-                else if (normalizado.matches("MACAXEIRA(A)?VACUO")) { produto = "Macaxeira a Vácuo"; unidade = "UN"; }
-                resumo.append("• ").append(produto).append(" — ").append(formatarNumero(item.medida)).append(" ").append(unidade).append('\n');
-            }
-            resumo.append("Confirma o envio e a entrada no estoque?");
-            new AlertDialog.Builder(this).setTitle("Confirmar entrada no estoque")
-                .setMessage(resumo.toString())
-                .setNegativeButton("Voltar e corrigir", (dialog, which) -> {
-                    perguntarVoz("confirmar_produtos", "Corrija os itens e depois confirme a lista.");
-                })
-                .setPositiveButton("Confirmar e enviar", (dialog, which) -> prepararNotaVozParaEnvio())
-                .show();
-            return;
-        }
         prepararNotaVozParaEnvio();
     }
 
@@ -2191,6 +2194,149 @@ public class MainActivity extends FragmentActivity {
     private JSONArray mobileNovoTempoRows = new JSONArray();
     private int mobileNovoTempoPage = 0;
     private String mobileNovoTempoFilter = "pendente";
+
+    private void abrirModuloEstoque(String moduloInicial) {
+        temaEscuroAtivo = true;
+        telaAtual = "estoque";
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setBackgroundColor(COR_FUNDO_ESCURO);
+        LinearLayout raiz = coluna();
+        raiz.setPadding(dp(16), dp(14), dp(16), dp(24));
+        scroll.addView(raiz);
+        adicionarCabecalhoModulo(raiz, "Estoque", "Consulte saldos e registre entradas no ERP.");
+        Spinner modulo = new Spinner(this);
+        String[] modulos = {"Menina dos Raios", "Menina da Estrada"};
+        modulo.setAdapter(adaptadorSpinner(modulos));
+        modulo.setSelection("estrada".equals(moduloInicial) ? 1 : 0);
+        raiz.addView(rotuloCampo("EMPRESA"));
+        raiz.addView(modulo);
+        LinearLayout acoes = new LinearLayout(this);
+        acoes.setOrientation(LinearLayout.HORIZONTAL);
+        Button adicionarProduto = botao("＋ Produto", Color.rgb(21, 101, 52));
+        Button registrarEntrada = botao("＋ Entrada", Color.rgb(21, 128, 61));
+        acoes.addView(adicionarProduto, new LinearLayout.LayoutParams(0, dp(48), 1));
+        LinearLayout.LayoutParams entradaParams = new LinearLayout.LayoutParams(0, dp(48), 1);
+        entradaParams.setMargins(dp(8), 0, 0, 0);
+        acoes.addView(registrarEntrada, entradaParams);
+        raiz.addView(acoes);
+        TextView estado = texto("Carregando saldos...", 13, false);
+        estado.setPadding(0, dp(10), 0, dp(4));
+        raiz.addView(estado);
+        LinearLayout lista = coluna();
+        raiz.addView(lista);
+        final JSONArray[] produtosAtuais = {new JSONArray()};
+        Runnable carregar = () -> {
+            String chave = modulo.getSelectedItemPosition() == 1 ? "estrada" : "raios";
+            estado.setText("Atualizando estoque...");
+            new Thread(() -> {
+                try {
+                    JSONObject resposta = buscarObjetoApi("/api/stock?module=" + chave);
+                    JSONArray produtos = resposta.optJSONArray("products");
+                    if (produtos == null) produtos = new JSONArray();
+                    JSONArray finalProdutos = produtos;
+                    runOnUiThread(() -> {
+                        produtosAtuais[0] = finalProdutos;
+                        lista.removeAllViews();
+                        estado.setText(finalProdutos.length() + " produto(s) neste estoque · atualizado agora");
+                        if (finalProdutos.length() == 0) lista.addView(cardLeitura("Nenhum produto cadastrado", "Cadastre um produto para começar a movimentação.", "", "", Color.rgb(240, 249, 244)));
+                        for (int i = 0; i < finalProdutos.length(); i++) {
+                            JSONObject item = finalProdutos.optJSONObject(i);
+                            if (item == null) continue;
+                            String saldo = formatarNumero(item.optDouble("balance", 0)) + " " + item.optString("unit", "UN");
+                            lista.addView(cardLeitura(item.optString("name", "Produto"), "SKU: " + item.optString("sku", "—"), "Saldo disponível: " + saldo,
+                                item.optInt("sales_count", 0) + " venda(s) no histórico", Color.WHITE));
+                        }
+                    });
+                } catch (Exception e) {
+                    runOnUiThread(() -> {
+                        lista.removeAllViews(); estado.setText("Não foi possível consultar o estoque.");
+                        lista.addView(cardLeitura("Estoque indisponível", "Confira a conexão e seu acesso ao módulo da empresa.", "", mensagemErroSimples(e), Color.rgb(255, 247, 237)));
+                    });
+                }
+            }).start();
+        };
+        modulo.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) { carregar.run(); }
+            @Override public void onNothingSelected(AdapterView<?> parent) { }
+        });
+        adicionarProduto.setOnClickListener(v -> dialogNovoProdutoEstoque(modulo.getSelectedItemPosition() == 1 ? "estrada" : "raios", carregar));
+        registrarEntrada.setOnClickListener(v -> dialogEntradaEstoque(modulo.getSelectedItemPosition() == 1 ? "estrada" : "raios", produtosAtuais[0], carregar));
+        setContentView(scroll);
+    }
+
+    private void dialogNovoProdutoEstoque(String modulo, Runnable aoSalvar) {
+        LinearLayout form = coluna(); form.setPadding(dp(18), dp(8), dp(18), dp(4));
+        EditText nome = campo("Nome do produto", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        EditText sku = campo("Código interno (SKU)", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
+        EditText unidade = campo("Unidade de controle (ex.: UN, KG, CX)", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
+        EditText aliases = campo("Nomes usados nas vendas (opcional)", InputType.TYPE_CLASS_TEXT);
+        form.addView(rotuloCampo("NOME")); form.addView(nome);
+        form.addView(rotuloCampo("SKU")); form.addView(sku);
+        form.addView(rotuloCampo("UNIDADE")); form.addView(unidade);
+        form.addView(rotuloCampo("ALIASES")); form.addView(aliases);
+        ScrollView scroll = new ScrollView(this); scroll.addView(form);
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Cadastrar produto no estoque")
+            .setView(scroll).setNegativeButton("Cancelar", null).setPositiveButton("Cadastrar", null).create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
+            String productName = nome.getText().toString().trim();
+            String productSku = sku.getText().toString().trim();
+            String productUnit = unidade.getText().toString().trim();
+            if (productName.isEmpty() || productSku.isEmpty() || productUnit.isEmpty()) { aviso("Preencha nome, SKU e unidade."); return; }
+            JSONArray listaAliases = new JSONArray();
+            for (String alias : aliases.getText().toString().split(",")) if (!alias.trim().isEmpty()) listaAliases.put(alias.trim());
+            JSONObject body = new JSONObject();
+            try { body.put("module", modulo); body.put("name", productName); body.put("sku", productSku); body.put("unit", productUnit); body.put("aliases", listaAliases); }
+            catch (Exception e) { aviso("Não foi possível preparar o produto."); return; }
+            view.setEnabled(false);
+            new Thread(() -> {
+                try {
+                    enviarObjetoApi("/api/stock/products", "POST", body);
+                    runOnUiThread(() -> { dialog.dismiss(); aviso("Produto cadastrado no estoque do ERP."); aoSalvar.run(); });
+                } catch (Exception e) { runOnUiThread(() -> { view.setEnabled(true); aviso("Não foi possível cadastrar: " + mensagemErroSimples(e)); }); }
+            }).start();
+        }));
+        dialog.show();
+    }
+
+    private void dialogEntradaEstoque(String modulo, JSONArray produtos, Runnable aoSalvar) {
+        if (produtos == null || produtos.length() == 0) { aviso("Cadastre ou atualize os produtos antes de registrar uma entrada."); return; }
+        LinearLayout form = coluna(); form.setPadding(dp(18), dp(6), dp(18), dp(4));
+        Spinner produto = new Spinner(this);
+        List<String> nomes = new ArrayList<>();
+        for (int i = 0; i < produtos.length(); i++) { JSONObject row = produtos.optJSONObject(i); if (row != null) nomes.add(row.optString("name") + " · " + row.optString("unit")); }
+        produto.setAdapter(adaptadorSpinner(nomes));
+        EditText quantidade = campo("Quantidade recebida", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        quantidade.setKeyListener(DigitsKeyListener.getInstance("0123456789,."));
+        EditText referencia = campo("Referência (NF, compra, inventário)", InputType.TYPE_CLASS_TEXT);
+        EditText observacao = campo("Observação (opcional)", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        form.addView(rotuloCampo("PRODUTO")); form.addView(produto);
+        form.addView(rotuloCampo("QUANTIDADE")); form.addView(quantidade);
+        form.addView(rotuloCampo("REFERÊNCIA")); form.addView(referencia);
+        form.addView(rotuloCampo("OBSERVAÇÃO")); form.addView(observacao);
+        ScrollView scroll = new ScrollView(this); scroll.addView(form);
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Registrar entrada no estoque")
+            .setView(scroll).setNegativeButton("Cancelar", null).setPositiveButton("Registrar", null).create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
+            JSONObject selected = produtos.optJSONObject(produto.getSelectedItemPosition());
+            double qty;
+            try { qty = Double.parseDouble(quantidade.getText().toString().replace(',', '.')); }
+            catch (Exception e) { qty = 0; }
+            if (selected == null || qty <= 0 || !Double.isFinite(qty)) { aviso("Escolha um produto e informe uma quantidade válida."); return; }
+            JSONObject body = new JSONObject();
+            String dataHoje = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Calendar.getInstance().getTime());
+            try { body.put("module", modulo); body.put("product_id", selected.optString("id")); body.put("movement_type", "entry"); body.put("quantity", qty); body.put("movement_date", dataHoje); body.put("reference", referencia.getText().toString().trim()); body.put("notes", observacao.getText().toString().trim()); }
+            catch (Exception e) { aviso("Não foi possível preparar a entrada."); return; }
+            view.setEnabled(false);
+            new Thread(() -> {
+                try {
+                    enviarObjetoApi("/api/stock/movements", "POST", body);
+                    runOnUiThread(() -> { dialog.dismiss(); aviso("Entrada registrada no estoque do ERP."); aoSalvar.run(); });
+                } catch (Exception e) { runOnUiThread(() -> { view.setEnabled(true); aviso("Entrada não registrada: " + mensagemErroSimples(e)); }); }
+            }).start();
+        }));
+        dialog.show();
+    }
 
     private void abrirModuloBoletos() {
         if (!"admin".equalsIgnoreCase(authPrefs().getString("role", "").trim())) {
@@ -3360,6 +3506,11 @@ public class MainActivity extends FragmentActivity {
         scroll.addView(raiz);
         adicionarCabecalhoModulo(raiz, "Avarias", "Leitura das ocorrências registradas no sistema.");
         adicionarFiltrosPeriodo(raiz, periodo, p -> abrirModuloAvarias(p));
+        Button inserirAvaria = botao("＋ Inserir avaria", Color.rgb(185, 55, 45));
+        LinearLayout.LayoutParams inserirParams = new LinearLayout.LayoutParams(-1, dp(50));
+        inserirParams.setMargins(0, dp(6), 0, dp(10));
+        raiz.addView(inserirAvaria, inserirParams);
+        inserirAvaria.setOnClickListener(v -> abrirFormularioAvaria(periodo));
         TextView resumo = texto("Carregando avarias...", 15, true);
         resumo.setGravity(Gravity.CENTER_HORIZONTAL);
         raiz.addView(resumo);
@@ -3371,6 +3522,83 @@ public class MainActivity extends FragmentActivity {
         raiz.addView(atualizar);
         setContentView(scroll);
         carregarAvarias(periodo, resumo, lista, atualizar);
+    }
+
+    private void abrirFormularioAvaria(String periodoRetorno) {
+        aviso("Carregando responsáveis...");
+        new Thread(() -> {
+            try {
+                JSONArray vendedores = buscarArrayApi("/api/sellers?module_context=avaria");
+                runOnUiThread(() -> mostrarFormularioAvaria(vendedores, periodoRetorno));
+            } catch (Exception e) {
+                runOnUiThread(() -> aviso("Não foi possível carregar os responsáveis do ERP: " + mensagemErroSimples(e)));
+            }
+        }).start();
+    }
+
+    private void mostrarFormularioAvaria(JSONArray vendedores, String periodoRetorno) {
+        if (vendedores == null || vendedores.length() == 0) { aviso("Cadastre um responsável ativo no ERP antes de lançar uma avaria."); return; }
+        LinearLayout form = coluna(); form.setPadding(dp(18), dp(5), dp(18), dp(5));
+        EditText clienteAvaria = campo("Cliente / estabelecimento", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
+        EditText produtoAvaria = campo("Produto avariado", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        EditText quantidadeAvaria = campo("Quantidade", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        quantidadeAvaria.setKeyListener(DigitsKeyListener.getInstance("0123456789,."));
+        Spinner unidadeAvaria = new Spinner(this); unidadeAvaria.setAdapter(adaptadorSpinner(new String[]{"UN", "KG", "CX", "MC", "SC"}));
+        EditText valorAvaria = campo("Valor unitário (R$)", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        valorAvaria.setKeyListener(DigitsKeyListener.getInstance("0123456789,."));
+        EditText motivoAvaria = campo("Motivo / observação", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        EditText dataAvaria = campo("Data da ocorrência", InputType.TYPE_CLASS_DATETIME);
+        dataAvaria.setFocusable(false);
+        dataAvaria.setText(new SimpleDateFormat("dd/MM/yyyy", new Locale("pt", "BR")).format(Calendar.getInstance().getTime()));
+        dataAvaria.setOnClickListener(v -> {
+            Calendar c = Calendar.getInstance();
+            new DatePickerDialog(this, (picker, year, month, day) -> dataAvaria.setText(String.format(new Locale("pt", "BR"), "%02d/%02d/%04d", day, month + 1, year)), c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).show();
+        });
+        Spinner responsavel = new Spinner(this);
+        List<String> responsaveis = new ArrayList<>();
+        for (int i = 0; i < vendedores.length(); i++) { JSONObject row = vendedores.optJSONObject(i); if (row != null) responsaveis.add(row.optString("name", "Responsável")); }
+        responsavel.setAdapter(adaptadorSpinner(responsaveis));
+        form.addView(rotuloCampo("CLIENTE")); form.addView(clienteAvaria);
+        form.addView(rotuloCampo("PRODUTO")); form.addView(produtoAvaria);
+        LinearLayout linhaQtd = new LinearLayout(this); linhaQtd.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout qtdCol = coluna(); qtdCol.addView(rotuloCampo("QUANTIDADE")); qtdCol.addView(quantidadeAvaria);
+        LinearLayout unCol = coluna(); unCol.addView(rotuloCampo("UNIDADE")); unCol.addView(unidadeAvaria);
+        linhaQtd.addView(qtdCol, new LinearLayout.LayoutParams(0, -2, 1));
+        LinearLayout.LayoutParams unParams = new LinearLayout.LayoutParams(0, -2, 1); unParams.setMargins(dp(8), 0, 0, 0); linhaQtd.addView(unCol, unParams);
+        form.addView(linhaQtd);
+        form.addView(rotuloCampo("VALOR UNITÁRIO (R$)")); form.addView(valorAvaria);
+        form.addView(rotuloCampo("DATA")); form.addView(dataAvaria);
+        form.addView(rotuloCampo("RESPONSÁVEL")); form.addView(responsavel);
+        form.addView(rotuloCampo("MOTIVO / OBSERVAÇÃO")); form.addView(motivoAvaria);
+        ScrollView scroll = new ScrollView(this); scroll.setFillViewport(false); scroll.addView(form);
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Registrar avaria")
+            .setView(scroll).setNegativeButton("Cancelar", null).setPositiveButton("Salvar no ERP", null).create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(button -> {
+            String productName = produtoAvaria.getText().toString().trim();
+            String clientName = clienteAvaria.getText().toString().trim();
+            double qty, unitPrice;
+            try { qty = Double.parseDouble(quantidadeAvaria.getText().toString().replace(',', '.')); } catch (Exception e) { qty = 0; }
+            try { unitPrice = Double.parseDouble(valorAvaria.getText().toString().replace(',', '.')); } catch (Exception e) { unitPrice = 0; }
+            int index = responsavel.getSelectedItemPosition();
+            JSONObject seller = vendedores.optJSONObject(index);
+            if (clientName.isEmpty() || productName.isEmpty() || qty <= 0 || seller == null) { aviso("Informe cliente, produto, quantidade e responsável."); return; }
+            JSONObject body = new JSONObject();
+            try {
+                body.put("sale_type", "AVARIA"); body.put("sale_date", dataApiBR(dataAvaria.getText().toString()));
+                body.put("client", nomeClienteMaiusculo(clientName)); body.put("product", productName);
+                body.put("quantity", qty); body.put("unit_price", unitPrice); body.put("total", qty * unitPrice);
+                body.put("notes", motivoAvaria.getText().toString().trim()); body.put("delivery_person", seller.optString("name"));
+                body.put("seller_id", seller.optString("id")); body.put("source", "mobile"); body.put("plate", ""); body.put("nf_number", "");
+            } catch (Exception e) { aviso("Não foi possível preparar o lançamento."); return; }
+            button.setEnabled(false);
+            new Thread(() -> {
+                try {
+                    enviarObjetoApi("/api/sales", "POST", body);
+                    runOnUiThread(() -> { dialog.dismiss(); aviso("Avaria registrada no ERP."); abrirModuloAvarias(periodoRetorno); });
+                } catch (Exception e) { runOnUiThread(() -> { button.setEnabled(true); aviso("Avaria não registrada: " + mensagemErroSimples(e)); }); }
+            }).start();
+        }));
+        dialog.show();
     }
 
     private void carregarAvarias(String periodo, TextView resumo, LinearLayout lista, Button atualizar) {
@@ -4122,18 +4350,19 @@ public class MainActivity extends FragmentActivity {
             iniciarAppLogado();
             return;
         }
-        new AlertDialog.Builder(this)
-            .setTitle("Usar biometria?")
-            .setMessage("Deseja usar biometria para abrir o app neste aparelho?")
-            .setNegativeButton("Agora nao", (d, w) -> {
-                setBiometriaAtiva(false);
-                iniciarAppLogado();
-            })
-            .setPositiveButton("Ativar biometria", (d, w) -> autenticarBiometria("Ativar biometria", () -> {
-                setBiometriaAtiva(true);
-                iniciarAppLogado();
-            }))
-            .show();
+        carregarMensagemMotivacional(mensagem -> {
+            LinearLayout painel = coluna(); painel.setPadding(dp(20), dp(10), dp(20), dp(4));
+            TextView frase = texto(mensagem.isEmpty() ? "A mensagem motivacional do ERP aparecerá aqui quando estiver disponível." : mensagem, 17, true);
+            frase.setGravity(Gravity.CENTER); frase.setPadding(dp(12), dp(20), dp(12), dp(20));
+            frase.setBackground(fundoComBorda(Color.rgb(240, 248, 242), Color.rgb(198, 222, 203), 16));
+            painel.addView(frase);
+            new AlertDialog.Builder(this).setTitle("Proteja seu acesso")
+                .setMessage("Uma mensagem para começar o dia. Escolha como deseja entrar neste aparelho.")
+                .setView(painel)
+                .setNegativeButton("Continuar sem biometria", (d, w) -> { setBiometriaAtiva(false); iniciarAppLogado(); })
+                .setPositiveButton("Ativar biometria", (d, w) -> autenticarBiometria("Ativar biometria", () -> { setBiometriaAtiva(true); iniciarAppLogado(); }))
+                .show();
+        });
     }
 
     private void mostrarTelaBiometria() {
@@ -4155,6 +4384,16 @@ public class MainActivity extends FragmentActivity {
         status.setGravity(Gravity.CENTER_HORIZONTAL);
         status.setPadding(0, 0, 0, dp(14));
         raiz.addView(status);
+        TextView mensagemDoDia = texto("Carregando a mensagem motivacional do ERP...", 16, true);
+        mensagemDoDia.setGravity(Gravity.CENTER);
+        mensagemDoDia.setPadding(dp(18), dp(22), dp(18), dp(22));
+        mensagemDoDia.setBackground(fundoComBorda(Color.rgb(240, 248, 242), Color.rgb(198, 222, 203), 16));
+        LinearLayout.LayoutParams mensagemParams = new LinearLayout.LayoutParams(-1, -2);
+        mensagemParams.setMargins(0, 0, 0, dp(18));
+        raiz.addView(mensagemDoDia, mensagemParams);
+        carregarMensagemMotivacional(mensagem -> mensagemDoDia.setText(mensagem.isEmpty()
+            ? "Que seu trabalho de hoje renda bons frutos."
+            : mensagem));
         Button usar = botao("Usar biometria", Color.rgb(21, 128, 61));
         usar.setOnClickListener(v -> autenticarBiometria("Entrar no app", () -> iniciarAppLogado()));
         raiz.addView(usar);
@@ -4162,9 +4401,33 @@ public class MainActivity extends FragmentActivity {
         umaVez.setOnClickListener(v -> iniciarAppLogado());
         raiz.addView(umaVez);
         Button sair = botao("Sair da conta", Color.rgb(185, 28, 28));
+        LinearLayout.LayoutParams sairParams = new LinearLayout.LayoutParams(-1, -2);
+        sairParams.setMargins(0, dp(8), 0, 0);
+        sair.setLayoutParams(sairParams);
         sair.setOnClickListener(v -> sairDaConta(true));
         raiz.addView(sair);
         setContentView(montarTelaAutenticacao(scroll, raiz));
+    }
+
+    private interface MensagemMotivacionalCallback { void aoCarregar(String mensagem); }
+
+    private void carregarMensagemMotivacional(MensagemMotivacionalCallback callback) {
+        String salva = getSharedPreferences("daily_motivation", MODE_PRIVATE).getString("message", "").trim();
+        new Thread(() -> {
+            String mensagem = salva;
+            try {
+                JSONObject json = buscarObjetoApi("/api/mobile/daily-motivation");
+                mensagem = json.optString("message", "").trim();
+                String horario = json.optString("time", "07:00");
+                getSharedPreferences("daily_motivation", MODE_PRIVATE).edit()
+                    .putString("message", mensagem).putString("title", json.optString("title", "Mensagem do dia"))
+                    .putString("date", json.optString("date", new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Calendar.getInstance().getTime())))
+                    .putString("time", horario).putBoolean("enabled", json.optBoolean("enabled", false)).apply();
+                if (adminNotificacoes() && json.optBoolean("enabled", false) && !mensagem.isEmpty()) DailyMotivationReceiver.agendar(this, horario);
+            } catch (Exception ignored) { }
+            final String finalMensagem = mensagem;
+            if (callback != null) runOnUiThread(() -> callback.aoCarregar(finalMensagem));
+        }).start();
     }
 
     private boolean biometriaDisponivel() {
@@ -5730,11 +5993,6 @@ public class MainActivity extends FragmentActivity {
         return nome == null ? "" : nome.trim().toUpperCase(new Locale("pt", "BR"));
     }
 
-    private boolean clienteEhEstoque(String nome) {
-        String normalizado = normalizarNomeProduto(nome).replaceAll("[^A-Z0-9]", "");
-        return "ESTOQUE".equals(normalizado);
-    }
-
     private void prepararEnvioNota(String nomeCliente) {
         definirStatusEnvio("Verificando se já existe uma nota para evitar duplicidade...", Color.rgb(37, 99, 235));
         enviarSistemaButton.setEnabled(false);
@@ -5743,9 +6001,6 @@ public class MainActivity extends FragmentActivity {
         final JSONObject body;
         try {
             body = criarPayload(pedidoId, nomeCliente, data.getText().toString().trim(), itensEnvio);
-            if (envioOrigemVoz && clienteEhEstoque(nomeCliente)) {
-                normalizarProdutosEstoque(body);
-            }
         }
         catch (Exception e) {
             restaurarBotaoEnvio();
@@ -5760,35 +6015,6 @@ public class MainActivity extends FragmentActivity {
             });
     }
 
-    private void normalizarProdutosEstoque(JSONObject body) throws Exception {
-        JSONArray produtosJson = body.optJSONArray("items");
-        if (produtosJson == null) return;
-        for (int i = 0; i < produtosJson.length(); i++) {
-            JSONObject item = produtosJson.optJSONObject(i);
-            if (item == null) continue;
-            String nome = normalizarNomeProduto(item.optString("product", ""))
-                .replaceAll("[^A-Z0-9]", "");
-            String produtoCanonico;
-            if (nome.matches("ALHO(DESCASCADO)?(250(G|GR|GRAMAS))?")) {
-                produtoCanonico = "Alho 250g";
-            } else if (nome.matches("MACAXEIRA(A)?VACUO")) {
-                produtoCanonico = "Macaxeira a Vácuo";
-            } else {
-                continue;
-            }
-
-            double quantidade = item.optDouble("quantity", Double.NaN);
-            if (Double.isNaN(quantidade) || Double.isInfinite(quantidade) || quantidade <= 0) {
-                quantidade = item.optDouble("weight", Double.NaN);
-            }
-            if (Double.isNaN(quantidade) || Double.isInfinite(quantidade) || quantidade <= 0) continue;
-            item.put("product", produtoCanonico);
-            item.put("unit", "UN");
-            item.put("quantity", quantidade);
-            item.put("weight", quantidade);
-        }
-    }
-
     private void enviarNotaSistema(String nomeCliente, JSONObject body, List<ItemPedido> itensEnvio, String mergeIntoNoteId) {
         definirStatusEnvio("Enviando nota ao servidor...", Color.rgb(37, 99, 235));
         enviarSistemaButton.setEnabled(false);
@@ -5796,7 +6022,6 @@ public class MainActivity extends FragmentActivity {
         try {
             body.put("merge_decided", true);
             body.put("merge_into_note_id", mergeIntoNoteId == null ? "" : mergeIntoNoteId);
-            body.put("stock_intake", envioOrigemVoz && clienteEhEstoque(nomeCliente));
         } catch (Exception e) {
             restaurarBotaoEnvio();
             definirStatusEnvio("Não foi possível iniciar o envio. A nota continua em edição.", Color.rgb(185, 28, 28));
@@ -5805,9 +6030,6 @@ public class MainActivity extends FragmentActivity {
         new Thread(() -> {
             try {
                 JSONObject resposta = postarNota(body);
-                JSONObject entradaEstoque = resposta.optJSONObject("stock_intake");
-                if (body.optBoolean("stock_intake") && entradaEstoque == null)
-                    throw new Exception("servidor ainda não confirmou a entrada automática no estoque");
                 JSONObject submissao = resposta.optJSONObject("submission");
                 if (submissao != null) body.put("server_submission", submissao);
                 salvarNotaEnviada(body);
@@ -5818,14 +6040,7 @@ public class MainActivity extends FragmentActivity {
                     if (envioOrigemVoz) {
                         envioOrigemVoz = false;
                         limparRascunhoVoz();
-                        String confirmacao = "Nota enviada. ";
-                        if (body.optBoolean("stock_intake")) {
-                            confirmacao += entradaEstoque.optBoolean("duplicate")
-                                ? "O estoque já havia sido atualizado para esta nota."
-                                : entradaEstoque.optInt("items_added") + " item(ns) somado(s) ao estoque da Menina dos Raios.";
-                        } else {
-                            confirmacao += "Pode iniciar o próximo pedido.";
-                        }
+                        String confirmacao = "Nota enviada ao ERP. Pode iniciar o próximo pedido.";
                         Toast.makeText(this, confirmacao, Toast.LENGTH_LONG).show();
                         iniciarSessaoVoz();
                         return;

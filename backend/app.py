@@ -29,7 +29,7 @@ try:
     from .orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from .permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from .repositories.sellers_repository import init_sellers_schema
-    from .inventory import MODULES as STOCK_MODULES, ensure_stock_balance_count, init_inventory_schema, inventory_product_sales, inventory_snapshot, record_app_note_stock_intake
+    from .inventory import MODULES as STOCK_MODULES, ensure_stock_balance_count, init_inventory_schema, inventory_product_sales, inventory_snapshot
     from .repositories.whatsapp_repository import init_whatsapp_schema
     from .routers.sellers import create_sellers_router
     from .routers.whatsapp_clients import create_whatsapp_clients_router
@@ -52,7 +52,7 @@ except ImportError:
     from orcamentos import QuoteItemsLimitError, _quote_companies, _quote_company, quote_totals_from_items
     from permissions_tabs import TAB_PERMISSION_ALIASES, _expand_tab_keys, permissions_configured_from_map, session_has_any_tab_from_map, tab_permissions_map_from_db
     from repositories.sellers_repository import init_sellers_schema
-    from inventory import MODULES as STOCK_MODULES, ensure_stock_balance_count, init_inventory_schema, inventory_product_sales, inventory_snapshot, record_app_note_stock_intake
+    from inventory import MODULES as STOCK_MODULES, ensure_stock_balance_count, init_inventory_schema, inventory_product_sales, inventory_snapshot
     from repositories.whatsapp_repository import init_whatsapp_schema
     from routers.sellers import create_sellers_router
     from routers.whatsapp_clients import create_whatsapp_clients_router
@@ -7454,6 +7454,28 @@ def motivation_status(x_token: str = Header(...)):
             "templates":count,"active_contacts":contacts,"scheduler_running":MOTIVATION_SCHEDULER_STARTED,
             "provider":cfg.get("provider","ultramsg"),"provider_configured":bool(cfg.get("api_url") and cfg.get("api_token"))}
 
+@app.get("/api/mobile/daily-motivation")
+def mobile_daily_motivation(x_token: str = Header("")):
+    """Return the existing ERP daily motivation for the authenticated app session."""
+    require_auth(x_token)
+    now = _motivation_now()
+    conn = get_db()
+    try:
+        cfg = {row["key"]: row["value"] for row in conn.execute(
+            "SELECT key,value FROM whatsapp_config WHERE key IN ('motivation_enabled','motivation_time')"
+        ).fetchall()}
+        templates = _motivation_templates(conn)
+        if not templates:
+            return {"enabled": False, "date": now.strftime("%Y-%m-%d"), "message": ""}
+        item = templates[(now.toordinal() - 1) % len(templates)]
+        return {"enabled": cfg.get("motivation_enabled", "1") == "1",
+                "date": now.strftime("%Y-%m-%d"),
+                "time": cfg.get("motivation_time", "07:00") or "07:00",
+                "title": item.get("name") or "Mensagem do dia",
+                "message": (item.get("content") or "").strip()}
+    finally:
+        conn.close()
+
 @app.post("/api/whatsapp/motivation-send-now")
 def motivation_send_now(x_token: str = Header(...)):
     require_admin(x_token);return send_daily_motivation(force=True)
@@ -7733,38 +7755,14 @@ def find_mobile_app_note_matches(
     finally:
         conn.close()
 
-def _app_note_stock_intake(body, client, external_id, items, x_token, sess):
-    if not body.get("stock_intake") or _normalize_name(client) != _normalize_name("ESTOQUE"):
-        return None
-    require_editor(x_token)
-    require_module_action(x_token, "menina_dos_raios", "consolidado", "create")
-    raw_date = str(body.get("date") or body.get("note_date") or "").strip()
-    movement_date = None
-    for date_format in ("%d/%m/%Y", "%Y-%m-%d"):
-        try:
-            movement_date = datetime.strptime(raw_date, date_format).date().isoformat()
-            break
-        except ValueError:
-            pass
-    if movement_date is None:
-        raise HTTPException(400, "Data da nota inválida para entrada no estoque.")
-    stock_conn = get_db("raios")
-    try:
-        init_inventory_schema(stock_conn)
-        return record_app_note_stock_intake(
-            stock_conn, external_id, items, movement_date, sess.get("username", "")
-        )
-    except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
-    finally:
-        stock_conn.close()
-
 @app.post("/api/app-notes/mobile")
 def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-token"),x_token:str=Header("")):
     _require_app_note_token(x_app_token)
     sess=get_session(x_token) if x_token else {}
     if x_token and not sess:
         raise HTTPException(401,"Sessão inválida. Faça login novamente.")
+    if body.get("stock_intake"):
+        raise HTTPException(409,"A entrada no estoque agora deve ser registrada pela opção Estoque do aplicativo. Nenhum lançamento foi salvo.")
     external_id=str(body.get("external_id") or "").strip()[:80]
     if not external_id: raise HTTPException(400,"Identificador da nota obrigatÃ³rio.")
     client,note_date,items,total=_clean_app_note(body)
@@ -7776,9 +7774,7 @@ def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-toke
             existing=conn.execute("SELECT * FROM app_notes WHERE id=?",(submission["note_id"],)).fetchone()
             submitted=conn.execute("SELECT * FROM app_note_submissions WHERE external_id=?",(external_id,)).fetchone()
             result=_app_note_dict(conn,existing)
-            stock_intake=_app_note_stock_intake(body, client, external_id, items, x_token, sess)
-            return {"ok":True,"duplicate":True,"merged":False,"note":result,"submission":dict(submitted),
-                    **({"stock_intake":stock_intake} if stock_intake is not None else {})}
+            return {"ok":True,"duplicate":True,"merged":False,"note":result,"submission":dict(submitted)}
         note_id=str(uuid.uuid4()); now=datetime.now().isoformat(timespec="seconds")
         merge_target=None
         if merge_into_id:
@@ -7813,9 +7809,7 @@ def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-toke
         raise
     finally:
         conn.close()
-    stock_intake=_app_note_stock_intake(body, client, external_id, items, x_token, sess)
-    return {"ok":True,"duplicate":False,"merged":merged_note,"note":result,"submission":dict(submitted),
-            **({"stock_intake":stock_intake} if stock_intake is not None else {})}
+    return {"ok":True,"duplicate":False,"merged":merged_note,"note":result,"submission":dict(submitted)}
 
 @app.get("/api/app-notes")
 def list_app_notes(client:Optional[str]=None,month:Optional[str]=None,year:Optional[str]=None,status:Optional[str]=None,x_token:str=Header("")):
