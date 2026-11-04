@@ -489,6 +489,25 @@ public class MainActivity extends FragmentActivity {
         TextView apoio = texto("Acesse uma operação ou acompanhe os resultados.", 13, false);
         apoio.setPadding(0, 0, 0, dp(12));
         raiz.addView(apoio);
+        LinearLayout destaqueDia = new LinearLayout(this);
+        destaqueDia.setOrientation(LinearLayout.VERTICAL);
+        destaqueDia.setPadding(dp(16), dp(14), dp(16), dp(14));
+        destaqueDia.setBackground(fundoCardModulo(Color.rgb(21, 101, 52)));
+        TextView destaqueTitulo = texto("OPERAÇÃO DO DIA", 11, true);
+        destaqueTitulo.setTextColor(Color.rgb(194, 230, 205));
+        destaqueDia.addView(destaqueTitulo);
+        TextView destaqueTexto = texto("Registre uma entrega e acompanhe as notas em um só lugar.", 15, true);
+        destaqueTexto.setTextColor(Color.WHITE);
+        destaqueTexto.setPadding(0, dp(4), 0, dp(10));
+        destaqueDia.addView(destaqueTexto);
+        Button iniciarEntrega = botao("＋  Lançar entrega", Color.WHITE);
+        iniciarEntrega.setTextColor(Color.rgb(20, 83, 45));
+        iniciarEntrega.setBackground(fundoComBorda(Color.WHITE, Color.WHITE, 10));
+        iniciarEntrega.setOnClickListener(v -> abrirTelaPedido());
+        destaqueDia.addView(iniciarEntrega, new LinearLayout.LayoutParams(-1, dp(44)));
+        LinearLayout.LayoutParams destaqueParams = new LinearLayout.LayoutParams(-1, -2);
+        destaqueParams.setMargins(0, 0, 0, dp(12));
+        raiz.addView(destaqueDia, destaqueParams);
         TextView mensagemDoDia = texto("Carregando mensagem do dia...", 14, true);
         mensagemDoDia.setPadding(dp(14), dp(12), dp(14), dp(12));
         mensagemDoDia.setBackground(fundoComBorda(Color.rgb(240, 248, 242), Color.rgb(205, 225, 209), 12));
@@ -579,18 +598,19 @@ public class MainActivity extends FragmentActivity {
             LinearLayout.LayoutParams tituloParams = new LinearLayout.LayoutParams(-1, -2);
             tituloParams.setMargins(0, dp(6), 0, dp(4));
             destino.addView(tituloCategoria, tituloParams);
-            int colunas = getResources().getConfiguration().screenWidthDp >= 600 ? 2 : 1;
+            int larguraTela = getResources().getConfiguration().screenWidthDp;
+            int colunas = larguraTela >= 900 ? 3 : (larguraTela >= 360 ? 2 : 1);
             for (int i = 0; i < visiveis.size(); i += colunas) {
                 LinearLayout linha = new LinearLayout(this);
                 linha.setOrientation(LinearLayout.HORIZONTAL);
                 for (int coluna = 0; coluna < colunas && i + coluna < visiveis.size(); coluna++) {
                     ModuloHome modulo = visiveis.get(i + coluna);
-                    LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(0, dp(76), 1);
+                    LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(0, dp(104), 1);
                     itemParams.setMargins(coluna == 0 ? 0 : dp(6), dp(4), coluna == 0 && colunas == 2 ? dp(6) : 0, dp(4));
                     linha.addView(cartaoModuloHome(modulo), itemParams);
                 }
                 if (colunas == 2 && visiveis.size() % 2 == 1 && i + 1 >= visiveis.size()) {
-                    linha.addView(new View(this), new LinearLayout.LayoutParams(0, dp(76), 1));
+                    linha.addView(new View(this), new LinearLayout.LayoutParams(0, dp(104), 1));
                 }
                 destino.addView(linha);
             }
@@ -605,10 +625,10 @@ public class MainActivity extends FragmentActivity {
 
     private View cartaoModuloHome(ModuloHome modulo) {
         LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
         card.setPadding(dp(12), dp(10), dp(12), dp(10));
-        card.setBackground(fundoComBorda(COR_CARD_ESCURO, Color.rgb(216, 227, 220), 12));
+        card.setBackground(fundoCardModulo(modulo.cor));
 
         TextView sigla = new TextView(this);
         sigla.setText(modulo.sigla);
@@ -617,22 +637,26 @@ public class MainActivity extends FragmentActivity {
         sigla.setTypeface(null, 1);
         sigla.setGravity(Gravity.CENTER);
         sigla.setBackground(fundoComBorda(Color.rgb(232, 243, 235), Color.rgb(209, 227, 215), 12));
-        card.addView(sigla, new LinearLayout.LayoutParams(dp(42), dp(42)));
+        sigla.setBackground(fundoComBorda(Color.rgb(232, 243, 235), Color.rgb(209, 227, 215), 9));
+        LinearLayout.LayoutParams siglaParams = new LinearLayout.LayoutParams(dp(34), dp(28));
+        siglaParams.setMargins(0, 0, 0, dp(6));
+        card.addView(sigla, siglaParams);
 
         LinearLayout textos = coluna();
-        textos.setPadding(dp(12), 0, dp(6), 0);
+        textos.setPadding(0, 0, 0, 0);
         TextView titulo = texto(modulo.titulo, 15, true);
         titulo.setSingleLine(true);
         titulo.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        TextView descricao = texto(modulo.descricao, 12, false);
-        descricao.setSingleLine(true);
+        TextView descricao = texto(modulo.descricao, 11, false);
+        descricao.setMaxLines(2);
         descricao.setEllipsize(android.text.TextUtils.TruncateAt.END);
         textos.addView(titulo);
         textos.addView(descricao);
-        card.addView(textos, new LinearLayout.LayoutParams(0, -2, 1));
-        TextView seta = texto("›", 24, true);
-        seta.setTextColor(COR_TEXTO_SUAVE);
-        card.addView(seta);
+        card.addView(textos, new LinearLayout.LayoutParams(-1, -2));
+        TextView seta = texto("Abrir  ›", 10, true);
+        seta.setTextColor(modulo.cor);
+        seta.setGravity(Gravity.END);
+        card.addView(seta, new LinearLayout.LayoutParams(-1, -2));
         card.setOnClickListener(v -> modulo.acao.run());
         card.setFocusable(true);
         aplicarFeedbackToque(card);
@@ -640,22 +664,35 @@ public class MainActivity extends FragmentActivity {
     }
 
     private View botaoModulo(String titulo, String descricao, int cor, Runnable acao) {
-        LinearLayout card = coluna();
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.HORIZONTAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
         card.setPadding(dp(14), dp(10), dp(14), dp(10));
         card.setBackground(fundoCardModulo(cor));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, dp(96));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, dp(78));
         params.setMargins(0, dp(7), 0, dp(7));
         card.setLayoutParams(params);
-        TextView t = texto(titulo, 18, true);
-        t.setTextColor(COR_TEXTO_CLARO);
-        t.setGravity(Gravity.CENTER_HORIZONTAL);
-        TextView d = texto(descricao, 13, false);
-        d.setTextColor(COR_TEXTO_SUAVE);
-        d.setGravity(Gravity.CENTER_HORIZONTAL);
+        TextView marca = texto("›", 24, true);
+        marca.setTextColor(cor);
+        marca.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams marcaParams = new LinearLayout.LayoutParams(dp(36), dp(36));
+        marcaParams.setMargins(0, 0, dp(12), 0);
+        marca.setBackground(fundoComBorda(Color.rgb(232, 243, 235), Color.rgb(209, 227, 215), 12));
+        card.addView(marca, marcaParams);
+        LinearLayout textos = coluna();
+        TextView t = texto(titulo, 16, true);
+        t.setTextColor(Color.rgb(31, 41, 55));
+        t.setGravity(Gravity.START);
+        TextView d = texto(descricao, 12, false);
+        d.setTextColor(Color.rgb(75, 85, 99));
+        d.setGravity(Gravity.START);
         d.setMaxLines(2);
-        card.addView(t);
-        card.addView(d);
+        textos.addView(t);
+        textos.addView(d);
+        card.addView(textos, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView abrir = texto("Abrir", 11, true);
+        abrir.setTextColor(cor);
+        card.addView(abrir);
         card.setOnClickListener(v -> acao.run());
         card.setElevation(dp(5));
         aplicarFeedbackToque(card);
@@ -1207,6 +1244,7 @@ public class MainActivity extends FragmentActivity {
         raiz.setPadding(dp(18), dp(16), dp(18), dp(24));
         scroll.addView(raiz);
         adicionarCabecalhoModulo(raiz, "Entregas", "Pedidos novos e acompanhamento das notas.");
+        adicionarBannerModulo(raiz, "CENTRAL DE ENTREGAS", "Escolha como registrar ou acompanhar", "Crie uma nota manualmente, dite o pedido ou confira o andamento das entregas.", Color.rgb(21, 101, 52));
         TextView secao = texto("O que você vai fazer?", 16, true);
         secao.setPadding(0, dp(12), 0, dp(6));
         raiz.addView(secao);
@@ -2073,6 +2111,47 @@ public class MainActivity extends FragmentActivity {
         LinearLayout.LayoutParams topoParams = new LinearLayout.LayoutParams(-1, -2);
         topoParams.setMargins(0, 0, 0, dp(14));
         raiz.addView(topo, topoParams);
+    }
+
+    private void adicionarBannerModulo(LinearLayout raiz, String etiqueta, String titulo, String apoio, int cor) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(16), dp(13), dp(16), dp(13));
+        card.setBackground(fundoCardModulo(cor));
+        TextView tag = texto(etiqueta, 10, true);
+        tag.setTextColor(cor);
+        TextView chamada = texto(titulo, 17, true);
+        chamada.setTextColor(Color.rgb(31, 41, 55));
+        chamada.setPadding(0, dp(4), 0, dp(3));
+        TextView detalhe = texto(apoio, 12, false);
+        detalhe.setTextColor(Color.rgb(75, 85, 99));
+        detalhe.setMaxLines(3);
+        card.addView(tag);
+        card.addView(chamada);
+        card.addView(detalhe);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
+        params.setMargins(0, 0, 0, dp(12));
+        raiz.addView(card, params);
+    }
+
+    private void adicionarEtapasPedido(LinearLayout raiz) {
+        LinearLayout etapas = new LinearLayout(this);
+        etapas.setOrientation(LinearLayout.HORIZONTAL);
+        etapas.setGravity(Gravity.CENTER_VERTICAL);
+        String[] nomes = {"1  Cliente", "2  Produtos", "3  Revisar"};
+        for (int i = 0; i < nomes.length; i++) {
+            TextView etapa = texto(nomes[i], 11, true);
+            etapa.setSingleLine(true);
+            etapa.setGravity(Gravity.CENTER);
+            etapa.setTextColor(i == 0 ? Color.WHITE : Color.rgb(75, 85, 99));
+            etapa.setPadding(dp(5), dp(9), dp(5), dp(9));
+            etapa.setBackground(fundoComBorda(i == 0 ? Color.rgb(21, 101, 52) : Color.WHITE,
+                i == 0 ? Color.rgb(21, 101, 52) : Color.rgb(216, 227, 220), 10));
+            LinearLayout.LayoutParams etapaParams = new LinearLayout.LayoutParams(0, -2, 1);
+            etapaParams.setMargins(i == 0 ? 0 : dp(5), 0, 0, dp(10));
+            etapas.addView(etapa, etapaParams);
+        }
+        raiz.addView(etapas);
     }
 
     private void abrirModuloProdutos() {
@@ -3061,6 +3140,7 @@ public class MainActivity extends FragmentActivity {
         raiz.setPadding(dp(18), dp(18), dp(18), dp(28));
         scroll.addView(raiz);
         adicionarCabecalhoModulo(raiz, "Projeção", "Estimativa de saída com base no histórico real.");
+        adicionarBannerModulo(raiz, "PLANEJAMENTO", "Antecipe a saída dos produtos", "Compare períodos e veja tendências antes de organizar as próximas compras.", Color.rgb(37, 99, 235));
 
         LinearLayout filtrosPeriodo = new LinearLayout(this);
         filtrosPeriodo.setOrientation(LinearLayout.HORIZONTAL);
@@ -3422,6 +3502,7 @@ public class MainActivity extends FragmentActivity {
         raiz.setPadding(dp(18), dp(18), dp(18), dp(28));
         scroll.addView(raiz);
         adicionarCabecalhoModulo(raiz, "Produtividade", "Resumo simples do que foi produzido no período.");
+        adicionarBannerModulo(raiz, "DESEMPENHO", "Acompanhe a produção por período", "Veja o total registrado, os dias ativos e os melhores resultados.", Color.rgb(22, 163, 74));
         adicionarFiltrosPeriodo(raiz, periodo, p -> abrirModuloProdutividade(p));
         TextView resumo = texto("Carregando produtividade...", 15, true);
         raiz.addView(resumo);
@@ -3505,6 +3586,7 @@ public class MainActivity extends FragmentActivity {
         raiz.setPadding(dp(18), dp(18), dp(18), dp(28));
         scroll.addView(raiz);
         adicionarCabecalhoModulo(raiz, "Avarias", "Leitura das ocorrências registradas no sistema.");
+        adicionarBannerModulo(raiz, "CONTROLE DE PERDAS", "Registre e acompanhe avarias", "Informe produto, quantidade, valor e responsável. Os registros ficam sincronizados com o ERP.", Color.rgb(185, 55, 45));
         adicionarFiltrosPeriodo(raiz, periodo, p -> abrirModuloAvarias(p));
         Button inserirAvaria = botao("＋ Inserir avaria", Color.rgb(185, 55, 45));
         LinearLayout.LayoutParams inserirParams = new LinearLayout.LayoutParams(-1, dp(50));
@@ -3779,6 +3861,7 @@ public class MainActivity extends FragmentActivity {
         raiz.setPadding(dp(18), dp(18), dp(18), dp(28));
         scroll.addView(raiz);
         adicionarCabecalhoModulo(raiz, "Consolidado", "Resumo por período para leitura rápida.");
+        adicionarBannerModulo(raiz, "VISÃO GERAL", "Entenda o resultado do período", "Vendas, avarias e saldo líquido organizados em uma leitura única.", Color.rgb(124, 58, 237));
         adicionarFiltrosPeriodo(raiz, periodo, p -> abrirModuloConsolidado(p));
         TextView resumo = texto("Carregando consolidado...", 15, true);
         raiz.addView(resumo);
@@ -4951,6 +5034,7 @@ public class MainActivity extends FragmentActivity {
         subtitulo.setGravity(Gravity.START);
         subtitulo.setPadding(0, 0, 0, dp(8));
         raiz.addView(subtitulo);
+        adicionarEtapasPedido(raiz);
 
         Button colarPedido = botao("Importar pedido do WhatsApp", Color.WHITE);
         colarPedido.setTextSize(14);
@@ -4959,7 +5043,7 @@ public class MainActivity extends FragmentActivity {
         colarPedido.setOnClickListener(v -> abrirColagemWhatsApp());
         raiz.addView(colarPedido);
 
-        adicionarTituloSecao(raiz, "Cliente e data");
+        adicionarTituloSecao(raiz, "01  ·  Cliente e data");
         raiz.addView(rotuloCampo("Cliente"));
         cliente = new Spinner(this);
         cliente.setAdapter(adaptadorSpinner(CLIENTES_PADRAO));
@@ -4985,7 +5069,7 @@ public class MainActivity extends FragmentActivity {
         raiz.addView(clienteOutro);
         raiz.addView(data);
 
-        adicionarTituloSecao(raiz, "Produtos");
+        adicionarTituloSecao(raiz, "02  ·  Adicione produtos");
         carregarProdutos();
         produto = new Spinner(this);
         produtosAdapter = adaptadorSpinner(produtos);
@@ -5048,7 +5132,7 @@ public class MainActivity extends FragmentActivity {
         adicionar.setOnClickListener(v -> adicionarItem());
         raiz.addView(adicionar);
 
-        adicionarTituloSecao(raiz, "Itens do pedido");
+        adicionarTituloSecao(raiz, "03  ·  Revise o pedido");
         listaItens = coluna();
         raiz.addView(listaItens);
         totalText = texto("0 produtos\nTotal: " + moeda.format(0), 18, true);
