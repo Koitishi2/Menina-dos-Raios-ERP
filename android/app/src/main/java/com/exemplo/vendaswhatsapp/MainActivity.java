@@ -493,15 +493,23 @@ public class MainActivity extends FragmentActivity {
         LinearLayout destaqueDia = new LinearLayout(this);
         destaqueDia.setOrientation(LinearLayout.VERTICAL);
         destaqueDia.setPadding(dp(16), dp(14), dp(16), dp(14));
-        destaqueDia.setBackground(fundoCardModulo(Color.rgb(21, 101, 52)));
+        destaqueDia.setBackground(fundoComBorda(Color.rgb(21, 101, 52), Color.rgb(21, 101, 52), 14));
         TextView destaqueTitulo = texto("OPERAÇÃO DO DIA", 11, true);
-        destaqueTitulo.setTextColor(Color.rgb(194, 230, 205));
+        destaqueTitulo.setTextColor(Color.rgb(207, 245, 218));
         destaqueDia.addView(destaqueTitulo);
         TextView destaqueTexto = texto("Registre uma entrega e acompanhe as notas em um só lugar.", 15, true);
         destaqueTexto.setTextColor(Color.WHITE);
         destaqueTexto.setPadding(0, dp(4), 0, dp(10));
         destaqueDia.addView(destaqueTexto);
-        Button iniciarEntrega = botao("＋  Lançar entrega", Color.WHITE);
+        TextView chamadaEntrega = texto("🚚  Nova entrega", 19, true);
+        chamadaEntrega.setTextColor(Color.WHITE);
+        chamadaEntrega.setPadding(0, 0, 0, dp(3));
+        destaqueDia.addView(chamadaEntrega);
+        TextView detalheEntrega = texto("Dite o cliente e os produtos; revise antes de enviar ao ERP.", 13, false);
+        detalheEntrega.setTextColor(Color.rgb(232, 246, 236));
+        detalheEntrega.setPadding(0, 0, 0, dp(10));
+        destaqueDia.addView(detalheEntrega);
+        Button iniciarEntrega = botao("🎙  Lançar entrega por voz   →", Color.WHITE);
         iniciarEntrega.setTextColor(Color.rgb(20, 83, 45));
         iniciarEntrega.setBackground(fundoComBorda(Color.WHITE, Color.WHITE, 10));
         iniciarEntrega.setOnClickListener(v -> iniciarEntregaPorVoz());
@@ -553,7 +561,7 @@ public class MainActivity extends FragmentActivity {
         raiz.addView(atalhosCatalogo);
 
         List<ModuloHome> modulos = new ArrayList<>();
-        modulos.add(new ModuloHome("Entregas", "Lançar pedidos e acompanhar notas", "Operação", "EN", Color.rgb(245, 124, 0), () -> mostrarMenuEntregas()));
+        modulos.add(new ModuloHome("Entregas", "Novo pedido por voz e acompanhamento das notas", "Operação", "EN", Color.rgb(245, 124, 0), () -> mostrarMenuEntregas()));
         modulos.add(new ModuloHome("Vale", "Solicitação com assinatura", "Operação", "VA", Color.rgb(202, 138, 4), () -> abrirModuloVale()));
         modulos.add(new ModuloHome("Dados dos vales", "Consultar solicitações", "Operação", "DV", Color.rgb(14, 165, 233), () -> abrirModuloDadosVales("")));
         modulos.add(new ModuloHome("Estoque", "Consultar saldos e registrar entradas", "Operação", "ES", Color.rgb(21, 128, 61), () -> abrirModuloEstoque("raios")));
@@ -641,18 +649,39 @@ public class MainActivity extends FragmentActivity {
                 JSONArray vendas = buscarSalesApi("", agora.get(Calendar.YEAR), agora.get(Calendar.MONTH) + 1, 1000);
                 JSONObject financeiro = buscarObjetoApi("/api/boletos/summary");
                 double total = 0; int entregues = 0;
+                Calendar hoje = Calendar.getInstance();
+                Calendar inicioGrafico = (Calendar) hoje.clone(); inicioGrafico.add(Calendar.DAY_OF_YEAR, -6);
+                Map<String, Double> vendasPorDia = new LinkedHashMap<>();
+                SimpleDateFormat chaveDia = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+                Calendar diaCursor = (Calendar) inicioGrafico.clone();
+                while (!diaCursor.after(hoje)) { vendasPorDia.put(chaveDia.format(diaCursor.getTime()), 0d); diaCursor.add(Calendar.DAY_OF_YEAR, 1); }
                 for (int i = 0; i < vendas.length(); i++) {
                     JSONObject venda = vendas.optJSONObject(i);
                     if (venda == null || "AVARIA".equalsIgnoreCase(venda.optString("sale_type"))) continue;
                     total += venda.optDouble("total", 0);
+                    String dataVenda = venda.optString("sale_date", "").trim();
+                    if (vendasPorDia.containsKey(dataVenda)) vendasPorDia.put(dataVenda, vendasPorDia.get(dataVenda) + venda.optDouble("total", 0));
                     if ("sim".equalsIgnoreCase(venda.optString("delivered", "")) || "true".equalsIgnoreCase(venda.optString("delivered", ""))) entregues++;
                 }
+                Calendar anterior = (Calendar) agora.clone(); anterior.add(Calendar.MONTH, -1);
+                if (inicioGrafico.get(Calendar.MONTH) != agora.get(Calendar.MONTH)) {
+                    JSONArray vendasAnteriores = buscarSalesApi("", anterior.get(Calendar.YEAR), anterior.get(Calendar.MONTH) + 1, 1000);
+                    for (int i = 0; i < vendasAnteriores.length(); i++) {
+                        JSONObject venda = vendasAnteriores.optJSONObject(i);
+                        if (venda == null || "AVARIA".equalsIgnoreCase(venda.optString("sale_type"))) continue;
+                        String dataVenda = venda.optString("sale_date", "").trim();
+                        if (vendasPorDia.containsKey(dataVenda)) vendasPorDia.put(dataVenda, vendasPorDia.get(dataVenda) + venda.optDouble("total", 0));
+                    }
+                }
                 double totalFinal = total; int entreguesFinal = entregues;
+                List<String> rotulosGrafico = new ArrayList<>(); List<Double> valoresGrafico = new ArrayList<>();
+                for (Map.Entry<String, Double> item : vendasPorDia.entrySet()) { rotulosGrafico.add(dataCurta(item.getKey())); valoresGrafico.add(item.getValue()); }
                 runOnUiThread(() -> {
                     destino.removeAllViews(); destino.setOrientation(LinearLayout.VERTICAL); destino.setVisibility(View.VISIBLE);
                     destino.addView(linhaKpis(cardIndicador("Vendas no mês", moeda.format(totalFinal), "Dados atuais do ERP", Color.rgb(21, 101, 52)),
                         cardIndicador("Entregas", String.valueOf(entreguesFinal), "Notas entregues", Color.rgb(37, 99, 235))));
                     destino.addView(cardIndicador("A receber", moeda.format(financeiro.optDouble("total_pendente", 0)), "Cobranças em aberto", Color.rgb(202, 138, 4)));
+                    destino.addView(graficoLinhaAnimado("Evolução de vendas · últimos 7 dias", rotulosGrafico, valoresGrafico, Color.rgb(21, 128, 61), 0));
                 });
             } catch (Exception ignored) { runOnUiThread(() -> destino.setVisibility(View.GONE)); }
         }).start();
@@ -666,17 +695,15 @@ public class MainActivity extends FragmentActivity {
         card.setPadding(dp(12), dp(10), dp(12), dp(10));
         card.setBackground(fundoCardModulo(modulo.cor));
 
-        TextView sigla = new TextView(this);
-        sigla.setText(modulo.sigla);
-        sigla.setTextColor(modulo.cor);
-        sigla.setTextSize(11);
-        sigla.setTypeface(null, 1);
-        sigla.setGravity(Gravity.CENTER);
-        sigla.setBackground(fundoComBorda(Color.rgb(232, 243, 235), Color.rgb(209, 227, 215), 12));
-        sigla.setBackground(fundoComBorda(Color.rgb(232, 243, 235), Color.rgb(209, 227, 215), 9));
-        LinearLayout.LayoutParams siglaParams = new LinearLayout.LayoutParams(dp(34), dp(28));
-        siglaParams.setMargins(0, 0, 0, dp(5));
-        card.addView(sigla, siglaParams);
+        TextView icone = new TextView(this);
+        icone.setText(iconeModulo(modulo.titulo));
+        icone.setTextSize(23);
+        icone.setGravity(Gravity.CENTER);
+        icone.setContentDescription("Ícone de " + modulo.titulo);
+        icone.setBackground(fundoComBorda(Color.rgb(232, 243, 235), Color.rgb(209, 227, 215), 11));
+        LinearLayout.LayoutParams iconeParams = new LinearLayout.LayoutParams(dp(42), dp(38));
+        iconeParams.setMargins(0, 0, 0, dp(7));
+        card.addView(icone, iconeParams);
 
         LinearLayout textos = coluna();
         textos.setPadding(0, 0, 0, 0);
@@ -689,7 +716,7 @@ public class MainActivity extends FragmentActivity {
         textos.addView(titulo);
         textos.addView(descricao);
         card.addView(textos, new LinearLayout.LayoutParams(-1, -2));
-        TextView seta = texto("Abrir  ›", 10, true);
+        TextView seta = texto("Abrir  ›", 11, true);
         seta.setTextColor(modulo.cor);
         seta.setGravity(Gravity.END);
         card.addView(seta, new LinearLayout.LayoutParams(-1, -2));
@@ -697,6 +724,26 @@ public class MainActivity extends FragmentActivity {
         card.setFocusable(true);
         aplicarFeedbackToque(card);
         return card;
+    }
+
+    private String iconeModulo(String titulo) {
+        switch (titulo) {
+            case "Entregas": return "🚚";
+            case "Vale": return "✍️";
+            case "Dados dos vales": return "🧾";
+            case "Estoque": return "📦";
+            case "Boletos": return "💰";
+            case "Projeção": return "📈";
+            case "Avarias": return "⚠️";
+            case "Produtividade": return "👥";
+            case "Clientes": return "🤝";
+            case "Consolidado": return "📊";
+            case "Análises": return "📉";
+            case "Produtos": return "🏷️";
+            case "Notificações": return "🔔";
+            case "Sincronização ERP": return "🔄";
+            default: return "⬇️";
+        }
     }
 
     private View botaoModulo(String titulo, String descricao, int cor, Runnable acao) {
@@ -1325,6 +1372,10 @@ public class MainActivity extends FragmentActivity {
         TextView saldoView = texto(saldo, 20, true); saldoView.setTextColor(borda); saldoView.setPadding(0, dp(4), 0, 0); card.addView(saldoView);
         card.addView(texto("SKU: " + (sku == null || sku.trim().isEmpty() ? "—" : sku), 12, false));
         card.addView(texto(vendas + " venda(s) no histórico", 12, false));
+        TextView acao = texto("＋ Toque para adicionar entrada", 12, true);
+        acao.setTextColor(Color.rgb(21, 101, 52));
+        acao.setPadding(0, dp(5), 0, 0);
+        card.addView(acao);
         return card;
     }
 
@@ -2359,6 +2410,7 @@ public class MainActivity extends FragmentActivity {
         LinearLayout lista = coluna();
         raiz.addView(lista);
         final JSONArray[] produtosAtuais = {new JSONArray()};
+        final Runnable[] carregarRef = {null};
         Runnable carregar = () -> {
             String chave = modulo.getSelectedItemPosition() == 1 ? "estrada" : "raios";
             estado.setText("Atualizando estoque...");
@@ -2378,8 +2430,12 @@ public class MainActivity extends FragmentActivity {
                             if (item == null) continue;
                             double saldoValor = item.optDouble("balance", 0);
                             String saldo = formatarNumero(saldoValor) + " " + item.optString("unit", "UN");
-                            lista.addView(cardSaldoEstoque(item.optString("name", "Produto"), item.optString("sku", "—"), saldo,
-                                item.optInt("sales_count", 0), saldoValor));
+                            View cartaoProduto = cardSaldoEstoque(item.optString("name", "Produto"), item.optString("sku", "—"), saldo,
+                                item.optInt("sales_count", 0), saldoValor);
+                            cartaoProduto.setContentDescription("Adicionar entrada ao estoque para " + item.optString("name", "Produto"));
+                            cartaoProduto.setOnClickListener(v -> dialogEntradaProdutoEstoque(chave, item, carregarRef[0]));
+                            cartaoProduto.setFocusable(true);
+                            lista.addView(cartaoProduto);
                         }
                     });
                 } catch (Exception e) {
@@ -2390,6 +2446,7 @@ public class MainActivity extends FragmentActivity {
                 }
             }).start();
         };
+        carregarRef[0] = carregar;
         modulo.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) { carregar.run(); }
             @Override public void onNothingSelected(AdapterView<?> parent) { }
@@ -2459,13 +2516,60 @@ public class MainActivity extends FragmentActivity {
             if (selected == null || qty <= 0 || !Double.isFinite(qty)) { aviso("Escolha um produto e informe uma quantidade válida."); return; }
             JSONObject body = new JSONObject();
             String dataHoje = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Calendar.getInstance().getTime());
-            try { body.put("module", modulo); body.put("product_id", selected.optString("id")); body.put("movement_type", "entry"); body.put("quantity", qty); body.put("movement_date", dataHoje); body.put("reference", referencia.getText().toString().trim()); body.put("notes", observacao.getText().toString().trim()); }
+            try { body.put("module", modulo); body.put("product_id", selected.optString("id")); body.put("movement_type", "entry"); body.put("quantity", qty); body.put("unit", selected.optString("unit", "UN")); body.put("movement_date", dataHoje); body.put("reference", referencia.getText().toString().trim()); body.put("notes", observacao.getText().toString().trim()); }
             catch (Exception e) { aviso("Não foi possível preparar a entrada."); return; }
             view.setEnabled(false);
             new Thread(() -> {
                 try {
                     enviarObjetoApi("/api/stock/movements", "POST", body);
                     runOnUiThread(() -> { dialog.dismiss(); aviso("Entrada registrada no estoque do ERP."); aoSalvar.run(); });
+                } catch (Exception e) { runOnUiThread(() -> { view.setEnabled(true); aviso("Entrada não registrada: " + mensagemErroSimples(e)); }); }
+            }).start();
+        }));
+        dialog.show();
+    }
+
+    private void dialogEntradaProdutoEstoque(String modulo, JSONObject produto, Runnable aoSalvar) {
+        if (produto == null) return;
+        String unidadeInformada = produto.optString("unit", "UN").trim().toUpperCase(Locale.ROOT);
+        final String unidadeControle = unidadeInformada.isEmpty() ? "UN" : unidadeInformada;
+        String unidadeAlternativa = "KG".equals(unidadeControle) ? "UN" : "KG";
+        LinearLayout form = coluna(); form.setPadding(dp(18), dp(8), dp(18), dp(4));
+        TextView explicacao = texto("Saldo deste produto é controlado em " + unidadeControle + ". Selecione a mesma unidade para manter a contagem correta.", 13, false);
+        explicacao.setPadding(0, 0, 0, dp(8));
+        Spinner unidade = new Spinner(this);
+        unidade.setAdapter(adaptadorSpinner(Arrays.asList(unidadeControle, unidadeAlternativa)));
+        unidade.setSelection(0);
+        EditText quantidade = campo("Quantidade recebida", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        quantidade.setKeyListener(DigitsKeyListener.getInstance("0123456789,."));
+        form.addView(texto(produto.optString("name", "Produto"), 19, true));
+        form.addView(explicacao);
+        form.addView(rotuloCampo("UNIDADE DA ENTRADA")); form.addView(unidade);
+        form.addView(rotuloCampo("QUANTIDADE")); form.addView(quantidade);
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Adicionar ao estoque")
+            .setView(form).setNegativeButton("Cancelar", null).setPositiveButton("Adicionar", null).create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
+            String unidadeEscolhida = String.valueOf(unidade.getSelectedItem()).trim().toUpperCase(Locale.ROOT);
+            if (!unidadeControle.equals(unidadeEscolhida)) {
+                aviso("Este SKU controla saldo em " + unidadeControle + ". Selecione essa unidade; o sistema não converte KG e unidades automaticamente.");
+                return;
+            }
+            double qty;
+            try { qty = Double.parseDouble(quantidade.getText().toString().replace(',', '.')); }
+            catch (Exception e) { qty = 0; }
+            if (qty <= 0 || !Double.isFinite(qty)) { aviso("Informe uma quantidade válida maior que zero."); return; }
+            JSONObject body = new JSONObject();
+            try {
+                body.put("module", modulo); body.put("product_id", produto.optString("id"));
+                body.put("movement_type", "entry"); body.put("quantity", qty); body.put("unit", unidadeEscolhida);
+                body.put("movement_date", new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Calendar.getInstance().getTime()));
+                body.put("reference", "Entrada manual pelo APK");
+            } catch (Exception e) { aviso("Não foi possível preparar a entrada."); return; }
+            view.setEnabled(false);
+            new Thread(() -> {
+                try {
+                    enviarObjetoApi("/api/stock/movements", "POST", body);
+                    runOnUiThread(() -> { dialog.dismiss(); aviso("Entrada adicionada ao estoque."); aoSalvar.run(); });
                 } catch (Exception e) { runOnUiThread(() -> { view.setEnabled(true); aviso("Entrada não registrada: " + mensagemErroSimples(e)); }); }
             }).start();
         }));

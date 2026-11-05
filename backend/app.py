@@ -6543,6 +6543,7 @@ def create_stock_movement(body: dict, x_token: str = Header("")):
     module = str(body.get("module") or "").strip().lower()
     product_id = str(body.get("product_id") or "").strip()
     movement_type = str(body.get("movement_type") or "").strip().lower()
+    requested_unit = str(body.get("unit") or "").strip().upper()
     reference = str(body.get("reference") or "").strip()[:120]
     notes = str(body.get("notes") or "").strip()[:500]
     try:
@@ -6564,11 +6565,25 @@ def create_stock_movement(body: dict, x_token: str = Header("")):
     conn = get_db("raios")
     try:
         product = conn.execute(
-            "SELECT id FROM stock_products WHERE id=? AND module_key=? AND active=1",
+            "SELECT id,unit FROM stock_products WHERE id=? AND module_key=? AND active=1",
             (product_id, module),
         ).fetchone()
         if not product:
             raise HTTPException(404, "Produto não encontrado neste módulo.")
+        if requested_unit:
+            def canonical_stock_unit(value):
+                normalized = str(value or "").strip().upper()
+                if normalized in {"UN", "UND", "UNIDADE", "UNIDADES"}:
+                    return "UN"
+                if normalized in {"KG", "KGS", "QUILO", "QUILOS", "KILO", "KILOS"}:
+                    return "KG"
+                return normalized
+            control_unit = canonical_stock_unit(product["unit"])
+            if canonical_stock_unit(requested_unit) != control_unit:
+                raise HTTPException(
+                    400,
+                    f"Este produto controla saldo em {product['unit']}. Registre a entrada nessa unidade; não há conversão automática.",
+                )
         conn.execute(
             """INSERT INTO stock_movements
                (id,product_id,movement_type,quantity_delta,movement_date,reference,notes,created_by,created_at)

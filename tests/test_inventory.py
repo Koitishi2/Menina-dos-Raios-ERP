@@ -156,6 +156,29 @@ def test_stock_rejects_negative_entry(isolated_app):
     assert response.status_code == 400
 
 
+def test_stock_movement_rejects_unit_mismatch_and_accepts_matching_unit(isolated_app):
+    token = _login(isolated_app.client)
+    headers = _headers(token)
+    product = isolated_app.client.get("/api/stock?module=estrada", headers=headers).json()["products"][0]
+    control_unit = product["unit"]
+    wrong_unit = "KG" if str(control_unit).upper() not in {"KG", "KGS"} else "UN"
+    base = {
+        "module": "estrada",
+        "product_id": product["id"],
+        "movement_type": "entry",
+        "quantity": 2,
+        "movement_date": datetime.now().date().isoformat(),
+        "reference": "Teste unidade validada",
+    }
+    rejected = isolated_app.client.post("/api/stock/movements", headers=headers, json={**base, "unit": wrong_unit})
+    assert rejected.status_code == 400
+    assert "não há conversão automática" in rejected.json()["detail"]
+
+    accepted_unit = "UN" if str(control_unit).upper() in {"UN", "UND", "UNIDADE", "UNIDADES"} else control_unit
+    accepted = isolated_app.client.post("/api/stock/movements", headers=headers, json={**base, "unit": accepted_unit})
+    assert accepted.status_code == 200
+
+
 def test_voice_stock_customer_is_rejected_and_must_use_manual_stock_module(isolated_app):
     token = _login(isolated_app.client)
     headers = {
