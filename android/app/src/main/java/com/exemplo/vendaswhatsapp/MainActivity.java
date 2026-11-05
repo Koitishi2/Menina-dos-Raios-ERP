@@ -680,12 +680,12 @@ public class MainActivity extends FragmentActivity {
                 linha.setOrientation(LinearLayout.HORIZONTAL);
                 for (int coluna = 0; coluna < colunas && i + coluna < visiveis.size(); coluna++) {
                     ModuloHome modulo = visiveis.get(i + coluna);
-                    LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(0, -2, 1);
+                    LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(0, dp(206), 1);
                     itemParams.setMargins(coluna == 0 ? 0 : dp(6), dp(4), coluna == 0 && colunas == 2 ? dp(6) : 0, dp(4));
                     linha.addView(cartaoModuloHome(modulo), itemParams);
                 }
                 if (colunas == 2 && visiveis.size() % 2 == 1 && i + 1 >= visiveis.size()) {
-                    linha.addView(new View(this), new LinearLayout.LayoutParams(0, dp(126), 1));
+                    linha.addView(new View(this), new LinearLayout.LayoutParams(0, dp(206), 1));
                 }
                 destino.addView(linha);
             }
@@ -747,7 +747,7 @@ public class MainActivity extends FragmentActivity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.TOP);
-        card.setMinimumHeight(dp(154));
+        card.setMinimumHeight(dp(206));
         card.setPadding(dp(15), dp(13), dp(15), dp(12));
         card.setBackground(fundoCardModulo(modulo.cor));
 
@@ -764,18 +764,25 @@ public class MainActivity extends FragmentActivity {
         LinearLayout textos = coluna();
         textos.setPadding(0, 0, 0, 0);
         TextView titulo = texto(modulo.titulo, 17, true);
-        titulo.setSingleLine(true);
+        titulo.setMaxLines(2);
         titulo.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        titulo.setPadding(0, 0, 0, 0);
+        LinearLayout.LayoutParams tituloParams = new LinearLayout.LayoutParams(-1, dp(44));
+        tituloParams.setMargins(0, 0, 0, dp(4));
+        textos.addView(titulo, tituloParams);
         TextView descricao = texto(modulo.descricao, 13, false);
         descricao.setMaxLines(2);
         descricao.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        textos.addView(titulo);
-        textos.addView(descricao);
+        descricao.setPadding(0, 0, 0, 0);
+        textos.addView(descricao, new LinearLayout.LayoutParams(-1, dp(38)));
         card.addView(textos, new LinearLayout.LayoutParams(-1, -2));
+        View espacoAcao = new View(this);
+        card.addView(espacoAcao, new LinearLayout.LayoutParams(-1, 0, 1));
         TextView seta = texto("Abrir  ›", 13, true);
         seta.setTextColor(modulo.cor);
         seta.setGravity(Gravity.END);
-        card.addView(seta, new LinearLayout.LayoutParams(-1, -2));
+        seta.setPadding(0, 0, 0, 0);
+        card.addView(seta, new LinearLayout.LayoutParams(-1, dp(24)));
         card.setOnClickListener(v -> modulo.acao.run());
         card.setFocusable(true);
         aplicarFeedbackToque(card);
