@@ -753,11 +753,11 @@ public class MainActivity extends FragmentActivity {
 
         TextView icone = new TextView(this);
         icone.setText(iconeModulo(modulo.titulo));
-        icone.setTextSize(23);
+        icone.setTextSize(18);
         icone.setGravity(Gravity.CENTER);
         icone.setContentDescription("Ícone de " + modulo.titulo);
         icone.setBackground(fundoComBorda(Color.rgb(232, 243, 235), Color.rgb(209, 227, 215), 11));
-        LinearLayout.LayoutParams iconeParams = new LinearLayout.LayoutParams(dp(50), dp(48));
+        LinearLayout.LayoutParams iconeParams = new LinearLayout.LayoutParams(dp(38), dp(38));
         iconeParams.setMargins(0, 0, 0, dp(10));
         card.addView(icone, iconeParams);
 
@@ -7199,6 +7199,7 @@ public class MainActivity extends FragmentActivity {
             atualizar.setEnabled(false);
             depois.setEnabled(false);
             progresso.setVisibility(View.VISIBLE);
+            progresso.setIndeterminate(false);
             detalhe.setText("Preparando download seguro…");
             baixarAtualizacao(apkUrl, sha256, pacote, codigo, tamanhoEsperado, progresso, detalhe, atualizar, dialog);
         });
@@ -7229,7 +7230,7 @@ public class MainActivity extends FragmentActivity {
                 String hostFinal = conexao.getURL().getHost();
                 if (!"sistema.meninadosraios.com.br".equalsIgnoreCase(hostFinal))
                     throw new SecurityException("O download saiu do servidor oficial.");
-                long totalBytes = conexao.getContentLength();
+                long totalBytes = conexao.getContentLengthLong();
                 if (tamanhoEsperado > 0 && totalBytes > 0 && tamanhoEsperado != totalBytes)
                     throw new SecurityException("O tamanho publicado não corresponde ao arquivo recebido.");
                 File pasta = new File(getCacheDir(), "updates");
@@ -7238,14 +7239,28 @@ public class MainActivity extends FragmentActivity {
                 MessageDigest digest = MessageDigest.getInstance("SHA-256");
                 final long total = totalBytes;
                 final long[] baixados = {0};
+                final long[] proximaAtualizacaoUi = {0};
+                runOnUiThread(() -> {
+                    progresso.setIndeterminate(total <= 0);
+                    progresso.setProgress(0);
+                    detalhe.setText(total > 0 ? "Baixando atualização… 0%" : "Baixando atualização… 0 MB");
+                });
                 try (BufferedInputStream entrada = new BufferedInputStream(conexao.getInputStream());
                      FileOutputStream saida = new FileOutputStream(apk)) {
                     byte[] buffer = new byte[16384]; int lidos;
                     while ((lidos = entrada.read(buffer)) != -1) {
                         saida.write(buffer, 0, lidos); digest.update(buffer, 0, lidos); baixados[0] += lidos;
-                        if (total > 0) {
-                            int percentual = (int) Math.min(99, baixados[0] * 100 / total);
-                            runOnUiThread(() -> { progresso.setProgress(percentual); detalhe.setText("Baixando atualização… " + percentual + "%"); });
+                        if (baixados[0] >= proximaAtualizacaoUi[0]) {
+                            proximaAtualizacaoUi[0] = baixados[0] + 262144;
+                            int percentual = total > 0 ? (int) Math.min(99, baixados[0] * 100 / total) : 0;
+                            String baixadoMb = String.format(Locale.US, "%.1f", baixados[0] / 1048576.0);
+                            String progressoTexto = total > 0
+                                ? "Baixando atualização… " + percentual + "% · " + baixadoMb + " MB"
+                                : "Baixando atualização… " + baixadoMb + " MB";
+                            runOnUiThread(() -> {
+                                if (total > 0) progresso.setProgress(percentual);
+                                detalhe.setText(progressoTexto);
+                            });
                         }
                     }
                 }
@@ -7258,8 +7273,9 @@ public class MainActivity extends FragmentActivity {
                 validarApkBaixado(apk, pacoteEsperado, codigoEsperado);
                 runOnUiThread(() -> {
                     progresso.setProgress(100);
-                    detalhe.setText("Download verificado · abrindo a confirmação do Android…");
-                    instalarAtualizacao(apk, pacoteEsperado, dialog);
+                    progresso.setIndeterminate(false);
+                    detalhe.setText("Download verificado · preparando instalação…");
+                    instalarAtualizacao(apk, pacoteEsperado, progresso, detalhe, dialog);
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
@@ -7326,7 +7342,8 @@ public class MainActivity extends FragmentActivity {
         return resultado.toString();
     }
 
-    private void instalarAtualizacao(File apk, String pacote, Dialog dialog) {
+    private void instalarAtualizacao(File apk, String pacote, ProgressBar progresso,
+                                     TextView detalhe, Dialog dialog) {
         if (android.os.Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
             if (dialog != null) dialog.dismiss();
             aviso("Permita a instalação pelo Menina dos Raios e tente novamente.");
@@ -7336,45 +7353,72 @@ public class MainActivity extends FragmentActivity {
             return;
         }
         PackageInstaller installer = getPackageManager().getPackageInstaller();
-        int id = -1;
-        try {
-            PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
-            params.setAppPackageName(pacote);
-            params.setSize(apk.length());
-            if (Build.VERSION.SDK_INT >= 31)
-                params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED);
-            id = installer.createSession(params);
-            try (PackageInstaller.Session session = installer.openSession(id)) {
-                try (java.io.InputStream input = new java.io.FileInputStream(apk);
-                     java.io.OutputStream output = session.openWrite("base.apk", 0, apk.length())) {
-                    byte[] buffer = new byte[65536]; int count;
-                    while ((count = input.read(buffer)) >= 0) if (count > 0) output.write(buffer, 0, count);
-                    session.fsync(output);
+        new Thread(() -> {
+            int id = -1;
+            try {
+                PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+                params.setAppPackageName(pacote);
+                params.setSize(apk.length());
+                if (Build.VERSION.SDK_INT >= 31)
+                    params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED);
+                id = installer.createSession(params);
+                final int sessionId = id;
+                try (PackageInstaller.Session session = installer.openSession(sessionId)) {
+                    try (java.io.InputStream input = new java.io.FileInputStream(apk);
+                         java.io.OutputStream output = session.openWrite("base.apk", 0, apk.length())) {
+                        runOnUiThread(() -> {
+                            progresso.setIndeterminate(false);
+                            progresso.setProgress(0);
+                            detalhe.setText("Enviando ao instalador Android… 0%");
+                        });
+                        byte[] buffer = new byte[65536]; int count;
+                        long enviados = 0;
+                        while ((count = input.read(buffer)) >= 0) if (count > 0) {
+                            output.write(buffer, 0, count);
+                            enviados += count;
+                            final int percentual = (int) Math.min(99, enviados * 100 / Math.max(1, apk.length()));
+                            runOnUiThread(() -> {
+                                progresso.setProgress(percentual);
+                                detalhe.setText("Enviando ao instalador Android… " + percentual + "%");
+                            });
+                        }
+                        session.fsync(output);
+                    }
                 }
+                // Commit from a fresh session after the writer session and all of its file descriptors close.
+                try (PackageInstaller.Session session = installer.openSession(sessionId)) {
+                    Intent callback = new Intent(this, AppInstallStatusReceiver.class);
+                    callback.putExtra("dialog_message", "A atualização foi enviada ao instalador do Android.");
+                    callback.putExtra("update_apk_name", apk.getName());
+                    int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+                    if (Build.VERSION.SDK_INT >= 31) flags |= PendingIntent.FLAG_MUTABLE;
+                    PendingIntent result = PendingIntent.getBroadcast(this, sessionId, callback, flags);
+                    session.commit(result.getIntentSender());
+                }
+                runOnUiThread(() -> {
+                    progresso.setIndeterminate(true);
+                    detalhe.setText("APK enviado ao instalador · confirme no Android. A instalação está aguardando o resultado do sistema.");
+                    aviso("APK enviado ao instalador. Confirme a instalação na tela do Android.");
+                });
+            } catch (Exception e) {
+                if (id >= 0) {
+                    try { installer.abandonSession(id); } catch (Exception ignored) { }
+                }
+                runOnUiThread(() -> {
+                    if (abrirInstaladorPadrao(apk)) {
+                        progresso.setIndeterminate(true);
+                        detalhe.setText("Instalador padrão do Android aberto · confirme a atualização. O motivo de qualquer falha será informado pelo sistema.");
+                        aviso("O instalador padrão do Android foi aberto para confirmar a atualização.");
+                        return;
+                    }
+                    progresso.setIndeterminate(false);
+                    progresso.setVisibility(View.GONE);
+                    String motivo = e.getMessage() == null ? "erro do instalador Android" : e.getMessage();
+                    detalhe.setText("Falha ao iniciar a instalação: " + motivo);
+                    aviso("Não foi possível abrir o instalador: " + motivo);
+                });
             }
-            // Commit from a fresh session after the writer session and all of its file descriptors close.
-            try (PackageInstaller.Session session = installer.openSession(id)) {
-                Intent callback = new Intent(this, AppInstallStatusReceiver.class);
-                callback.putExtra("dialog_message", "A atualização foi enviada ao instalador do Android.");
-                callback.putExtra("update_apk_name", apk.getName());
-                int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-                if (Build.VERSION.SDK_INT >= 31) flags |= PendingIntent.FLAG_MUTABLE;
-                PendingIntent result = PendingIntent.getBroadcast(this, id, callback, flags);
-                session.commit(result.getIntentSender());
-            }
-            if (dialog != null) dialog.dismiss();
-            aviso("Download validado. Confirme a instalação na tela do Android.");
-        } catch (Exception e) {
-            if (id >= 0) {
-                try { installer.abandonSession(id); } catch (Exception ignored) { }
-            }
-            if (abrirInstaladorPadrao(apk)) {
-                if (dialog != null) dialog.dismiss();
-                aviso("O fluxo interno falhou; abrimos a confirmação padrão do Android para instalar a atualização.");
-                return;
-            }
-            aviso("Não foi possível abrir o instalador: " + e.getMessage());
-        }
+        }, "apk-install-session").start();
     }
 
     private boolean abrirInstaladorPadrao(File apk) {

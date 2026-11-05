@@ -36,13 +36,14 @@ public class AppInstallStatusReceiver extends BroadcastReceiver {
             return;
         }
         String detail = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
+        String error = "Falha na instalação (código Android " + status + ")";
+        if (detail != null && !detail.trim().isEmpty()) error += ": " + detail.trim();
         String apkName = intent.getStringExtra("update_apk_name");
         if (abrirInstaladorPadrao(context, apkName)) {
-            Toast.makeText(context, "A instalação interna falhou. Abrimos a confirmação padrão do Android.", Toast.LENGTH_LONG).show();
+            Toast.makeText(context, error + ". Abrimos a confirmação padrão do Android.", Toast.LENGTH_LONG).show();
             return;
         }
-        Toast.makeText(context, "O Android não concluiu a instalação" +
-            (detail == null || detail.trim().isEmpty() ? "." : ": " + detail), Toast.LENGTH_LONG).show();
+        Toast.makeText(context, error, Toast.LENGTH_LONG).show();
     }
 
     private boolean abrirInstaladorPadrao(Context context, String apkName) {
