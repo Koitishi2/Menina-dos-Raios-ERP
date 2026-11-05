@@ -555,8 +555,13 @@ public class MainActivity extends FragmentActivity {
         modulos.add(new ModuloHome("Sincronização ERP", "Atualizar dados do sistema", "Mais", "SI", Color.rgb(13, 148, 136), () -> abrirSincronizacaoERP()));
         modulos.add(new ModuloHome("Atualizações", "Verificar nova versão", "Mais", "AT", Color.rgb(148, 163, 184), () -> verificarAtualizacao(true)));
 
-        adicionarGradeAtalhosHome(raiz, "Operação", filtrarModulos(modulos, new String[]{"Entregas", "Estoque", "Vale", "Boletos"}));
-        adicionarGradeAtalhosHome(raiz, "Análises", filtrarModulos(modulos, new String[]{"Análises", "Projeção", "Avarias", "Produtividade"}));
+        String[] titulosAtalhos = {"Entregas", "Estoque", "Vale", "Boletos", "Análises", "Projeção", "Avarias", "Produtividade"};
+        List<ModuloHome> modulosComplementares = new ArrayList<>();
+        for (ModuloHome modulo : modulos) if (!Arrays.asList(titulosAtalhos).contains(modulo.titulo)) modulosComplementares.add(modulo);
+        LinearLayout atalhosRapidos = coluna();
+        raiz.addView(atalhosRapidos);
+        adicionarGradeAtalhosHome(atalhosRapidos, "Operação", filtrarModulos(modulos, new String[]{"Entregas", "Estoque", "Vale", "Boletos"}));
+        adicionarGradeAtalhosHome(atalhosRapidos, "Análises", filtrarModulos(modulos, new String[]{"Análises", "Projeção", "Avarias", "Produtividade"}));
         raiz.addView(mensagemDoDia, mensagemParams);
 
         EditText busca = campo("Buscar módulo", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
@@ -582,11 +587,14 @@ public class MainActivity extends FragmentActivity {
         gerenciarHomeParams.setMargins(dp(5), dp(10), 0, 0);
         atalhosCatalogo.addView(gerenciarCatalogoHome, gerenciarHomeParams);
         raiz.addView(atalhosCatalogo);
-        renderizarModulosHome(listaModulos, modulos, "");
+        renderizarModulosHome(listaModulos, modulosComplementares, "");
         busca.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
-                renderizarModulosHome(listaModulos, modulos, s == null ? "" : s.toString());
+                String consulta = s == null ? "" : s.toString();
+                boolean buscando = !consulta.trim().isEmpty();
+                atalhosRapidos.setVisibility(buscando ? View.GONE : View.VISIBLE);
+                renderizarModulosHome(listaModulos, buscando ? modulos : modulosComplementares, consulta);
             }
             @Override public void afterTextChanged(Editable s) {}
         });
@@ -618,20 +626,23 @@ public class MainActivity extends FragmentActivity {
             LinearLayout tile = new LinearLayout(this);
             tile.setOrientation(LinearLayout.VERTICAL);
             tile.setGravity(Gravity.CENTER);
-            tile.setPadding(dp(3), dp(8), dp(3), dp(7));
+            tile.setPadding(dp(4), dp(7), dp(4), dp(6));
             tile.setBackground(fundoComBorda(Color.WHITE, Color.rgb(216, 227, 220), 12));
-            TextView icon = texto(iconeModulo(modulo.titulo), 22, true);
+            TextView icon = texto(iconeModulo(modulo.titulo), 25, true);
             icon.setGravity(Gravity.CENTER);
-            TextView label = texto(tituloCurtoAtalho(modulo.titulo), 10, true);
+            icon.setPadding(0, 0, 0, 0);
+            TextView label = texto(tituloCurtoAtalho(modulo.titulo), 11, true);
+            label.setTextColor(Color.rgb(31, 41, 55));
             label.setGravity(Gravity.CENTER);
-            label.setMaxLines(1);
+            label.setPadding(0, 0, 0, 0);
+            label.setMaxLines(2);
             label.setEllipsize(android.text.TextUtils.TruncateAt.END);
             tile.addView(icon);
             tile.addView(label);
             tile.setContentDescription(modulo.titulo);
             tile.setOnClickListener(v -> modulo.acao.run());
             aplicarFeedbackToque(tile);
-            LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(0, dp(64), 1);
+            LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(0, dp(80), 1);
             item.setMargins(i == 0 ? 0 : dp(5), 0, i == count - 1 ? 0 : dp(1), dp(6));
             row.addView(tile, item);
         }
