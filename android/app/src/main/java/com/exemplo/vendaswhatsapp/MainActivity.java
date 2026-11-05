@@ -562,6 +562,9 @@ public class MainActivity extends FragmentActivity {
         raiz.addView(atalhosRapidos);
         adicionarGradeAtalhosHome(atalhosRapidos, "Operação", filtrarModulos(modulos, new String[]{"Entregas", "Estoque", "Vale", "Boletos"}));
         adicionarGradeAtalhosHome(atalhosRapidos, "Análises", filtrarModulos(modulos, new String[]{"Análises", "Projeção", "Avarias", "Produtividade"}));
+        LinearLayout listaModulos = coluna();
+        raiz.addView(listaModulos);
+        renderizarModulosHome(listaModulos, modulosComplementares, "");
         raiz.addView(mensagemDoDia, mensagemParams);
 
         EditText busca = campo("Buscar módulo", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
@@ -569,8 +572,6 @@ public class MainActivity extends FragmentActivity {
         buscaParams.setMargins(0, 0, 0, dp(10));
         raiz.addView(busca, buscaParams);
 
-        LinearLayout listaModulos = coluna();
-        raiz.addView(listaModulos);
         carregarProdutos();
         LinearLayout atalhosCatalogo = new LinearLayout(this);
         atalhosCatalogo.setOrientation(LinearLayout.HORIZONTAL);
@@ -587,7 +588,6 @@ public class MainActivity extends FragmentActivity {
         gerenciarHomeParams.setMargins(dp(5), dp(10), 0, 0);
         atalhosCatalogo.addView(gerenciarCatalogoHome, gerenciarHomeParams);
         raiz.addView(atalhosCatalogo);
-        renderizarModulosHome(listaModulos, modulosComplementares, "");
         busca.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
@@ -658,13 +658,15 @@ public class MainActivity extends FragmentActivity {
     private void renderizarModulosHome(LinearLayout destino, List<ModuloHome> modulos, String consulta) {
         destino.removeAllViews();
         String filtro = semAcento(consulta == null ? "" : consulta.trim()).toLowerCase(new Locale("pt", "BR"));
-        String[] categorias = {"Operação", "Análises", "Mais"};
+        boolean buscaAtiva = !filtro.isEmpty();
+        String[] categorias = buscaAtiva ? new String[]{"Operação", "Análises", "Mais"} : new String[]{"Mais opções"};
         int encontrados = 0;
         for (String categoria : categorias) {
             List<ModuloHome> visiveis = new ArrayList<>();
             for (ModuloHome modulo : modulos) {
                 String textoBusca = semAcento(modulo.titulo + " " + modulo.descricao + " " + modulo.categoria).toLowerCase(new Locale("pt", "BR"));
-                if (modulo.categoria.equals(categoria) && (filtro.isEmpty() || textoBusca.contains(filtro))) visiveis.add(modulo);
+                boolean correspondeCategoria = !buscaAtiva || modulo.categoria.equals(categoria);
+                if (correspondeCategoria && (!buscaAtiva || textoBusca.contains(filtro))) visiveis.add(modulo);
             }
             if (visiveis.isEmpty()) continue;
             encontrados += visiveis.size();
@@ -674,18 +676,19 @@ public class MainActivity extends FragmentActivity {
             tituloParams.setMargins(0, dp(6), 0, dp(4));
             destino.addView(tituloCategoria, tituloParams);
             int larguraTela = getResources().getConfiguration().screenWidthDp;
-            int colunas = larguraTela >= 900 ? 3 : (larguraTela >= 360 ? 2 : 1);
+            int colunas = larguraTela >= 340 ? 4 : (larguraTela >= 280 ? 3 : 2);
             for (int i = 0; i < visiveis.size(); i += colunas) {
                 LinearLayout linha = new LinearLayout(this);
                 linha.setOrientation(LinearLayout.HORIZONTAL);
-                for (int coluna = 0; coluna < colunas && i + coluna < visiveis.size(); coluna++) {
-                    ModuloHome modulo = visiveis.get(i + coluna);
-                    LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(0, dp(206), 1);
-                    itemParams.setMargins(coluna == 0 ? 0 : dp(6), dp(4), coluna == 0 && colunas == 2 ? dp(6) : 0, dp(4));
-                    linha.addView(cartaoModuloHome(modulo), itemParams);
-                }
-                if (colunas == 2 && visiveis.size() % 2 == 1 && i + 1 >= visiveis.size()) {
-                    linha.addView(new View(this), new LinearLayout.LayoutParams(0, dp(206), 1));
+                int itensNaLinha = Math.min(colunas, visiveis.size() - i);
+                for (int coluna = 0; coluna < colunas; coluna++) {
+                    LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(0, dp(80), 1);
+                    itemParams.setMargins(coluna == 0 ? 0 : dp(5), dp(2), coluna == colunas - 1 ? 0 : dp(1), dp(6));
+                    if (coluna < itensNaLinha) {
+                        linha.addView(cartaoModuloHome(visiveis.get(i + coluna)), itemParams);
+                    } else {
+                        linha.addView(new View(this), itemParams);
+                    }
                 }
                 destino.addView(linha);
             }
@@ -744,49 +747,30 @@ public class MainActivity extends FragmentActivity {
     }
 
     private View cartaoModuloHome(ModuloHome modulo) {
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setGravity(Gravity.TOP);
-        card.setMinimumHeight(dp(206));
-        card.setPadding(dp(15), dp(13), dp(15), dp(12));
-        card.setBackground(fundoCardModulo(modulo.cor));
-
-        TextView icone = new TextView(this);
-        icone.setText(iconeModulo(modulo.titulo));
-        icone.setTextSize(18);
-        icone.setGravity(Gravity.CENTER);
-        icone.setContentDescription("Ícone de " + modulo.titulo);
-        icone.setBackground(fundoComBorda(Color.rgb(232, 243, 235), Color.rgb(209, 227, 215), 11));
-        LinearLayout.LayoutParams iconeParams = new LinearLayout.LayoutParams(dp(38), dp(38));
-        iconeParams.setMargins(0, 0, 0, dp(10));
-        card.addView(icone, iconeParams);
-
-        LinearLayout textos = coluna();
-        textos.setPadding(0, 0, 0, 0);
-        TextView titulo = texto(modulo.titulo, 17, true);
-        titulo.setMaxLines(2);
-        titulo.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        titulo.setPadding(0, 0, 0, 0);
-        LinearLayout.LayoutParams tituloParams = new LinearLayout.LayoutParams(-1, dp(44));
-        tituloParams.setMargins(0, 0, 0, dp(4));
-        textos.addView(titulo, tituloParams);
-        TextView descricao = texto(modulo.descricao, 13, false);
-        descricao.setMaxLines(2);
-        descricao.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        descricao.setPadding(0, 0, 0, 0);
-        textos.addView(descricao, new LinearLayout.LayoutParams(-1, dp(38)));
-        card.addView(textos, new LinearLayout.LayoutParams(-1, -2));
-        View espacoAcao = new View(this);
-        card.addView(espacoAcao, new LinearLayout.LayoutParams(-1, 0, 1));
-        TextView seta = texto("Abrir  ›", 13, true);
-        seta.setTextColor(modulo.cor);
-        seta.setGravity(Gravity.END);
-        seta.setPadding(0, 0, 0, 0);
-        card.addView(seta, new LinearLayout.LayoutParams(-1, dp(24)));
-        card.setOnClickListener(v -> modulo.acao.run());
-        card.setFocusable(true);
-        aplicarFeedbackToque(card);
-        return card;
+        LinearLayout tile = new LinearLayout(this);
+        tile.setOrientation(LinearLayout.VERTICAL);
+        tile.setGravity(Gravity.CENTER);
+        tile.setPadding(dp(4), dp(7), dp(4), dp(6));
+        tile.setBackground(fundoComBorda(Color.WHITE, Color.rgb(216, 227, 220), 12));
+        TextView icon = texto(iconeModulo(modulo.titulo), 19, true);
+        icon.setGravity(Gravity.CENTER);
+        icon.setPadding(0, 0, 0, 0);
+        icon.setBackground(fundoComBorda(Color.rgb(232, 243, 235), Color.rgb(209, 227, 215), 10));
+        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(34), dp(34));
+        iconParams.setMargins(0, 0, 0, dp(3));
+        tile.addView(icon, iconParams);
+        TextView label = texto(tituloCurtoAtalho(modulo.titulo), 11, true);
+        label.setTextColor(Color.rgb(31, 41, 55));
+        label.setGravity(Gravity.CENTER);
+        label.setPadding(0, 0, 0, 0);
+        label.setMaxLines(2);
+        label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        tile.addView(label);
+        tile.setContentDescription(modulo.titulo + ", abrir módulo");
+        tile.setOnClickListener(v -> modulo.acao.run());
+        tile.setFocusable(true);
+        aplicarFeedbackToque(tile);
+        return tile;
     }
 
     private String iconeModulo(String titulo) {
