@@ -47,9 +47,11 @@ import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import android.text.Editable;
 import android.text.InputType;
+import android.text.Layout;
 import android.text.TextWatcher;
 import android.text.method.DigitsKeyListener;
 import android.util.Base64;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -763,6 +765,17 @@ public class MainActivity extends FragmentActivity {
         label.setTextColor(Color.rgb(31, 41, 55));
         label.setGravity(Gravity.CENTER);
         label.setPadding(0, 0, 0, 0);
+        label.setIncludeFontPadding(false);
+        label.setTextScaleX(0.94f);
+        if (Build.VERSION.SDK_INT >= 26) {
+            label.setAutoSizeTextTypeUniformWithConfiguration(8, 11, 1, TypedValue.COMPLEX_UNIT_SP);
+        } else {
+            label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 9);
+        }
+        if (Build.VERSION.SDK_INT >= 23) {
+            label.setBreakStrategy(Layout.BREAK_STRATEGY_SIMPLE);
+            label.setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE);
+        }
         label.setMaxLines(2);
         label.setEllipsize(android.text.TextUtils.TruncateAt.END);
         tile.addView(label);
