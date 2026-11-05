@@ -2,7 +2,11 @@
 
 Este arquivo registra as alteracoes funcionais do aplicativo Android e da integracao com o sistema.
 
-Versao estavel atual: `2.0.59`.
+Versao estavel atual: `2.0.60`.
+
+## [2.0.60] - 04/11/2026
+
+- Abertura animada com três cenas ilustradas e o nome Menina dos Raios em destaque.
 
 ## [2.0.59] - 04/11/2026
 

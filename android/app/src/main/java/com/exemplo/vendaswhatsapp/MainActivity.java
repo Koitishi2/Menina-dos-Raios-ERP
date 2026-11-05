@@ -189,7 +189,7 @@ public class MainActivity extends FragmentActivity {
     private SpeechRecognizer reconhecedorVoz;
     private TextToSpeech falaVoz;
     private LinearLayout vozRaiz, vozLista;
-    private TextView vozPergunta, vozEstado, vozClienteData;
+    private TextView vozPergunta, vozEstado, vozClienteData, vozSecaoProdutos;
     private Button vozMicrofone;
     private Button vozSim, vozNao;
     private final List<ItemInterpretado> itensVoz = new ArrayList<>();
@@ -462,7 +462,7 @@ public class MainActivity extends FragmentActivity {
         scroll.setBackgroundColor(COR_FUNDO_ESCURO);
         LinearLayout raiz = coluna();
         raiz.setBackgroundColor(COR_FUNDO_ESCURO);
-        raiz.setPadding(dp(18), dp(20), dp(18), dp(26));
+        raiz.setPadding(dp(16), dp(16), dp(16), dp(26));
         scroll.addView(raiz);
 
         LinearLayout cabecalho = new LinearLayout(this);
@@ -481,6 +481,14 @@ public class MainActivity extends FragmentActivity {
         identificacao.addView(texto(nome.isEmpty() ? "Olá" : "Olá, " + nome, 21, true));
         identificacao.addView(texto("Menina dos Raios · Vendas", 12, false));
         cabecalho.addView(identificacao, new LinearLayout.LayoutParams(0, -2, 1));
+        if (adminNotificacoes()) {
+            TextView sino = texto("🔔", 22, true);
+            sino.setGravity(Gravity.CENTER);
+            sino.setBackground(fundoComBorda(Color.WHITE, Color.rgb(216, 227, 220), 12));
+            sino.setContentDescription("Abrir central de notificações");
+            cabecalho.addView(sino, new LinearLayout.LayoutParams(dp(48), dp(48)));
+            sino.setOnClickListener(v -> abrirCentralNotificacoes("calendario"));
+        }
         raiz.addView(cabecalho);
 
         TextView chamada = texto("Seu dia, em um só lugar", 23, true);
@@ -488,8 +496,16 @@ public class MainActivity extends FragmentActivity {
         chamada.setPadding(0, dp(20), 0, dp(3));
         raiz.addView(chamada);
         TextView apoio = texto("Acesse uma operação ou acompanhe os resultados.", 13, false);
-        apoio.setPadding(0, 0, 0, dp(12));
+        apoio.setPadding(0, 0, 0, dp(10));
         raiz.addView(apoio);
+        LinearLayout resumoDia = new LinearLayout(this);
+        resumoDia.setOrientation(LinearLayout.VERTICAL);
+        resumoDia.setVisibility(View.GONE);
+        LinearLayout.LayoutParams resumoDiaParams = new LinearLayout.LayoutParams(-1, -2);
+        resumoDiaParams.setMargins(0, 0, 0, dp(12));
+        raiz.addView(resumoDia, resumoDiaParams);
+        carregarResumoHome(resumoDia);
+
         LinearLayout destaqueDia = new LinearLayout(this);
         destaqueDia.setOrientation(LinearLayout.VERTICAL);
         destaqueDia.setPadding(dp(16), dp(14), dp(16), dp(14));
@@ -501,17 +517,11 @@ public class MainActivity extends FragmentActivity {
         destaqueTexto.setTextColor(Color.WHITE);
         destaqueTexto.setPadding(0, dp(4), 0, dp(10));
         destaqueDia.addView(destaqueTexto);
-        TextView chamadaEntrega = texto("🚚  Nova entrega", 19, true);
-        chamadaEntrega.setTextColor(Color.WHITE);
-        chamadaEntrega.setPadding(0, 0, 0, dp(3));
-        destaqueDia.addView(chamadaEntrega);
-        TextView detalheEntrega = texto("Dite o cliente e os produtos; revise antes de enviar ao ERP.", 13, false);
-        detalheEntrega.setTextColor(Color.rgb(232, 246, 236));
-        detalheEntrega.setPadding(0, 0, 0, dp(10));
-        destaqueDia.addView(detalheEntrega);
-        Button iniciarEntrega = botao("🎙  Lançar entrega por voz   →", Color.WHITE);
+        Button iniciarEntrega = botao("🚚    Nova entrega    →", Color.WHITE);
         iniciarEntrega.setTextColor(Color.rgb(20, 83, 45));
         iniciarEntrega.setBackground(fundoComBorda(Color.WHITE, Color.WHITE, 10));
+        iniciarEntrega.setTextSize(17);
+        iniciarEntrega.setContentDescription("Lançar nova entrega por voz");
         iniciarEntrega.setOnClickListener(v -> iniciarEntregaPorVoz());
         destaqueDia.addView(iniciarEntrega, new LinearLayout.LayoutParams(-1, dp(44)));
         LinearLayout.LayoutParams destaqueParams = new LinearLayout.LayoutParams(-1, -2);
@@ -522,44 +532,10 @@ public class MainActivity extends FragmentActivity {
         mensagemDoDia.setBackground(fundoComBorda(Color.rgb(240, 248, 242), Color.rgb(205, 225, 209), 12));
         LinearLayout.LayoutParams mensagemParams = new LinearLayout.LayoutParams(-1, -2);
         mensagemParams.setMargins(0, 0, 0, dp(12));
-        raiz.addView(mensagemDoDia, mensagemParams);
         carregarMensagemMotivacional(mensagem -> {
             if (!"home".equals(telaAtual)) return;
             mensagemDoDia.setText(mensagem.isEmpty() ? "Mensagem motivacional indisponível no ERP hoje." : "Mensagem do dia\n" + mensagem);
         });
-        EditText busca = campo("Buscar módulo", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-        LinearLayout.LayoutParams buscaParams = new LinearLayout.LayoutParams(-1, dp(48));
-        buscaParams.setMargins(0, 0, 0, dp(16));
-        raiz.addView(busca, buscaParams);
-
-        LinearLayout resumoDia = new LinearLayout(this);
-        resumoDia.setOrientation(LinearLayout.HORIZONTAL);
-        resumoDia.setVisibility(View.GONE);
-        LinearLayout.LayoutParams resumoDiaParams = new LinearLayout.LayoutParams(-1, -2);
-        resumoDiaParams.setMargins(0, 0, 0, dp(12));
-        raiz.addView(resumoDia, resumoDiaParams);
-        carregarResumoHome(resumoDia);
-
-        // Atalhos do catálogo ficam na tela principal para acesso rápido,
-        // sem disputar espaço com os campos do lançamento de entrega.
-        carregarProdutos();
-        LinearLayout atalhosCatalogo = new LinearLayout(this);
-        atalhosCatalogo.setOrientation(LinearLayout.HORIZONTAL);
-        atalhosCatalogo.setGravity(Gravity.CENTER_VERTICAL);
-        Button novoProdutoHome = botao("＋  Novo produto", Color.rgb(21, 101, 52));
-        novoProdutoHome.setTextSize(13);
-        novoProdutoHome.setOnClickListener(v -> cadastrarNovoProduto());
-        LinearLayout.LayoutParams novoProdutoHomeParams = new LinearLayout.LayoutParams(0, dp(52), 1);
-        novoProdutoHomeParams.setMargins(0, 0, dp(6), dp(14));
-        atalhosCatalogo.addView(novoProdutoHome, novoProdutoHomeParams);
-        Button gerenciarCatalogoHome = botao("▤  Gerenciar catálogo", Color.rgb(20, 83, 45));
-        gerenciarCatalogoHome.setTextSize(12);
-        gerenciarCatalogoHome.setOnClickListener(v -> gerenciarProdutos());
-        LinearLayout.LayoutParams gerenciarHomeParams = new LinearLayout.LayoutParams(0, dp(52), 1);
-        gerenciarHomeParams.setMargins(dp(6), 0, 0, dp(14));
-        atalhosCatalogo.addView(gerenciarCatalogoHome, gerenciarHomeParams);
-        raiz.addView(atalhosCatalogo);
-
         List<ModuloHome> modulos = new ArrayList<>();
         modulos.add(new ModuloHome("Entregas", "Novo pedido por voz e acompanhamento das notas", "Operação", "EN", Color.rgb(245, 124, 0), () -> mostrarMenuEntregas()));
         modulos.add(new ModuloHome("Vale", "Solicitação com assinatura", "Operação", "VA", Color.rgb(202, 138, 4), () -> abrirModuloVale()));
@@ -579,8 +555,33 @@ public class MainActivity extends FragmentActivity {
         modulos.add(new ModuloHome("Sincronização ERP", "Atualizar dados do sistema", "Mais", "SI", Color.rgb(13, 148, 136), () -> abrirSincronizacaoERP()));
         modulos.add(new ModuloHome("Atualizações", "Verificar nova versão", "Mais", "AT", Color.rgb(148, 163, 184), () -> verificarAtualizacao(true)));
 
+        adicionarGradeAtalhosHome(raiz, "Operação", filtrarModulos(modulos, new String[]{"Entregas", "Estoque", "Vale", "Boletos"}));
+        adicionarGradeAtalhosHome(raiz, "Análises", filtrarModulos(modulos, new String[]{"Análises", "Projeção", "Avarias", "Produtividade"}));
+        raiz.addView(mensagemDoDia, mensagemParams);
+
+        EditText busca = campo("Buscar módulo", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        LinearLayout.LayoutParams buscaParams = new LinearLayout.LayoutParams(-1, dp(48));
+        buscaParams.setMargins(0, 0, 0, dp(10));
+        raiz.addView(busca, buscaParams);
+
         LinearLayout listaModulos = coluna();
         raiz.addView(listaModulos);
+        carregarProdutos();
+        LinearLayout atalhosCatalogo = new LinearLayout(this);
+        atalhosCatalogo.setOrientation(LinearLayout.HORIZONTAL);
+        Button novoProdutoHome = botao("＋ Novo produto", Color.rgb(21, 101, 52));
+        novoProdutoHome.setTextSize(12);
+        novoProdutoHome.setOnClickListener(v -> cadastrarNovoProduto());
+        LinearLayout.LayoutParams novoProdutoHomeParams = new LinearLayout.LayoutParams(0, dp(48), 1);
+        novoProdutoHomeParams.setMargins(0, dp(10), dp(5), 0);
+        atalhosCatalogo.addView(novoProdutoHome, novoProdutoHomeParams);
+        Button gerenciarCatalogoHome = botao("▤ Gerenciar catálogo", Color.rgb(20, 83, 45));
+        gerenciarCatalogoHome.setTextSize(12);
+        gerenciarCatalogoHome.setOnClickListener(v -> gerenciarProdutos());
+        LinearLayout.LayoutParams gerenciarHomeParams = new LinearLayout.LayoutParams(0, dp(48), 1);
+        gerenciarHomeParams.setMargins(dp(5), dp(10), 0, 0);
+        atalhosCatalogo.addView(gerenciarCatalogoHome, gerenciarHomeParams);
+        raiz.addView(atalhosCatalogo);
         renderizarModulosHome(listaModulos, modulos, "");
         busca.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -597,6 +598,50 @@ public class MainActivity extends FragmentActivity {
         sairConta.setOnClickListener(v -> sairDaConta(true));
 
         setContentView(scroll);
+    }
+
+    private List<ModuloHome> filtrarModulos(List<ModuloHome> modulos, String[] titulos) {
+        List<ModuloHome> resultado = new ArrayList<>();
+        for (String titulo : titulos) for (ModuloHome modulo : modulos) if (titulo.equals(modulo.titulo)) resultado.add(modulo);
+        return resultado;
+    }
+
+    private void adicionarGradeAtalhosHome(LinearLayout raiz, String titulo, List<ModuloHome> modulos) {
+        TextView heading = texto(titulo, 18, true);
+        heading.setPadding(dp(2), dp(8), 0, dp(5));
+        raiz.addView(heading);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        int count = Math.min(4, modulos.size());
+        for (int i = 0; i < count; i++) {
+            ModuloHome modulo = modulos.get(i);
+            LinearLayout tile = new LinearLayout(this);
+            tile.setOrientation(LinearLayout.VERTICAL);
+            tile.setGravity(Gravity.CENTER);
+            tile.setPadding(dp(3), dp(8), dp(3), dp(7));
+            tile.setBackground(fundoComBorda(Color.WHITE, Color.rgb(216, 227, 220), 12));
+            TextView icon = texto(iconeModulo(modulo.titulo), 22, true);
+            icon.setGravity(Gravity.CENTER);
+            TextView label = texto(tituloCurtoAtalho(modulo.titulo), 10, true);
+            label.setGravity(Gravity.CENTER);
+            label.setMaxLines(1);
+            label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            tile.addView(icon);
+            tile.addView(label);
+            tile.setContentDescription(modulo.titulo);
+            tile.setOnClickListener(v -> modulo.acao.run());
+            aplicarFeedbackToque(tile);
+            LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(0, dp(64), 1);
+            item.setMargins(i == 0 ? 0 : dp(5), 0, i == count - 1 ? 0 : dp(1), dp(6));
+            row.addView(tile, item);
+        }
+        raiz.addView(row);
+    }
+
+    private String tituloCurtoAtalho(String titulo) {
+        if ("Produtividade".equals(titulo)) return "Equipe";
+        if ("Análises".equals(titulo)) return "Vendas";
+        return titulo;
     }
 
     private void renderizarModulosHome(LinearLayout destino, List<ModuloHome> modulos, String consulta) {
@@ -691,8 +736,8 @@ public class MainActivity extends FragmentActivity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.TOP);
-        card.setMinimumHeight(dp(122));
-        card.setPadding(dp(12), dp(10), dp(12), dp(10));
+        card.setMinimumHeight(dp(154));
+        card.setPadding(dp(15), dp(13), dp(15), dp(12));
         card.setBackground(fundoCardModulo(modulo.cor));
 
         TextView icone = new TextView(this);
@@ -701,22 +746,22 @@ public class MainActivity extends FragmentActivity {
         icone.setGravity(Gravity.CENTER);
         icone.setContentDescription("Ícone de " + modulo.titulo);
         icone.setBackground(fundoComBorda(Color.rgb(232, 243, 235), Color.rgb(209, 227, 215), 11));
-        LinearLayout.LayoutParams iconeParams = new LinearLayout.LayoutParams(dp(42), dp(38));
-        iconeParams.setMargins(0, 0, 0, dp(7));
+        LinearLayout.LayoutParams iconeParams = new LinearLayout.LayoutParams(dp(50), dp(48));
+        iconeParams.setMargins(0, 0, 0, dp(10));
         card.addView(icone, iconeParams);
 
         LinearLayout textos = coluna();
         textos.setPadding(0, 0, 0, 0);
-        TextView titulo = texto(modulo.titulo, 15, true);
+        TextView titulo = texto(modulo.titulo, 17, true);
         titulo.setSingleLine(true);
         titulo.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        TextView descricao = texto(modulo.descricao, 11, false);
-        descricao.setMaxLines(3);
+        TextView descricao = texto(modulo.descricao, 13, false);
+        descricao.setMaxLines(2);
         descricao.setEllipsize(android.text.TextUtils.TruncateAt.END);
         textos.addView(titulo);
         textos.addView(descricao);
         card.addView(textos, new LinearLayout.LayoutParams(-1, -2));
-        TextView seta = texto("Abrir  ›", 11, true);
+        TextView seta = texto("Abrir  ›", 13, true);
         seta.setTextColor(modulo.cor);
         seta.setGravity(Gravity.END);
         card.addView(seta, new LinearLayout.LayoutParams(-1, -2));
@@ -1530,28 +1575,42 @@ public class MainActivity extends FragmentActivity {
         vozRaiz.setBackgroundColor(Color.rgb(244, 247, 244));
         vozRaiz.setPadding(dp(18), dp(18), dp(18), dp(26));
         scroll.addView(vozRaiz);
-        adicionarCabecalhoModulo(vozRaiz, "Entrega por voz", "Lance o pedido falando com o celular.");
+        adicionarCabecalhoModulo(vozRaiz, "Novo pedido (entrega)", "Informe o cliente e dite os produtos. Revise antes de enviar.");
+        LinearLayout etapa = new LinearLayout(this);
+        etapa.setGravity(Gravity.CENTER);
+        etapa.setPadding(dp(8), dp(10), dp(8), dp(10));
+        etapa.setBackground(fundoComBorda(Color.WHITE, Color.rgb(216, 227, 220), 12));
+        TextView etapaTexto = texto("CLIENTE    ›    PRODUTOS    ›    REVISAR", 12, true);
+        etapaTexto.setTextColor(Color.rgb(21, 101, 52));
+        etapa.addView(etapaTexto);
+        LinearLayout.LayoutParams etapaParams = new LinearLayout.LayoutParams(-1, -2);
+        etapaParams.setMargins(0, 0, 0, dp(10));
+        vozRaiz.addView(etapa, etapaParams);
         vozClienteData = texto("Cliente ainda não informado\nData da nota: " + dataVoz, 16, true);
-        vozClienteData.setPadding(dp(14), dp(14), dp(14), dp(14));
-        vozClienteData.setBackground(fundoComBorda(Color.WHITE, Color.rgb(216, 227, 220), 10));
+        vozClienteData.setPadding(dp(16), dp(16), dp(16), dp(16));
+        vozClienteData.setBackground(fundoComBorda(Color.rgb(240, 248, 242), Color.rgb(205, 225, 209), 12));
         vozRaiz.addView(vozClienteData);
         vozPergunta = texto("Preparando conversa...", 21, true);
         vozPergunta.setTextColor(Color.rgb(20, 33, 46));
         vozPergunta.setGravity(Gravity.CENTER);
-        vozPergunta.setPadding(dp(8), dp(22), dp(8), dp(12));
+        vozPergunta.setPadding(dp(8), dp(16), dp(8), dp(6));
         vozRaiz.addView(vozPergunta);
         vozEstado = texto("Toque no microfone para falar", 15, false);
         vozEstado.setTextColor(Color.rgb(100, 116, 139));
         vozEstado.setGravity(Gravity.CENTER);
         vozRaiz.addView(vozEstado);
-        vozMicrofone = botao("🎙  FALAR", Color.rgb(21, 101, 52));
-        vozMicrofone.setTextSize(24);
-        vozMicrofone.setBackground(fundoArredondado(Color.rgb(21, 101, 52), 14));
+        vozMicrofone = botao("🎙  Falar pedido", Color.rgb(21, 101, 52));
+        vozMicrofone.setTextSize(20);
+        vozMicrofone.setBackground(fundoArredondado(Color.rgb(0, 91, 55), 16));
         vozMicrofone.setContentDescription("Começar a falar o nome do cliente ou os produtos");
-        LinearLayout.LayoutParams micParams = new LinearLayout.LayoutParams(-1, dp(112));
-        micParams.setMargins(0, dp(16), 0, dp(12));
+        LinearLayout.LayoutParams micParams = new LinearLayout.LayoutParams(-1, dp(68));
+        micParams.setMargins(0, dp(10), 0, dp(3));
         vozRaiz.addView(vozMicrofone, micParams);
         vozMicrofone.setOnClickListener(v -> ouvirVoz());
+        TextView dicaVoz = texto("Diga o produto e a quantidade em qualquer ordem.", 13, false);
+        dicaVoz.setGravity(Gravity.CENTER);
+        dicaVoz.setPadding(0, 0, 0, dp(8));
+        vozRaiz.addView(dicaVoz);
         LinearLayout respostas = new LinearLayout(this);
         respostas.setOrientation(LinearLayout.HORIZONTAL);
         vozSim = botao("Sim", Color.rgb(21, 128, 61));
@@ -1565,11 +1624,16 @@ public class MainActivity extends FragmentActivity {
         vozRaiz.addView(respostas);
         vozSim.setOnClickListener(v -> processarRespostaVoz("sim"));
         vozNao.setOnClickListener(v -> processarRespostaVoz("não"));
-        TextView secao = texto("Produtos do pedido", 17, true);
-        secao.setPadding(0, dp(22), 0, dp(6));
-        vozRaiz.addView(secao);
+        vozSecaoProdutos = texto("Produtos (0)", 18, true);
+        vozSecaoProdutos.setPadding(0, dp(16), 0, dp(6));
+        vozRaiz.addView(vozSecaoProdutos);
         vozLista = coluna();
         vozRaiz.addView(vozLista);
+        Button revisar = botao("Revisar pedido  ›", Color.rgb(0, 91, 55));
+        LinearLayout.LayoutParams revisarParams = new LinearLayout.LayoutParams(-1, dp(54));
+        revisarParams.setMargins(0, dp(10), 0, dp(6));
+        vozRaiz.addView(revisar, revisarParams);
+        revisar.setOnClickListener(v -> confirmarProdutosVoz());
         Button editarData = botao("Alterar data", Color.rgb(71, 85, 105));
         editarData.setOnClickListener(v -> escolherDataVoz());
         vozRaiz.addView(editarData);
@@ -1671,7 +1735,7 @@ public class MainActivity extends FragmentActivity {
     }
 
     private void restaurarMicrofoneVoz() {
-        if (vozMicrofone != null) { vozMicrofone.setEnabled(true); vozMicrofone.setText("🎙  FALAR"); }
+        if (vozMicrofone != null) { vozMicrofone.setEnabled(true); vozMicrofone.setText("🎙  Falar pedido"); }
     }
 
     private void processarRespostaVoz(String respostaOriginal) {
@@ -1842,6 +1906,7 @@ public class MainActivity extends FragmentActivity {
 
     private void atualizarListaItensVoz() {
         if (vozLista == null) return;
+        if (vozSecaoProdutos != null) vozSecaoProdutos.setText("Produtos (" + itensVoz.size() + ")");
         vozLista.removeAllViews();
         if (itensVoz.isEmpty()) { vozLista.addView(texto("Nenhum produto adicionado ainda.", 15, false)); return; }
         for (int i = 0; i < itensVoz.size(); i++) {
@@ -2018,7 +2083,7 @@ public class MainActivity extends FragmentActivity {
         tentativaEscutaVoz++;
         liberarReconhecedorVoz();
         if (falaVoz != null) { falaVoz.stop(); falaVoz.shutdown(); falaVoz = null; }
-        falaPronta = false; vozRaiz = null; vozLista = null; vozPergunta = null; vozEstado = null; vozMicrofone = null; vozClienteData = null; vozSim = null; vozNao = null;
+        falaPronta = false; vozRaiz = null; vozLista = null; vozPergunta = null; vozEstado = null; vozMicrofone = null; vozClienteData = null; vozSecaoProdutos = null; vozSim = null; vozNao = null;
         if (voltarMenu) mostrarMenuEntregas();
     }
 
@@ -4148,6 +4213,10 @@ public class MainActivity extends FragmentActivity {
         ScrollView scroll = new ScrollView(this); scroll.setBackgroundColor(COR_FUNDO_ESCURO);
         LinearLayout raiz = coluna(); raiz.setPadding(dp(16), dp(14), dp(16), dp(24)); scroll.addView(raiz);
         adicionarCabecalhoModulo(raiz, "Análises", "Indicadores atuais de vendas, avarias e operação.");
+        TextView filtrosAtivos = texto("⌕  Filtros   Todas as lojas · Todos os produtos", 13, true);
+        filtrosAtivos.setPadding(dp(12), dp(12), dp(12), dp(12));
+        filtrosAtivos.setBackground(fundoComBorda(Color.WHITE, Color.rgb(216, 227, 220), 18));
+        raiz.addView(filtrosAtivos);
         LinearLayout filtros = new LinearLayout(this); filtros.setOrientation(LinearLayout.HORIZONTAL);
         for (String[] f : new String[][]{{"Hoje","hoje"},{"7 dias","semana"},{"Mês","mes"}}) {
             Button b = botaoFiltro(f[0], f[1].equals(periodo), () -> abrirPainelAnalises(f[1])); filtros.addView(b, paramsFiltro(filtros.getChildCount()));
@@ -4175,9 +4244,10 @@ public class MainActivity extends FragmentActivity {
                 runOnUiThread(() -> { status.setText(nomePeriodo(periodo)+" · "+n+" notas e "+formatarNumero(dias.size())+" dias com movimento"); cards.removeAllViews();
                     cards.addView(linhaKpis(cardIndicador("Vendas", moeda.format(v), n+" notas", Color.rgb(21,101,52)),cardIndicador("Avarias",moeda.format(a),"Valor registrado",Color.rgb(220,38,38))));
                     cards.addView(linhaKpis(cardIndicador("Ticket médio",moeda.format(n>0?v/n:0),"Por nota",Color.rgb(37,99,235)),cardIndicador("Dias ativos",String.valueOf(dias.size()),"No período",Color.rgb(13,148,136))));
-                    if(!dias.isEmpty()) cards.addView(graficoBarrasAnimado("Evolução das vendas",rotulosGraficoDia(dias,10),valoresGraficoDia(dias,10),Color.rgb(21,101,52),0));
+                    if(!dias.isEmpty()) cards.addView(graficoLinhaAnimado("Evolução de vendas",rotulosGraficoDia(dias,7),valoresGraficoDia(dias,7),Color.rgb(21,128,61),0));
                     List<Map.Entry<String,Double>> top=new ArrayList<>(produtos.entrySet()); Collections.sort(top,(x,y)->Double.compare(y.getValue(),x.getValue()));
-                    cards.addView(texto("Principais produtos",16,true)); for(int i=0;i<Math.min(5,top.size());i++){Map.Entry<String,Double> e=top.get(i);cards.addView(linhaResumoMobile(e.getKey(),"Vendas no período",moeda.format(e.getValue()),Color.rgb(21,101,52)));}
+                    cards.addView(texto("Top produtos · mais vendidos no período",16,true));
+                    for(int i=0;i<Math.min(3,top.size());i++){Map.Entry<String,Double> e=top.get(i);double share=v>0?e.getValue()*100d/v:0;cards.addView(linhaResumoMobile((i+1)+"  "+e.getKey(),String.format(Locale.forLanguageTag("pt-BR"),"%.1f%% das vendas",share),moeda.format(e.getValue()),Color.rgb(21,101,52)));}
                 });
             } catch(Exception e){runOnUiThread(()->status.setText("Falha ao atualizar análises: "+mensagemErroSimples(e)));}
         }).start();
@@ -4186,12 +4256,14 @@ public class MainActivity extends FragmentActivity {
     private void abrirSincronizacaoERP() {
         temaEscuroAtivo=true; telaAtual="sincronizacao_erp"; ScrollView scroll=new ScrollView(this); scroll.setBackgroundColor(COR_FUNDO_ESCURO);
         LinearLayout raiz=coluna(); raiz.setPadding(dp(16),dp(14),dp(16),dp(24)); scroll.addView(raiz);
-        adicionarCabecalhoModulo(raiz,"Sincronização ERP","Atualize e confira os dados carregados diretamente do sistema.");
-        TextView status=texto("Conectando ao ERP…",18,true); raiz.addView(status); LinearLayout resumo=coluna(); raiz.addView(resumo);
+        adicionarCabecalhoModulo(raiz,"Sincronização com ERP","Acompanhe a consulta do aplicativo ao sistema.");
+        TextView status=texto("◷  Conectando ao ERP…",16,true); status.setPadding(dp(14),dp(14),dp(14),dp(14)); status.setBackground(fundoComBorda(Color.rgb(240,248,242),Color.rgb(205,225,209),12)); raiz.addView(status);
+        LinearLayout resumo=coluna(); raiz.addView(resumo);
+        TextView tituloLista=texto("Últimas notas consultadas",17,true);tituloLista.setPadding(0,dp(14),0,dp(5));raiz.addView(tituloLista);
         LinearLayout lista=coluna(); raiz.addView(lista); Button atualizar=botao("⟳  Sincronizar agora",Color.rgb(21,101,52)); raiz.addView(atualizar);
         Runnable carregar=()->{atualizar.setEnabled(false);status.setText("Consultando o ERP…");new Thread(()->{try{
             JSONArray dados=buscarArrayApi("/api/sales/delivery-sync"); int entregues=0,pendentes=0; for(int i=0;i<dados.length();i++){JSONObject r=dados.optJSONObject(i);if(r!=null){if(!r.isNull("delivered")&& !r.optString("delivered").trim().isEmpty()) entregues++;else pendentes++;}}
-            int ok=entregues, fila=pendentes; runOnUiThread(()->{status.setText("Conectado · sincronizado agora");resumo.removeAllViews();resumo.addView(linhaKpis(cardIndicador("Registros ERP",String.valueOf(dados.length()),"Notas consultadas",Color.rgb(21,101,52)),cardIndicador("Entregues",String.valueOf(ok),"Status confirmado",Color.rgb(37,99,235))));resumo.addView(cardIndicador("Acompanhar",String.valueOf(fila),"Notas sem status de entrega",Color.rgb(202,138,4)));lista.removeAllViews();lista.addView(cardLeitura("Atualização concluída","Os dados foram consultados no ERP agora.","Nenhuma venda foi reenviada ou duplicada.","",Color.rgb(220,252,231)));atualizar.setEnabled(true);});
+            int ok=entregues, fila=pendentes; runOnUiThread(()->{String hora=new SimpleDateFormat("HH:mm",Locale.getDefault()).format(new java.util.Date());status.setText("✓  Conectado ao ERP\nÚltima sincronização: hoje, "+hora);resumo.removeAllViews();resumo.addView(linhaKpis(cardIndicador("Consultadas",String.valueOf(dados.length()),"Notas lidas",Color.rgb(21,101,52)),cardIndicador("Confirmadas",String.valueOf(ok),"Status de entrega",Color.rgb(37,99,235))));resumo.addView(cardIndicador("Aguardando confirmação",String.valueOf(fila),"O ERP ainda não marcou como entregue",Color.rgb(202,138,4)));lista.removeAllViews();int exibidas=0;for(int i=0;i<dados.length()&&exibidas<8;i++){JSONObject r=dados.optJSONObject(i);if(r==null)continue;boolean confirmada=!r.isNull("delivered")&&!r.optString("delivered").trim().isEmpty();String id=r.optString("id","—");String data=r.optString("delivered_at","");lista.addView(cardLeitura("Entrega #"+id,confirmada?"Gravado no ERP":"Aguardando confirmação do ERP",data.isEmpty()?"Consulta concluída":"Confirmada em "+data, "",confirmada?Color.rgb(220,252,231):Color.rgb(255,247,237)));exibidas++;}if(exibidas==0)lista.addView(cardLeitura("Sem registros","A consulta foi concluída sem notas nesta lista.","Quando houver registros, o status aparecerá aqui.","",Color.rgb(240,248,242)));lista.addView(cardLeitura("Consulta somente de leitura","Não houve envio ou reenvio de vendas.","O status exibido é o que a API do ERP disponibiliza.","",Color.rgb(239,246,255)));atualizar.setEnabled(true);});
         }catch(Exception e){runOnUiThread(()->{status.setText("Não foi possível sincronizar: "+mensagemErroSimples(e));atualizar.setEnabled(true);});}}).start();}; atualizar.setOnClickListener(v->carregar.run());setContentView(scroll);carregar.run();
     }
 
@@ -6812,12 +6884,17 @@ public class MainActivity extends FragmentActivity {
         LinearLayout abas=new LinearLayout(this);abas.setOrientation(LinearLayout.HORIZONTAL);Button calendario=botao("▦  Calendário",Color.rgb(21,101,52)), novoTempo=botao("＄  Novo Tempo",Color.WHITE);novoTempo.setTextColor(Color.rgb(21,101,52));
         abas.addView(calendario,new LinearLayout.LayoutParams(0,dp(48),1));LinearLayout.LayoutParams ntp=new LinearLayout.LayoutParams(0,dp(48),1);ntp.setMargins(dp(6),0,0,0);abas.addView(novoTempo,ntp);raiz.addView(abas);
         TextView permissao=texto("",13,true);permissao.setPadding(dp(12),dp(10),dp(12),dp(10));raiz.addView(permissao);
+        TextView horarios=texto("",13,true);horarios.setPadding(dp(14),dp(12),dp(14),dp(12));horarios.setBackground(fundoComBorda(Color.rgb(240,248,242),Color.rgb(205,225,209),12));LinearLayout.LayoutParams horariosParams=new LinearLayout.LayoutParams(-1,-2);horariosParams.setMargins(0,dp(8),0,dp(8));raiz.addView(horarios,horariosParams);
+        boolean[] mostrarPagos={false};
+        LinearLayout filtroCobrancas=new LinearLayout(this);filtroCobrancas.setOrientation(LinearLayout.HORIZONTAL);Button pendentesTab=botao("Pendentes",Color.rgb(21,101,52)),pagosTab=botao("Pagos",Color.WHITE);pagosTab.setTextColor(Color.rgb(21,101,52));filtroCobrancas.addView(pendentesTab,new LinearLayout.LayoutParams(0,dp(44),1));LinearLayout.LayoutParams pagosTabParams=new LinearLayout.LayoutParams(0,dp(44),1);pagosTabParams.setMargins(dp(6),0,0,0);filtroCobrancas.addView(pagosTab,pagosTabParams);raiz.addView(filtroCobrancas);filtroCobrancas.setVisibility(View.GONE);
+        LinearLayout resumoCobrancas=coluna();raiz.addView(resumoCobrancas);resumoCobrancas.setVisibility(View.GONE);
         LinearLayout lista=coluna();raiz.addView(lista);
         final String[] abaSelecionada={abaInicial}; Runnable[] carregar={null};
         Runnable mostrarPermissao=()->{NotificationManager nm=(NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);boolean ativa=nm!=null&&nm.areNotificationsEnabled();if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)ativa=false;permissao.setText("Notificações do Android: "+(ativa?"permitidas":"toque aqui para ativar")+"\nCalendário: "+CalendarNotificationReceiver.estadoUltimaVerificacao(this)+"\nNovo Tempo: "+NewTempoCollectionReceiver.estadoUltimaVerificacao(this));permissao.setBackground(fundoComBorda(ativa?Color.rgb(220,252,231):Color.rgb(255,237,213),ativa?Color.rgb(22,163,74):Color.rgb(234,88,12),10));permissao.setOnClickListener(v->{if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},410);else abrirConfiguracoesNotificacoes();});};
-        carregar[0]=()->{mostrarPermissao.run();lista.removeAllViews();if("calendario".equals(abaSelecionada[0])){calendario.setBackground(fundoArredondado(Color.rgb(21,101,52),9));calendario.setTextColor(Color.WHITE);novoTempo.setBackground(fundoComBorda(Color.WHITE,Color.rgb(216,227,220),9));novoTempo.setTextColor(Color.rgb(21,101,52));TextView st=texto("Carregando eventos...",13,false);lista.addView(st);new Thread(()->{try{JSONArray ev=baixarEventosCalendario();runOnUiThread(()->{lista.removeAllViews();if(ev.length()==0)lista.addView(cardLeitura("Tudo em dia","Nenhum aviso pendente no calendário.","Confira novamente mais tarde.","",Color.rgb(220,252,231)));for(int i=0;i<ev.length();i++){JSONObject e=ev.optJSONObject(i);if(e!=null)lista.addView(cardLeitura(e.optString("title","Lembrete"),formatarDataIso(e.optString("due_date"))+" · "+(e.optInt("days_left")==0?"Hoje":"em "+e.optInt("days_left")+" dia(s)"),e.optString("details",""),"",Color.rgb(239,246,255)));}Button testar=botao("Testar aviso do calendário",Color.rgb(21,101,52));lista.addView(testar);testar.setOnClickListener(v->aviso(CalendarNotificationReceiver.testarNotificacao(this)));});}catch(Exception e){runOnUiThread(()->{lista.removeAllViews();lista.addView(cardLeitura("Calendário indisponível",mensagemErroSimples(e),"Verifique o acesso e tente atualizar.","",Color.rgb(255,237,213)));});}}).start();}
-            else{calendario.setBackground(fundoComBorda(Color.WHITE,Color.rgb(216,227,220),9));calendario.setTextColor(Color.rgb(21,101,52));novoTempo.setBackground(fundoArredondado(Color.rgb(21,101,52),9));novoTempo.setTextColor(Color.WHITE);TextView st=texto("Carregando cobranças Novo Tempo…",13,false);lista.addView(st);new Thread(()->{try{JSONArray rows=buscarArrayApi("/api/mobile/new-tempo/collections");runOnUiThread(()->{lista.removeAllViews();int pend=0;for(int i=0;i<rows.length();i++){JSONObject item=rows.optJSONObject(i);if(item==null)continue;boolean pago="pago".equalsIgnoreCase(item.optString("status"));if(pago)continue;pend++;String age=item.optBoolean("delivered",false)?"Entregue · "+item.optInt("hours_pending")+"h":"Aguardando entrega";LinearLayout card=(LinearLayout)cardLeitura(item.optString("client","Novo Tempo"),"NF "+item.optString("nf_number","—")+" · "+dataBR(item.optString("sale_date")),moeda.format(item.optDouble("total",0))+" · "+age,"Próximo aviso: "+formatarDataIsoHora(item.optString("next_alert_at")),Color.rgb(255,247,237));Button pagoBtn=botao("✓  Marcar como pago",Color.rgb(21,101,52));card.addView(pagoBtn);JSONObject copia=item;pagoBtn.setOnClickListener(v->{new Thread(()->{try{JSONObject body=new JSONObject();body.put("company_key",copia.optString("company_key"));body.put("status","pago");enviarObjetoApi("/api/mobile/new-tempo/collections/"+copia.optString("id"),"PUT",body);runOnUiThread(()->{aviso("Cobrança marcada como paga.");carregar[0].run();});}catch(Exception ex){runOnUiThread(()->aviso("Não foi possível atualizar: "+mensagemErroSimples(ex)));}}).start();});lista.addView(card);}if(pend==0)lista.addView(cardLeitura("Nenhuma cobrança pendente","As notas Novo Tempo em aberto aparecerão aqui.","Somente administradores recebem os avisos.","",Color.rgb(220,252,231)));});}catch(Exception e){runOnUiThread(()->{lista.removeAllViews();lista.addView(cardLeitura("Cobranças indisponíveis",mensagemErroSimples(e),"Tente atualizar quando o ERP estiver acessível.","",Color.rgb(255,237,213)));});}}).start();}};
+        carregar[0]=()->{mostrarPermissao.run();lista.removeAllViews();if("calendario".equals(abaSelecionada[0])){resumoCobrancas.setVisibility(View.GONE);horarios.setText("▦  Lembretes do calendário\n09:00  ·  13:00  ·  17:00  ·  21:00");filtroCobrancas.setVisibility(View.GONE);calendario.setBackground(fundoArredondado(Color.rgb(21,101,52),9));calendario.setTextColor(Color.WHITE);novoTempo.setBackground(fundoComBorda(Color.WHITE,Color.rgb(216,227,220),9));novoTempo.setTextColor(Color.rgb(21,101,52));TextView st=texto("Carregando eventos...",13,false);lista.addView(st);new Thread(()->{try{JSONArray ev=baixarEventosCalendario();runOnUiThread(()->{lista.removeAllViews();if(ev.length()==0)lista.addView(cardLeitura("Tudo em dia","Nenhum aviso pendente no calendário.","Confira novamente mais tarde.","",Color.rgb(220,252,231)));for(int i=0;i<ev.length();i++){JSONObject e=ev.optJSONObject(i);if(e!=null)lista.addView(cardLeitura(e.optString("title","Lembrete"),formatarDataIso(e.optString("due_date"))+" · "+(e.optInt("days_left")==0?"Hoje":"em "+e.optInt("days_left")+" dia(s)"),e.optString("details",""),"",Color.rgb(239,246,255)));}Button testar=botao("Testar aviso do calendário",Color.rgb(21,101,52));lista.addView(testar);testar.setOnClickListener(v->aviso(CalendarNotificationReceiver.testarNotificacao(this)));});}catch(Exception e){runOnUiThread(()->{lista.removeAllViews();lista.addView(cardLeitura("Calendário indisponível",mensagemErroSimples(e),"Verifique o acesso e tente atualizar.","",Color.rgb(255,237,213)));});}}).start();}
+            else{resumoCobrancas.setVisibility(View.VISIBLE);horarios.setText("＄  Lembretes Novo Tempo\n08:00  ·  12:00  ·  16:00  ·  20:00\nSomente notas entregues há mais de 24 horas; acesso admin.");filtroCobrancas.setVisibility(View.VISIBLE);pendentesTab.setBackground(fundoArredondado(mostrarPagos[0]?Color.WHITE:Color.rgb(21,101,52),9));pendentesTab.setTextColor(mostrarPagos[0]?Color.rgb(21,101,52):Color.WHITE);pagosTab.setBackground(fundoArredondado(mostrarPagos[0]?Color.rgb(21,101,52):Color.WHITE,9));pagosTab.setTextColor(mostrarPagos[0]?Color.WHITE:Color.rgb(21,101,52));calendario.setBackground(fundoComBorda(Color.WHITE,Color.rgb(216,227,220),9));calendario.setTextColor(Color.rgb(21,101,52));novoTempo.setBackground(fundoArredondado(Color.rgb(21,101,52),9));novoTempo.setTextColor(Color.WHITE);TextView st=texto("Carregando cobranças Novo Tempo…",13,false);lista.addView(st);new Thread(()->{try{JSONArray rows=buscarArrayApi("/api/mobile/new-tempo/collections");runOnUiThread(()->{lista.removeAllViews();int quantidade=0,totalPendentes=0,aguardando24=0,aptasAviso=0,totalPagas=0;for(int i=0;i<rows.length();i++){JSONObject item=rows.optJSONObject(i);if(item==null)continue;boolean pago="pago".equalsIgnoreCase(item.optString("status"));if(pago){totalPagas++;continue;}totalPendentes++;if(!item.optBoolean("delivered",false)||item.optInt("hours_pending")<24)aguardando24++;else aptasAviso++;}pendentesTab.setText("Pendentes ("+totalPendentes+")");pagosTab.setText("Pagos ("+totalPagas+")");resumoCobrancas.removeAllViews();resumoCobrancas.addView(linhaKpis(cardIndicador("Pendentes",String.valueOf(totalPendentes),"Notas ainda em aberto",Color.rgb(21,101,52)),cardIndicador("Aguardando 24h",String.valueOf(aguardando24),"Desde a entrega",Color.rgb(202,138,4))));resumoCobrancas.addView(linhaKpis(cardIndicador("Prontas para aviso",String.valueOf(aptasAviso),"Entregues há pelo menos 24h",Color.rgb(37,99,235)),cardIndicador("Pagas",String.valueOf(totalPagas),"Baixadas no sistema",Color.rgb(22,163,74))));for(int i=0;i<rows.length();i++){JSONObject item=rows.optJSONObject(i);if(item==null)continue;boolean pago="pago".equalsIgnoreCase(item.optString("status"));if(pago!=mostrarPagos[0])continue;quantidade++;String age=item.optBoolean("delivered",false)?"Entregue · "+item.optInt("hours_pending")+"h":"Aguardando entrega";LinearLayout card=(LinearLayout)cardLeitura(item.optString("client","Novo Tempo"),"NF "+item.optString("nf_number","—")+" · "+dataBR(item.optString("sale_date")),moeda.format(item.optDouble("total",0))+" · "+age,"Próximo aviso: "+formatarDataIsoHora(item.optString("next_alert_at")),pago?Color.rgb(220,252,231):Color.rgb(255,247,237));if(!pago){Button pagoBtn=botao("✓  Marcar como pago",Color.rgb(21,101,52));card.addView(pagoBtn);JSONObject copia=item;pagoBtn.setOnClickListener(v->{new Thread(()->{try{JSONObject body=new JSONObject();body.put("company_key",copia.optString("company_key"));body.put("status","pago");enviarObjetoApi("/api/mobile/new-tempo/collections/"+copia.optString("id"),"PUT",body);runOnUiThread(()->{aviso("Cobrança marcada como paga.");carregar[0].run();});}catch(Exception ex){runOnUiThread(()->aviso("Não foi possível atualizar: "+mensagemErroSimples(ex)));}}).start();});}lista.addView(card);}if(quantidade==0)lista.addView(cardLeitura(mostrarPagos[0]?"Nenhuma venda paga":"Nenhuma cobrança pendente",mostrarPagos[0]?"As vendas marcadas como pagas aparecerão aqui.":"As notas Novo Tempo em aberto aparecerão aqui.","Somente administradores recebem os avisos.","",Color.rgb(220,252,231)));});}catch(Exception e){runOnUiThread(()->{lista.removeAllViews();lista.addView(cardLeitura("Cobranças indisponíveis",mensagemErroSimples(e),"Tente atualizar quando o ERP estiver acessível.","",Color.rgb(255,237,213)));});}}).start();}};
         calendario.setOnClickListener(v->{abaSelecionada[0]="calendario";carregar[0].run();});novoTempo.setOnClickListener(v->{abaSelecionada[0]="novo_tempo";carregar[0].run();});
+        pendentesTab.setOnClickListener(v->{mostrarPagos[0]=false;carregar[0].run();});pagosTab.setOnClickListener(v->{mostrarPagos[0]=true;carregar[0].run();});
         Button atualizar=botao("⟳  Atualizar",Color.rgb(21,101,52));raiz.addView(atualizar);atualizar.setOnClickListener(v->carregar[0].run());
         Button testeNovo=botao("Testar aviso Novo Tempo",Color.rgb(71,85,105));raiz.addView(testeNovo);testeNovo.setOnClickListener(v->aviso(NewTempoCollectionReceiver.testarNotificacao(this)));
         setContentView(scroll);carregar[0].run();
