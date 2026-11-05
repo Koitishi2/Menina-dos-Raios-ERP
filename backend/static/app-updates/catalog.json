@@ -1,13 +1,13 @@
 {
-    "versionName":  "2.0.65",
-    "versionCode":  93,
+    "versionName":  "2.0.66",
+    "versionCode":  94,
     "packageName":  "br.com.meninadosraios.vendas",
-    "sha256":  "d4a3951192a011e30fdeffaf34bd9342921242bed961bbb5d4d0e6ed0a53f5a7",
+    "sha256":  "28a09f17f4d68dd0bf32806f1dafe317bc03632638c18c08ae88332f931f9a31",
     "releaseNotes":  "Tela inicial com módulos complementares compactos; atualização mostra progresso do download e do envio ao instalador Android.",
     "notes":  "Tela inicial com módulos complementares compactos; atualização mostra progresso do download e do envio ao instalador Android.",
     "apkFile":  "Menina-dos-Raios-Vendas-OFICIAL.apk",
     "apkUrl":  "https://sistema.meninadosraios.com.br/app-updates/Menina-dos-Raios-Vendas-OFICIAL.apk",
-    "sizeBytes":  6201944,
-    "publishedAt":  "2026-11-04T22:18:35-04:00",
-    "sourceFingerprint":  "0badf9fcaa6fa416954b59e37280a308b7d91593ae1348911ec941b2cacebb44"
+    "sizeBytes":  6201766,
+    "publishedAt":  "2026-11-04T22:35:23-04:00",
+    "sourceFingerprint":  "2a66739cd6cdb72b6ef1e94fd835ff399e8830afcbc561c1e8d0749f18bc1b3e"
 }

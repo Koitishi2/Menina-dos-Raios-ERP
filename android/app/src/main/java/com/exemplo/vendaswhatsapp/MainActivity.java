@@ -633,12 +633,10 @@ public class MainActivity extends FragmentActivity {
             TextView icon = texto(iconeModulo(modulo.titulo), 25, true);
             icon.setGravity(Gravity.CENTER);
             icon.setPadding(0, 0, 0, 0);
-            TextView label = texto(tituloCurtoAtalho(modulo.titulo), 11, true);
+            TextView label = texto(modulo.titulo, 11, true);
             label.setTextColor(Color.rgb(31, 41, 55));
             label.setGravity(Gravity.CENTER);
-            label.setPadding(0, 0, 0, 0);
-            label.setMaxLines(2);
-            label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            configurarRotuloModuloCompacto(label);
             tile.addView(icon);
             tile.addView(label);
             tile.setContentDescription(modulo.titulo);
@@ -651,10 +649,21 @@ public class MainActivity extends FragmentActivity {
         raiz.addView(row);
     }
 
-    private String tituloCurtoAtalho(String titulo) {
-        if ("Produtividade".equals(titulo)) return "Equipe";
-        if ("Análises".equals(titulo)) return "Vendas";
-        return titulo;
+    private void configurarRotuloModuloCompacto(TextView label) {
+        label.setPadding(0, 0, 0, 0);
+        label.setIncludeFontPadding(false);
+        label.setTextScaleX(0.94f);
+        if (Build.VERSION.SDK_INT >= 26) {
+            label.setAutoSizeTextTypeUniformWithConfiguration(8, 11, 1, TypedValue.COMPLEX_UNIT_SP);
+        } else {
+            label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 9);
+        }
+        if (Build.VERSION.SDK_INT >= 23) {
+            label.setBreakStrategy(Layout.BREAK_STRATEGY_SIMPLE);
+            label.setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE);
+        }
+        label.setMaxLines(2);
+        label.setEllipsize(android.text.TextUtils.TruncateAt.END);
     }
 
     private void renderizarModulosHome(LinearLayout destino, List<ModuloHome> modulos, String consulta) {
@@ -761,23 +770,10 @@ public class MainActivity extends FragmentActivity {
         LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(34), dp(34));
         iconParams.setMargins(0, 0, 0, dp(3));
         tile.addView(icon, iconParams);
-        TextView label = texto(tituloCurtoAtalho(modulo.titulo), 11, true);
+        TextView label = texto(modulo.titulo, 11, true);
         label.setTextColor(Color.rgb(31, 41, 55));
         label.setGravity(Gravity.CENTER);
-        label.setPadding(0, 0, 0, 0);
-        label.setIncludeFontPadding(false);
-        label.setTextScaleX(0.94f);
-        if (Build.VERSION.SDK_INT >= 26) {
-            label.setAutoSizeTextTypeUniformWithConfiguration(8, 11, 1, TypedValue.COMPLEX_UNIT_SP);
-        } else {
-            label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 9);
-        }
-        if (Build.VERSION.SDK_INT >= 23) {
-            label.setBreakStrategy(Layout.BREAK_STRATEGY_SIMPLE);
-            label.setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE);
-        }
-        label.setMaxLines(2);
-        label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        configurarRotuloModuloCompacto(label);
         tile.addView(label);
         tile.setContentDescription(modulo.titulo + ", abrir módulo");
         tile.setOnClickListener(v -> modulo.acao.run());

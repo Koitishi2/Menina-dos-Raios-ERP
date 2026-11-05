@@ -2,7 +2,11 @@
 
 Este arquivo registra as alteracoes funcionais do aplicativo Android e da integracao com o sistema.
 
-Versao estavel atual: `2.0.65`.
+Versao estavel atual: `2.0.66`.
+
+## [2.0.66] - 04/11/2026
+
+- Tela inicial com módulos complementares compactos; atualização mostra progresso do download e do envio ao instalador Android.
 
 ## [2.0.65] - 04/11/2026
 
