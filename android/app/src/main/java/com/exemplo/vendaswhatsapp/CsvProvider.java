@@ -32,8 +32,11 @@ public class CsvProvider extends ContentProvider {
 
     @Override public String getType(Uri uri) {
         String nome = uri.getLastPathSegment();
-        return nome != null && nome.toLowerCase().endsWith(".apk")
-            ? "application/vnd.android.package-archive" : "text/csv";
+        if (nome == null) return "application/octet-stream";
+        String lower = nome.toLowerCase(java.util.Locale.ROOT);
+        if (lower.endsWith(".apk")) return "application/vnd.android.package-archive";
+        if (lower.endsWith(".pdf")) return "application/pdf";
+        return "text/csv";
     }
 
     @Override public Cursor query(Uri uri, String[] projection, String selection,

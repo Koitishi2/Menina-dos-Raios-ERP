@@ -1,13 +1,13 @@
 {
-    "versionName":  "2.0.57",
-    "versionCode":  85,
+    "versionName":  "2.0.58",
+    "versionCode":  86,
     "packageName":  "br.com.meninadosraios.vendas",
-    "sha256":  "32713f79e696e8bbc95ade9dbda982280e99a53b4e37c01db36e019d78f6d64e",
-    "releaseNotes":  "Layout atualizado: atalhos compactos, pedido em etapas e telas de projeção, avarias, produtividade e consolidado reorganizadas.",
-    "notes":  "Layout atualizado: atalhos compactos, pedido em etapas e telas de projeção, avarias, produtividade e consolidado reorganizadas.",
+    "sha256":  "b57fe7d2bffe5ebec41c36abe4ddf6faaa05d2ea1ca63c8d48d826ddeb9069a4",
+    "releaseNotes":  "Abertura animada com três cenas ilustradas e o nome Menina dos Raios em destaque.",
+    "notes":  "Abertura animada com três cenas ilustradas e o nome Menina dos Raios em destaque.",
     "apkFile":  "Menina-dos-Raios-Vendas-OFICIAL.apk",
     "apkUrl":  "https://sistema.meninadosraios.com.br/app-updates/Menina-dos-Raios-Vendas-OFICIAL.apk",
-    "sizeBytes":  6181688,
-    "publishedAt":  "2026-11-04T19:44:25-04:00",
-    "sourceFingerprint":  "7fa11e1379f38577334ed90f7dd04b1384fd60fa4ef2a651a61ec428e90323f5"
+    "sizeBytes":  6192983,
+    "publishedAt":  "2026-11-04T20:19:57-04:00",
+    "sourceFingerprint":  "4d320e8e1948f3a8cf134d46cb87b3045ee857b68c481317dbfad171e0b6d85c"
 }

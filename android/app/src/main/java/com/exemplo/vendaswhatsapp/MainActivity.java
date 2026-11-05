@@ -33,6 +33,7 @@ import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Rect;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.pdf.PdfDocument;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -264,10 +265,10 @@ public class MainActivity extends FragmentActivity {
             nomeContorno.setStrokeJoin(Paint.Join.ROUND);
             nomeContorno.setStrokeWidth(dp(5));
             nomeContorno.setTypeface(android.graphics.Typeface.create("sans-serif-black", android.graphics.Typeface.BOLD));
-            nomeTexto.setColor(Color.WHITE);
+            nomeTexto.setColor(Color.rgb(204, 28, 38));
             nomeTexto.setTextAlign(Paint.Align.CENTER);
             nomeTexto.setTypeface(android.graphics.Typeface.create("sans-serif-black", android.graphics.Typeface.BOLD));
-            nomeTexto.setShadowLayer(dp(8), 0, dp(3), Color.BLACK);
+            nomeTexto.setShadowLayer(dp(5), 0, dp(2), Color.WHITE);
             riscoLuz.setColor(Color.rgb(65, 211, 255));
             riscoLuz.setStyle(Paint.Style.STROKE);
             riscoLuz.setStrokeCap(Paint.Cap.ROUND);
@@ -503,7 +504,7 @@ public class MainActivity extends FragmentActivity {
         Button iniciarEntrega = botao("＋  Lançar entrega", Color.WHITE);
         iniciarEntrega.setTextColor(Color.rgb(20, 83, 45));
         iniciarEntrega.setBackground(fundoComBorda(Color.WHITE, Color.WHITE, 10));
-        iniciarEntrega.setOnClickListener(v -> abrirTelaPedido());
+        iniciarEntrega.setOnClickListener(v -> iniciarEntregaPorVoz());
         destaqueDia.addView(iniciarEntrega, new LinearLayout.LayoutParams(-1, dp(44)));
         LinearLayout.LayoutParams destaqueParams = new LinearLayout.LayoutParams(-1, -2);
         destaqueParams.setMargins(0, 0, 0, dp(12));
@@ -522,6 +523,14 @@ public class MainActivity extends FragmentActivity {
         LinearLayout.LayoutParams buscaParams = new LinearLayout.LayoutParams(-1, dp(48));
         buscaParams.setMargins(0, 0, 0, dp(16));
         raiz.addView(busca, buscaParams);
+
+        LinearLayout resumoDia = new LinearLayout(this);
+        resumoDia.setOrientation(LinearLayout.HORIZONTAL);
+        resumoDia.setVisibility(View.GONE);
+        LinearLayout.LayoutParams resumoDiaParams = new LinearLayout.LayoutParams(-1, -2);
+        resumoDiaParams.setMargins(0, 0, 0, dp(12));
+        raiz.addView(resumoDia, resumoDiaParams);
+        carregarResumoHome(resumoDia);
 
         // Atalhos do catálogo ficam na tela principal para acesso rápido,
         // sem disputar espaço com os campos do lançamento de entrega.
@@ -556,8 +565,10 @@ public class MainActivity extends FragmentActivity {
         modulos.add(new ModuloHome("Produtividade", "Resumo da equipe", "Análises", "PD", Color.rgb(22, 163, 74), () -> abrirModuloProdutividade("mes")));
         modulos.add(new ModuloHome("Clientes", "Busca e detalhes", "Análises", "CL", Color.rgb(59, 130, 246), () -> abrirModuloClientes("")));
         modulos.add(new ModuloHome("Consolidado", "Totais do período", "Análises", "CO", Color.rgb(168, 85, 247), () -> abrirModuloConsolidado("mes")));
+        modulos.add(new ModuloHome("Análises", "Vendas, perdas e desempenho", "Análises", "AN", Color.rgb(22, 101, 58), () -> abrirPainelAnalises("mes")));
         modulos.add(new ModuloHome("Produtos", "Consultar preços de venda", "Análises", "PR", Color.rgb(13, 148, 136), () -> abrirModuloProdutos()));
-        if (adminNotificacoes()) modulos.add(new ModuloHome("Notificações", "Calendário e alertas", "Mais", "NO", Color.rgb(99, 102, 241), () -> abrirCalendarioNotificacoes()));
+        if (adminNotificacoes()) modulos.add(new ModuloHome("Notificações", "Calendário e alertas", "Mais", "NO", Color.rgb(99, 102, 241), () -> abrirCentralNotificacoes("calendario")));
+        modulos.add(new ModuloHome("Sincronização ERP", "Atualizar dados do sistema", "Mais", "SI", Color.rgb(13, 148, 136), () -> abrirSincronizacaoERP()));
         modulos.add(new ModuloHome("Atualizações", "Verificar nova versão", "Mais", "AT", Color.rgb(148, 163, 184), () -> verificarAtualizacao(true)));
 
         LinearLayout listaModulos = coluna();
@@ -605,12 +616,12 @@ public class MainActivity extends FragmentActivity {
                 linha.setOrientation(LinearLayout.HORIZONTAL);
                 for (int coluna = 0; coluna < colunas && i + coluna < visiveis.size(); coluna++) {
                     ModuloHome modulo = visiveis.get(i + coluna);
-                    LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(0, dp(104), 1);
+                    LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(0, -2, 1);
                     itemParams.setMargins(coluna == 0 ? 0 : dp(6), dp(4), coluna == 0 && colunas == 2 ? dp(6) : 0, dp(4));
                     linha.addView(cartaoModuloHome(modulo), itemParams);
                 }
                 if (colunas == 2 && visiveis.size() % 2 == 1 && i + 1 >= visiveis.size()) {
-                    linha.addView(new View(this), new LinearLayout.LayoutParams(0, dp(104), 1));
+                    linha.addView(new View(this), new LinearLayout.LayoutParams(0, dp(126), 1));
                 }
                 destino.addView(linha);
             }
@@ -623,10 +634,35 @@ public class MainActivity extends FragmentActivity {
         }
     }
 
+    private void carregarResumoHome(LinearLayout destino) {
+        new Thread(() -> {
+            try {
+                Calendar agora = Calendar.getInstance();
+                JSONArray vendas = buscarSalesApi("", agora.get(Calendar.YEAR), agora.get(Calendar.MONTH) + 1, 1000);
+                JSONObject financeiro = buscarObjetoApi("/api/boletos/summary");
+                double total = 0; int entregues = 0;
+                for (int i = 0; i < vendas.length(); i++) {
+                    JSONObject venda = vendas.optJSONObject(i);
+                    if (venda == null || "AVARIA".equalsIgnoreCase(venda.optString("sale_type"))) continue;
+                    total += venda.optDouble("total", 0);
+                    if ("sim".equalsIgnoreCase(venda.optString("delivered", "")) || "true".equalsIgnoreCase(venda.optString("delivered", ""))) entregues++;
+                }
+                double totalFinal = total; int entreguesFinal = entregues;
+                runOnUiThread(() -> {
+                    destino.removeAllViews(); destino.setOrientation(LinearLayout.VERTICAL); destino.setVisibility(View.VISIBLE);
+                    destino.addView(linhaKpis(cardIndicador("Vendas no mês", moeda.format(totalFinal), "Dados atuais do ERP", Color.rgb(21, 101, 52)),
+                        cardIndicador("Entregas", String.valueOf(entreguesFinal), "Notas entregues", Color.rgb(37, 99, 235))));
+                    destino.addView(cardIndicador("A receber", moeda.format(financeiro.optDouble("total_pendente", 0)), "Cobranças em aberto", Color.rgb(202, 138, 4)));
+                });
+            } catch (Exception ignored) { runOnUiThread(() -> destino.setVisibility(View.GONE)); }
+        }).start();
+    }
+
     private View cartaoModuloHome(ModuloHome modulo) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setGravity(Gravity.TOP);
+        card.setMinimumHeight(dp(122));
         card.setPadding(dp(12), dp(10), dp(12), dp(10));
         card.setBackground(fundoCardModulo(modulo.cor));
 
@@ -639,7 +675,7 @@ public class MainActivity extends FragmentActivity {
         sigla.setBackground(fundoComBorda(Color.rgb(232, 243, 235), Color.rgb(209, 227, 215), 12));
         sigla.setBackground(fundoComBorda(Color.rgb(232, 243, 235), Color.rgb(209, 227, 215), 9));
         LinearLayout.LayoutParams siglaParams = new LinearLayout.LayoutParams(dp(34), dp(28));
-        siglaParams.setMargins(0, 0, 0, dp(6));
+        siglaParams.setMargins(0, 0, 0, dp(5));
         card.addView(sigla, siglaParams);
 
         LinearLayout textos = coluna();
@@ -648,7 +684,7 @@ public class MainActivity extends FragmentActivity {
         titulo.setSingleLine(true);
         titulo.setEllipsize(android.text.TextUtils.TruncateAt.END);
         TextView descricao = texto(modulo.descricao, 11, false);
-        descricao.setMaxLines(2);
+        descricao.setMaxLines(3);
         descricao.setEllipsize(android.text.TextUtils.TruncateAt.END);
         textos.addView(titulo);
         textos.addView(descricao);
@@ -1248,8 +1284,7 @@ public class MainActivity extends FragmentActivity {
         TextView secao = texto("O que você vai fazer?", 16, true);
         secao.setPadding(0, dp(12), 0, dp(6));
         raiz.addView(secao);
-        raiz.addView(botaoModulo("Lançar entrega / pedido", "Adicionar itens e enviar ao ERP", Color.rgb(21, 101, 52), () -> abrirTelaPedido()));
-        raiz.addView(botaoModulo("Entrega por voz", "Ditado rápido de cliente e produtos", Color.rgb(21, 101, 52), () -> iniciarEntregaPorVoz()));
+        raiz.addView(botaoModulo("Lançar entrega", "Ditar cliente e produtos por voz", Color.rgb(21, 101, 52), () -> iniciarEntregaPorVoz()));
         raiz.addView(botaoModulo("Acompanhar entregas", "Ver notas pendentes e concluídas", Color.rgb(21, 101, 52), () -> abrirModuloEntregas(false)));
         setContentView(scroll);
     }
@@ -1257,8 +1292,9 @@ public class MainActivity extends FragmentActivity {
     private void iniciarEntregaPorVoz() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             new AlertDialog.Builder(this).setTitle("Voz indisponível")
-                .setMessage("Este celular não tem um serviço de reconhecimento de voz instalado. Use Lançar entrega / pedido ou instale/ative o reconhecimento de voz do Google.")
-                .setPositiveButton("Voltar", (d, w) -> mostrarMenuEntregas()).show();
+                .setMessage("Este celular não tem reconhecimento de voz ativo. Você pode ativar o serviço de voz ou abrir o formulário manual, que continua disponível como alternativa.")
+                .setPositiveButton("Abrir formulário manual", (d, w) -> abrirTelaPedido())
+                .setNegativeButton("Voltar", (d, w) -> mostrarMenuEntregas()).show();
             return;
         }
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -1275,6 +1311,23 @@ public class MainActivity extends FragmentActivity {
         iniciarSessaoVoz();
     }
 
+    private View cardSaldoEstoque(String nome, String sku, String saldo, int vendas, double quantidade) {
+        final int cor, borda;
+        if (quantidade <= 0) { cor = Color.rgb(254, 226, 226); borda = Color.rgb(220, 38, 38); }
+        else if (quantidade <= 10) { cor = Color.rgb(255, 237, 213); borda = Color.rgb(234, 88, 12); }
+        else if (quantidade > 300) { cor = Color.rgb(219, 234, 254); borda = Color.rgb(37, 99, 235); }
+        else { cor = Color.rgb(220, 252, 231); borda = Color.rgb(22, 163, 74); }
+        LinearLayout card = coluna();
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        card.setBackground(fundoComBorda(cor, borda, 13));
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2); p.setMargins(0, dp(5), 0, dp(5)); card.setLayoutParams(p);
+        card.addView(texto(nome, 17, true));
+        TextView saldoView = texto(saldo, 20, true); saldoView.setTextColor(borda); saldoView.setPadding(0, dp(4), 0, 0); card.addView(saldoView);
+        card.addView(texto("SKU: " + (sku == null || sku.trim().isEmpty() ? "—" : sku), 12, false));
+        card.addView(texto(vendas + " venda(s) no histórico", 12, false));
+        return card;
+    }
+
     @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == 410) {
@@ -1286,8 +1339,9 @@ public class MainActivity extends FragmentActivity {
         if (requestCode == PEDIDO_AUDIO_VOZ) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) iniciarEntregaPorVoz();
             else new AlertDialog.Builder(this).setTitle("Microfone não autorizado")
-                .setMessage("Ative a permissão de microfone para usar Entrega por voz.")
-                .setPositiveButton("OK", (d, w) -> mostrarMenuEntregas()).show();
+                .setMessage("Ative a permissão do microfone para ditar o pedido. Se preferir, o formulário manual continua disponível como alternativa.")
+                .setPositiveButton("Formulário manual", (d, w) -> abrirTelaPedido())
+                .setNegativeButton("Voltar", (d, w) -> mostrarMenuEntregas()).show();
         }
     }
 
@@ -2322,9 +2376,10 @@ public class MainActivity extends FragmentActivity {
                         for (int i = 0; i < finalProdutos.length(); i++) {
                             JSONObject item = finalProdutos.optJSONObject(i);
                             if (item == null) continue;
-                            String saldo = formatarNumero(item.optDouble("balance", 0)) + " " + item.optString("unit", "UN");
-                            lista.addView(cardLeitura(item.optString("name", "Produto"), "SKU: " + item.optString("sku", "—"), "Saldo disponível: " + saldo,
-                                item.optInt("sales_count", 0) + " venda(s) no histórico", Color.WHITE));
+                            double saldoValor = item.optDouble("balance", 0);
+                            String saldo = formatarNumero(saldoValor) + " " + item.optString("unit", "UN");
+                            lista.addView(cardSaldoEstoque(item.optString("name", "Produto"), item.optString("sku", "—"), saldo,
+                                item.optInt("sales_count", 0), saldoValor));
                         }
                     });
                 } catch (Exception e) {
@@ -2439,6 +2494,9 @@ public class MainActivity extends FragmentActivity {
         conteudo.addView(texto("Acompanhe vencimentos e clientes selecionados no ERP.", 13, false));
         TextView status = texto("Carregando carteira...", 12, false);
         conteudo.addView(status);
+        Button relatorioDevedor = botao("▤  Relatório de débitos", Color.rgb(21, 101, 52));
+        conteudo.addView(relatorioDevedor);
+        relatorioDevedor.setOnClickListener(v -> abrirSeletorRelatorioDebitos());
 
         LinearLayout indicadores = new LinearLayout(this);
         indicadores.setOrientation(LinearLayout.HORIZONTAL);
@@ -3981,6 +4039,98 @@ public class MainActivity extends FragmentActivity {
         return card;
     }
 
+    private void abrirPainelAnalises(String periodo) {
+        temaEscuroAtivo = true; telaAtual = "analises";
+        ScrollView scroll = new ScrollView(this); scroll.setBackgroundColor(COR_FUNDO_ESCURO);
+        LinearLayout raiz = coluna(); raiz.setPadding(dp(16), dp(14), dp(16), dp(24)); scroll.addView(raiz);
+        adicionarCabecalhoModulo(raiz, "Análises", "Indicadores atuais de vendas, avarias e operação.");
+        LinearLayout filtros = new LinearLayout(this); filtros.setOrientation(LinearLayout.HORIZONTAL);
+        for (String[] f : new String[][]{{"Hoje","hoje"},{"7 dias","semana"},{"Mês","mes"}}) {
+            Button b = botaoFiltro(f[0], f[1].equals(periodo), () -> abrirPainelAnalises(f[1])); filtros.addView(b, paramsFiltro(filtros.getChildCount()));
+        }
+        raiz.addView(filtros);
+        TextView status = texto("Atualizando indicadores do ERP…", 13, false); raiz.addView(status);
+        LinearLayout cards = coluna(); raiz.addView(cards);
+        LinearLayout atalhos = coluna(); raiz.addView(atalhos);
+        atalhos.addView(botaoModulo("Avarias", "Ver ocorrências e lançar uma avaria", Color.rgb(185, 55, 45), () -> abrirModuloAvarias("mes")));
+        atalhos.addView(botaoModulo("Produtividade", "Produção e dias ativos", Color.rgb(22, 163, 74), () -> abrirModuloProdutividade("mes")));
+        atalhos.addView(botaoModulo("Projeção", "Estimativa de saída", Color.rgb(59, 130, 246), () -> abrirModuloProjecao("30", "", "", "consolidada")));
+        setContentView(scroll);
+        new Thread(() -> {
+            try {
+                Calendar c = Calendar.getInstance(); JSONArray rows = buscarSalesApi("", c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1, 1000);
+                if ("semana".equals(periodo)) { Calendar anterior=(Calendar)c.clone();anterior.add(Calendar.MONTH,-1);JSONArray velhas=buscarSalesApi("",anterior.get(Calendar.YEAR),anterior.get(Calendar.MONTH)+1,1000);for(int i=0;i<velhas.length();i++)rows.put(velhas.optJSONObject(i)); }
+                double vendas=0, avarias=0; int notas=0; LinkedHashMap<String,double[]> dias=new LinkedHashMap<>(); LinkedHashMap<String,Double> produtos=new LinkedHashMap<>();
+                for (int i=0;i<rows.length();i++) { JSONObject r=rows.optJSONObject(i); if(r==null || !dentroDoPeriodo(r.optString("sale_date"), periodo)) continue;
+                    double valor=r.optDouble("total",0); String tipo=r.optString("sale_type","");
+                    if("AVARIA".equalsIgnoreCase(tipo)){avarias+=valor;continue;} vendas+=valor; notas++;
+                    String data=r.optString("sale_date","—"); double[] acc=dias.containsKey(data)?dias.get(data):new double[]{0}; acc[0]+=valor; dias.put(data,acc);
+                    String prod=r.optString("product","Produto"); produtos.put(prod, (produtos.containsKey(prod)?produtos.get(prod):0)+valor);
+                }
+                double v=vendas,a=avarias; int n=notas;
+                runOnUiThread(() -> { status.setText(nomePeriodo(periodo)+" · "+n+" notas e "+formatarNumero(dias.size())+" dias com movimento"); cards.removeAllViews();
+                    cards.addView(linhaKpis(cardIndicador("Vendas", moeda.format(v), n+" notas", Color.rgb(21,101,52)),cardIndicador("Avarias",moeda.format(a),"Valor registrado",Color.rgb(220,38,38))));
+                    cards.addView(linhaKpis(cardIndicador("Ticket médio",moeda.format(n>0?v/n:0),"Por nota",Color.rgb(37,99,235)),cardIndicador("Dias ativos",String.valueOf(dias.size()),"No período",Color.rgb(13,148,136))));
+                    if(!dias.isEmpty()) cards.addView(graficoBarrasAnimado("Evolução das vendas",rotulosGraficoDia(dias,10),valoresGraficoDia(dias,10),Color.rgb(21,101,52),0));
+                    List<Map.Entry<String,Double>> top=new ArrayList<>(produtos.entrySet()); Collections.sort(top,(x,y)->Double.compare(y.getValue(),x.getValue()));
+                    cards.addView(texto("Principais produtos",16,true)); for(int i=0;i<Math.min(5,top.size());i++){Map.Entry<String,Double> e=top.get(i);cards.addView(linhaResumoMobile(e.getKey(),"Vendas no período",moeda.format(e.getValue()),Color.rgb(21,101,52)));}
+                });
+            } catch(Exception e){runOnUiThread(()->status.setText("Falha ao atualizar análises: "+mensagemErroSimples(e)));}
+        }).start();
+    }
+
+    private void abrirSincronizacaoERP() {
+        temaEscuroAtivo=true; telaAtual="sincronizacao_erp"; ScrollView scroll=new ScrollView(this); scroll.setBackgroundColor(COR_FUNDO_ESCURO);
+        LinearLayout raiz=coluna(); raiz.setPadding(dp(16),dp(14),dp(16),dp(24)); scroll.addView(raiz);
+        adicionarCabecalhoModulo(raiz,"Sincronização ERP","Atualize e confira os dados carregados diretamente do sistema.");
+        TextView status=texto("Conectando ao ERP…",18,true); raiz.addView(status); LinearLayout resumo=coluna(); raiz.addView(resumo);
+        LinearLayout lista=coluna(); raiz.addView(lista); Button atualizar=botao("⟳  Sincronizar agora",Color.rgb(21,101,52)); raiz.addView(atualizar);
+        Runnable carregar=()->{atualizar.setEnabled(false);status.setText("Consultando o ERP…");new Thread(()->{try{
+            JSONArray dados=buscarArrayApi("/api/sales/delivery-sync"); int entregues=0,pendentes=0; for(int i=0;i<dados.length();i++){JSONObject r=dados.optJSONObject(i);if(r!=null){if(!r.isNull("delivered")&& !r.optString("delivered").trim().isEmpty()) entregues++;else pendentes++;}}
+            int ok=entregues, fila=pendentes; runOnUiThread(()->{status.setText("Conectado · sincronizado agora");resumo.removeAllViews();resumo.addView(linhaKpis(cardIndicador("Registros ERP",String.valueOf(dados.length()),"Notas consultadas",Color.rgb(21,101,52)),cardIndicador("Entregues",String.valueOf(ok),"Status confirmado",Color.rgb(37,99,235))));resumo.addView(cardIndicador("Acompanhar",String.valueOf(fila),"Notas sem status de entrega",Color.rgb(202,138,4)));lista.removeAllViews();lista.addView(cardLeitura("Atualização concluída","Os dados foram consultados no ERP agora.","Nenhuma venda foi reenviada ou duplicada.","",Color.rgb(220,252,231)));atualizar.setEnabled(true);});
+        }catch(Exception e){runOnUiThread(()->{status.setText("Não foi possível sincronizar: "+mensagemErroSimples(e));atualizar.setEnabled(true);});}}).start();}; atualizar.setOnClickListener(v->carregar.run());setContentView(scroll);carregar.run();
+    }
+
+    private void abrirSeletorRelatorioDebitos() {
+        if (!"admin".equalsIgnoreCase(authPrefs().getString("role", "").trim())) { aviso("Relatório disponível somente para administradores."); return; }
+        new Thread(() -> { try { JSONArray clientes=buscarArrayApi("/api/boletos/debtor-report/clients?scope=open"); runOnUiThread(()->mostrarSeletorRelatorioDebitos(clientes)); }
+            catch(Exception e){runOnUiThread(()->aviso("Não foi possível carregar clientes devedores: "+mensagemErroSimples(e)));} }).start();
+    }
+
+    private void mostrarSeletorRelatorioDebitos(JSONArray clientes) {
+        LinearLayout form=coluna(); form.setPadding(dp(16),dp(8),dp(16),dp(8));
+        Spinner escopo=new Spinner(this); escopo.setAdapter(adaptadorSpinner(new String[]{"Todos em aberto","Somente em atraso","Vencem hoje"}));
+        Spinner cliente=new Spinner(this); CheckBox raios=new CheckBox(this), estrada=new CheckBox(this); raios.setText("Menina dos Raios"); estrada.setText("Menina da Estrada"); raios.setChecked(true);estrada.setChecked(true);
+        TextView preview=texto("Selecione o cliente para ver o total.",14,false);
+        form.addView(rotuloCampo("PERÍODO"));form.addView(escopo);form.addView(rotuloCampo("CLIENTE OU REDE (FILIAIS AGRUPADAS)"));form.addView(cliente);form.addView(rotuloCampo("EMPRESAS NO RELATÓRIO"));form.addView(raios);form.addView(estrada);form.addView(preview);
+        JSONArray[] dados={clientes}; ArrayList<String> nomes=new ArrayList<>(); ArrayList<String> chaves=new ArrayList<>();
+        for(int i=0;i<clientes.length();i++){JSONObject c=clientes.optJSONObject(i);if(c!=null){nomes.add(c.optString("name"));chaves.add(c.optString("key"));}}
+        cliente.setAdapter(new ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,nomes));
+        AdapterView.OnItemSelectedListener atualiza=new AdapterView.OnItemSelectedListener(){public void onNothingSelected(AdapterView<?> p){} public void onItemSelected(AdapterView<?> p,View v,int pos,long id){if(pos>=0&&pos<dados[0].length()){JSONObject c=dados[0].optJSONObject(pos);if(c!=null)preview.setText(c.optInt("invoice_count")+" nota(s) · saldo devedor "+moeda.format(c.optDouble("balance",0))+" · filiais agrupadas");}}}; cliente.setOnItemSelectedListener(atualiza);
+        escopo.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onNothingSelected(AdapterView<?> p){}public void onItemSelected(AdapterView<?> p,View v,int pos,long id){String s=pos==1?"overdue":(pos==2?"today":"open");new Thread(()->{try{JSONArray novos=buscarArrayApi("/api/boletos/debtor-report/clients?scope="+s);runOnUiThread(()->{dados[0]=novos;nomes.clear();chaves.clear();for(int i=0;i<novos.length();i++){JSONObject c=novos.optJSONObject(i);if(c!=null){nomes.add(c.optString("name"));chaves.add(c.optString("key"));}}((ArrayAdapter<?>)cliente.getAdapter()).notifyDataSetChanged();if(!nomes.isEmpty())cliente.setSelection(0);else preview.setText("Nenhum devedor neste filtro.");});}catch(Exception e){runOnUiThread(()->preview.setText("Falha ao filtrar clientes: "+mensagemErroSimples(e)));}}).start();}});
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Relatório de débitos · PDF A4").setView(form).setNegativeButton("Cancelar",null).setPositiveButton("Gerar PDF",null).create();
+        dialog.setOnShowListener(x->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{int pos=cliente.getSelectedItemPosition();if(pos<0||pos>=chaves.size()){aviso("Selecione um cliente com saldo em aberto.");return;}if(!raios.isChecked()&&!estrada.isChecked()){aviso("Selecione ao menos uma empresa.");return;}String scope=escopo.getSelectedItemPosition()==1?"overdue":(escopo.getSelectedItemPosition()==2?"today":"open");String companies=(raios.isChecked()?"raios":"")+(raios.isChecked()&&estrada.isChecked()?",":"")+(estrada.isChecked()?"estrada":"");String endpoint="/api/boletos/debtor-report?client="+url(chaves.get(pos))+"&companies="+url(companies)+"&scope="+scope;v.setEnabled(false);new Thread(()->{try{JSONObject report=buscarObjetoApi(endpoint);File pdf=criarPdfRelatorioDebitos(report);runOnUiThread(()->{dialog.dismiss();compartilharPdf(pdf);});}catch(Exception e){runOnUiThread(()->{v.setEnabled(true);aviso("Não foi possível gerar o relatório: "+mensagemErroSimples(e));});}}).start();}));dialog.show();
+    }
+
+    private String url(String valor) { try{return URLEncoder.encode(valor,"UTF-8");}catch(Exception e){return valor;} }
+
+    private File criarPdfRelatorioDebitos(JSONObject report) throws Exception {
+        PdfDocument pdf=new PdfDocument(); PdfDocument.PageInfo info=new PdfDocument.PageInfo.Builder(595,842,1).create(); PdfDocument.Page page=pdf.startPage(info); android.graphics.Canvas c=page.getCanvas();
+        JSONArray invoices=report.optJSONArray("invoices");if(invoices==null)invoices=new JSONArray();JSONArray totals=report.optJSONArray("company_totals");if(totals==null)totals=new JSONArray();
+        float scale=Math.min(1f,790f/(210f+invoices.length()*13f)); c.save();c.scale(scale,scale);float w=595/scale;int y=36;Paint p=new Paint(3);p.setColor(Color.rgb(20,83,45));p.setTypeface(android.graphics.Typeface.create("sans-serif",1));p.setTextSize(20);c.drawText("RELATÓRIO DE DÉBITOS",28,y,p);y+=23;
+        p.setColor(Color.DKGRAY);p.setTextSize(11);p.setTypeface(android.graphics.Typeface.DEFAULT);c.drawText("Cliente / rede: "+report.optString("client"),28,y,p);y+=16;c.drawText("Emitido em "+new SimpleDateFormat("dd/MM/yyyy",new Locale("pt","BR")).format(new java.util.Date())+" · notas em aberto",28,y,p);y+=20;
+        for(int i=0;i<totals.length();i++){JSONObject t=totals.optJSONObject(i);if(t==null)continue;p.setColor(i%2==0?Color.rgb(220,252,231):Color.rgb(219,234,254));c.drawRect(28,y-12,w-28,y+7,p);p.setColor(Color.rgb(20,83,45));p.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);p.setTextSize(11);c.drawText(t.optString("name")+" · "+t.optInt("invoice_count")+" NF(s)",34,y,p);String subtotal=moeda.format(t.optDouble("total",0));p.setTextAlign(Paint.Align.RIGHT);c.drawText(subtotal,w-34,y,p);p.setTextAlign(Paint.Align.LEFT);y+=19;}
+        p.setColor(Color.GRAY);p.setTextSize(8);p.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);c.drawText("EMPRESA / FILIAL · NF",30,y,p);c.drawText("VENCIMENTO",330,y,p);p.setTextAlign(Paint.Align.RIGHT);c.drawText("SALDO",w-30,y,p);p.setTextAlign(Paint.Align.LEFT);y+=12;
+        for(int i=0;i<invoices.length();i++){JSONObject row=invoices.optJSONObject(i);if(row==null)continue;p.setColor(i%2==0?Color.rgb(248,250,248):Color.WHITE);c.drawRect(28,y-9,w-28,y+5,p);p.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);p.setTextSize(8);p.setColor(Color.rgb(31,41,55));String line=row.optString("company")+" · "+row.optString("client")+" · NF "+row.optString("nf_number","—");c.drawText(line,30,y,p);p.setTypeface(android.graphics.Typeface.DEFAULT);c.drawText(formatarDataIso(row.optString("due_date","")),330,y,p);p.setTextAlign(Paint.Align.RIGHT);c.drawText(moeda.format(row.optDouble("balance",0)),w-30,y,p);p.setTextAlign(Paint.Align.LEFT);y+=13;}
+        p.setColor(Color.rgb(20,83,45));c.drawRect(28,y,w-28,y+24,p);p.setColor(Color.WHITE);p.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);p.setTextSize(13);c.drawText("TOTAL GERAL · "+report.optInt("invoice_count")+" notas",36,y+16,p);p.setTextAlign(Paint.Align.RIGHT);c.drawText(moeda.format(report.optDouble("total",0)),w-36,y+16,p);p.setTextAlign(Paint.Align.LEFT);c.restore();pdf.finishPage(page);
+        File dir=new File(getCacheDir(),"pedidos");if(!dir.exists()&&!dir.mkdirs())throw new Exception("Não foi possível preparar o PDF.");File file=new File(dir,"relatorio_debitos_"+System.currentTimeMillis()+".pdf");java.io.FileOutputStream out=new java.io.FileOutputStream(file);pdf.writeTo(out);out.close();pdf.close();return file;
+    }
+
+    private void compartilharPdf(File file) {
+        Uri uri=Uri.parse("content://"+getPackageName()+".files/pedidos/"+file.getName());Intent send=new Intent(Intent.ACTION_SEND);send.setType("application/pdf");send.putExtra(Intent.EXTRA_STREAM,uri);send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try{startActivity(Intent.createChooser(send,"Enviar relatório de débitos"));}catch(Exception e){aviso("PDF criado, mas não foi possível abrir o compartilhamento.");}
+    }
+
     private View graficoBarra(String titulo, double valor, double maximo, int cor) {
         LinearLayout card = coluna();
         card.setPadding(dp(12), dp(10), dp(12), dp(10));
@@ -5019,7 +5169,7 @@ public class MainActivity extends FragmentActivity {
         topo.addView(marca, new LinearLayout.LayoutParams(0, -2, 1));
         Button sino = botao("🔔", Color.rgb(79, 70, 229));
         sino.setTextSize(19);
-        sino.setOnClickListener(v -> abrirCalendarioNotificacoes());
+        sino.setOnClickListener(v -> abrirCentralNotificacoes("calendario"));
         LinearLayout.LayoutParams sinoParams = new LinearLayout.LayoutParams(dp(44), dp(42));
         sinoParams.setMargins(dp(8), 0, 0, 0);
         if (adminNotificacoes()) topo.addView(sino, sinoParams);
@@ -6549,6 +6699,27 @@ public class MainActivity extends FragmentActivity {
         try { startActivity(send); }
         catch (ActivityNotFoundException e) { startActivity(Intent.createChooser(send, "Enviar recibo")); }
     }
+
+    private void abrirCentralNotificacoes(String abaInicial) {
+        if (!adminNotificacoes()) { aviso("Central de notificações disponível somente para administradores."); return; }
+        temaEscuroAtivo=true; telaAtual="central_notificacoes"; ScrollView scroll=new ScrollView(this);scroll.setBackgroundColor(COR_FUNDO_ESCURO);
+        LinearLayout raiz=coluna();raiz.setPadding(dp(16),dp(14),dp(16),dp(26));scroll.addView(raiz);
+        adicionarCabecalhoModulo(raiz,"Central de notificações","Calendário e cobranças · acesso somente admin.");
+        LinearLayout abas=new LinearLayout(this);abas.setOrientation(LinearLayout.HORIZONTAL);Button calendario=botao("▦  Calendário",Color.rgb(21,101,52)), novoTempo=botao("＄  Novo Tempo",Color.WHITE);novoTempo.setTextColor(Color.rgb(21,101,52));
+        abas.addView(calendario,new LinearLayout.LayoutParams(0,dp(48),1));LinearLayout.LayoutParams ntp=new LinearLayout.LayoutParams(0,dp(48),1);ntp.setMargins(dp(6),0,0,0);abas.addView(novoTempo,ntp);raiz.addView(abas);
+        TextView permissao=texto("",13,true);permissao.setPadding(dp(12),dp(10),dp(12),dp(10));raiz.addView(permissao);
+        LinearLayout lista=coluna();raiz.addView(lista);
+        final String[] abaSelecionada={abaInicial}; Runnable[] carregar={null};
+        Runnable mostrarPermissao=()->{NotificationManager nm=(NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);boolean ativa=nm!=null&&nm.areNotificationsEnabled();if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)ativa=false;permissao.setText("Notificações do Android: "+(ativa?"permitidas":"toque aqui para ativar")+"\nCalendário: "+CalendarNotificationReceiver.estadoUltimaVerificacao(this)+"\nNovo Tempo: "+NewTempoCollectionReceiver.estadoUltimaVerificacao(this));permissao.setBackground(fundoComBorda(ativa?Color.rgb(220,252,231):Color.rgb(255,237,213),ativa?Color.rgb(22,163,74):Color.rgb(234,88,12),10));permissao.setOnClickListener(v->{if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},410);else abrirConfiguracoesNotificacoes();});};
+        carregar[0]=()->{mostrarPermissao.run();lista.removeAllViews();if("calendario".equals(abaSelecionada[0])){calendario.setBackground(fundoArredondado(Color.rgb(21,101,52),9));calendario.setTextColor(Color.WHITE);novoTempo.setBackground(fundoComBorda(Color.WHITE,Color.rgb(216,227,220),9));novoTempo.setTextColor(Color.rgb(21,101,52));TextView st=texto("Carregando eventos...",13,false);lista.addView(st);new Thread(()->{try{JSONArray ev=baixarEventosCalendario();runOnUiThread(()->{lista.removeAllViews();if(ev.length()==0)lista.addView(cardLeitura("Tudo em dia","Nenhum aviso pendente no calendário.","Confira novamente mais tarde.","",Color.rgb(220,252,231)));for(int i=0;i<ev.length();i++){JSONObject e=ev.optJSONObject(i);if(e!=null)lista.addView(cardLeitura(e.optString("title","Lembrete"),formatarDataIso(e.optString("due_date"))+" · "+(e.optInt("days_left")==0?"Hoje":"em "+e.optInt("days_left")+" dia(s)"),e.optString("details",""),"",Color.rgb(239,246,255)));}Button testar=botao("Testar aviso do calendário",Color.rgb(21,101,52));lista.addView(testar);testar.setOnClickListener(v->aviso(CalendarNotificationReceiver.testarNotificacao(this)));});}catch(Exception e){runOnUiThread(()->{lista.removeAllViews();lista.addView(cardLeitura("Calendário indisponível",mensagemErroSimples(e),"Verifique o acesso e tente atualizar.","",Color.rgb(255,237,213)));});}}).start();}
+            else{calendario.setBackground(fundoComBorda(Color.WHITE,Color.rgb(216,227,220),9));calendario.setTextColor(Color.rgb(21,101,52));novoTempo.setBackground(fundoArredondado(Color.rgb(21,101,52),9));novoTempo.setTextColor(Color.WHITE);TextView st=texto("Carregando cobranças Novo Tempo…",13,false);lista.addView(st);new Thread(()->{try{JSONArray rows=buscarArrayApi("/api/mobile/new-tempo/collections");runOnUiThread(()->{lista.removeAllViews();int pend=0;for(int i=0;i<rows.length();i++){JSONObject item=rows.optJSONObject(i);if(item==null)continue;boolean pago="pago".equalsIgnoreCase(item.optString("status"));if(pago)continue;pend++;String age=item.optBoolean("delivered",false)?"Entregue · "+item.optInt("hours_pending")+"h":"Aguardando entrega";LinearLayout card=(LinearLayout)cardLeitura(item.optString("client","Novo Tempo"),"NF "+item.optString("nf_number","—")+" · "+dataBR(item.optString("sale_date")),moeda.format(item.optDouble("total",0))+" · "+age,"Próximo aviso: "+formatarDataIsoHora(item.optString("next_alert_at")),Color.rgb(255,247,237));Button pagoBtn=botao("✓  Marcar como pago",Color.rgb(21,101,52));card.addView(pagoBtn);JSONObject copia=item;pagoBtn.setOnClickListener(v->{new Thread(()->{try{JSONObject body=new JSONObject();body.put("company_key",copia.optString("company_key"));body.put("status","pago");enviarObjetoApi("/api/mobile/new-tempo/collections/"+copia.optString("id"),"PUT",body);runOnUiThread(()->{aviso("Cobrança marcada como paga.");carregar[0].run();});}catch(Exception ex){runOnUiThread(()->aviso("Não foi possível atualizar: "+mensagemErroSimples(ex)));}}).start();});lista.addView(card);}if(pend==0)lista.addView(cardLeitura("Nenhuma cobrança pendente","As notas Novo Tempo em aberto aparecerão aqui.","Somente administradores recebem os avisos.","",Color.rgb(220,252,231)));});}catch(Exception e){runOnUiThread(()->{lista.removeAllViews();lista.addView(cardLeitura("Cobranças indisponíveis",mensagemErroSimples(e),"Tente atualizar quando o ERP estiver acessível.","",Color.rgb(255,237,213)));});}}).start();}};
+        calendario.setOnClickListener(v->{abaSelecionada[0]="calendario";carregar[0].run();});novoTempo.setOnClickListener(v->{abaSelecionada[0]="novo_tempo";carregar[0].run();});
+        Button atualizar=botao("⟳  Atualizar",Color.rgb(21,101,52));raiz.addView(atualizar);atualizar.setOnClickListener(v->carregar[0].run());
+        Button testeNovo=botao("Testar aviso Novo Tempo",Color.rgb(71,85,105));raiz.addView(testeNovo);testeNovo.setOnClickListener(v->aviso(NewTempoCollectionReceiver.testarNotificacao(this)));
+        setContentView(scroll);carregar[0].run();
+    }
+
+    private String formatarDataIsoHora(String iso) { if(iso==null||iso.trim().isEmpty())return "Aguardando 24h";try{String s=iso.replace('T',' ');return s.length()>=16?dataBR(s.substring(0,10))+" às "+s.substring(11,16):s;}catch(Exception e){return iso;} }
 
     private void abrirCalendarioNotificacoes() {
         if (!adminNotificacoes()) { aviso("Notificações disponíveis somente para administradores."); return; }
