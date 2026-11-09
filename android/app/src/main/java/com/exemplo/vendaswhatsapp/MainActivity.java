@@ -220,6 +220,7 @@ public class MainActivity extends FragmentActivity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        getSharedPreferences("precos_produtos", MODE_PRIVATE).edit().clear().apply();
         mostrarAberturaAnimada(this::abrirFluxoInicial);
     }
 
@@ -2078,8 +2079,7 @@ public class MainActivity extends FragmentActivity {
             data.setText(dataVoz);
             itens.clear();
             for (ItemInterpretado item : itensVoz) {
-                Double preco = obterPrecoSalvo(item.produto);
-                itens.add(new ItemPedido(item.produto, item.medida, item.unidade, preco == null ? 0 : preco, preco != null, item.novo));
+                itens.add(new ItemPedido(item.produto, item.medida, item.unidade, 0, false, item.novo));
             }
             atualizarLista();
             ativarAutosaveRascunho();
@@ -2158,7 +2158,7 @@ public class MainActivity extends FragmentActivity {
         int produtoPos = produtos.indexOf(salvo.optString("product", ""));
         if (produtoPos >= 0) produto.setSelection(produtoPos);
         peso.setText(salvo.optString("weight", ""));
-        valor.setText(salvo.optString("value", ""));
+        valor.setText("");
         String unidadeSalva = salvo.optString("unit", "");
         for (int i = 0; i < unidade.getCount(); i++)
             if (unidadeSalva.equals(unidade.getItemAtPosition(i).toString())) unidade.setSelection(i);
@@ -2167,9 +2167,8 @@ public class MainActivity extends FragmentActivity {
         if (itensSalvos != null) for (int i = 0; i < itensSalvos.length(); i++) {
             JSONObject item = itensSalvos.optJSONObject(i);
             if (item == null) continue;
-            boolean temPreco = !item.isNull("unit_price");
             itens.add(new ItemPedido(item.optString("product"), item.optDouble("weight"), item.optString("unit"),
-                temPreco ? item.optDouble("unit_price") : 0, temPreco, item.optBoolean("is_new", false)));
+                0, false, item.optBoolean("is_new", false)));
         }
         atualizarLista();
         definirStatusEnvio("Rascunho recuperado. Ainda não enviado.", Color.rgb(180, 83, 9));
@@ -2216,13 +2215,12 @@ public class MainActivity extends FragmentActivity {
             rascunho.put("date", data.getText().toString());
             rascunho.put("product", produto.getSelectedItem() == null ? "" : produto.getSelectedItem().toString());
             rascunho.put("weight", peso.getText().toString());
-            rascunho.put("value", valor.getText().toString());
             rascunho.put("unit", unidade.getSelectedItem() == null ? "KG" : unidade.getSelectedItem().toString());
             JSONArray lista = new JSONArray();
             for (ItemPedido item : itens) {
                 JSONObject salvo = new JSONObject();
                 salvo.put("product", item.produto); salvo.put("weight", item.peso); salvo.put("unit", item.unidade);
-                salvo.put("unit_price", item.valorInformado ? item.valor : JSONObject.NULL);
+                salvo.put("unit_price", JSONObject.NULL);
                 salvo.put("is_new", item.novo); lista.put(salvo);
             }
             rascunho.put("items", lista);
@@ -5454,15 +5452,8 @@ public class MainActivity extends FragmentActivity {
         LinearLayout campoPeso = coluna();
         campoPeso.addView(rotuloCampo("Peso / quantidade"));
         campoPeso.addView(peso);
-        LinearLayout campoValor = coluna();
-        campoValor.addView(rotuloCampo("Valor unitário"));
-        campoValor.addView(valor);
         LinearLayout.LayoutParams medidaParams = new LinearLayout.LayoutParams(0, -2, 1);
-        medidaParams.setMargins(0, 0, dp(5), 0);
         linhaMedidas.addView(campoPeso, medidaParams);
-        LinearLayout.LayoutParams valorParams = new LinearLayout.LayoutParams(0, -2, 1);
-        valorParams.setMargins(dp(5), 0, 0, 0);
-        linhaMedidas.addView(campoValor, valorParams);
         raiz.addView(linhaMedidas);
 
         Button adicionar = botao("Adicionar produto", Color.rgb(22, 101, 52));
@@ -5472,7 +5463,7 @@ public class MainActivity extends FragmentActivity {
         adicionarTituloSecao(raiz, "03  ·  Revise o pedido");
         listaItens = coluna();
         raiz.addView(listaItens);
-        totalText = texto("0 produtos\nTotal: " + moeda.format(0), 18, true);
+        totalText = texto("0 produtos\nPreço atualizado no ERP", 18, true);
         totalText.setTextColor(COR_TEXTO_CLARO);
         totalText.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
         totalText.setPadding(dp(12), dp(12), dp(12), dp(12));
@@ -6091,15 +6082,26 @@ public class MainActivity extends FragmentActivity {
     }
 
     private String produtoCanonico(String texto) {
-        String n = normalizarNomeProduto(texto)
+        String produtoFalado = normalizarNomeProduto(texto);
+        if (produtoFalado.contains("ALHO DESCASCADO") || produtoFalado.contains("ALHO DESCASCATO")) {
+            for (String cadastrado : produtos) {
+                if (normalizarNomeProduto(cadastrado).startsWith("ALHO DESCASCADO")) return cadastrado;
+            }
+            return "ALHO DESCASCADO";
+        }
+        if (produtoFalado.contains("ALHO COM CASCA") || produtoFalado.contains("ALHO CASCADO")) {
+            for (String cadastrado : produtos) {
+                if (normalizarNomeProduto(cadastrado).equals("ALHO COM CASCA")) return cadastrado;
+            }
+            return encontrarProdutoCatalogo("ALHO");
+        }
+        String n = produtoFalado
             .replaceAll("\\bDE\\b", " ")
             .replaceAll("\\bDA\\b", " ")
             .replaceAll("\\bDO\\b", " ")
             .replaceAll("\\bDAS\\b", " ")
             .replaceAll("\\bDOS\\b", " ")
             .replaceAll("\\bNATURAL\\b", " ")
-            .replaceAll("\\bDESCASCATO\\b", " ")
-            .replaceAll("\\bDESCASCADO\\b", " ")
             .replaceAll("\\s+", " ")
             .trim();
 
@@ -6116,8 +6118,6 @@ public class MainActivity extends FragmentActivity {
         aliases.put("PIMENTINHA", "PIMENTA DE CHEIRO");
         aliases.put("CHEIRO VERDDE", "CHEIRO VERDE");
         aliases.put("REPOLHO BRANCO", "REPOLHO VERDE");
-        aliases.put("ALHO DESCASCATO", "ALHO");
-        aliases.put("ALHO DESCASCADO", "ALHO");
         aliases.put("MACAXEIRA NATURAL", "MACAXEIRA");
 
         if (aliases.containsKey(n)) return encontrarProdutoCatalogo(aliases.get(n));
@@ -6145,17 +6145,10 @@ public class MainActivity extends FragmentActivity {
     private void adicionarItem() {
         String nome = produto.getSelectedItem() == null ? "" : produto.getSelectedItem().toString().trim();
         Double medida = numero(peso.getText().toString());
-        String valorDigitado = valor.getText().toString().trim();
-        Double preco = valorDigitado.isEmpty() ? obterPrecoSalvo(nome) : numero(valorDigitado);
-        boolean valorInformado = preco != null;
         if (nome.isEmpty() || medida == null || medida <= 0) {
             aviso("Informe o produto e " + rotuloMedida(unidade.getSelectedItem().toString()).toLowerCase() + " válidos."); return;
         }
-        if (!valorDigitado.isEmpty() && (preco == null || preco < 0)) {
-            aviso("Informe um valor unitário válido, como 22,50, ou deixe o campo vazio."); valor.requestFocus(); return;
-        }
-        if (!valorDigitado.isEmpty()) salvarPrecoProduto(nome, preco);
-        itens.add(new ItemPedido(nome, medida, unidade.getSelectedItem().toString(), preco == null ? 0 : preco, valorInformado));
+        itens.add(new ItemPedido(nome, medida, unidade.getSelectedItem().toString(), 0, false));
         peso.setText(""); valor.setText(""); peso.requestFocus();
         esconderTeclado();
         atualizarDicaValor();
@@ -6299,12 +6292,7 @@ public class MainActivity extends FragmentActivity {
                 if (novo.isEmpty()) { aviso("Digite o nome do produto."); return; }
                 int posicao = produtos.indexOf(antigo);
                 if (posicao >= 0) produtos.set(posicao, novo);
-                Double precoAntigo = obterPrecoSalvo(antigo);
                 String unidadeAntiga = obterUnidadeProduto(antigo);
-                if (precoAntigo != null && !antigo.equals(novo)) {
-                    salvarPrecoProduto(novo, precoAntigo);
-                    getSharedPreferences("precos_produtos", MODE_PRIVATE).edit().remove(antigo).apply();
-                }
                 if (!antigo.equals(novo)) {
                     salvarUnidadeProduto(novo, unidadeAntiga);
                     getSharedPreferences("unidades_produtos", MODE_PRIVATE).edit().remove(antigo).apply();
@@ -6318,7 +6306,6 @@ public class MainActivity extends FragmentActivity {
             .setNegativeButton("Cancelar", null)
             .setPositiveButton("Excluir", (d, w) -> {
                 produtos.remove(nome);
-                getSharedPreferences("precos_produtos", MODE_PRIVATE).edit().remove(nome).apply();
                 getSharedPreferences("unidades_produtos", MODE_PRIVATE).edit().remove(nome).apply();
                 salvarProdutos();
                 if (produto != null) atualizarDicaValor();
@@ -6344,8 +6331,8 @@ public class MainActivity extends FragmentActivity {
             LinearLayout.LayoutParams cartaoParams = new LinearLayout.LayoutParams(-1, -2);
             cartaoParams.setMargins(0, dp(4), 0, dp(4));
             cartao.setLayoutParams(cartaoParams);
-            String valorTexto = item.valorInformado ? moeda.format(item.valor) : "—";
-            String totalItemTexto = item.valorInformado ? moeda.format(item.total()) : "—";
+            String valorTexto = item.valorInformado ? moeda.format(item.valor) : "Preço do ERP";
+            String totalItemTexto = item.valorInformado ? moeda.format(item.total()) : "calculado ao enviar";
             if (item.novo) cartao.addView(rotuloNovoProduto());
             TextView detalhe = texto(item.produto + "\n" + rotuloMedida(item.unidade) + ": " + formatarNumero(item.peso) + " " + item.unidade + " × " + valorTexto + " = " + totalItemTexto, 14, false);
             detalhe.setTextColor(COR_TEXTO_CLARO);
@@ -6367,7 +6354,7 @@ public class MainActivity extends FragmentActivity {
             listaItens.addView(cartao);
         }
         String rotuloProdutos = itens.size() == 1 ? "1 produto" : itens.size() + " produtos";
-        totalText.setText(rotuloProdutos + "\nTotal: " + moeda.format(total));
+        totalText.setText(rotuloProdutos + "\nPreço atualizado no ERP ao enviar");
         if (enviarSistemaButton != null) {
             enviarSistemaButton.setEnabled(!itens.isEmpty());
             enviarSistemaButton.setAlpha(itens.isEmpty() ? 0.55f : 1f);
@@ -6622,7 +6609,7 @@ public class MainActivity extends FragmentActivity {
             p.put("weight", item.peso); p.put("unit", item.unidade);
             p.put("quantity", unidadeContavel(item.unidade) ? item.peso : JSONObject.NULL);
             p.put("is_new", item.novo);
-            p.put("unit_price", item.valorInformado ? item.valor : JSONObject.NULL); produtosJson.put(p);
+            p.put("unit_price", JSONObject.NULL); produtosJson.put(p);
         }
         body.put("items", produtosJson); return body;
     }
@@ -7453,15 +7440,6 @@ public class MainActivity extends FragmentActivity {
     private String decimal(double n) { return String.format(new Locale("pt", "BR"), "%.2f", n); }
     private String formatarNumero(double n) { return n == Math.rint(n) ? String.valueOf((long)n) : decimal(n); }
     private Double numero(String s) { try { return Double.parseDouble(s.trim().replace(',', '.')); } catch (Exception e) { return null; } }
-    private Double obterPrecoSalvo(String produtoNome) {
-        if (produtoNome == null || produtoNome.isEmpty()) return null;
-        String salvo = getSharedPreferences("precos_produtos", MODE_PRIVATE).getString(produtoNome, null);
-        return salvo == null ? null : numero(salvo);
-    }
-    private void salvarPrecoProduto(String produtoNome, double preco) {
-        getSharedPreferences("precos_produtos", MODE_PRIVATE).edit()
-            .putString(produtoNome, String.valueOf(preco)).apply();
-    }
     private void salvarUnidadeProduto(String produtoNome, String codigo) {
         getSharedPreferences("unidades_produtos", MODE_PRIVATE).edit().putString(produtoNome, codigo).apply();
     }
@@ -7500,10 +7478,7 @@ public class MainActivity extends FragmentActivity {
     }
     private void atualizarDicaValor() {
         if (valor == null || produto == null || produto.getSelectedItem() == null) return;
-        Double atual = obterPrecoSalvo(produto.getSelectedItem().toString());
-        valor.setHint(normalizarTextoExibicao(atual == null
-            ? "Valor unitário (informe na primeira vez)"
-            : "Valor atual: " + moeda.format(atual) + " — deixe vazio para manter"));
+        valor.setHint("Preço atualizado pelo ERP ao enviar");
     }
     private void ordenarProdutos() {
         Collator comparador = Collator.getInstance(new Locale("pt", "BR"));

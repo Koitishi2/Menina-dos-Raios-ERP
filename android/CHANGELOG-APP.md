@@ -2,7 +2,11 @@
 
 Este arquivo registra as alteracoes funcionais do aplicativo Android e da integracao com o sistema.
 
-Versao estavel atual: `2.0.66`.
+Versao estavel atual: `2.0.67`.
+
+## [2.0.67] - 09/11/2026
+
+- Pedidos usam preços atuais de Monteiro > Produtos; voz distingue alho com casca de alho descascado.
 
 ## [2.0.66] - 04/11/2026
 
