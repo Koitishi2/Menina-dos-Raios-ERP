@@ -1048,6 +1048,36 @@ def test_mobile_note_uses_current_monteiro_product_price_even_with_old_apk_value
     assert fresh.json()["note"]["items"][0]["effective_unit_price"] == 12
 
 
+def test_editing_one_note_price_keeps_other_catalog_prices_dynamic(isolated_app):
+    _replace_paladar_products(isolated_app.db_paths["raios"],
+                              [("ABACAXI", 10, 1), ("ALFACE", 6, 1)])
+    headers = {"x-app-token": isolated_app.module.APP_NOTES_TOKEN}
+    created = isolated_app.client.post(
+        "/api/app-notes/mobile", headers=headers,
+        json=_app_note_payload(items=[
+            {"product": "ABACAXI", "weight": 5, "unit": "UN", "unit_price": 5},
+            {"product": "ALFACE", "weight": 2, "unit": "UN", "unit_price": 4},
+        ]),
+    ).json()["note"]
+    token = _login(isolated_app.client)
+    edited = isolated_app.client.put(
+        f"/api/app-notes/{created['id']}", headers={"x-token": token},
+        json={"client": created["client"], "date": created["note_date"], "items": [
+            {"product": "ABACAXI", "weight": 5, "unit": "UN", "unit_price": 11, "price_override": True},
+            {"product": "ALFACE", "weight": 2, "unit": "UN", "unit_price": 6, "price_override": False},
+        ]},
+    )
+    assert edited.status_code == 200
+    assert [i["effective_unit_price"] for i in edited.json()["note"]["items"]] == [11, 6]
+    assert edited.json()["note"]["total"] == 67
+    _replace_paladar_products(isolated_app.db_paths["raios"],
+                              [("ABACAXI", 10, 1), ("ALFACE", 7, 1)])
+    listed = isolated_app.client.get("/api/app-notes", headers={"x-token": token}).json()["notes"]
+    note = next(n for n in listed if n["id"] == created["id"])
+    assert [i["effective_unit_price"] for i in note["items"]] == [11, 7]
+    assert note["total"] == 69
+
+
 def test_mobile_notes_keep_sender_time_and_only_merge_after_explicit_choice(isolated_app):
     token = _login(isolated_app.client)
     headers = {

@@ -7849,7 +7849,8 @@ def list_app_notes(client:Optional[str]=None,month:Optional[str]=None,year:Optio
 
 @app.put("/api/app-notes/{note_id}")
 def update_app_note(note_id:str,body:dict,x_token:str=Header("")):
-    require_admin_or_editor(x_token); client,note_date,items,total=_clean_app_note(body); conn=get_app_notes_db()
+    require_admin_or_editor(x_token); client,note_date,items,total=_clean_app_note(body)
+    catalog_prices=_app_note_catalog_prices(); conn=get_app_notes_db()
     try:
         if not conn.execute("SELECT 1 FROM app_notes WHERE id=?",(note_id,)).fetchone(): raise HTTPException(404,"Nota não encontrada.")
         new_status=str(body.get("status") or "").strip()
@@ -7861,9 +7862,13 @@ def update_app_note(note_id:str,body:dict,x_token:str=Header("")):
                      [client,note_date,total,datetime.now().isoformat(timespec="seconds")]+status_params+[note_id])
         conn.execute("DELETE FROM app_note_items WHERE note_id=?",(note_id,))
         for item in items:
+            raw=body.get("items",[])[item["position"]]
+            catalog_price=catalog_prices.get(_normalize_name(item["product"]))
+            manual_price=bool(raw.get("price_override")) or (catalog_price is not None and item["price_provided"] and abs(item["unit_price"]-catalog_price)>0.000001)
+            price_source=2 if item["price_provided"] and manual_price else int(item["price_provided"])
             conn.execute("INSERT INTO app_note_items(id,note_id,product,quantity,quantity_provided,weight,unit,unit_price,price_provided,position) VALUES(?,?,?,?,?,?,?,?,?,?)",
-                (str(uuid.uuid4()),note_id,item["product"],item["quantity"],int(item["quantity_provided"]),item["weight"],item["unit"],item["unit_price"],2 if item["price_provided"] else 0,item["position"]))
-        conn.commit(); row=conn.execute("SELECT * FROM app_notes WHERE id=?",(note_id,)).fetchone(); result=_app_note_dict(conn,row,_app_note_catalog_prices())
+                (str(uuid.uuid4()),note_id,item["product"],item["quantity"],int(item["quantity_provided"]),item["weight"],item["unit"],item["unit_price"],price_source,item["position"]))
+        conn.commit(); row=conn.execute("SELECT * FROM app_notes WHERE id=?",(note_id,)).fetchone(); result=_app_note_dict(conn,row,catalog_prices)
     except Exception:
         conn.rollback()
         raise
