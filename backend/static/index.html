@@ -16947,7 +16947,15 @@ function parseAppNoteItems(){
 async function saveAppNote(){
   try{
     var id=document.getElementById('app-note-id').value;
-    var body={client:document.getElementById('app-note-edit-client').value.trim(),date:document.getElementById('app-note-edit-date').value.trim(),items:parseAppNoteItems()};
+    var items=parseAppNoteItems();
+    document.querySelectorAll('#app-note-edit-price-list [data-app-note-price-index]').forEach(function(input){
+      var index=Number(input.dataset.appNotePriceIndex),value=input.value.trim();
+      if(!items[index])return;
+      var price=value===''?null:appNoteEditNumber(value,false);
+      if(price!==null&&(!Number.isFinite(price)||price<0))throw new Error('Preço inválido para '+items[index].product+'.');
+      items[index].unit_price=price;
+    });
+    var body={client:document.getElementById('app-note-edit-client').value.trim(),date:document.getElementById('app-note-edit-date').value.trim(),items:items};
     await api('/api/app-notes/'+encodeURIComponent(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     closeAppNoteModal(); toast('✅ Nota APP atualizada.'); await refreshAppNotesNotifications(); loadAppNotes();
   }catch(e){toast(e.message,'error');}

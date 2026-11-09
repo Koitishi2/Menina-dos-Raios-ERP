@@ -7704,7 +7704,7 @@ def get_app_notes_db():
                 item_ids=conn.execute("SELECT id FROM app_note_items WHERE note_id=? ORDER BY position,id",(keep,)).fetchall()
                 for position,item_row in enumerate(item_ids):
                     conn.execute("UPDATE app_note_items SET position=? WHERE id=?",(position,item_row["id"]))
-                total=conn.execute("SELECT COALESCE(sum(weight*unit_price),0) total FROM app_note_items WHERE note_id=? AND price_provided=1",(keep,)).fetchone()["total"]
+                total=conn.execute("SELECT COALESCE(sum(weight*unit_price),0) total FROM app_note_items WHERE note_id=? AND price_provided>0",(keep,)).fetchone()["total"]
                 conn.execute("UPDATE app_notes SET total=?,updated_at=? WHERE id=?",(round(float(total or 0),2),datetime.now().isoformat(timespec="seconds"),keep))
             conn.execute("INSERT OR REPLACE INTO app_notes_meta(key,value) VALUES('merge_client_day_v1','done')")
         conn.commit()
@@ -7781,6 +7781,13 @@ def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-toke
     external_id=str(body.get("external_id") or "").strip()[:80]
     if not external_id: raise HTTPException(400,"Identificador da nota obrigatÃ³rio.")
     client,note_date,items,total=_clean_app_note(body)
+    catalog_prices=_app_note_catalog_prices()
+    for item in items:
+        catalog_price=catalog_prices.get(_normalize_name(item["product"]))
+        if catalog_price is not None:
+            item["unit_price"]=catalog_price
+            item["price_provided"]=True
+    total=round(sum(item["weight"]*item["unit_price"] for item in items if item["price_provided"]),2)
     merge_into_id=str(body.get("merge_into_note_id") or "").strip()[:80]
     conn=get_app_notes_db()
     try:
@@ -7788,7 +7795,7 @@ def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-toke
         if submission:
             existing=conn.execute("SELECT * FROM app_notes WHERE id=?",(submission["note_id"],)).fetchone()
             submitted=conn.execute("SELECT * FROM app_note_submissions WHERE external_id=?",(external_id,)).fetchone()
-            result=_app_note_dict(conn,existing)
+            result=_app_note_dict(conn,existing,catalog_prices)
             return {"ok":True,"duplicate":True,"merged":False,"note":result,"submission":dict(submitted)}
         note_id=str(uuid.uuid4()); now=datetime.now().isoformat(timespec="seconds")
         merge_target=None
@@ -7814,10 +7821,10 @@ def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-toke
             VALUES(?,?,?,?,?,?)""",
             (external_id,note_id,now,str(sess.get("user_id") or ""),
              str(sess.get("username") or "")[:120],str(sess.get("full_name") or sess.get("username") or "")[:120]))
-        accumulated=conn.execute("SELECT COALESCE(sum(weight*unit_price),0) total FROM app_note_items WHERE note_id=? AND price_provided=1",(note_id,)).fetchone()["total"]
+        accumulated=conn.execute("SELECT COALESCE(sum(weight*unit_price),0) total FROM app_note_items WHERE note_id=? AND price_provided>0",(note_id,)).fetchone()["total"]
         conn.execute("UPDATE app_notes SET total=?,updated_at=?,status='pending',completed_at=NULL WHERE id=?",(round(float(accumulated or 0),2),now,note_id))
         conn.commit(); row=conn.execute("SELECT * FROM app_notes WHERE id=?",(note_id,)).fetchone()
-        result=_app_note_dict(conn,row)
+        result=_app_note_dict(conn,row,catalog_prices)
         submitted=conn.execute("SELECT * FROM app_note_submissions WHERE external_id=?",(external_id,)).fetchone()
     except Exception:
         conn.rollback()
@@ -7855,8 +7862,8 @@ def update_app_note(note_id:str,body:dict,x_token:str=Header("")):
         conn.execute("DELETE FROM app_note_items WHERE note_id=?",(note_id,))
         for item in items:
             conn.execute("INSERT INTO app_note_items(id,note_id,product,quantity,quantity_provided,weight,unit,unit_price,price_provided,position) VALUES(?,?,?,?,?,?,?,?,?,?)",
-                (str(uuid.uuid4()),note_id,item["product"],item["quantity"],int(item["quantity_provided"]),item["weight"],item["unit"],item["unit_price"],int(item["price_provided"]),item["position"]))
-        conn.commit(); row=conn.execute("SELECT * FROM app_notes WHERE id=?",(note_id,)).fetchone(); result=_app_note_dict(conn,row)
+                (str(uuid.uuid4()),note_id,item["product"],item["quantity"],int(item["quantity_provided"]),item["weight"],item["unit"],item["unit_price"],2 if item["price_provided"] else 0,item["position"]))
+        conn.commit(); row=conn.execute("SELECT * FROM app_notes WHERE id=?",(note_id,)).fetchone(); result=_app_note_dict(conn,row,_app_note_catalog_prices())
     except Exception:
         conn.rollback()
         raise

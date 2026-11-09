@@ -995,6 +995,59 @@ def test_app_note_mobile_create_multiple_items_submission_and_total(isolated_app
     assert created_after_mobile_create["client"] == "Cliente Escrita Posterior"
 
 
+def test_mobile_note_uses_current_monteiro_product_price_even_with_old_apk_value(isolated_app):
+    _replace_paladar_products(isolated_app.db_paths["raios"], [("ABACAXI", 10, 1)])
+    payload = _app_note_payload(
+        external_id="mobile-stale-abacaxi",
+        items=[{"product": "ABACAXI", "weight": 2, "unit": "UN", "unit_price": 5}],
+    )
+    headers = {"x-app-token": isolated_app.module.APP_NOTES_TOKEN}
+    response = isolated_app.client.post("/api/app-notes/mobile", headers=headers, json=payload)
+    assert response.status_code == 200
+    note = response.json()["note"]
+    assert note["items"][0]["effective_unit_price"] == 10
+    assert note["items"][0]["price_from_catalog"] is True
+    assert note["total"] == 20
+    with sqlite3.connect(isolated_app.db_paths["app_notes"]) as conn:
+        stored = conn.execute("SELECT unit_price FROM app_note_items WHERE note_id=?", (note["id"],)).fetchone()
+    assert stored[0] == 10
+    unedited = isolated_app.client.post(
+        "/api/app-notes/mobile", headers=headers,
+        json=_app_note_payload(external_id="mobile-stale-abacaxi-unedited",
+                               items=[{"product": "ABACAXI", "weight": 2, "unit": "UN", "unit_price": 5}]),
+    ).json()["note"]
+
+    token = _login(isolated_app.client)
+    edited = isolated_app.client.put(
+        f"/api/app-notes/{note['id']}",
+        headers={"x-token": token},
+        json={"client": note["client"], "date": note["note_date"],
+              "items": [{"product": "ABACAXI", "weight": 2, "unit": "UN", "unit_price": 11}]},
+    )
+    assert edited.status_code == 200
+    assert edited.json()["note"]["items"][0]["effective_unit_price"] == 11
+    assert edited.json()["note"]["total"] == 22
+
+    # An explicit edit in Notas APP keeps its price after a catalog update.
+    _replace_paladar_products(isolated_app.db_paths["raios"], [("ABACAXI", 12, 1)])
+    listed = isolated_app.client.get("/api/app-notes", headers={"x-token": token})
+    assert listed.status_code == 200
+    updated = next(n for n in listed.json()["notes"] if n["id"] == note["id"])
+    assert updated["items"][0]["effective_unit_price"] == 11
+    assert updated["total"] == 22
+    current = next(n for n in listed.json()["notes"] if n["id"] == unedited["id"])
+    assert current["items"][0]["effective_unit_price"] == 12
+    assert current["total"] == 24
+
+    fresh = isolated_app.client.post(
+        "/api/app-notes/mobile", headers=headers,
+        json=_app_note_payload(external_id="mobile-current-abacaxi",
+                               items=[{"product": "ABACAXI", "weight": 2, "unit": "UN", "unit_price": 5}]),
+    )
+    assert fresh.status_code == 200
+    assert fresh.json()["note"]["items"][0]["effective_unit_price"] == 12
+
+
 def test_mobile_notes_keep_sender_time_and_only_merge_after_explicit_choice(isolated_app):
     token = _login(isolated_app.client)
     headers = {
