@@ -1363,6 +1363,23 @@ body.paladar-active .notif-bell{display:none!important}
 #paladar-sale-modal .paladar-modal-body{overflow-y:auto;min-height:0}
 #app-notes-kpis{grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))!important}
 .app-note-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.app-note-report-filters{display:flex;gap:10px;align-items:end;flex-wrap:wrap;padding:16px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:14px}
+.app-note-report-filters label{display:flex;flex-direction:column;gap:5px;min-width:150px;flex:1;font-size:11px;font-weight:800;color:var(--muted)}
+.app-note-report-filters input,.app-note-report-filters select{width:100%;height:38px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;font-size:12px;box-sizing:border-box}
+.app-note-report-filters button{height:38px;white-space:nowrap}
+.app-note-report-filters [hidden],#app-notes-list-pane[hidden],#app-notes-report-pane[hidden]{display:none!important}
+.app-note-report-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px}
+.app-note-report-summary>div{padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--card)}
+.app-note-report-summary span{display:block;color:var(--muted);font-size:10px;font-weight:800;text-transform:uppercase}
+.app-note-report-summary strong{display:block;margin-top:5px;color:var(--g800);font-size:17px;overflow-wrap:anywhere}
+.app-note-report-summary .total{background:#eef2ff;border-color:#c7d2fe}.app-note-report-summary .total strong{color:#4338ca}
+#app-note-report-result{padding:16px}#app-note-report-result h3{font-size:13px;color:var(--g800);margin:18px 0 8px}
+.app-note-report-scroll{overflow-x:auto}.app-note-report-scroll table{width:100%;min-width:570px;border-collapse:collapse;font-size:12px}
+.app-note-report-scroll th,.app-note-report-scroll td{padding:10px;border-bottom:1px solid var(--border);text-align:left}
+.app-note-report-scroll th{background:var(--card2);font-size:10px;text-transform:uppercase;color:var(--muted)}
+.app-note-report-scroll .num{text-align:right;white-space:nowrap}.app-note-report-alert{padding:11px;border-radius:8px;background:#fff7ed;color:#9a3412;font-size:12px;font-weight:700}
+.app-note-report-help{font-size:11px;color:var(--muted);line-height:1.5;margin:16px 0 0}
+@media(max-width:700px){.app-note-report-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.app-note-report-filters label{min-width:calc(50% - 8px)}}
 @media(max-width:1180px){
   #paladar-app>div:first-child{grid-template-columns:minmax(0,1fr) auto!important}
   #paladar-app>div:first-child>div:nth-child(2){grid-column:1/-1;grid-row:2;justify-content:flex-start;overflow-x:auto;max-width:100%}
@@ -16699,7 +16716,10 @@ function switchPaladarTab(tab){
   else if(tab==='lancamentos') loadPaladarSales();
   else if(tab==='produtos') loadPaladarProducts();
   else if(tab==='clientes') loadPaladarClients();
-  else if(tab==='notasapp') loadAppNotes();
+  else if(tab==='notasapp'){
+    if(_appNotesStatus==='report')loadAppNoteReportClients();
+    else loadAppNotes();
+  }
   else if(tab==='calendario') loadAppCalendar();
   else if(tab==='dados') loadAppVales();
   else if(tab==='pagamentos'){ loadMonteiroPaymentPermUI(); loadPaladarPayments(); }
@@ -16752,14 +16772,21 @@ document.addEventListener('click',function(ev){
   handleAppNoteAction(btn.getAttribute('data-app-note-action'),btn.getAttribute('data-app-note-id'),btn.getAttribute('data-app-note-status'));
 });
 function switchAppNotesStatus(status){
-  _appNotesStatus=status==='completed'?'completed':'pending';
+  _appNotesStatus=status==='report'?'report':status==='completed'?'completed':'pending';
   var p=document.getElementById('app-notes-tab-pending'),c=document.getElementById('app-notes-tab-completed');
+  var r=document.getElementById('app-notes-tab-report');
   if(p)p.className='btn btn-sm '+(_appNotesStatus==='pending'?'btn-primary':'btn-secondary');
   if(c)c.className='btn btn-sm '+(_appNotesStatus==='completed'?'btn-primary':'btn-secondary');
-  loadAppNotes();
+  if(r)r.className='btn btn-sm '+(_appNotesStatus==='report'?'btn-primary':'btn-secondary');
+  var list=document.getElementById('app-notes-list-pane'),report=document.getElementById('app-notes-report-pane');
+  if(list)list.hidden=_appNotesStatus==='report';
+  if(report)report.hidden=_appNotesStatus!=='report';
+  if(_appNotesStatus==='report') loadAppNoteReportClients();
+  else loadAppNotes();
 }
 
 async function loadAppNotes(){
+  if(_appNotesStatus==='report')return;
   var wrap=document.getElementById('app-notes-wrap'); if(!wrap)return;
   wrap.innerHTML='<div class="wa-empty" style="padding:36px">Carregando notas do aplicativo...</div>';
   var q=new URLSearchParams();
@@ -16772,6 +16799,80 @@ async function loadAppNotes(){
     _appNotes=data.notes||[]; renderAppNotes(data);
     if(_appNotesStatus==='pending'){_appNotesPendingNotif=_appNotes.slice();updateAppNotesNotificationUI();}
   }catch(e){ wrap.innerHTML='<div class="wa-empty" style="padding:36px;color:#b91c1c">'+admEsc(e.message)+'</div>'; }
+}
+
+var _appNoteReportReady=false;
+function appNoteReportModeChanged(){
+  var custom=document.getElementById('app-note-report-custom'),monthly=document.getElementById('app-note-report-monthly');
+  var isCustom=document.getElementById('app-note-report-mode').value==='custom';
+  custom.hidden=!isCustom;document.getElementById('app-note-report-custom-end').hidden=!isCustom;monthly.hidden=isCustom;
+  appNoteReportInvalidate();
+}
+function appNoteReportInvalidate(){
+  _appNoteReportReady=false;
+  var pdf=document.getElementById('app-note-report-pdf');if(pdf)pdf.disabled=true;
+  var result=document.getElementById('app-note-report-result');
+  if(result)result.innerHTML='<div class="wa-empty" style="padding:28px">Clique em Gerar relatório para atualizar os valores deste filtro.</div>';
+}
+function appNoteReportParams(){
+  var client=document.getElementById('app-note-report-client').value;
+  if(!client)throw new Error('Selecione um cliente.');
+  var params=new URLSearchParams({client:client});
+  if(document.getElementById('app-note-report-mode').value==='monthly'){
+    var month=document.getElementById('app-note-report-month').value;
+    if(!month)throw new Error('Selecione um mês.');
+    params.set('month',month);
+  }else{
+    var start=document.getElementById('app-note-report-start').value,end=document.getElementById('app-note-report-end').value;
+    if(!start||!end)throw new Error('Informe as duas datas.');
+    if(start>end)throw new Error('A data inicial deve ser anterior à final.');
+    params.set('start',start);params.set('end',end);
+  }
+  return params;
+}
+async function loadAppNoteReportClients(){
+  var month=document.getElementById('app-note-report-month');
+  if(month&&!month.value){var now=new Date();month.value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');}
+  var select=document.getElementById('app-note-report-client');
+  try{
+    var data=await api('/api/app-notes/report/clients');
+    var previous=select.value;
+    select.innerHTML='<option value="">Selecione o cliente</option>'+(data.clients||[]).map(function(name){return '<option value="'+admEsc(name)+'">'+admEsc(name)+'</option>';}).join('');
+    if((data.clients||[]).includes(previous))select.value=previous;
+    else appNoteReportInvalidate();
+  }catch(e){toast(e.message,'error');}
+}
+async function loadAppNoteReport(){
+  var wrap=document.getElementById('app-note-report-result');
+  appNoteReportInvalidate();
+  try{
+    var params=appNoteReportParams();
+    wrap.innerHTML='<div class="wa-empty" style="padding:28px">Calculando relatório...</div>';
+    var data=await api('/api/app-notes/report?'+params.toString());
+    if(!data.note_count){wrap.innerHTML='<div class="wa-empty" style="padding:32px">Nenhuma nota concluída para este cliente no período selecionado.</div>';return;}
+    var lines=(data.products||[]).map(function(item){return '<tr><td>'+admEsc(item.product)+'</td><td class="num">'+appNoteQty(item.quantity)+'</td><td>'+admEsc(item.unit)+'</td><td class="num">'+(item.unit_price==null?'Sem preço':appNoteMoney(item.unit_price))+'</td><td class="num">'+(item.total==null?'—':appNoteMoney(item.total))+'</td></tr>';}).join('');
+    var days=(data.days||[]).map(function(day){return '<tr><td>'+admEsc(day.date)+'</td><td class="num">'+Number(day.notes)+'</td><td class="num">'+appNoteMoney(day.total)+'</td></tr>';}).join('');
+    wrap.innerHTML='<div class="app-note-report-summary"><div><span>Cliente</span><strong>'+admEsc(data.client)+'</strong></div><div><span>Notas concluídas</span><strong>'+data.note_count+'</strong></div><div><span>Produtos / preços</span><strong>'+data.product_count+'</strong></div><div class="total"><span>Total do período</span><strong>'+appNoteMoney(data.total)+'</strong></div></div>'
+      +(data.missing_price_count?'<div class="app-note-report-alert">'+data.missing_price_count+' item(ns) sem preço. Corrija as notas para liberar o PDF com valor completo.</div>':'')
+      +'<h3>Produtos consolidados</h3><div class="app-note-report-scroll"><table><thead><tr><th>Produto</th><th class="num">Quantidade / medida</th><th>Unidade</th><th class="num">Valor unitário</th><th class="num">Total</th></tr></thead><tbody>'+lines+'</tbody></table></div>'
+      +'<h3>Conferência por dia</h3><div class="app-note-report-scroll"><table><thead><tr><th>Data</th><th class="num">Notas</th><th class="num">Total</th></tr></thead><tbody>'+days+'</tbody></table></div>'
+      +'<p class="app-note-report-help">Inclui somente Notas APP concluídas. Usa os preços atuais da aba Produtos, preservando preços alterados manualmente nas notas. Não cria lançamento de venda nem documento fiscal.</p>';
+    _appNoteReportReady=!data.missing_price_count;
+    document.getElementById('app-note-report-pdf').disabled=!_appNoteReportReady;
+  }catch(e){wrap.innerHTML='<div class="wa-empty" style="padding:28px;color:#b91c1c">'+admEsc(e.message)+'</div>';}
+}
+async function downloadAppNoteReportPdf(){
+  if(!_appNoteReportReady)return;
+  var button=document.getElementById('app-note-report-pdf');
+  try{
+    var params=appNoteReportParams();button.disabled=true;button.textContent='Gerando PDF...';
+    var response=await fetch(API+'/api/app-notes/report/pdf?'+params.toString(),{headers:apiHeaders({'x-token':session.token})});
+    if(!response.ok){var error=await response.json().catch(()=>({}));throw new Error(error.detail||'Não foi possível gerar o PDF.');}
+    var blob=await response.blob(),url=URL.createObjectURL(blob),link=document.createElement('a');
+    link.href=url;link.download='notas-app-'+params.get('client').replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'.pdf';
+    document.body.appendChild(link);link.click();link.remove();setTimeout(function(){URL.revokeObjectURL(url);},30000);
+  }catch(e){toast(e.message,'error');}
+  finally{button.textContent='Baixar PDF A4';button.disabled=!_appNoteReportReady;}
 }
 
 function renderAppNotes(data){
@@ -20458,16 +20559,34 @@ setTimeout(installMobileReadOnlyGuards,0);
         <div style="font-size:11px;color:var(--muted);margin-top:2px">Uma nota por cliente em cada dia, reunindo todos os envios e o valor total acumulado.</div>
       </div>
       <div style="flex:1"></div>
-      <input id="app-notes-client" type="search" placeholder="🔎 Filtrar cliente..." oninput="debounceAppNotes()" style="width:240px;max-width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;font-size:12px">
-      <button class="btn btn-secondary btn-sm" onclick="loadAppNotes()">↻ Atualizar</button>
     </div>
     <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:8px">
       <button id="app-notes-tab-pending" class="btn btn-primary btn-sm" onclick="switchAppNotesStatus('pending')"> Pendentes <span id="app-notes-pending-count">0</span></button>
       <button id="app-notes-tab-completed" class="btn btn-secondary btn-sm" onclick="switchAppNotesStatus('completed')">✅ Concluídas</button>
+      <button id="app-notes-tab-report" class="btn btn-secondary btn-sm" onclick="switchAppNotesStatus('report')">📊 Relatório</button>
     </div>
-    <div id="app-notes-kpis" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px"></div>
-    <div class="card" style="padding:0;overflow:hidden">
-      <div id="app-notes-wrap" style="overflow-x:auto"><div class="wa-empty" style="padding:36px">Carregando...</div></div>
+    <div id="app-notes-list-pane">
+      <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-bottom:12px">
+        <input id="app-notes-client" type="search" placeholder="🔎 Filtrar cliente..." oninput="debounceAppNotes()" style="width:240px;max-width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;font-size:12px">
+        <button class="btn btn-secondary btn-sm" onclick="loadAppNotes()">↻ Atualizar</button>
+      </div>
+      <div id="app-notes-kpis" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px"></div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div id="app-notes-wrap" style="overflow-x:auto"><div class="wa-empty" style="padding:36px">Carregando...</div></div>
+      </div>
+    </div>
+    <div id="app-notes-report-pane" hidden>
+      <p class="app-note-report-help" style="margin:0 0 12px">Veja o consumo consolidado de um cliente em um mês ou em um período escolhido. Somente notas concluídas entram no cálculo.</p>
+      <div class="app-note-report-filters">
+        <label>Cliente<select id="app-note-report-client" onchange="appNoteReportInvalidate()"><option value="">Selecione o cliente</option></select></label>
+        <label>Período<select id="app-note-report-mode" onchange="appNoteReportModeChanged()"><option value="monthly">Mensal</option><option value="custom">Personalizado</option></select></label>
+        <label id="app-note-report-monthly">Mês<input id="app-note-report-month" type="month" onchange="appNoteReportInvalidate()"></label>
+        <label id="app-note-report-custom" hidden>Data inicial<input id="app-note-report-start" type="date" onchange="appNoteReportInvalidate()"></label>
+        <label id="app-note-report-custom-end" hidden>Data final<input id="app-note-report-end" type="date" onchange="appNoteReportInvalidate()"></label>
+        <button class="btn btn-primary btn-sm" onclick="loadAppNoteReport()">Gerar relatório</button>
+        <button id="app-note-report-pdf" class="btn btn-secondary btn-sm" onclick="downloadAppNoteReportPdf()" disabled>Baixar PDF A4</button>
+      </div>
+      <div class="card" id="app-note-report-result"><div class="wa-empty" style="padding:28px">Selecione o cliente e o período para gerar o relatório.</div></div>
     </div>
   </div>
 

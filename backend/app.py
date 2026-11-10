@@ -10,7 +10,9 @@ from contextvars import ContextVar
 from contextlib import contextmanager
 from collections import defaultdict
 from datetime import datetime, timedelta, date
+from decimal import Decimal, ROUND_HALF_UP
 import math
+import calendar
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 import uvicorn, bcrypt
@@ -7734,6 +7736,250 @@ def _app_note_dict(conn,row,catalog_prices=None):
 def _require_app_note_token(x_app_token):
     if not APP_NOTES_TOKEN or not hmac.compare_digest(x_app_token,APP_NOTES_TOKEN):
         raise HTTPException(401,"Aplicativo não autorizado.")
+
+def _app_note_report_period(month: str = "", start: str = "", end: str = ""):
+    if month:
+        if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month):
+            raise HTTPException(400, "Mês inválido. Use AAAA-MM.")
+        try:
+            first = date.fromisoformat(month + "-01")
+        except ValueError:
+            raise HTTPException(400, "Mês inválido. Use AAAA-MM.")
+        last = date(first.year, first.month, calendar.monthrange(first.year, first.month)[1])
+        return first.isoformat(), last.isoformat()
+    if not start or not end:
+        raise HTTPException(400, "Informe o mês ou as datas inicial e final.")
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", start) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", end):
+        raise HTTPException(400, "Período inválido. Use datas no formato AAAA-MM-DD.")
+    try:
+        first, last = date.fromisoformat(start), date.fromisoformat(end)
+    except ValueError:
+        raise HTTPException(400, "Período inválido. Use datas no formato AAAA-MM-DD.")
+    if first > last:
+        raise HTTPException(400, "A data inicial deve ser anterior ou igual à final.")
+    return first.isoformat(), last.isoformat()
+
+def _app_note_report_data(client: str, start: str, end: str):
+    client = str(client or "").strip()
+    if not client or len(client) > 120:
+        raise HTTPException(400, "Selecione um cliente válido.")
+    conn = get_app_notes_db()
+    try:
+        rows = conn.execute("""SELECT * FROM app_notes
+            WHERE status='completed' AND lower(trim(client))=lower(?)
+            AND (substr(note_date,7,4)||'-'||substr(note_date,4,2)||'-'||substr(note_date,1,2)) BETWEEN ? AND ?
+            ORDER BY substr(note_date,7,4),substr(note_date,4,2),substr(note_date,1,2),created_at,id""",
+            (client, start, end)).fetchall()
+        catalog_prices = _app_note_catalog_prices()
+        notes = [_app_note_dict(conn, row, catalog_prices) for row in rows]
+    finally:
+        conn.close()
+    cents = Decimal("0.01")
+    products = {}
+    days = {}
+    missing = 0
+    for note in notes:
+        note_total = Decimal("0")
+        for item in note["items"]:
+            price_known = bool(item["effective_price_provided"])
+            price = Decimal(str(item["effective_unit_price"])) if price_known else None
+            quantity = Decimal(str(item.get("weight") or 0))
+            key = (_normalize_name(item["product"]), item["unit"].upper(), price)
+            if key not in products:
+                products[key] = {"product": item["product"], "unit": item["unit"].upper(),
+                                 "quantity": Decimal("0"), "unit_price": price,
+                                 "total": Decimal("0"), "note_ids": set()}
+            line = products[key]
+            line["quantity"] += quantity
+            line["note_ids"].add(note["id"])
+            if price_known:
+                subtotal = (quantity * price).quantize(cents, rounding=ROUND_HALF_UP)
+                line["total"] += subtotal
+                note_total += subtotal
+            else:
+                missing += 1
+        day = note["note_date"]
+        if day not in days:
+            days[day] = {"date": day, "notes": 0, "total": Decimal("0")}
+        days[day]["notes"] += 1
+        days[day]["total"] += note_total
+    lines = [{"product": line["product"], "unit": line["unit"],
+              "quantity": float(line["quantity"]),
+              "unit_price": float(line["unit_price"]) if line["unit_price"] is not None else None,
+              "total": float(line["total"]) if line["unit_price"] is not None else None,
+              "notes": len(line["note_ids"])} for line in products.values()]
+    lines.sort(key=lambda x: (_normalize_name(x["product"]), x["unit"], x["unit_price"] is None, x["unit_price"] or 0))
+    return {"client": notes[0]["client"] if notes else client,
+            "start": start, "end": end, "status": "completed", "note_count": len(notes),
+            "product_count": len(lines), "missing_price_count": missing,
+            "total": float(sum((line["total"] for line in products.values()), Decimal("0"))),
+            "products": lines,
+            "days": [{"date": d["date"], "notes": d["notes"], "total": float(d["total"])} for d in days.values()]}
+
+@app.get("/api/app-notes/report/clients")
+def app_note_report_clients(x_token: str = Header("")):
+    require_auth(x_token)
+    conn = get_app_notes_db()
+    try:
+        rows = conn.execute("""SELECT trim(client) AS client FROM app_notes
+            WHERE status='completed' AND trim(client)<>'' GROUP BY lower(trim(client))
+            ORDER BY lower(trim(client))""").fetchall()
+        return {"clients": [row["client"] for row in rows]}
+    finally:
+        conn.close()
+
+@app.get("/api/app-notes/report")
+def app_note_report(client: str = "", month: str = "", start: str = "", end: str = "", x_token: str = Header("")):
+    require_auth(x_token)
+    first, last = _app_note_report_period(month, start, end)
+    return _app_note_report_data(client, first, last)
+
+def _app_note_report_pdf_fallback(report):
+    """Use the server's existing PDF converter if ReportLab is not installed."""
+    import html as html_module
+    esc = lambda value: html_module.escape(str(value))
+    money = lambda value: "R$ " + f"{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    products = "".join(
+        "<tr><td>" + esc(line["product"]) + "</td><td class='num'>" + esc(line["quantity"])
+        + "</td><td>" + esc(line["unit"]) + "</td><td class='num'>" + money(line["unit_price"])
+        + "</td><td class='num'>" + money(line["total"]) + "</td></tr>"
+        for line in report["products"]
+    )
+    days = "".join(
+        "<tr><td>" + esc(day["date"]) + "</td><td class='num'>" + esc(day["notes"])
+        + "</td><td class='num'>" + money(day["total"]) + "</td></tr>"
+        for day in report["days"]
+    )
+    html = """<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'><style>
+    @page{size:A4;margin:12mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#172033;font-size:10px}
+    h1{font-size:19px;color:#243778;margin:0 0 8px}h2{font-size:13px;color:#243778;margin:16px 0 7px}
+    .meta{line-height:1.6}.summary{background:#edf1fb;border:1px solid #cbd4e9;padding:11px;margin-top:12px}
+    table{width:100%;border-collapse:collapse;table-layout:fixed}thead{display:table-header-group}tr{page-break-inside:avoid}
+    th,td{padding:6px;border-bottom:1px solid #e1e6ef;word-wrap:break-word}th{background:#e8edfb;text-align:left}
+    .num{text-align:right}.total{background:#243778;color:white;text-align:right;font-size:15px;padding:10px;margin-top:9px}
+    .disclaimer{font-size:8px;color:#64748b;margin-top:14px}
+    </style></head><body><h1>MONTEIRO | RESUMO DE NOTAS APP</h1>"""
+    html += "<div class='meta'><b>Cliente:</b> " + esc(report["client"]) + "<br><b>Período:</b> "
+    html += esc(report["start"]) + " a " + esc(report["end"]) + "</div>"
+    html += "<div class='summary'>Notas concluídas: " + str(report["note_count"])
+    html += " &nbsp; | &nbsp; Produtos / preços: " + str(report["product_count"])
+    html += " &nbsp; | &nbsp; Total: <b>" + money(report["total"]) + "</b></div>"
+    html += "<h2>Produtos consolidados</h2><table><thead><tr><th style='width:43%'>Produto</th><th>Qtd.</th><th>Un.</th><th>Valor unit.</th><th>Total</th></tr></thead><tbody>"
+    html += products + "</tbody></table><div class='total'>TOTAL CONSOLIDADO: " + money(report["total"]) + "</div>"
+    html += "<h2>Conferência por dia</h2><table><thead><tr><th>Data</th><th class='num'>Notas</th><th class='num'>Total</th></tr></thead><tbody>"
+    html += days + "</tbody></table><p class='disclaimer'>Resumo interno dos pedidos concluídos no aplicativo. Não substitui nota fiscal ou documento tributário.</p></body></html>"
+    pdf = _html_to_pdf_wk(html)
+    if not pdf:
+        try:
+            from weasyprint import HTML
+            with pdf_generation_slot():
+                pdf = HTML(string=html).write_pdf()
+        except ImportError:
+            pass
+    if not pdf:
+        raise HTTPException(503, "Gerador de PDF indisponível no servidor.")
+    return pdf
+
+@app.get("/api/app-notes/report/pdf")
+def app_note_report_pdf(client: str = "", month: str = "", start: str = "", end: str = "", x_token: str = Header("")):
+    require_auth(x_token)
+    first, last = _app_note_report_period(month, start, end)
+    report = _app_note_report_data(client, first, last)
+    if not report["note_count"]:
+        raise HTTPException(404, "Nenhuma nota concluída para o cliente e período selecionados.")
+    if report["missing_price_count"]:
+        raise HTTPException(409, "Há produtos sem preço. Corrija as notas antes de gerar o PDF consolidado.")
+    filename = "notas-app-" + first + "-a-" + last + ".pdf"
+    try:
+        import reportlab
+    except ImportError:
+        pdf = _app_note_report_pdf_fallback(report)
+        return Response(content=pdf, media_type="application/pdf",
+                        headers={"Content-Disposition": f'attachment; filename="{filename}"',
+                                 "Cache-Control": "private, no-store"})
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_RIGHT
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.pdfbase import pdfmetrics
+    def money(value):
+        return "R$ " + f"{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    def qty(value):
+        return f"{value:,.3f}".rstrip("0").rstrip(".").replace(",", "X").replace(".", ",").replace("X", ".")
+    font = "Helvetica"
+    for name, path in (("DejaVu", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+                       ("DejaVu", "C:/Windows/Fonts/arial.ttf")):
+        if os.path.isfile(path):
+            if name not in pdfmetrics.getRegisteredFontNames():
+                pdfmetrics.registerFont(TTFont(name, path))
+            font = name
+            break
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=A4, leftMargin=36, rightMargin=36,
+                            topMargin=46, bottomMargin=42, title="Resumo de Notas APP")
+    styles = getSampleStyleSheet()
+    title = ParagraphStyle("ReportTitle", parent=styles["Title"], fontName=font, fontSize=17, leading=21, textColor=colors.HexColor("#243778"), spaceAfter=7)
+    body = ParagraphStyle("ReportBody", parent=styles["Normal"], fontName=font, fontSize=9, leading=13)
+    small = ParagraphStyle("ReportSmall", parent=body, fontSize=7.5, leading=10)
+    right = ParagraphStyle("ReportRight", parent=small, alignment=TA_RIGHT)
+    total_style = ParagraphStyle("ReportTotal", parent=body, fontSize=12, leading=16, textColor=colors.white, alignment=TA_RIGHT)
+    label = ParagraphStyle("ReportLabel", parent=body, fontSize=10, leading=14, textColor=colors.HexColor("#243778"), spaceBefore=13, spaceAfter=6)
+    import html as html_module
+    def paragraph(value, style=small):
+        return Paragraph(html_module.escape(str(value)), style)
+    story = [Paragraph("MONTEIRO | RESUMO DE NOTAS APP", title),
+             paragraph("Cliente: " + report["client"], body),
+             paragraph("Período: " + date.fromisoformat(first).strftime("%d/%m/%Y") + " a " + date.fromisoformat(last).strftime("%d/%m/%Y"), body),
+             Spacer(1, 12)]
+    overview = Table([[paragraph("NOTAS CONCLUÍDAS", small), paragraph("PRODUTOS / PREÇOS", small), paragraph("TOTAL DO PERÍODO", small)],
+                      [paragraph(report["note_count"], body), paragraph(report["product_count"], body), paragraph(money(report["total"]), body)]],
+                     colWidths=[160, 170, 169])
+    overview.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#edf1fb")),
+                                  ("BOX", (0, 0), (-1, -1), .5, colors.HexColor("#cbd4e9")),
+                                  ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                                  ("TOPPADDING", (0, 0), (-1, -1), 7), ("BOTTOMPADDING", (0, 0), (-1, -1), 7)]))
+    story.extend([overview, Paragraph("Produtos consolidados", label)])
+    table_data = [[paragraph(x, small) for x in ("PRODUTO", "QTD.", "UN.", "VALOR UNIT.", "TOTAL")]]
+    for line in report["products"]:
+        table_data.append([paragraph(line["product"]), paragraph(qty(line["quantity"]), right),
+                           paragraph(line["unit"]), paragraph(money(line["unit_price"]), right),
+                           paragraph(money(line["total"]), right)])
+    widths = [224, 54, 36, 91, 94]
+    table = Table(table_data, colWidths=widths, repeatRows=1, hAlign="LEFT")
+    table.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e8edfb")),
+                              ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f7f9fc")]),
+                              ("LINEBELOW", (0, 0), (-1, 0), .7, colors.HexColor("#9aaad0")),
+                              ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                              ("TOPPADDING", (0, 0), (-1, -1), 4.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 4.5),
+                              ("LEFTPADDING", (0, 0), (-1, -1), 5), ("RIGHTPADDING", (0, 0), (-1, -1), 5)]))
+    total_band = Table([[paragraph("TOTAL CONSOLIDADO: " + money(report["total"]), total_style)]], colWidths=[499])
+    total_band.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#243778")),
+                                    ("TOPPADDING", (0, 0), (-1, -1), 8), ("BOTTOMPADDING", (0, 0), (-1, -1), 8)]))
+    story.extend([table, Spacer(1, 10), total_band, Paragraph("Conferência por dia", label)])
+    day_data = [[paragraph(x) for x in ("DATA", "NOTAS", "TOTAL")]]
+    for day in report["days"]:
+        day_data.append([paragraph(day["date"]), paragraph(day["notes"]), paragraph(money(day["total"]), right)])
+    day_table = Table(day_data, colWidths=[170, 130, 199], repeatRows=1, hAlign="LEFT")
+    day_table.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e8edfb")),
+                                  ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f7f9fc")]),
+                                  ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                                  ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5)]))
+    story.extend([day_table, Spacer(1, 14),
+                  paragraph("Resumo interno dos pedidos concluídos no aplicativo. Não substitui nota fiscal ou documento tributário.", small)])
+    def footer(canvas, document):
+        canvas.saveState()
+        canvas.setFont(font, 8)
+        canvas.setStrokeColor(colors.HexColor("#cbd4e9"))
+        canvas.line(36, 32, A4[0] - 36, 32)
+        canvas.drawString(36, 21, "Monteiro | Notas APP")
+        canvas.drawRightString(A4[0] - 36, 21, f"Página {document.page}")
+        canvas.restoreState()
+    doc.build(story, onFirstPage=footer, onLaterPages=footer)
+    return Response(content=output.getvalue(), media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"',
+                             "Cache-Control": "private, no-store"})
 
 @app.get("/api/app-notes/mobile/matches")
 def find_mobile_app_note_matches(

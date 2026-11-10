@@ -1,6 +1,7 @@
 import json
 import sqlite3
 import uuid
+from io import BytesIO
 
 import pytest
 
@@ -1924,3 +1925,116 @@ def test_app_note_update_missing_id_preserves_404_and_does_not_lock_db(isolated_
         client="Cliente Depois Do Erro",
     )
     assert created_after_error["client"] == "Cliente Depois Do Erro"
+
+
+def test_app_note_report_month_custom_prices_and_a4_pdf(isolated_app, tmp_path, monkeypatch):
+    import pdfplumber
+
+    client = isolated_app.client
+    token = _login(client)
+    headers = _headers(token)
+    _replace_paladar_products(isolated_app.db_paths["raios"],
+                              [("ABACAXI", 10, 1), ("ALFACE", 6, 1)])
+    first = _create_app_note_mobile(
+        client, isolated_app, client="Loja HGR", date="02/11/2026",
+        items=[{"product": "ABACAXI", "quantity": 5, "weight": 5, "unit": "UN", "unit_price": 5},
+               {"product": "ALFACE", "quantity": 2, "weight": 2, "unit": "MC", "unit_price": 2}],
+    )
+    second = _create_app_note_mobile(
+        client, isolated_app, client="Loja HGR", date="20/11/2026",
+        items=[{"product": "ABACAXI", "quantity": 1, "weight": 1, "unit": "UN", "unit_price": 5},
+               {"product": "ALFACE", "quantity": 1, "weight": 1, "unit": "MC", "unit_price": 2}],
+    )
+    outside = _create_app_note_mobile(client, isolated_app, client="Loja HGR", date="31/10/2026")
+    _create_app_note_mobile(client, isolated_app, client="Loja HGR", date="10/11/2026")
+    _create_app_note_mobile(client, isolated_app, client="Outra Loja", date="02/11/2026")
+    for note in (first, second, outside):
+        response = client.put(f"/api/app-notes/{note['id']}/status", headers=headers,
+                              json={"status": "completed"})
+        assert response.status_code == 200
+    edit = client.put(f"/api/app-notes/{second['id']}", headers=headers,
+                      json={"client": "Loja HGR", "date": "20/11/2026", "items": [
+                          {"product": "ABACAXI", "quantity": 1, "weight": 1, "unit": "UN", "unit_price": 11, "price_override": True},
+                          {"product": "ALFACE", "quantity": 1, "weight": 1, "unit": "MC", "unit_price": 6},
+                      ]})
+    assert edit.status_code == 200
+    _replace_paladar_products(isolated_app.db_paths["raios"],
+                              [("ABACAXI", 12, 1), ("ALFACE", 6, 1)])
+
+    assert client.get("/api/app-notes/report/clients").status_code == 401
+    clients = client.get("/api/app-notes/report/clients", headers=headers).json()["clients"]
+    assert clients == ["Loja HGR"]
+    monthly = client.get("/api/app-notes/report?client=Loja%20HGR&month=2026-11", headers=headers)
+    assert monthly.status_code == 200
+    report = monthly.json()
+    assert (report["start"], report["end"], report["note_count"], report["total"]) == (
+        "2026-11-01", "2026-11-30", 2, 89.0)
+    assert report["missing_price_count"] == 0
+    assert [(row["product"], row["quantity"], row["unit_price"], row["total"])
+            for row in report["products"]] == [
+                ("ABACAXI", 1.0, 11.0, 11.0),
+                ("ABACAXI", 5.0, 12.0, 60.0),
+                ("ALFACE", 3.0, 6.0, 18.0),
+            ]
+    assert [(day["date"], day["total"]) for day in report["days"]] == [
+        ("02/11/2026", 72.0), ("20/11/2026", 17.0)]
+    custom = client.get("/api/app-notes/report?client=Loja%20HGR&start=2026-11-20&end=2026-11-20", headers=headers)
+    assert (custom.status_code, custom.json()["note_count"], custom.json()["total"]) == (200, 1, 17.0)
+    assert client.get("/api/app-notes/report?client=Loja%20HGR&month=2026-13", headers=headers).status_code == 400
+    assert client.get("/api/app-notes/report?client=Loja%20HGR&start=2026-11-20&end=2026-11-01", headers=headers).status_code == 400
+    assert client.get("/api/app-notes/report/pdf?client=Loja%20HGR&month=2026-09", headers=headers).status_code == 404
+    assert client.get("/api/app-notes/report?client=Loja%20HGR&month=2026-11").status_code == 401
+
+    pdf = client.get("/api/app-notes/report/pdf?client=Loja%20HGR&month=2026-11", headers=headers)
+    assert pdf.status_code == 200
+    assert pdf.headers["content-type"] == "application/pdf"
+    assert pdf.content.startswith(b"%PDF")
+    (tmp_path / "notas-app-resumo-a4.pdf").write_bytes(pdf.content)
+    with pdfplumber.open(BytesIO(pdf.content)) as document:
+        assert len(document.pages) == 1
+        assert abs(document.pages[0].width - 595.28) < 1
+        assert abs(document.pages[0].height - 841.89) < 1
+        text = document.pages[0].extract_text()
+        assert "Loja HGR" in text and "ABACAXI" in text and "ALFACE" in text
+        assert "89,00" in text and "20/11/2026" in text
+    fallback_html = []
+    monkeypatch.setattr(isolated_app.module, "_html_to_pdf_wk",
+                        lambda source: fallback_html.append(source) or b"%PDF-fallback")
+    assert isolated_app.module._app_note_report_pdf_fallback(report) == b"%PDF-fallback"
+    assert "@page{size:A4" in fallback_html[0]
+    assert "ABACAXI" in fallback_html[0] and "R$ 89,00" in fallback_html[0]
+
+
+def test_app_note_report_blocks_incomplete_pdf_and_paginates(isolated_app, tmp_path):
+    import pdfplumber
+
+    client = isolated_app.client
+    token = _login(client)
+    headers = _headers(token)
+    unknown = _create_app_note_mobile(
+        client, isolated_app, client="Loja Sem Preço", date="03/11/2026",
+        items=[{"product": "SEM CADASTRO", "quantity": 1, "weight": 1, "unit": "UN"}],
+    )
+    assert client.put(f"/api/app-notes/{unknown['id']}/status", headers=headers,
+                      json={"status": "completed"}).status_code == 200
+    data = client.get("/api/app-notes/report?client=Loja%20Sem%20Pre%C3%A7o&month=2026-11", headers=headers).json()
+    assert data["missing_price_count"] == 1
+    assert client.get("/api/app-notes/report/pdf?client=Loja%20Sem%20Pre%C3%A7o&month=2026-11", headers=headers).status_code == 409
+
+    many = _create_app_note_mobile(
+        client, isolated_app, client="Cliente Grande", date="04/11/2026",
+        items=[{"product": f"Produto Extenso Número {i:03d}", "quantity": 1, "weight": 1,
+                "unit": "UN", "unit_price": i + 1} for i in range(90)],
+    )
+    assert client.put(f"/api/app-notes/{many['id']}/status", headers=headers,
+                      json={"status": "completed"}).status_code == 200
+    pdf = client.get("/api/app-notes/report/pdf?client=Cliente%20Grande&month=2026-11", headers=headers)
+    assert pdf.status_code == 200
+    (tmp_path / "notas-app-multipagina-a4.pdf").write_bytes(pdf.content)
+    with pdfplumber.open(BytesIO(pdf.content)) as document:
+        assert len(document.pages) >= 2
+        assert all(abs(page.width - 595.28) < 1 and abs(page.height - 841.89) < 1 for page in document.pages)
+        content = "\n".join(page.extract_text() for page in document.pages)
+        assert "Produto Extenso Número 000" in content
+        assert "Produto Extenso Número 089" in content
+        assert "Página 1" in content and f"Página {len(document.pages)}" in content
