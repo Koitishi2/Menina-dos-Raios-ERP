@@ -951,3 +951,81 @@ def test_monteiro_routes_force_raios_and_do_not_provide_x_company_isolation(isol
         conn.close()
     assert "company" not in payment_columns
     assert PENDING_MONTEIRO_SCOPE_DECISION
+
+
+def test_monteiro_sales_client_report_month_custom_prices_and_a4_pdf(isolated_app, tmp_path, monkeypatch):
+    import pdfplumber
+
+    client = isolated_app.client
+    token = _login(client)
+    headers = _headers(token)
+    first = _post_sale(client, token, client="Loja HGR", saledate="2026-11-02", nf_number="HGR-001",
+                       items=[{"product": "ABACAXI", "quantity": 5, "unitprice": 10, "total": 50},
+                              {"product": "ALFACE", "quantity": 2, "unitprice": 6, "total": 12}])
+    second = _post_sale(client, token, client="Loja HGR", saledate="2026-11-20", nf_number="HGR-002",
+                        items=[{"product": "ABACAXI", "quantity": 1, "unitprice": 11, "total": 11},
+                               {"product": "ALFACE", "quantity": 1, "unitprice": 6, "total": 6}])
+    _post_sale(client, token, client="Loja HGR", saledate="2026-10-31", nf_number="HGR-OUT")
+    _post_sale(client, token, client="Outra Loja", saledate="2026-11-02", nf_number="OUTRA-001")
+
+    assert client.get("/api/monteiro/sales/report/clients").status_code == 401
+    clients = client.get("/api/monteiro/sales/report/clients", headers=headers)
+    assert clients.status_code == 200
+    assert clients.json()["clients"] == ["Loja HGR", "Outra Loja"]
+    monthly = client.get("/api/monteiro/sales/report?client=Loja%20HGR&month=2026-11", headers=headers)
+    assert monthly.status_code == 200
+    report = monthly.json()
+    assert (report["client"], report["start"], report["end"], report["sale_count"], report["item_count"], report["total"]) == (
+        "Loja HGR", "2026-11-01", "2026-11-30", 2, 4, 79.0)
+    assert [(p["product"], p["quantity"], p["unit_price"], p["total"]) for p in report["products"]] == [
+        ("ABACAXI", 5.0, 10.0, 50.0), ("ABACAXI", 1.0, 11.0, 11.0), ("ALFACE", 3.0, 6.0, 18.0)]
+    assert [(day["date"], day["sales"], day["total"]) for day in report["days"]] == [
+        ("2026-11-02", 1, 62.0), ("2026-11-20", 1, 17.0)]
+    assert [(sale["nf_number"], sale["total"]) for sale in report["sales"]] == [
+        ("HGR-001", 62.0), ("HGR-002", 17.0)]
+    assert first["group"] != second["group"]
+    custom = client.get("/api/monteiro/sales/report?client=Loja%20HGR&start=2026-11-20&end=2026-11-20", headers=headers)
+    assert (custom.status_code, custom.json()["sale_count"], custom.json()["total"]) == (200, 1, 17.0)
+    assert client.get("/api/monteiro/sales/report?client=Loja%20HGR&month=2026-13", headers=headers).status_code == 400
+    assert client.get("/api/monteiro/sales/report?client=Loja%20HGR&start=2026-11-20&end=2026-11-01", headers=headers).status_code == 400
+    assert client.get("/api/monteiro/sales/report?client=Loja%20HGR&month=2026-11").status_code == 401
+    assert client.get("/api/monteiro/sales/report/pdf?client=Loja%20HGR&month=2026-09", headers=headers).status_code == 404
+
+    pdf = client.get("/api/monteiro/sales/report/pdf?client=Loja%20HGR&month=2026-11", headers=headers)
+    assert pdf.status_code == 200
+    assert pdf.headers["content-type"] == "application/pdf"
+    assert pdf.content.startswith(b"%PDF")
+    (tmp_path / "lancamentos-cliente-a4.pdf").write_bytes(pdf.content)
+    with pdfplumber.open(io.BytesIO(pdf.content)) as document:
+        assert len(document.pages) == 1
+        assert abs(document.pages[0].width - 595.28) < 1
+        assert abs(document.pages[0].height - 841.89) < 1
+        text = document.pages[0].extract_text()
+        assert "Loja HGR" in text and "ABACAXI" in text and "ALFACE" in text
+        assert "79,00" in text and "HGR-001" in text and "HGR-002" in text
+
+    fallback_html = []
+    monkeypatch.setattr(isolated_app.module, "_html_to_pdf_wk",
+                        lambda source: fallback_html.append(source) or b"%PDF-fallback")
+    assert isolated_app.module._monteiro_sales_report_pdf_fallback(report) == b"%PDF-fallback"
+    assert "@page{size:A4" in fallback_html[0]
+    assert "ABACAXI" in fallback_html[0] and "R$ 79,00" in fallback_html[0]
+
+
+def test_monteiro_sales_client_report_paginates_a4(isolated_app, tmp_path):
+    import pdfplumber
+
+    client = isolated_app.client
+    token = _login(client)
+    items = [{"product": f"Produto Número {index:03d}", "quantity": 1,
+              "unitprice": index + 1, "total": index + 1} for index in range(50)]
+    _post_sale(client, token, client="Cliente Grande", saledate="2026-11-04", nf_number="GRANDE-001", items=items)
+    pdf = client.get("/api/monteiro/sales/report/pdf?client=Cliente%20Grande&month=2026-11", headers=_headers(token))
+    assert pdf.status_code == 200
+    (tmp_path / "lancamentos-cliente-multipagina-a4.pdf").write_bytes(pdf.content)
+    with pdfplumber.open(io.BytesIO(pdf.content)) as document:
+        assert len(document.pages) >= 2
+        assert all(abs(page.width - 595.28) < 1 and abs(page.height - 841.89) < 1 for page in document.pages)
+        content = "\n".join(page.extract_text() for page in document.pages)
+        assert "Produto Número 000" in content and "Produto Número 049" in content
+        assert "Página 1" in content and f"Página {len(document.pages)}" in content

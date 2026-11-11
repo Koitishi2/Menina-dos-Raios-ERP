@@ -4725,6 +4725,210 @@ def paladar_sales(period:Optional[str]=None,month:Optional[str]=None,year:Option
     conn.close()
     return list(groups.values())
 
+@app.get("/api/monteiro/sales/report/clients")
+def monteiro_sales_report_clients(x_token: str = Header("")):
+    require_auth(x_token)
+    conn = get_db()
+    try:
+        rows = conn.execute("""SELECT trim(client) AS client FROM paladar_sales
+            WHERE trim(coalesce(client,''))<>'' GROUP BY lower(trim(client))
+            ORDER BY lower(trim(client))""").fetchall()
+        return {"clients": [row["client"] for row in rows]}
+    finally:
+        conn.close()
+
+def _monteiro_sales_report_data(client: str, start: str, end: str):
+    selected = str(client or "").strip()
+    if not selected or len(selected) > 120:
+        raise HTTPException(400, "Selecione um cliente válido.")
+    conn = get_db()
+    try:
+        rows = conn.execute("""SELECT id,client,saledate,sale_group,nf_number,product,quantity,unitprice,total
+            FROM paladar_sales WHERE lower(trim(client))=lower(?) AND saledate BETWEEN ? AND ?
+            ORDER BY saledate,id""", (selected, start, end)).fetchall()
+    finally:
+        conn.close()
+    products, days, sales = {}, {}, {}
+    for row in rows:
+        amount = Decimal(str(row["total"] or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        quantity = Decimal(str(row["quantity"] or 0))
+        price = Decimal(str(row["unitprice"] or 0))
+        product = str(row["product"] or "").strip() or "Sem produto"
+        key = (_normalize_name(product), price)
+        sale_key = str(row["sale_group"] or "").strip() or "item-" + str(row["id"])
+        if key not in products:
+            products[key] = {"product": product, "unit_price": price,
+                             "quantity": Decimal("0"), "total": Decimal("0"), "sales": set()}
+        products[key]["quantity"] += quantity
+        products[key]["total"] += amount
+        products[key]["sales"].add(sale_key)
+        day = row["saledate"]
+        if day not in days:
+            days[day] = {"date": day, "total": Decimal("0"), "sales": set()}
+        days[day]["total"] += amount
+        days[day]["sales"].add(sale_key)
+        if sale_key not in sales:
+            sales[sale_key] = {"date": day, "nf_number": row["nf_number"] or "",
+                               "total": Decimal("0"), "items": 0}
+        sales[sale_key]["total"] += amount
+        sales[sale_key]["items"] += 1
+    product_lines = [{"product": line["product"], "unit_price": float(line["unit_price"]),
+                      "quantity": float(line["quantity"]), "total": float(line["total"]),
+                      "sales": len(line["sales"])} for line in products.values()]
+    product_lines.sort(key=lambda line: (_normalize_name(line["product"]), line["unit_price"]))
+    return {"client": rows[0]["client"] if rows else selected,
+            "start": start, "end": end, "sale_count": len(sales), "item_count": len(rows),
+            "product_count": len(product_lines),
+            "total": float(sum((sale["total"] for sale in sales.values()), Decimal("0"))),
+            "products": product_lines,
+            "days": [{"date": day["date"], "sales": len(day["sales"]), "total": float(day["total"])} for day in days.values()],
+            "sales": [{"date": sale["date"], "nf_number": sale["nf_number"],
+                       "items": sale["items"], "total": float(sale["total"])} for sale in sales.values()]}
+
+@app.get("/api/monteiro/sales/report")
+def monteiro_sales_report(client: str = "", month: str = "", start: str = "", end: str = "", x_token: str = Header("")):
+    require_auth(x_token)
+    first, last = _app_note_report_period(month, start, end)
+    return _monteiro_sales_report_data(client, first, last)
+
+def _monteiro_sales_report_pdf_fallback(report):
+    import html as html_module
+    esc = lambda value: html_module.escape(str(value))
+    money = lambda value: "R$ " + f"{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    qty = lambda value: f"{value:,.3f}".rstrip("0").rstrip(".").replace(",", "X").replace(".", ",").replace("X", ".")
+    fmtdate = lambda value: date.fromisoformat(value).strftime("%d/%m/%Y")
+    def table(headers, lines):
+        heading = "".join("<th>" + esc(column) + "</th>" for column in headers)
+        body = "".join("<tr>" + "".join("<td>" + esc(value) + "</td>" for value in row) + "</tr>" for row in lines)
+        return "<table><thead><tr>" + heading + "</tr></thead><tbody>" + body + "</tbody></table>"
+    product_rows = [(p["product"], qty(p["quantity"]), money(p["unit_price"]), money(p["total"])) for p in report["products"]]
+    day_rows = [(fmtdate(day["date"]), day["sales"], money(day["total"])) for day in report["days"]]
+    sale_rows = [(fmtdate(sale["date"]), sale["nf_number"] or "Sem NF", sale["items"], money(sale["total"])) for sale in report["sales"]]
+    html = """<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'><style>
+    @page{size:A4;margin:12mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#172033;font-size:10px}
+    h1{font-size:19px;color:#243778;margin:0 0 8px}h2{font-size:13px;color:#243778;margin:16px 0 7px}
+    .meta{line-height:1.6}.summary{background:#edf1fb;border:1px solid #cbd4e9;padding:11px;margin-top:12px}
+    table{width:100%;border-collapse:collapse;table-layout:fixed}thead{display:table-header-group}tr{page-break-inside:avoid}
+    th,td{padding:6px;border-bottom:1px solid #e1e6ef;word-wrap:break-word}th{background:#e8edfb;text-align:left}
+    td:not(:first-child){text-align:right}.total{background:#243778;color:white;text-align:right;font-size:15px;padding:10px;margin-top:9px}
+    .disclaimer{font-size:8px;color:#64748b;margin-top:14px}
+    </style></head><body><h1>MONTEIRO | RELATÓRIO DE LANÇAMENTOS</h1>"""
+    html += "<div class='meta'><b>Cliente:</b> " + esc(report["client"]) + "<br><b>Período:</b> "
+    html += fmtdate(report["start"]) + " a " + fmtdate(report["end"]) + "</div>"
+    html += "<div class='summary'>Vendas: " + str(report["sale_count"]) + " &nbsp; | &nbsp; Itens: " + str(report["item_count"])
+    html += " &nbsp; | &nbsp; Total: <b>" + money(report["total"]) + "</b></div>"
+    html += "<h2>Produtos consolidados</h2>" + table(("Produto", "Quantidade", "Valor unit.", "Total"), product_rows)
+    html += "<div class='total'>TOTAL DO PERÍODO: " + money(report["total"]) + "</div>"
+    html += "<h2>Conferência por dia</h2>" + table(("Data", "Vendas", "Total"), day_rows)
+    html += "<h2>Lançamentos incluídos</h2>" + table(("Data", "NF", "Itens", "Total"), sale_rows)
+    html += "<p class='disclaimer'>Valores históricos registrados em Lançamentos. Este relatório não substitui nota fiscal.</p></body></html>"
+    pdf = _html_to_pdf_wk(html)
+    if not pdf:
+        try:
+            from weasyprint import HTML
+            with pdf_generation_slot():
+                pdf = HTML(string=html).write_pdf()
+        except ImportError:
+            pass
+    if not pdf:
+        raise HTTPException(503, "Gerador de PDF indisponível no servidor.")
+    return pdf
+
+def _monteiro_sales_report_pdf_bytes(report):
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_RIGHT
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.pdfbase import pdfmetrics
+    import html as html_module
+    font = "Helvetica"
+    for path in ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "C:/Windows/Fonts/arial.ttf"):
+        if os.path.isfile(path):
+            if "MonteiroReportFont" not in pdfmetrics.getRegisteredFontNames():
+                pdfmetrics.registerFont(TTFont("MonteiroReportFont", path))
+            font = "MonteiroReportFont"
+            break
+    money = lambda value: "R$ " + f"{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    qty = lambda value: f"{value:,.3f}".rstrip("0").rstrip(".").replace(",", "X").replace(".", ",").replace("X", ".")
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=A4, leftMargin=36, rightMargin=36,
+                            topMargin=46, bottomMargin=42, title="Relatório de Lançamentos Monteiro")
+    styles = getSampleStyleSheet()
+    title = ParagraphStyle("SalesReportTitle", parent=styles["Title"], fontName=font, fontSize=17, leading=21,
+                           textColor=colors.HexColor("#243778"), spaceAfter=7)
+    body = ParagraphStyle("SalesReportBody", parent=styles["Normal"], fontName=font, fontSize=9, leading=13)
+    small = ParagraphStyle("SalesReportSmall", parent=body, fontSize=7.5, leading=10)
+    right = ParagraphStyle("SalesReportRight", parent=small, alignment=TA_RIGHT)
+    label = ParagraphStyle("SalesReportLabel", parent=body, fontSize=10, leading=14,
+                           textColor=colors.HexColor("#243778"), spaceBefore=13, spaceAfter=6)
+    total_style = ParagraphStyle("SalesReportTotal", parent=body, fontSize=12, leading=16,
+                                 textColor=colors.white, alignment=TA_RIGHT)
+    paragraph = lambda value, style=small: Paragraph(html_module.escape(str(value)), style)
+    fmtdate = lambda value: date.fromisoformat(value).strftime("%d/%m/%Y")
+    def grid(headers, rows, widths, right_columns):
+        data = [[paragraph(value) for value in headers]]
+        for row in rows:
+            data.append([paragraph(value, right if index in right_columns else small) for index, value in enumerate(row)])
+        result = Table(data, colWidths=widths, repeatRows=1, hAlign="LEFT")
+        result.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e8edfb")),
+                                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f7f9fc")]),
+                                    ("LINEBELOW", (0, 0), (-1, 0), .7, colors.HexColor("#9aaad0")),
+                                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                                    ("TOPPADDING", (0, 0), (-1, -1), 4.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 4.5),
+                                    ("LEFTPADDING", (0, 0), (-1, -1), 5), ("RIGHTPADDING", (0, 0), (-1, -1), 5)]))
+        return result
+    story = [Paragraph("MONTEIRO | RELATÓRIO DE LANÇAMENTOS", title),
+             paragraph("Cliente: " + report["client"], body),
+             paragraph("Período: " + date.fromisoformat(report["start"]).strftime("%d/%m/%Y") + " a "
+                       + date.fromisoformat(report["end"]).strftime("%d/%m/%Y"), body), Spacer(1, 12)]
+    overview = Table([[paragraph("VENDAS", small), paragraph("ITENS", small), paragraph("TOTAL DO PERÍODO", small)],
+                      [paragraph(report["sale_count"], body), paragraph(report["item_count"], body), paragraph(money(report["total"]), body)]],
+                     colWidths=[160, 170, 169])
+    overview.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#edf1fb")),
+                                  ("BOX", (0, 0), (-1, -1), .5, colors.HexColor("#cbd4e9")),
+                                  ("TOPPADDING", (0, 0), (-1, -1), 7), ("BOTTOMPADDING", (0, 0), (-1, -1), 7)]))
+    products = [(line["product"], qty(line["quantity"]), money(line["unit_price"]), money(line["total"])) for line in report["products"]]
+    days = [(fmtdate(day["date"]), day["sales"], money(day["total"])) for day in report["days"]]
+    sales = [(fmtdate(sale["date"]), sale["nf_number"] or "Sem NF", sale["items"], money(sale["total"])) for sale in report["sales"]]
+    total_band = Table([[paragraph("TOTAL DO PERÍODO: " + money(report["total"]), total_style)]], colWidths=[499])
+    total_band.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#243778")),
+                                    ("TOPPADDING", (0, 0), (-1, -1), 8), ("BOTTOMPADDING", (0, 0), (-1, -1), 8)]))
+    story.extend([overview, Paragraph("Produtos consolidados", label),
+                  grid(("PRODUTO", "QTD.", "VALOR UNIT.", "TOTAL"), products, [242, 57, 100, 100], {1, 2, 3}),
+                  Spacer(1, 9), total_band, Paragraph("Conferência por dia", label),
+                  grid(("DATA", "VENDAS", "TOTAL"), days, [170, 130, 199], {1, 2}),
+                  Paragraph("Lançamentos incluídos", label),
+                  grid(("DATA", "NF", "ITENS", "TOTAL"), sales, [100, 180, 70, 149], {2, 3}),
+                  Spacer(1, 14), paragraph("Valores históricos registrados em Lançamentos. Este relatório não substitui nota fiscal.", small)])
+    def footer(canvas, document):
+        canvas.saveState()
+        canvas.setFont(font, 8)
+        canvas.setStrokeColor(colors.HexColor("#cbd4e9"))
+        canvas.line(36, 32, A4[0] - 36, 32)
+        canvas.drawString(36, 21, "Monteiro | Lançamentos")
+        canvas.drawRightString(A4[0] - 36, 21, f"Página {document.page}")
+        canvas.restoreState()
+    doc.build(story, onFirstPage=footer, onLaterPages=footer)
+    return output.getvalue()
+
+@app.get("/api/monteiro/sales/report/pdf")
+def monteiro_sales_report_pdf(client: str = "", month: str = "", start: str = "", end: str = "", x_token: str = Header("")):
+    require_auth(x_token)
+    first, last = _app_note_report_period(month, start, end)
+    report = _monteiro_sales_report_data(client, first, last)
+    if not report["sale_count"]:
+        raise HTTPException(404, "Nenhum lançamento para o cliente e período selecionados.")
+    try:
+        pdf = _monteiro_sales_report_pdf_bytes(report)
+    except ImportError:
+        pdf = _monteiro_sales_report_pdf_fallback(report)
+    filename = "monteiro-lancamentos-" + first + "-a-" + last + ".pdf"
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"',
+                             "Cache-Control": "private, no-store"})
+
 @app.post("/api/monteiro/sales")
 @app.post("/api/paladar/sales")
 def create_paladar_sale(body:dict,x_token:str=Header("")):
