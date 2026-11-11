@@ -5,6 +5,10 @@ const fs = require("fs");
 const vm = require("vm");
 
 const source = fs.readFileSync("backend/static/index.html", "utf8");
+const mainScript = source.match(/<script>([\s\S]*?)<\/script>/);
+assert(mainScript, "main page script must exist");
+assert(mainScript[1].includes("async function setAppNoteStatus("), "receipt markup must not close the main page script");
+new vm.Script(mainScript[1], { filename: "backend/static/index.html" });
 const start = source.indexOf("function appNoteReceiptHtml(");
 const end = source.indexOf("async function setAppNoteStatus(", start);
 assert(start > 0 && end > start);

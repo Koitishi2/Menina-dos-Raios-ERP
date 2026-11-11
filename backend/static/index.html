@@ -17005,7 +17005,7 @@ function appNoteReceiptHtml(n){
     +'<script>(function(){function fit(){var sheet=document.querySelector(".sheet"),content=document.querySelector(".receipt-content");'
     +'content.style.transform="none";var scale=Math.min(1,(sheet.clientHeight-2)/content.scrollHeight,(sheet.clientWidth-2)/content.scrollWidth);'
     +'content.style.transform="scale("+Math.max(.1,scale).toFixed(3)+")";}'
-    +'window.addEventListener("load",fit);window.addEventListener("beforeprint",fit);if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);})();</script></body></html>';
+    +'window.addEventListener("load",fit);window.addEventListener("beforeprint",fit);if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);})();<\/script></body></html>';
 }
 function printAppNoteReceipt(id){
   var note=_appNotes.find(function(x){return String(x.id)===String(id);});
