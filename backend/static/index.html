@@ -16950,27 +16950,69 @@ function openAppNoteDetail(id){
 }
 function closeAppNoteDetail(){document.getElementById('app-note-detail-modal').style.display='none';}
 
-function printAppNoteReceipt(id){
-  var n=_appNotes.find(function(x){return String(x.id)===String(id);});
-  if(!n){toast('Nota não encontrada.','error');return;}
-  var itens=(n.items||[]).map(function(i,index){
-    var quantidade=appNoteQuantityDisplay(i)||'—';
-    var valor=appNoteHasPrice(i)?appNoteMoney(appNoteUnitPrice(i))+(i.price_from_catalog?' *':''):'Não informado';
-    var subtotal=appNoteHasPrice(i)?appNoteMoney((Number(i.weight==null?i.quantity:i.weight)||0)*appNoteUnitPrice(i)):'—';
-    return '<tr><td>'+(index+1)+'</td><td><strong>'+admEsc(i.product||'Produto')+'</strong></td><td class="num">'+quantidade+'</td><td>'+admEsc(appNoteUnitDisplay(i.unit))+'</td><td class="num">'+valor+'</td><td class="num">'+subtotal+'</td></tr>';
-  }).join('');
+function appNoteReceiptHtml(n){
+  var items=n.items||[],dense=items.length>70,columns=items.length>38?2:1;
+  var midpoint=Math.ceil(items.length/2);
+  function receiptTable(list,offset){
+    var rows=list.map(function(i,index){
+      var quantity=appNoteQuantityDisplay(i)||'—';
+      var unit=appNoteUnitDisplay(i.unit);
+      var price=appNoteHasPrice(i)?appNoteMoney(appNoteUnitPrice(i))+(i.price_from_catalog?' *':''):'Não informado';
+      var subtotal=appNoteHasPrice(i)?appNoteMoney((Number(i.weight==null?i.quantity:i.weight)||0)*appNoteUnitPrice(i)):'—';
+      return '<tr><td class="product"><span class="index">'+(offset+index+1)+'.</span> '+admEsc(i.product||'Produto')+'</td>'
+        +'<td class="qty">'+quantity+' '+admEsc(unit)+'</td><td class="num">'+price+'</td><td class="num">'+subtotal+'</td></tr>';
+    }).join('');
+    return '<table><colgroup><col style="width:42%"><col style="width:16%"><col style="width:20%"><col style="width:22%"></colgroup>'
+      +'<thead><tr><th>Produto</th><th>Qtd.</th><th>Valor un.</th><th>Subtotal</th></tr></thead><tbody>'
+      +(rows||'<tr><td colspan="4">Nenhum produto informado.</td></tr>')+'</tbody></table>';
+  }
+  var tables=columns===2
+    ?receiptTable(items.slice(0,midpoint),0)+receiptTable(items.slice(midpoint),midpoint)
+    :receiptTable(items,0);
   var status=n.status==='completed'?'Concluída':'Pendente';
-  var emitido=new Date().toLocaleString('pt-BR');
-  var html='<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Recibo - '+admEsc(n.client||'Cliente')+'</title><style>'
-    +'@page{size:A4;margin:12mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#172033;margin:0;font-size:12px}.sheet{max-width:190mm;margin:auto;border:1px solid #cbd5e1;padding:18px}.head{display:flex;justify-content:space-between;gap:20px;border-bottom:3px solid #4f46e5;padding-bottom:12px;margin-bottom:16px}.brand{font-size:24px;font-weight:900;color:#4f46e5}.sub{font-size:11px;color:#64748b;margin-top:3px}.receipt-title{text-align:right;font-size:20px;font-weight:900}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;background:#f8fafc;border:1px solid #e2e8f0;padding:12px;margin-bottom:16px}.label{font-size:9px;text-transform:uppercase;color:#64748b;font-weight:700}.value{font-size:13px;font-weight:700;margin-top:2px}table{width:100%;border-collapse:collapse}th{background:#eef2ff;color:#3730a3;text-align:left;font-size:9px;text-transform:uppercase;padding:8px;border:1px solid #c7d2fe}td{padding:9px 8px;border:1px solid #e2e8f0}.num{text-align:right;white-space:nowrap}.total{margin-left:auto;margin-top:14px;width:270px;border:2px solid #4f46e5;padding:12px;text-align:right}.total-label{font-size:10px;color:#64748b;text-transform:uppercase}.total-value{font-size:22px;font-weight:900;color:#4f46e5;margin-top:3px}.note{margin-top:14px;padding:10px;background:#fffbeb;border:1px solid #fde68a;color:#92400e}.signatures{display:grid;grid-template-columns:1fr 1fr;gap:50px;margin-top:60px}.sign{text-align:center;border-top:1px solid #334155;padding-top:6px}.footer{margin-top:24px;text-align:center;color:#94a3b8;font-size:9px}.no-print{margin:0 auto 12px;display:block;padding:10px 22px;background:#4f46e5;color:white;border:0;border-radius:7px;font-weight:700;cursor:pointer}@media print{.no-print{display:none}.sheet{border:0;padding:0}}</style></head><body>'
-    +'<button class="no-print" onclick="window.print()">🖨 Imprimir recibo</button><main class="sheet"><header class="head"><div><div class="brand"> Monteiro</div><div class="sub">Menina dos Raios Ltda · Sistema de Vendas Independente</div></div><div><div class="receipt-title">RECIBO DE PEDIDO</div><div class="sub">Nota APP nº '+admEsc(String(n.id||'—'))+'</div></div></header>'
-    +'<section class="meta"><div><div class="label">Cliente</div><div class="value">'+admEsc(n.client||'Sem cliente')+'</div></div><div><div class="label">Data do pedido</div><div class="value">'+admEsc(n.note_date||'—')+'</div></div><div><div class="label">Situação</div><div class="value">'+status+'</div></div><div><div class="label">Emitido em</div><div class="value">'+admEsc(emitido)+'</div></div><div style="grid-column:1/-1"><div class="label">Lançamentos e responsáveis</div><div class="value">'+appNoteSubmissionSummary(n)+'</div></div></section>'
-    +'<table><thead><tr><th>#</th><th>Produto</th><th style="text-align:right">Quantidade</th><th>Unidade</th><th style="text-align:right">Valor unitário</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>'+(itens||'<tr><td colspan="6">Nenhum produto informado.</td></tr>')+'</tbody></table>'
+  var issued=new Date().toLocaleString('pt-BR');
+  var catalogNote=items.some(function(i){return i.price_from_catalog;})?'* O valor marcado usa o preço atual da aba Produtos. ':' ';
+  return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Recibo - '+admEsc(n.client||'Cliente')+'</title><style>'
+    +'@page{size:A4 portrait;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0;font-family:Arial,sans-serif;color:#172033;background:#f4f6fa}'
+    +'.no-print{display:block;margin:10px auto;padding:10px 20px;background:#4f46e5;color:white;border:0;border-radius:7px;font-weight:700;cursor:pointer}'
+    +'.sheet{position:relative;width:194mm;height:278mm;margin:8mm auto;background:#fff;border:1px solid #cbd5e1;overflow:hidden}'
+    +'.receipt-content{position:absolute;top:0;left:0;width:100%;padding:5mm;transform-origin:top left}'
+    +'.head{display:flex;justify-content:space-between;gap:8mm;align-items:start;border-bottom:2px solid #4f46e5;padding-bottom:2mm;margin-bottom:2.5mm}'
+    +'.brand{font-size:18px;font-weight:900;color:#4f46e5}.sub{font-size:8px;color:#64748b;margin-top:1mm;overflow-wrap:anywhere}'
+    +'.receipt-title{text-align:right;font-size:15px;font-weight:900}.meta{display:grid;grid-template-columns:1fr 1fr;gap:2mm 6mm;background:#f8fafc;border:1px solid #e2e8f0;padding:2.5mm;margin-bottom:3mm}'
+    +'.label{font-size:7px;text-transform:uppercase;color:#64748b;font-weight:700}.value{font-size:9px;font-weight:700;line-height:1.2;overflow-wrap:anywhere}'
+    +'.item-tables{display:grid;grid-template-columns:1fr;gap:3mm;align-items:start}.item-tables.two{grid-template-columns:repeat(2,minmax(0,1fr))}'
+    +'table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:8px}th{background:#eef2ff;color:#3730a3;text-align:left;font-size:7px;text-transform:uppercase;padding:3px;border-bottom:1px solid #c7d2fe}'
+    +'td{padding:3px;border-bottom:1px solid #e2e8f0;vertical-align:top;line-height:1.1;overflow-wrap:anywhere}.product{font-weight:700}.index{color:#64748b;font-weight:400}.qty{white-space:nowrap}.num{text-align:right;white-space:nowrap}'
+    +'.dense table{font-size:7px}.dense th{font-size:6.5px;padding:2px}.dense td{padding:2px;line-height:1.05}'
+    +'.total{margin:3mm 0 0 auto;width:60mm;border:1.5px solid #4f46e5;padding:2mm 3mm;text-align:right}.total-label{font-size:8px;color:#64748b;text-transform:uppercase}.total-value{font-size:17px;font-weight:900;color:#4f46e5}'
+    +'.note{margin-top:3mm;padding:2mm;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:8px;line-height:1.25}'
+    +'.signatures{display:grid;grid-template-columns:1fr 1fr;gap:12mm;margin-top:7mm}.sign{text-align:center;border-top:1px solid #334155;padding-top:1mm;font-size:8px}'
+    +'.footer{margin-top:3mm;text-align:center;color:#94a3b8;font-size:7px}'
+    +'@media print{html,body{width:210mm;height:297mm;overflow:hidden;background:#fff}.no-print{display:none!important}.sheet{border:0;margin:8mm auto;break-inside:avoid;page-break-inside:avoid}}'
+    +'</style></head><body><button class="no-print" onclick="window.print()">🖨 Imprimir / salvar PDF A4</button>'
+    +'<main class="sheet"><div class="receipt-content"><header class="head"><div><div class="brand">Monteiro</div><div class="sub">Menina dos Raios Ltda · Sistema de Vendas Independente</div></div>'
+    +'<div><div class="receipt-title">RECIBO DE PEDIDO</div><div class="sub">Nota APP nº '+admEsc(String(n.id||'—'))+'</div></div></header>'
+    +'<section class="meta"><div><div class="label">Cliente</div><div class="value">'+admEsc(n.client||'Sem cliente')+'</div></div>'
+    +'<div><div class="label">Data do pedido</div><div class="value">'+admEsc(n.note_date||'—')+'</div></div>'
+    +'<div><div class="label">Situação</div><div class="value">'+status+'</div></div><div><div class="label">Emitido em</div><div class="value">'+admEsc(issued)+'</div></div>'
+    +'<div style="grid-column:1/-1"><div class="label">Envios e responsáveis</div><div class="value">'+appNoteSubmissionSummary(n)+'</div></div></section>'
+    +'<div class="item-tables'+(columns===2?' two':'')+(dense?' dense':'')+'">'+tables+'</div>'
     +'<div class="total"><div class="total-label">Total do pedido</div><div class="total-value">'+appNoteMoney(n.total)+'</div></div>'
-    +'<div class="note">* Valor obtido do preço atual cadastrado na aba Produtos. Este recibo comprova o registro do pedido recebido pelo aplicativo interno e não substitui documento fiscal.</div><div class="signatures"><div class="sign">Responsável pelo recebimento</div><div class="sign">Cliente</div></div><div class="footer">Gerado pelo Monteiro · Notas APP</div></main></body></html>';
-  var janela=window.open('','_blank','width=980,height=760');
-  if(!janela){toast('Permita janelas pop-up para emitir o recibo.','error');return;}
-  janela.document.open();janela.document.write(html);janela.document.close();janela.focus();
+    +'<div class="note">'+catalogNote+'Recibo do pedido recebido pelo aplicativo interno. Não substitui documento fiscal.</div>'
+    +'<div class="signatures"><div class="sign">Responsável pelo recebimento</div><div class="sign">Cliente</div></div>'
+    +'<div class="footer">Gerado pelo Monteiro · Notas APP</div></div></main>'
+    +'<script>(function(){function fit(){var sheet=document.querySelector(".sheet"),content=document.querySelector(".receipt-content");'
+    +'content.style.transform="none";var scale=Math.min(1,(sheet.clientHeight-2)/content.scrollHeight,(sheet.clientWidth-2)/content.scrollWidth);'
+    +'content.style.transform="scale("+Math.max(.1,scale).toFixed(3)+")";}'
+    +'window.addEventListener("load",fit);window.addEventListener("beforeprint",fit);if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);})();</script></body></html>';
+}
+function printAppNoteReceipt(id){
+  var note=_appNotes.find(function(x){return String(x.id)===String(id);});
+  if(!note){toast('Nota não encontrada.','error');return;}
+  var popup=window.open('','_blank','width=980,height=760');
+  if(!popup){toast('Permita janelas pop-up para emitir o recibo.','error');return;}
+  popup.document.open();popup.document.write(appNoteReceiptHtml(note));popup.document.close();popup.focus();
 }
 
 async function setAppNoteStatus(id,status){
