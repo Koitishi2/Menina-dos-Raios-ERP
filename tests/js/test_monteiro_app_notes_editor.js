@@ -13,7 +13,8 @@ const renderEnd = html.indexOf("function openAppNoteDetail(", renderStart);
 assert(helpersStart >= 0 && actionStart > helpersStart && actionEnd > actionStart && renderStart >= 0 && renderEnd > renderStart);
 
 const nodes = { "app-notes-kpis": { innerHTML: "" }, "app-notes-wrap": { innerHTML: "" },
-  "pal-view-notasapp": { style: { display: "block" } } };
+  "pal-view-notasapp": { style: { display: "block" } },
+  "app-note-modal": { style: { display: "flex" } } };
 const context = vm.createContext({
   document: { getElementById(id) { return nodes[id]; } },
   session: { role: "editor" },
@@ -72,8 +73,14 @@ const noteAction = {
 };
 context.session.role = "editor";
 assert(context.isMobileReadOnlyAllowed(noteAction), "editor note action survives mobile read-only filter");
+const removeAction = {closest(selector) {return selector === '#app-note-modal' ? this : null;}};
+assert(context.isMobileReadOnlyAllowed(removeAction), "remove button remains clickable in note modal");
 assert(context.mobileAppNoteActionAllowed("saveAppNote"), "editor can save from mobile note modal");
+assert(context.mobileAppNoteActionAllowed("removeAppNoteEditItem"), "editor can remove note items on a narrow screen");
+assert(context.mobileAppNoteActionAllowed("openNewAppNoteModal"), "editor can start a web note on a narrow screen");
 assert(!context.mobileAppNoteActionAllowed("deletePaladarSale"), "other mobile edits stay protected");
 context.session.role = "viewer";
 assert(!context.mobileAppNoteActionAllowed("saveAppNote"), "viewer stays read-only");
+assert(html.includes('id="app-note-new-button"') && html.includes('onclick="openNewAppNoteModal()"'),
+  "new note action appears beside Monteiro sale action");
 console.log("Monteiro APP notes permissions and responsive markup: OK");

@@ -1262,6 +1262,20 @@ def _managed_route_permission(path:str,method:str):
         return (None,"entregas","view")
     if path in ("/api/auth/me","/api/auth/permissions","/api/auth/company-switch","/api/auth/change-password","/api/auth/logout"):
         return ("auth","session","view")
+    if path=="/api/app-notes" and method in ("GET","POST"):
+        return ("monteiro","notas_app","create" if method=="POST" else "view")
+    if path=="/api/app-notes/matches" and method=="GET":
+        return ("monteiro","notas_app","view")
+    if path.startswith("/api/app-notes/report") and method=="GET":
+        return ("monteiro","notas_app","export" if path.endswith("/pdf") else "view")
+    if path=="/api/app-notes/mobile" and method=="POST":
+        return ("monteiro","notas_app","create")
+    if path=="/api/app-notes/mobile/matches" and method=="GET":
+        return ("monteiro","notas_app","view")
+    if re.fullmatch(r"/api/app-notes/[^/]+",path) and method in ("PUT","DELETE"):
+        return ("monteiro","notas_app","edit" if method=="PUT" else "delete")
+    if re.fullmatch(r"/api/app-notes/[^/]+/status",path) and method=="PUT":
+        return ("monteiro","notas_app","edit")
     if path=="/api/sales" and method=="GET":
         return (None,"consolidado","view")
     if path=="/api/sales" and method=="POST":
@@ -1343,7 +1357,7 @@ def _managed_route_permission(path:str,method:str):
 @app.middleware("http")
 async def company_context_middleware(request: Request, call_next):
     company=request.headers.get("x-company") or request.query_params.get("company") or "raios"
-    if request.url.path.startswith(("/api/monteiro", "/api/paladar")):
+    if request.url.path.startswith(("/api/monteiro", "/api/paladar", "/api/app-notes")):
         company="raios"
     token = CURRENT_COMPANY.set(_company_key(company))
     try:
@@ -7886,6 +7900,8 @@ def get_app_notes_db():
             conn.execute("ALTER TABLE app_notes ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'")
         if "completed_at" not in note_columns:
             conn.execute("ALTER TABLE app_notes ADD COLUMN completed_at TEXT")
+        if "source" not in note_columns:
+            conn.execute("ALTER TABLE app_notes ADD COLUMN source TEXT NOT NULL DEFAULT 'android'")
         if "weight" not in item_columns:
             conn.execute("ALTER TABLE app_note_items ADD COLUMN weight REAL NOT NULL DEFAULT 0")
             conn.execute("UPDATE app_note_items SET weight=quantity WHERE weight=0")
@@ -8192,6 +8208,9 @@ def find_mobile_app_note_matches(
 ):
     _require_app_note_token(x_app_token)
     require_auth(x_token)
+    return _find_app_note_matches(client,date,external_id)
+
+def _find_app_note_matches(client:str,date:str,external_id:str=""):
     client=str(client or "").strip()[:120]
     note_date=str(date or "").strip()[:20]
     if not client or not note_date:
@@ -8220,12 +8239,41 @@ def find_mobile_app_note_matches(
     finally:
         conn.close()
 
+@app.get("/api/app-notes/matches")
+def find_web_app_note_matches(client:str="",date:str="",x_token:str=Header("")):
+    require_admin_or_editor(x_token)
+    return _find_app_note_matches(client,date)
+
 @app.post("/api/app-notes/mobile")
 def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-token"),x_token:str=Header("")):
     _require_app_note_token(x_app_token)
     sess=get_session(x_token) if x_token else {}
     if x_token and not sess:
         raise HTTPException(401,"Sessão inválida. Faça login novamente.")
+    return _create_app_note_record(body,sess,"android")
+
+@app.post("/api/app-notes")
+def create_app_note_web(body:dict,x_token:str=Header("")):
+    sess=require_admin_or_editor(x_token)
+    body=dict(body)
+    body["external_id"]=str(body.get("external_id") or uuid.uuid4()).strip()
+    if not isinstance(body.get("items"),list) or any(not isinstance(item,dict) for item in body["items"]):
+        raise HTTPException(400,"Lista de itens inválida.")
+    client,note_date,items,_=_clean_app_note(body)
+    try:
+        datetime.strptime(note_date,"%d/%m/%Y")
+    except ValueError:
+        raise HTTPException(400,"Informe uma data válida no formato dd/mm/aaaa.")
+    if not client or not items:
+        raise HTTPException(400,"Informe o cliente e ao menos um produto.")
+    if any(not item["product"] or not item["unit"] or not math.isfinite(item["weight"])
+           or item["weight"]<=0 or not math.isfinite(item["unit_price"])
+           or item["unit_price"]<0 or (item["quantity_provided"] and
+           (not math.isfinite(item["quantity"]) or item["quantity"]<0)) for item in items):
+        raise HTTPException(400,"Confira produto, medida, unidade e preço dos itens.")
+    return _create_app_note_record(body,sess,"erp")
+
+def _create_app_note_record(body:dict,sess:dict,source:str):
     if body.get("stock_intake"):
         raise HTTPException(409,"A entrada no estoque agora deve ser registrada pela opção Estoque do aplicativo. Nenhum lançamento foi salvo.")
     external_id=str(body.get("external_id") or "").strip()[:80]
@@ -8234,9 +8282,13 @@ def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-toke
     catalog_prices=_app_note_catalog_prices()
     for item in items:
         catalog_price=catalog_prices.get(_normalize_name(item["product"]))
-        if catalog_price is not None:
+        raw=body.get("items",[])[item["position"]]
+        manual_override=source=="erp" and bool(raw.get("price_override")) and item["price_provided"]
+        if catalog_price is not None and not manual_override:
             item["unit_price"]=catalog_price
             item["price_provided"]=True
+        elif manual_override:
+            item["price_provided"]=2
     total=round(sum(item["weight"]*item["unit_price"] for item in items if item["price_provided"]),2)
     merge_into_id=str(body.get("merge_into_note_id") or "").strip()[:80]
     conn=get_app_notes_db()
@@ -8261,8 +8313,8 @@ def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-toke
             start_position=conn.execute("SELECT COALESCE(max(position),-1)+1 p FROM app_note_items WHERE note_id=?",(note_id,)).fetchone()["p"]
         else:
             start_position=0
-            conn.execute("INSERT INTO app_notes(id,external_id,client,note_date,total,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
-                         (note_id,external_id,client,note_date,total,now,now))
+            conn.execute("INSERT INTO app_notes(id,external_id,client,note_date,total,created_at,updated_at,source) VALUES(?,?,?,?,?,?,?,?)",
+                         (note_id,external_id,client,note_date,total,now,now,source))
         for item in items:
             conn.execute("INSERT INTO app_note_items(id,note_id,product,quantity,quantity_provided,weight,unit,unit_price,price_provided,position) VALUES(?,?,?,?,?,?,?,?,?,?)",
                 (str(uuid.uuid4()),note_id,item["product"],item["quantity"],int(item["quantity_provided"]),item["weight"],item["unit"],item["unit_price"],int(item["price_provided"]),start_position+item["position"]))

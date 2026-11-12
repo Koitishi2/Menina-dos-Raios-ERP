@@ -1381,6 +1381,7 @@ body.paladar-active .notif-bell{display:none!important}
 .app-note-report-scroll th{background:var(--card2);font-size:10px;text-transform:uppercase;color:var(--muted)}
 .app-note-report-scroll .num{text-align:right;white-space:nowrap}.app-note-report-alert{padding:11px;border-radius:8px;background:#fff7ed;color:#9a3412;font-size:12px;font-weight:700}
 .app-note-report-help{font-size:11px;color:var(--muted);line-height:1.5;margin:16px 0 0}
+#app-note-new-merge-wrap[hidden]{display:none!important}
 @media(max-width:700px){.app-note-report-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.app-note-report-filters label{min-width:calc(50% - 8px)}}
 @media(max-width:1180px){
   #paladar-app>div:first-child{grid-template-columns:minmax(0,1fr) auto!important}
@@ -1390,6 +1391,7 @@ body.paladar-active .notif-bell{display:none!important}
 @media(max-width:820px){
   #paladar-app>div:first-child{grid-template-columns:minmax(0,1fr)!important}
   #paladar-app>div:first-child>div:last-child{grid-column:1;grid-row:2}
+  #paladar-app>div:first-child>div:last-child{flex-wrap:wrap;justify-content:flex-start!important}
 }
 @media(max-width:640px){
   #pal-view-notasapp{padding:10px!important}
@@ -16654,6 +16656,8 @@ function togglePalPeriodFields(){
 function openPaladarApp(){
   document.getElementById('paladar-app').classList.add('active');
   document.body.classList.add('paladar-active');
+  var noteButton=document.getElementById('app-note-new-button');
+  if(noteButton)noteButton.hidden=!session||!['admin','editor'].includes(session.role);
   togglePalPeriodFields();
   applyMonteiroCalendarPermUI();
   switchPaladarTab('painel');
@@ -17027,12 +17031,59 @@ async function setAppNoteStatus(id,status){
 
 function openAppNoteModal(id){
   var n=_appNotes.find(function(x){return x.id===id;}); if(!n)return;
+  _appNoteMergeRequest++;
+  document.getElementById('app-note-modal-title').textContent='Editar Nota APP';
+  document.getElementById('app-note-save-button').textContent='💾 Salvar alterações';
+  document.getElementById('app-note-new-merge-wrap').hidden=true;
   document.getElementById('app-note-id').value=n.id;
   document.getElementById('app-note-edit-client').value=n.client||'';
   document.getElementById('app-note-edit-date').value=n.note_date||'';
   document.getElementById('app-note-edit-list').innerHTML=(n.items||[]).map(appNoteEditRow).join('');
   updateAppNoteTotalPreview();
   document.getElementById('app-note-modal').style.display='flex';
+}
+var _appNoteMergeRequest=0;
+var _appNoteMergeTimer=null;
+function openNewAppNoteModal(){
+  if(!session||!['admin','editor'].includes(session.role)){toast('Seu perfil não pode lançar Notas APP.','error');return;}
+  _appNoteMergeRequest++;
+  switchPaladarTab('notasapp');
+  var now=new Date(),date=String(now.getDate()).padStart(2,'0')+'/'+String(now.getMonth()+1).padStart(2,'0')+'/'+now.getFullYear();
+  document.getElementById('app-note-modal-title').textContent='Lançar Nota APP';
+  document.getElementById('app-note-save-button').textContent='💾 Lançar nota';
+  document.getElementById('app-note-id').value='';
+  document.getElementById('app-note-new-external-id').value=(window.crypto&&window.crypto.randomUUID?window.crypto.randomUUID():'erp-'+Date.now()+'-'+Math.random().toString(36).slice(2));
+  document.getElementById('app-note-edit-client').value='';
+  document.getElementById('app-note-edit-date').value=date;
+  document.getElementById('app-note-edit-list').innerHTML=appNoteEditRow();
+  document.getElementById('app-note-new-merge').innerHTML='<option value="">Criar nota separada</option>';
+  document.getElementById('app-note-new-merge-wrap').hidden=false;
+  updateAppNoteTotalPreview();
+  document.getElementById('app-note-modal').style.display='flex';
+  document.getElementById('app-note-edit-client').focus();
+  loadAppNoteProductOptions();
+}
+async function loadAppNoteProductOptions(){
+  try{
+    var products=await api('/api/monteiro/products');
+    var list=document.getElementById('app-note-product-options');
+    if(list)list.innerHTML=(Array.isArray(products)?products:[]).map(function(product){
+      return '<option value="'+appNoteAttr(product.name)+'"></option>';
+    }).join('');
+  }catch(e){/* O campo aceita produto digitado mesmo se a lista falhar. */}
+}
+async function refreshNewAppNoteMatches(){
+  if(document.getElementById('app-note-id').value)return;
+  var client=document.getElementById('app-note-edit-client').value.trim(),date=document.getElementById('app-note-edit-date').value.trim();
+  var select=document.getElementById('app-note-new-merge'),request=++_appNoteMergeRequest;
+  if(!client||!/^\d{2}\/\d{2}\/\d{4}$/.test(date)){select.innerHTML='<option value="">Criar nota separada</option>';return;}
+  try{
+    var data=await api('/api/app-notes/matches?'+new URLSearchParams({client:client,date:date}));
+    if(request!==_appNoteMergeRequest||document.getElementById('app-note-id').value)return;
+    select.innerHTML='<option value="">Criar nota separada</option>'+(data.matches||[]).map(function(n){
+      return '<option value="'+appNoteAttr(n.id)+'">Juntar à nota existente · '+Number(n.item_count||0)+' produto(s) · '+admEsc(n.status==='completed'?'concluída':'pendente')+'</option>';
+    }).join('');
+  }catch(e){if(request===_appNoteMergeRequest)select.innerHTML='<option value="">Criar nota separada — consulta indisponível</option>';}
 }
 function closeAppNoteModal(){ document.getElementById('app-note-modal').style.display='none'; }
 function appNoteEditRow(item){
@@ -17047,7 +17098,7 @@ function appNoteEditRow(item){
   if(item.unit&&!unitOptions.includes(item.unit.toUpperCase()))unitOptions.push(item.unit.toUpperCase());
   var inputStyle='display:block;width:100%;margin-top:4px;padding:9px 10px;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--ink);font:inherit;font-size:13px;box-sizing:border-box';
   return '<div class="app-note-edit-row" data-original-product="'+appNoteAttr(product)+'" data-original-price="'+appNoteAttr(originalPrice)+'" data-original-override="'+(Number(item.price_provided)===2?'1':'0')+'" style="padding:12px;border-bottom:1px solid var(--border)">'
-    +'<div style="display:flex;align-items:end;gap:10px;margin-bottom:10px"><label style="flex:1;min-width:0;font-size:10px;font-weight:700;color:var(--muted)">Produto<input data-app-note-field="product" type="text" autocomplete="off" value="'+appNoteAttr(product)+'" style="'+inputStyle+';font-weight:700"></label><button type="button" class="btn btn-secondary btn-sm" style="flex:none;color:#b91c1c" onclick="removeAppNoteEditItem(this)">Remover</button></div>'
+    +'<div style="display:flex;align-items:end;gap:10px;margin-bottom:10px"><label style="flex:1;min-width:0;font-size:10px;font-weight:700;color:var(--muted)">Produto<input data-app-note-field="product" type="text" list="app-note-product-options" autocomplete="off" value="'+appNoteAttr(product)+'" style="'+inputStyle+';font-weight:700"></label><button type="button" class="btn btn-secondary btn-sm" data-app-note-remove-item style="flex:none;color:#b91c1c;cursor:pointer">Remover</button></div>'
     +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:10px">'
     +fields.map(function(f){return '<label style="min-width:0;font-size:10px;font-weight:700;color:var(--muted)">'+f[1]+(f[0]==='unit'
       ?'<select data-app-note-field="unit" style="'+inputStyle+'">'+unitOptions.map(function(code){return '<option value="'+appNoteAttr(code)+'"'+(code===String(f[2]).toUpperCase()?' selected':'')+'>'+appNoteAttr(code)+'</option>';}).join('')+'</select>'
@@ -17060,7 +17111,18 @@ function addAppNoteEditItem(){
   if(rows.length)rows[rows.length-1].querySelector('[data-app-note-field="product"]').focus();
   updateAppNoteTotalPreview();
 }
-function removeAppNoteEditItem(button){button.closest('.app-note-edit-row').remove();updateAppNoteTotalPreview();}
+function removeAppNoteEditItem(button){
+  var row=button&&button.closest('.app-note-edit-row');
+  if(!row)return;
+  row.remove();
+  updateAppNoteTotalPreview();
+}
+document.addEventListener('click',function(event){
+  var button=event.target&&event.target.closest&&event.target.closest('#app-note-edit-list [data-app-note-remove-item]');
+  if(!button)return;
+  event.preventDefault();
+  removeAppNoteEditItem(button);
+});
 function appNoteEditNumber(value){
   var text=String(value==null?'':value).trim();
   if(text.indexOf(',')>=0)return Number(text.replace(/\./g,'').replace(',','.'));
@@ -17077,9 +17139,12 @@ function updateAppNoteTotalPreview(){
     var price=appNoteEditNumber(priceText);
     if(priceText!==''&&Number.isFinite(weight)&&Number.isFinite(price)){total+=weight*price;hasPrice=true;}
   });
-  preview.textContent=hasPrice?'Total calculado: '+appNoteMoney(total):'Informe os valores unitários para calcular o total.';
+  preview.textContent=hasPrice?'Total calculado: '+appNoteMoney(total):'Preço final calculado pelo servidor ao salvar.';
 }
 document.addEventListener('input',function(event){
+  if(event.target&&['app-note-edit-client','app-note-edit-date'].includes(event.target.id)){
+    clearTimeout(_appNoteMergeTimer);_appNoteMergeTimer=setTimeout(refreshNewAppNoteMatches,350);
+  }
   var row=event.target&&event.target.closest&&event.target.closest('#app-note-edit-list .app-note-edit-row');
   if(!row)return;
   var field=event.target.getAttribute('data-app-note-field');
@@ -17098,19 +17163,33 @@ function parseAppNoteItems(){
     var qty=qtyText===''?null:appNoteEditNumber(qtyText),weight=appNoteEditNumber(weightText),price=priceText===''?null:appNoteEditNumber(priceText);
     if(!product||!unit||weightText===''||!Number.isFinite(weight)||weight<=0||(qty!==null&&(!Number.isFinite(qty)||qty<0))||(price!==null&&(!Number.isFinite(price)||price<0)))throw new Error('Confira produto, quantidade, medida, unidade e valor do item '+(idx+1)+'.');
     var previous=row.dataset.originalPrice===''?null:Number(row.dataset.originalPrice);
-    var priceOverride=price!==null&&row.dataset.originalProduct===product&&
-      (row.dataset.originalOverride==='1'||previous===null||Math.abs(price-previous)>0.000001);
+    var priceOverride=price!==null&&(
+      row.dataset.originalProduct===''||
+      (row.dataset.originalProduct===product&&
+        (row.dataset.originalOverride==='1'||previous===null||Math.abs(price-previous)>0.000001)));
     return {product:product,quantity:qty,weight:weight,unit:unit,unit_price:price,price_override:priceOverride};
   });
 }
+var _appNoteSaving=false;
 async function saveAppNote(){
+  if(_appNoteSaving)return;
+  var button=document.getElementById('app-note-save-button');
   try{
     var id=document.getElementById('app-note-id').value;
     var items=parseAppNoteItems();
+    if(!id&&!items.length)throw new Error('Adicione ao menos um produto à nota.');
     var body={client:document.getElementById('app-note-edit-client').value.trim(),date:document.getElementById('app-note-edit-date').value.trim(),items:items};
-    await api('/api/app-notes/'+encodeURIComponent(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    closeAppNoteModal(); toast('✅ Nota APP atualizada.'); await refreshAppNotesNotifications(); loadAppNotes();
+    if(!body.client)throw new Error('Informe o cliente da nota.');
+    if(!id){body.external_id=document.getElementById('app-note-new-external-id').value;body.merge_into_note_id=document.getElementById('app-note-new-merge').value;}
+    _appNoteSaving=true;if(button)button.disabled=true;
+    var result=await api('/api/app-notes'+(id?'/'+encodeURIComponent(id):''),{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    closeAppNoteModal();
+    var missingPrice=result.note&&result.note.items&&result.note.items.some(function(item){return !appNoteHasPrice(item);});
+    toast(missingPrice?'Nota salva. Há produto sem preço em Produtos; edite a nota para informar o valor.':id?'✅ Nota APP atualizada.':'✅ Nota APP lançada.',missingPrice?'info':'success');
+    if(!id) switchAppNotesStatus('pending');
+    await refreshAppNotesNotifications(); await loadAppNotes();
   }catch(e){toast(e.message,'error');}
+  finally{_appNoteSaving=false;if(button)button.disabled=false;}
 }
 async function deleteAppNote(id){
   if(!confirm('Remover permanentemente esta nota enviada pelo aplicativo?'))return;
@@ -19991,7 +20070,9 @@ function isMobileReadOnlyAllowed(el){
   var notesView=document.getElementById('pal-view-notasapp');
   var notesVisible=notesView&&notesView.style.display!=='none';
   var notesEditor=session&&['admin','editor'].includes(session.role);
-  if(notesEditor&&notesVisible&&(el.closest('#pal-view-notasapp [data-app-note-action]')||el.closest('#app-note-modal')))return true;
+  if(notesEditor&&el.closest('#app-note-new-button'))return true;
+  if(notesEditor&&el.closest('#app-note-modal')&&document.getElementById('app-note-modal')?.style.display!=='none')return true;
+  if(notesEditor&&notesVisible&&el.closest('#pal-view-notasapp [data-app-note-action]'))return true;
   if(el.closest('#app-vales-wrap [data-app-vale-action="signature"]'))return true;
   var deliveryPanel=document.getElementById('panel-entregas');
   if(el.closest('#delivery-date-modal')&&document.getElementById('delivery-date-modal')?.style.display!=='none')return true;
@@ -20022,9 +20103,11 @@ function mobileDeliveryActionAllowed(name){
 }
 function mobileAppNoteActionAllowed(name){
   if(!isMobileView()||!session||!['admin','editor'].includes(session.role))return false;
+  if(name==='openNewAppNoteModal')return true;
   var view=document.getElementById('pal-view-notasapp');
-  return ['openAppNoteModal','saveAppNote','deleteAppNote'].includes(name)
-    &&!!(view&&view.style.display!=='none');
+  var modal=document.getElementById('app-note-modal');
+  return ['openAppNoteModal','saveAppNote','deleteAppNote','removeAppNoteEditItem'].includes(name)
+    &&!!((view&&view.style.display!=='none')||(modal&&modal.style.display!=='none'));
 }
 function applyMobileReadOnlyUI(){
   var mobile=isMobileView();
@@ -20055,7 +20138,7 @@ function installMobileReadOnlyGuards(){
     'addVehicle','deleteVehicle','openClientModal','deleteClient','openEditUser','deleteUser',
     'openDeliveryDateModal','confirmDeliveryDate','openBulkDeliveryModal','confirmBulkDelivery','openUndoModal','confirmUndoDelivery',
     'openBulkPayModal','confirmBulkPay','openPaymentModal','openEditPaymentModal','savePayment','deletePayment',
-    'openAppNoteModal','saveAppNote','deleteAppNote','openAppCalendarModal','saveAppCalendarEvent','deleteAppCalendarEvent','deleteAppCalendarSeries',
+    'openAppNoteModal','openNewAppNoteModal','saveAppNote','deleteAppNote','removeAppNoteEditItem','openAppCalendarModal','saveAppCalendarEvent','deleteAppCalendarEvent','deleteAppCalendarSeries',
     'openPaladarSaleModal','editPaladarGroup','savePaladarSale','addPaladarItem','editPaladarSaleItem','openPaladarItemEditModal','savePaladarItemEdit',
     'editPaladarGroupClient','savePaladarGroupEdit','deletePaladarSale','deletePaladarGroup',
     'openPaladarProductModal','editPaladarProduct','savePaladarProduct','deletePaladarProduct',
@@ -20485,6 +20568,7 @@ setTimeout(installMobileReadOnlyGuards,0);
     </div>
     <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end">
       <button onclick="openPaladarSaleModal()" style="background:rgba(255,255,255,.2);color:#fff;border:none;padding:7px 14px;border-radius:8px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;transition:background .15s">➕ Lançar Venda</button>
+      <button id="app-note-new-button" type="button" onclick="openNewAppNoteModal()" style="background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.25);padding:7px 14px;border-radius:8px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">📱 Lançar Nota APP</button>
       <button onclick="closePaladarApp()" style="background:rgba(255,255,255,.15);color:#fff;border:none;padding:7px 14px;border-radius:8px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;transition:background .15s">✕ Fechar</button>
     </div>
   </div>
@@ -20887,10 +20971,11 @@ setTimeout(installMobileReadOnlyGuards,0);
   <div id="app-note-modal" onclick="if(event.target===this)closeAppNoteModal()" style="position:fixed;inset:0;z-index:9600;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);padding:16px">
     <div style="background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px;width:min(680px,96vw);max-height:90vh;overflow:auto">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px">
-        <div style="font-size:16px;font-weight:800;color:#4F46E5"> Editar Nota APP</div>
+        <div id="app-note-modal-title" style="font-size:16px;font-weight:800;color:#4F46E5">Editar Nota APP</div>
         <button onclick="closeAppNoteModal()" style="background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer">&times;</button>
       </div>
       <input type="hidden" id="app-note-id">
+      <input type="hidden" id="app-note-new-external-id">
       <div class="app-note-edit-fields" style="display:grid;grid-template-columns:1fr 180px;gap:10px;margin-bottom:12px">
         <label style="font-size:11px;font-weight:700;color:var(--muted)">Cliente
           <input id="app-note-edit-client" style="display:block;width:100%;margin-top:5px;padding:9px;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--ink);box-sizing:border-box">
@@ -20899,15 +20984,19 @@ setTimeout(installMobileReadOnlyGuards,0);
           <input id="app-note-edit-date" placeholder="dd/mm/aaaa" style="display:block;width:100%;margin-top:5px;padding:9px;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--ink);box-sizing:border-box">
         </label>
       </div>
+      <label id="app-note-new-merge-wrap" hidden style="display:block;margin-bottom:12px;font-size:11px;font-weight:700;color:var(--muted)">Nota do mesmo cliente e dia
+        <select id="app-note-new-merge" style="display:block;width:100%;margin-top:5px;padding:9px;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--ink);box-sizing:border-box"><option value="">Criar nota separada</option></select>
+      </label>
       <section style="margin-top:14px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
         <div style="padding:10px 12px;background:var(--card2);font-size:12px;font-weight:800;color:var(--ink);display:flex;align-items:center;justify-content:space-between;gap:8px"><span>Itens da nota</span><button type="button" class="btn btn-secondary btn-sm" onclick="addAppNoteEditItem()">+ Adicionar produto</button></div>
         <div id="app-note-edit-list" style="max-height:50vh;overflow:auto"></div>
+        <datalist id="app-note-product-options"></datalist>
         <div style="padding:7px 12px 0;background:var(--card2);color:var(--muted);font-size:11px">Total = peso/medida × valor unitário. Deixe o valor vazio para usar o preço de Produtos.</div>
         <div id="app-note-edit-total" aria-live="polite" style="padding:8px 12px 10px;text-align:right;font-size:13px;font-weight:800;color:var(--g800);background:var(--card2)"></div>
       </section>
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:15px">
         <button class="btn btn-secondary" onclick="closeAppNoteModal()">Cancelar</button>
-        <button class="btn btn-primary" onclick="saveAppNote()">💾 Salvar alterações</button>
+        <button id="app-note-save-button" class="btn btn-primary" onclick="saveAppNote()">💾 Salvar alterações</button>
       </div>
     </div>
   </div>

@@ -2038,3 +2038,82 @@ def test_app_note_report_blocks_incomplete_pdf_and_paginates(isolated_app, tmp_p
         assert "Produto Extenso Número 000" in content
         assert "Produto Extenso Número 089" in content
         assert "Página 1" in content and f"Página {len(document.pages)}" in content
+
+
+def test_web_app_note_create_catalog_merge_and_remove_item(isolated_app):
+    client = isolated_app.client
+    token = _login(client)
+    headers = _headers(token, "estrada")
+    _replace_paladar_products(
+        isolated_app.db_paths["raios"],
+        [("ABACAXI", 10, 1), ("ABÓBORA", 5, 1)],
+    )
+    _replace_paladar_products(
+        isolated_app.db_paths["estrada"], [("ABACAXI", 99, 1)],
+    )
+    first = client.post("/api/app-notes", headers=headers, json={
+        "external_id": "erp-web-primeiro", "client": "PALADAR BASE", "date": "11/11/2026",
+        "items": [{"product": "ABACAXI", "quantity": 8, "weight": 8, "unit": "UN",
+                   "unit_price": 5}],
+    })
+    assert first.status_code == 200, first.text
+    note = first.json()["note"]
+    assert note["source"] == "erp"
+    assert note["total"] == 80
+    assert note["items"][0]["effective_unit_price"] == 10
+    assert note["submissions"][0]["submitted_by_username"] == "admin"
+    duplicate = client.post("/api/app-notes", headers=headers, json={
+        "external_id": "erp-web-primeiro", "client": "PALADAR BASE", "date": "11/11/2026",
+        "items": [{"product": "ABACAXI", "weight": 8, "unit": "UN"}],
+    })
+    assert duplicate.status_code == 200 and duplicate.json()["duplicate"] is True
+    matches = client.get("/api/app-notes/matches", headers=headers,
+                         params={"client": "PALADAR BASE", "date": "11/11/2026"})
+    assert matches.status_code == 200
+    assert [item["id"] for item in matches.json()["matches"]] == [note["id"]]
+
+    merged = client.post("/api/app-notes", headers=headers, json={
+        "external_id": "erp-web-segundo", "merge_into_note_id": note["id"],
+        "client": "PALADAR BASE", "date": "11/11/2026",
+        "items": [{"product": "ABÓBORA", "quantity": None, "weight": 20.2, "unit": "KG"}],
+    })
+    assert merged.status_code == 200, merged.text
+    assert merged.json()["merged"] is True
+    assert merged.json()["note"]["total"] == 181
+    assert len(merged.json()["note"]["items"]) == 2
+
+    edited = client.put(f"/api/app-notes/{note['id']}", headers=headers, json={
+        "client": "PALADAR BASE", "date": "11/11/2026",
+        "items": [{"product": "ABÓBORA", "quantity": None, "weight": 20.2, "unit": "KG"}],
+    })
+    assert edited.status_code == 200, edited.text
+    assert [item["product"] for item in edited.json()["note"]["items"]] == ["ABÓBORA"]
+    listed = client.get("/api/app-notes?status=pending", headers=headers)
+    assert listed.status_code == 200
+    saved = next(item for item in listed.json()["notes"] if item["id"] == note["id"])
+    assert [item["product"] for item in saved["items"]] == ["ABÓBORA"]
+    assert saved["total"] == 101
+
+
+def test_web_app_note_create_manual_price_and_validation(isolated_app):
+    client = isolated_app.client
+    token = _login(client)
+    headers = _headers(token)
+    _replace_paladar_products(isolated_app.db_paths["raios"], [("ABACAXI", 10, 1)])
+    assert client.post("/api/app-notes", json={}).status_code == 401
+    _create_temp_user(isolated_app, "viewer_web_note", "senha-viewer", "viewer")
+    viewer = _login(client, "viewer_web_note", "senha-viewer")
+    assert client.post("/api/app-notes", headers=_headers(viewer), json={}).status_code == 403
+    assert client.get("/api/app-notes/matches", headers=_headers(viewer)).status_code == 403
+    bad = client.post("/api/app-notes", headers=headers, json={
+        "client": "Cliente", "date": "31/02/2026", "items": [{"product": "ABACAXI", "weight": 1, "unit": "UN"}],
+    })
+    assert bad.status_code == 400
+    manual = client.post("/api/app-notes", headers=headers, json={
+        "external_id": "erp-web-manual", "client": "Cliente", "date": "11/11/2026",
+        "items": [{"product": "ABACAXI", "quantity": 5, "weight": 5, "unit": "UN",
+                   "unit_price": 11, "price_override": True}],
+    })
+    assert manual.status_code == 200, manual.text
+    assert manual.json()["note"]["total"] == 55
+    assert manual.json()["note"]["items"][0]["price_provided"] == 2
