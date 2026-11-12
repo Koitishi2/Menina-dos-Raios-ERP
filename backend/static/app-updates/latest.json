@@ -1,13 +1,13 @@
 {
-    "versionName":  "2.0.67",
-    "versionCode":  95,
+    "versionName":  "2.0.68",
+    "versionCode":  96,
     "packageName":  "br.com.meninadosraios.vendas",
-    "sha256":  "734ffdeef620be9e6afb7438718d884632bcda235a2daa1fe0efda2daf15282b",
-    "releaseNotes":  "Pedidos usam preços atuais de Monteiro \u003e Produtos; voz distingue alho com casca de alho descascado.",
-    "notes":  "Pedidos usam preços atuais de Monteiro \u003e Produtos; voz distingue alho com casca de alho descascado.",
+    "sha256":  "6461a7fcfd523b0c17ec1403075cdbeb0b5aba21abe9cdfae5ca2b0707db6ad5",
+    "releaseNotes":  "Notas APP: produtos repetidos podem ser somados ou substituidos ao unificar, com preco atual do Monteiro.",
+    "notes":  "Notas APP: produtos repetidos podem ser somados ou substituidos ao unificar, com preco atual do Monteiro.",
     "apkFile":  "Menina-dos-Raios-Vendas-OFICIAL.apk",
     "apkUrl":  "https://sistema.meninadosraios.com.br/app-updates/Menina-dos-Raios-Vendas-OFICIAL.apk",
-    "sizeBytes":  6201003,
-    "publishedAt":  "2026-11-09T12:10:48-04:00",
-    "sourceFingerprint":  "2270cff32bccfe504dbc193100ea901e2b52867c1ac0545c89b39b2e7288175e"
+    "sizeBytes":  6202060,
+    "publishedAt":  "2026-11-12T12:25:12-04:00",
+    "sourceFingerprint":  "55d1eb89902b048e23013ccdab5a38df222a82e0e06d490762617040532113b2"
 }

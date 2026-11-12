@@ -2,7 +2,11 @@
 
 Este arquivo registra as alteracoes funcionais do aplicativo Android e da integracao com o sistema.
 
-Versao estavel atual: `2.0.67`.
+Versao estavel atual: `2.0.68`.
+
+## [2.0.68] - 12/11/2026
+
+- Notas APP: produtos repetidos podem ser somados ou substituidos ao unificar, com preco atual do Monteiro.
 
 ## [2.0.67] - 09/11/2026
 
