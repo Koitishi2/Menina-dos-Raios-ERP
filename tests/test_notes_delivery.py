@@ -1137,7 +1137,8 @@ def test_mobile_notes_keep_sender_time_and_only_merge_after_explicit_choice(isol
     merged = merged_response.json()
     assert merged["merged"] is True
     assert merged["note"]["id"] == first["id"]
-    assert len(merged["note"]["items"]) == 2
+    assert len(merged["note"]["items"]) == 1
+    assert merged["note"]["items"][0]["weight"] == 2
     assert [entry["submitted_by_username"] for entry in merged["note"]["submissions"]] == ["admin", "admin"]
 
     invalid_merge = isolated_app.client.post(
@@ -2117,3 +2118,82 @@ def test_web_app_note_create_manual_price_and_validation(isolated_app):
     assert manual.status_code == 200, manual.text
     assert manual.json()["note"]["total"] == 55
     assert manual.json()["note"]["items"][0]["price_provided"] == 2
+
+
+def test_app_note_merge_same_product_sums_or_replaces_without_duplicate_rows(isolated_app):
+    client = isolated_app.client
+    _replace_paladar_products(isolated_app.db_paths["raios"], [("COUVE", 2.5, 1)])
+    single_send = _create_app_note_mobile(client, isolated_app,
+        client="Outra Loja", date="12/11/2026",
+        items=[{"product":"COUVE","quantity":37,"weight":37,"unit":"MC","unit_price":None},
+               {"product":"couve","quantity":70,"weight":70,"unit":"MC","unit_price":None}])
+    assert len(single_send["items"])==1
+    assert single_send["items"][0]["weight"]==107
+    first = _create_app_note_mobile(client, isolated_app,
+        client="Cliente Couve", date="12/11/2026",
+        items=[{"product":"COUVE","quantity":37,"weight":37,"unit":"MC","unit_price":None}])
+    second_payload = _app_note_payload(
+        external_id="couve-segundo-envio", client="Cliente Couve", date="12/11/2026",
+        merge_into_note_id=first["id"],
+        items=[{"product":"Couve","quantity":70,"weight":70,"unit":"mc","unit_price":None}],
+    )
+    headers={"x-app-token":isolated_app.module.APP_NOTES_TOKEN}
+    second=client.post("/api/app-notes/mobile",headers=headers,json=second_payload)
+    assert second.status_code==200,second.text
+    note=second.json()["note"]
+    assert len(note["items"])==1
+    assert note["items"][0]["quantity"]==107
+    assert note["items"][0]["weight"]==107
+    assert note["total"]==267.5
+    repeated=client.post("/api/app-notes/mobile",headers=headers,json=second_payload)
+    assert repeated.status_code==200 and repeated.json()["duplicate"] is True
+    assert repeated.json()["note"]["items"][0]["weight"]==107
+
+    replacement=client.post("/api/app-notes/mobile",headers=headers,json=_app_note_payload(
+        external_id="couve-substituir", client="Cliente Couve", date="12/11/2026",
+        merge_into_note_id=first["id"], merge_strategy="replace",
+        items=[{"product":"COUVE","quantity":70,"weight":70,"unit":"MC","unit_price":None}],
+    ))
+    assert replacement.status_code==200,replacement.text
+    assert len(replacement.json()["note"]["items"])==1
+    assert replacement.json()["note"]["items"][0]["weight"]==70
+    assert replacement.json()["note"]["total"]==175
+
+    other_unit=client.post("/api/app-notes/mobile",headers=headers,json=_app_note_payload(
+        external_id="couve-outra-unidade", client="Cliente Couve", date="12/11/2026",
+        merge_into_note_id=first["id"],
+        items=[{"product":"COUVE","quantity":None,"weight":3,"unit":"KG","unit_price":None}],
+    ))
+    assert other_unit.status_code==200
+    assert len(other_unit.json()["note"]["items"])==2
+    assert {item["unit"].upper() for item in other_unit.json()["note"]["items"]}=={"MC","KG"}
+
+
+def test_web_app_note_autoprice_and_manual_override_survive_merge(isolated_app):
+    client=isolated_app.client
+    token=_login(client)
+    headers=_headers(token)
+    _replace_paladar_products(isolated_app.db_paths["raios"],[("BANANA PACOVAN",7,1)])
+    price=client.get("/api/app-notes/product-price?product=BANANA%20PACOVAN",headers=headers)
+    assert price.status_code==200 and price.json()=={"found":True,"unit_price":7}
+    assert price.headers["cache-control"]=="no-store"
+    assert client.get("/api/app-notes/product-price?product=INEXISTENTE",headers=headers).json()["found"] is False
+    assert client.get("/api/app-notes/product-price?product=BANANA%20PACOVAN").status_code==401
+
+    first=client.post("/api/app-notes",headers=headers,json={
+        "external_id":"banana-primeiro","client":"Cliente Banana","date":"12/11/2026",
+        "items":[{"product":"BANANA PACOVAN","quantity":None,"weight":45,"unit":"KG","unit_price":None}],
+    })
+    assert first.status_code==200,first.text
+    note_id=first.json()["note"]["id"]
+    assert first.json()["note"]["total"]==315
+    added=client.post("/api/app-notes",headers=headers,json={
+        "external_id":"banana-segundo","client":"Cliente Banana","date":"12/11/2026",
+        "merge_into_note_id":note_id,"merge_strategy":"sum",
+        "items":[{"product":"banana pacovan","quantity":None,"weight":30,"unit":"KG","unit_price":11,"price_override":True}],
+    })
+    assert added.status_code==200,added.text
+    assert len(added.json()["note"]["items"])==1
+    assert added.json()["note"]["items"][0]["weight"]==75
+    assert added.json()["note"]["items"][0]["price_provided"]==2
+    assert added.json()["note"]["total"]==825

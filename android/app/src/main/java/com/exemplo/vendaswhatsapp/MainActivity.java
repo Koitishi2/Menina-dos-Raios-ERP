@@ -6498,7 +6498,7 @@ public class MainActivity extends FragmentActivity {
                     if (resposta.optBoolean("already_received") || matches == null || matches.length() == 0) {
                         callback.continuar(null);
                     } else {
-                        mostrarOpcoesUnificacao(matches, callback, cancelar);
+                        mostrarOpcoesUnificacao(nota, matches, callback, cancelar);
                     }
                 });
             } catch (Exception erro) {
@@ -6537,7 +6537,26 @@ public class MainActivity extends FragmentActivity {
         }
     }
 
-    private void mostrarOpcoesUnificacao(JSONArray matches, DestinoUnificacaoCallback callback, Runnable cancelar) {
+    private void mostrarEstrategiaUnificacao(JSONObject nota, String noteId, DestinoUnificacaoCallback callback, Runnable cancelar) {
+        if (noteId == null || noteId.isEmpty()) { callback.continuar(null); return; }
+        new AlertDialog.Builder(this)
+            .setTitle("Produto repetido na nota")
+            .setMessage("Se o produto já existir na nota escolhida, como devo tratar as quantidades? Produtos diferentes serão acrescentados normalmente.")
+            .setItems(new String[]{"Somar ao produto existente", "Substituir o produto antigo pelo novo"}, (d, which) -> {
+                try {
+                    nota.put("merge_strategy", which == 0 ? "sum" : "replace");
+                    callback.continuar(noteId);
+                } catch (Exception e) {
+                    cancelar.run();
+                    aviso("Não foi possível registrar a escolha: " + e.getMessage());
+                }
+            })
+            .setNegativeButton("Cancelar", (d, w) -> cancelar.run())
+            .setOnCancelListener(d -> cancelar.run())
+            .show();
+    }
+
+    private void mostrarOpcoesUnificacao(JSONObject nota, JSONArray matches, DestinoUnificacaoCallback callback, Runnable cancelar) {
         if (matches.length() == 1) {
             JSONObject match = matches.optJSONObject(0);
             if (match == null) { callback.continuar(null); return; }
@@ -6547,7 +6566,7 @@ public class MainActivity extends FragmentActivity {
             new AlertDialog.Builder(this)
                 .setTitle("Nota já existe neste dia")
                 .setMessage(detail)
-                .setPositiveButton("Unificar nesta nota", (d, w) -> callback.continuar(match.optString("id")))
+                .setPositiveButton("Unificar nesta nota", (d, w) -> mostrarEstrategiaUnificacao(nota, match.optString("id"), callback, cancelar))
                 .setNegativeButton("Criar nota separada", (d, w) -> callback.continuar(null))
                 .setNeutralButton("Cancelar", (d, w) -> cancelar.run())
                 .setOnCancelListener(d -> cancelar.run())
@@ -6566,7 +6585,8 @@ public class MainActivity extends FragmentActivity {
             .setMessage("Escolha a nota que receberá os novos produtos. O horário e o remetente deste envio serão registrados.")
             .setItems(opcoes, (d, which) -> {
                 JSONObject match = matches.optJSONObject(which);
-                callback.continuar(match == null ? null : match.optString("id"));
+                if (match == null) callback.continuar(null);
+                else mostrarEstrategiaUnificacao(nota, match.optString("id"), callback, cancelar);
             })
             .setNegativeButton("Criar nota separada", (d, w) -> callback.continuar(null))
             .setNeutralButton("Cancelar", (d, w) -> cancelar.run())

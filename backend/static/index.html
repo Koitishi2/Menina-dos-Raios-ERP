@@ -1381,7 +1381,7 @@ body.paladar-active .notif-bell{display:none!important}
 .app-note-report-scroll th{background:var(--card2);font-size:10px;text-transform:uppercase;color:var(--muted)}
 .app-note-report-scroll .num{text-align:right;white-space:nowrap}.app-note-report-alert{padding:11px;border-radius:8px;background:#fff7ed;color:#9a3412;font-size:12px;font-weight:700}
 .app-note-report-help{font-size:11px;color:var(--muted);line-height:1.5;margin:16px 0 0}
-#app-note-new-merge-wrap[hidden]{display:none!important}
+#app-note-new-merge-wrap[hidden],#app-note-new-merge-strategy-wrap[hidden]{display:none!important}
 @media(max-width:700px){.app-note-report-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.app-note-report-filters label{min-width:calc(50% - 8px)}}
 @media(max-width:1180px){
   #paladar-app>div:first-child{grid-template-columns:minmax(0,1fr) auto!important}
@@ -17057,7 +17057,9 @@ function openNewAppNoteModal(){
   document.getElementById('app-note-edit-date').value=date;
   document.getElementById('app-note-edit-list').innerHTML=appNoteEditRow();
   document.getElementById('app-note-new-merge').innerHTML='<option value="">Criar nota separada</option>';
+  document.getElementById('app-note-new-merge-strategy').value='sum';
   document.getElementById('app-note-new-merge-wrap').hidden=false;
+  updateAppNoteMergeStrategyUI();
   updateAppNoteTotalPreview();
   document.getElementById('app-note-modal').style.display='flex';
   document.getElementById('app-note-edit-client').focus();
@@ -17083,7 +17085,11 @@ async function refreshNewAppNoteMatches(){
     select.innerHTML='<option value="">Criar nota separada</option>'+(data.matches||[]).map(function(n){
       return '<option value="'+appNoteAttr(n.id)+'">Juntar à nota existente · '+Number(n.item_count||0)+' produto(s) · '+admEsc(n.status==='completed'?'concluída':'pendente')+'</option>';
     }).join('');
+    updateAppNoteMergeStrategyUI();
   }catch(e){if(request===_appNoteMergeRequest)select.innerHTML='<option value="">Criar nota separada — consulta indisponível</option>';}
+}
+function updateAppNoteMergeStrategyUI(){
+  document.getElementById('app-note-new-merge-strategy-wrap').hidden=!document.getElementById('app-note-new-merge').value;
 }
 function closeAppNoteModal(){ document.getElementById('app-note-modal').style.display='none'; }
 function appNoteEditRow(item){
@@ -17129,6 +17135,26 @@ function appNoteEditNumber(value){
   return Number(/^\d{1,3}(?:\.\d{3})+$/.test(text)?text.replace(/\./g,''):text);
 }
 function appNoteEditField(row,name){return row.querySelector('[data-app-note-field="'+name+'"]');}
+function lookupNewAppNotePrice(row){
+  if(document.getElementById('app-note-id').value)return;
+  clearTimeout(row._appNotePriceTimer);
+  var product=appNoteEditField(row,'product').value.trim();
+  var request=String(Number(row.dataset.priceRequest||0)+1);
+  row.dataset.priceRequest=request;
+  if(!product)return;
+  row._appNotePriceTimer=setTimeout(async function(){
+    try{
+      var data=await api('/api/app-notes/product-price?product='+encodeURIComponent(product));
+      if(row.isConnected===false||row.dataset.priceRequest!==request||appNoteEditField(row,'product').value.trim()!==product||row.dataset.priceEdited==='1')return;
+      var priceField=appNoteEditField(row,'price');
+      priceField.value=data.found?Number(data.unit_price).toFixed(2).replace('.',','):'';
+      row.dataset.originalProduct=product;
+      row.dataset.originalPrice=data.found?String(data.unit_price):'';
+      row.dataset.originalOverride='0';
+      updateAppNoteTotalPreview();
+    }catch(e){/* O valor pode ser digitado; o servidor valida o preço ao salvar. */}
+  },280);
+}
 function updateAppNoteTotalPreview(){
   var preview=document.getElementById('app-note-edit-total');
   if(!preview)return;
@@ -17149,8 +17175,15 @@ document.addEventListener('input',function(event){
   if(!row)return;
   var field=event.target.getAttribute('data-app-note-field');
   if(field==='price')row.dataset.priceEdited='1';
-  if(field==='product'&&row.dataset.originalProduct!==event.target.value.trim()&&row.dataset.priceEdited!=='1')
-    appNoteEditField(row,'price').value='';
+  if(field==='product'){
+    if(row.dataset.originalProduct!==event.target.value.trim()){
+      appNoteEditField(row,'price').value='';
+      row.dataset.priceEdited='0';
+      row.dataset.originalProduct='';
+      row.dataset.originalPrice='';
+    }
+    lookupNewAppNotePrice(row);
+  }
   updateAppNoteTotalPreview();
 });
 function parseAppNoteItems(){
@@ -17180,7 +17213,7 @@ async function saveAppNote(){
     if(!id&&!items.length)throw new Error('Adicione ao menos um produto à nota.');
     var body={client:document.getElementById('app-note-edit-client').value.trim(),date:document.getElementById('app-note-edit-date').value.trim(),items:items};
     if(!body.client)throw new Error('Informe o cliente da nota.');
-    if(!id){body.external_id=document.getElementById('app-note-new-external-id').value;body.merge_into_note_id=document.getElementById('app-note-new-merge').value;}
+    if(!id){body.external_id=document.getElementById('app-note-new-external-id').value;body.merge_into_note_id=document.getElementById('app-note-new-merge').value;body.merge_strategy=document.getElementById('app-note-new-merge-strategy').value;}
     _appNoteSaving=true;if(button)button.disabled=true;
     var result=await api('/api/app-notes'+(id?'/'+encodeURIComponent(id):''),{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     closeAppNoteModal();
@@ -20985,7 +21018,13 @@ setTimeout(installMobileReadOnlyGuards,0);
         </label>
       </div>
       <label id="app-note-new-merge-wrap" hidden style="display:block;margin-bottom:12px;font-size:11px;font-weight:700;color:var(--muted)">Nota do mesmo cliente e dia
-        <select id="app-note-new-merge" style="display:block;width:100%;margin-top:5px;padding:9px;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--ink);box-sizing:border-box"><option value="">Criar nota separada</option></select>
+        <select id="app-note-new-merge" onchange="updateAppNoteMergeStrategyUI()" style="display:block;width:100%;margin-top:5px;padding:9px;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--ink);box-sizing:border-box"><option value="">Criar nota separada</option></select>
+      </label>
+      <label id="app-note-new-merge-strategy-wrap" hidden style="display:block;margin-bottom:12px;font-size:11px;font-weight:700;color:var(--muted)">Produto repetido na nota escolhida
+        <select id="app-note-new-merge-strategy" style="display:block;width:100%;margin-top:5px;padding:9px;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--ink);box-sizing:border-box">
+          <option value="sum">Somar quantidade e peso/medida ao item existente</option>
+          <option value="replace">Substituir o item antigo pelo novo</option>
+        </select>
       </label>
       <section style="margin-top:14px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
         <div style="padding:10px 12px;background:var(--card2);font-size:12px;font-weight:800;color:var(--ink);display:flex;align-items:center;justify-content:space-between;gap:8px"><span>Itens da nota</span><button type="button" class="btn btn-secondary btn-sm" onclick="addAppNoteEditItem()">+ Adicionar produto</button></div>

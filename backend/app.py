@@ -1266,6 +1266,8 @@ def _managed_route_permission(path:str,method:str):
         return ("monteiro","notas_app","create" if method=="POST" else "view")
     if path=="/api/app-notes/matches" and method=="GET":
         return ("monteiro","notas_app","view")
+    if path=="/api/app-notes/product-price" and method=="GET":
+        return ("monteiro","notas_app","view")
     if path.startswith("/api/app-notes/report") and method=="GET":
         return ("monteiro","notas_app","export" if path.endswith("/pdf") else "view")
     if path=="/api/app-notes/mobile" and method=="POST":
@@ -8244,6 +8246,15 @@ def find_web_app_note_matches(client:str="",date:str="",x_token:str=Header("")):
     require_admin_or_editor(x_token)
     return _find_app_note_matches(client,date)
 
+@app.get("/api/app-notes/product-price")
+def app_note_product_price(product:str="",x_token:str=Header("")):
+    require_admin_or_editor(x_token)
+    key=_normalize_name(str(product or "")[:160])
+    prices=_app_note_catalog_prices()
+    found=bool(key) and key in prices
+    return JSONResponse({"found":found,"unit_price":prices[key] if found else None},
+                        headers={"Cache-Control":"no-store"})
+
 @app.post("/api/app-notes/mobile")
 def create_app_note_mobile(body:dict,x_app_token:str=Header("",alias="x-app-token"),x_token:str=Header("")):
     _require_app_note_token(x_app_token)
@@ -8291,6 +8302,9 @@ def _create_app_note_record(body:dict,sess:dict,source:str):
             item["price_provided"]=2
     total=round(sum(item["weight"]*item["unit_price"] for item in items if item["price_provided"]),2)
     merge_into_id=str(body.get("merge_into_note_id") or "").strip()[:80]
+    merge_strategy=str(body.get("merge_strategy") or "sum").strip().lower()
+    if merge_strategy not in ("sum","replace"):
+        raise HTTPException(400,"Escolha Somar ou Substituir para produtos repetidos.")
     conn=get_app_notes_db()
     try:
         submission=conn.execute("SELECT note_id FROM app_note_submissions WHERE external_id=?",(external_id,)).fetchone()
@@ -8315,9 +8329,43 @@ def _create_app_note_record(body:dict,sess:dict,source:str):
             start_position=0
             conn.execute("INSERT INTO app_notes(id,external_id,client,note_date,total,created_at,updated_at,source) VALUES(?,?,?,?,?,?,?,?)",
                          (note_id,external_id,client,note_date,total,now,now,source))
+        existing_by_key={}
+        if merge_target:
+            for old in conn.execute("SELECT * FROM app_note_items WHERE note_id=? ORDER BY position,id",(note_id,)):
+                old=dict(old)
+                key=(_normalize_name(old["product"]),str(old["unit"] or "").strip().upper())
+                existing_by_key.setdefault(key,[]).append(old)
         for item in items:
-            conn.execute("INSERT INTO app_note_items(id,note_id,product,quantity,quantity_provided,weight,unit,unit_price,price_provided,position) VALUES(?,?,?,?,?,?,?,?,?,?)",
-                (str(uuid.uuid4()),note_id,item["product"],item["quantity"],int(item["quantity_provided"]),item["weight"],item["unit"],item["unit_price"],int(item["price_provided"]),start_position+item["position"]))
+            key=(_normalize_name(item["product"]),str(item["unit"] or "").strip().upper())
+            previous=existing_by_key.get(key,[])
+            if previous and key[0]:
+                first=previous[0]
+                if merge_strategy=="replace":
+                    new_weight=item["weight"]
+                    new_quantity=item["quantity"]
+                    quantity_provided=int(item["quantity_provided"])
+                else:
+                    new_weight=sum(float(old["weight"] or 0) for old in previous)+item["weight"]
+                    quantity_provided=int(item["quantity_provided"] and all(old["quantity_provided"] for old in previous))
+                    new_quantity=sum(float(old["quantity"] or 0) for old in previous)+item["quantity"] if quantity_provided else 0
+                manual_old=next((old for old in previous if int(old["price_provided"] or 0)==2),None)
+                chosen=item if int(item["price_provided"] or 0)==2 or merge_strategy=="replace" else manual_old
+                if not chosen:
+                    chosen=item if item["price_provided"] else next((old for old in previous if old["price_provided"]),item)
+                price=float(chosen["unit_price"] or 0)
+                price_source=int(chosen["price_provided"] or 0)
+                conn.execute("UPDATE app_note_items SET product=?,quantity=?,quantity_provided=?,weight=?,unit=?,unit_price=?,price_provided=? WHERE id=?",
+                    (item["product"],new_quantity,quantity_provided,new_weight,item["unit"],price,price_source,first["id"]))
+                for duplicate in previous[1:]:
+                    conn.execute("DELETE FROM app_note_items WHERE id=?",(duplicate["id"],))
+                existing_by_key[key]=[{**first,"product":item["product"],"quantity":new_quantity,
+                    "quantity_provided":quantity_provided,"weight":new_weight,"unit":item["unit"],
+                    "unit_price":price,"price_provided":price_source}]
+            else:
+                item_id=str(uuid.uuid4())
+                conn.execute("INSERT INTO app_note_items(id,note_id,product,quantity,quantity_provided,weight,unit,unit_price,price_provided,position) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                    (item_id,note_id,item["product"],item["quantity"],int(item["quantity_provided"]),item["weight"],item["unit"],item["unit_price"],int(item["price_provided"]),start_position+item["position"]))
+                existing_by_key[key]=[{"id":item_id,**item}]
         conn.execute("""INSERT INTO app_note_submissions
             (external_id,note_id,received_at,submitted_by_user_id,submitted_by_username,submitted_by_name)
             VALUES(?,?,?,?,?,?)""",

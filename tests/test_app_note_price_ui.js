@@ -28,6 +28,8 @@ const elements = {
   'app-note-save-button': {textContent: '', disabled: false},
   'app-note-new-merge-wrap': {hidden: true},
   'app-note-new-merge': {innerHTML: '', value: ''},
+  'app-note-new-merge-strategy': {value: 'sum'},
+  'app-note-new-merge-strategy-wrap': {hidden: true},
   'app-note-new-external-id': {value: ''},
   'app-note-edit-list': {innerHTML: ''},
 };
@@ -35,6 +37,7 @@ let inputHandler;
 let clickHandler;
 let request;
 let requestPath;
+let priceLookup;
 const context = {
   document: {
     getElementById: id => elements[id],
@@ -47,7 +50,11 @@ const context = {
   appNoteMoney: value => `R$ ${Number(value).toFixed(2).replace('.', ',')}`,
   appNoteAttr: value => String(value || ''), appNoteHasPrice: () => false,
   appNoteQty: value => String(value),
-  api: async (url, options) => {requestPath = url; request = JSON.parse(options.body); return {note: {items: []}};},
+  api: async (url, options) => {
+    if (!options) return {found: true, unit_price: 7};
+    requestPath = url; request = JSON.parse(options.body); return {note: {items: []}};
+  },
+  setTimeout: fn => {priceLookup = fn; return 1;}, clearTimeout: () => {},
   session: {role: 'admin'}, window: {crypto: {randomUUID: () => 'erp-web-test'}},
   switchPaladarTab: () => {},
   closeAppNoteModal: () => {}, toast: () => {},
@@ -57,7 +64,7 @@ vm.createContext(context);
 vm.runInContext(html.slice(start, end), context);
 inputHandler({target: {closest: () => row, getAttribute: () => 'price'}});
 assert.equal(elements['app-note-edit-total'].textContent, 'Total calculado: R$ 55,00');
-context.saveAppNote().then(() => {
+context.saveAppNote().then(async () => {
   assert.equal(requestPath, '/api/app-notes/note-1');
   assert.equal(request.items[0].product, 'ABACAXI');
   assert.equal(request.items[0].quantity, 5);
@@ -78,14 +85,36 @@ context.saveAppNote().then(() => {
   assert.equal(elements['app-note-new-external-id'].value, 'erp-web-test');
   assert(elements['app-note-edit-list'].innerHTML.includes('data-app-note-remove-item'));
   elements['app-note-edit-client'].value = 'Cliente';
-  fields.product.value = 'ABACAXI';
+  fields.product.value = 'BANANA PACOVAN';
+  fields.quantity.value = '';
+  fields.weight.value = '45';
+  fields.unit.value = 'KG';
+  fields.price.value = '';
   row.dataset.originalProduct = '';
   row.dataset.originalPrice = '';
+  row.dataset.priceEdited = '0';
   rows.push(row);
-  return context.saveAppNote();
+  inputHandler({target: {closest: () => row, getAttribute: () => 'product', value: 'BANANA PACOVAN'}});
+  await priceLookup();
+  assert.equal(fields.price.value, '7,00', 'preço atual aparece ao escolher produto');
+  assert.equal(elements['app-note-edit-total'].textContent, 'Total calculado: R$ 315,00');
+  assert.equal(context.parseAppNoteItems()[0].price_override, false);
+  fields.product.value = 'BANANA PACOVANX';
+  inputHandler({target: {closest: () => row, getAttribute: () => 'product', value: 'BANANA PACOVANX'}});
+  fields.price.value = '11,00';
+  inputHandler({target: {closest: () => row, getAttribute: () => 'price'}});
+  await priceLookup();
+  assert.equal(fields.price.value, '11,00', 'resposta tardia não substitui preço digitado');
+  fields.product.value = 'BANANA PACOVAN';
+  inputHandler({target: {closest: () => row, getAttribute: () => 'product', value: 'BANANA PACOVAN'}});
+  await priceLookup();
+  fields.price.value = '11,00';
+  inputHandler({target: {closest: () => row, getAttribute: () => 'price'}});
+  await context.saveAppNote();
 }).then(() => {
   assert.equal(requestPath, '/api/app-notes');
   assert.equal(request.external_id, 'erp-web-test');
+  assert.equal(request.merge_strategy, 'sum');
   assert.equal(request.items[0].price_override, true);
   console.log('app note editor: OK');
 }).catch(error => {console.error(error); process.exitCode = 1;});
