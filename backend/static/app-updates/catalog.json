@@ -1,13 +1,13 @@
 {
-    "versionName":  "2.0.68",
-    "versionCode":  96,
+    "versionName":  "2.0.69",
+    "versionCode":  97,
     "packageName":  "br.com.meninadosraios.vendas",
-    "sha256":  "6461a7fcfd523b0c17ec1403075cdbeb0b5aba21abe9cdfae5ca2b0707db6ad5",
-    "releaseNotes":  "Notas APP: produtos repetidos podem ser somados ou substituidos ao unificar, com preco atual do Monteiro.",
-    "notes":  "Notas APP: produtos repetidos podem ser somados ou substituidos ao unificar, com preco atual do Monteiro.",
+    "sha256":  "0192b955606ab53d5bd1475b53ddf979f4c43d7a59b1744f23046da6352ba7e1",
+    "releaseNotes":  "Abertura com nome da marca corrigido e confirmação explícita na instalação de atualizações.",
+    "notes":  "Abertura com nome da marca corrigido e confirmação explícita na instalação de atualizações.",
     "apkFile":  "Menina-dos-Raios-Vendas-OFICIAL.apk",
     "apkUrl":  "https://sistema.meninadosraios.com.br/app-updates/Menina-dos-Raios-Vendas-OFICIAL.apk",
-    "sizeBytes":  6202060,
-    "publishedAt":  "2026-11-12T12:25:12-04:00",
-    "sourceFingerprint":  "55d1eb89902b048e23013ccdab5a38df222a82e0e06d490762617040532113b2"
+    "sizeBytes":  6202168,
+    "publishedAt":  "2026-11-12T12:32:48-04:00",
+    "sourceFingerprint":  "f292f4e49fcbafaf63b8f7488f1069e6f4802488ecbd89e174a1707b852f5a02"
 }

@@ -2,7 +2,11 @@
 
 Este arquivo registra as alteracoes funcionais do aplicativo Android e da integracao com o sistema.
 
-Versao estavel atual: `2.0.68`.
+Versao estavel atual: `2.0.69`.
+
+## [2.0.69] - 12/11/2026
+
+- Abertura com nome da marca corrigido e confirmação explícita na instalação de atualizações.
 
 ## [2.0.68] - 12/11/2026
 
