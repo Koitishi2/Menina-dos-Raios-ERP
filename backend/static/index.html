@@ -16967,7 +16967,7 @@ function appNoteReceiptHtml(n){
         +'<td class="qty">'+quantity+' '+admEsc(unit)+'</td><td class="num">'+price+'</td><td class="num">'+subtotal+'</td></tr>';
     }).join('');
     return '<table><colgroup><col style="width:42%"><col style="width:16%"><col style="width:20%"><col style="width:22%"></colgroup>'
-      +'<thead><tr><th>Produto</th><th>Qtd.</th><th>Valor un.</th><th>Subtotal</th></tr></thead><tbody>'
+      +'<thead><tr><th>Produto</th><th>Qtd.</th><th class="num">Valor un.</th><th class="num">Subtotal</th></tr></thead><tbody>'
       +(rows||'<tr><td colspan="4">Nenhum produto informado.</td></tr>')+'</tbody></table>';
   }
   var tables=columns===2
@@ -16987,7 +16987,7 @@ function appNoteReceiptHtml(n){
     +'.label{font-size:7px;text-transform:uppercase;color:#64748b;font-weight:700}.value{font-size:9px;font-weight:700;line-height:1.2;overflow-wrap:anywhere}'
     +'.item-tables{display:grid;grid-template-columns:1fr;gap:3mm;align-items:start}.item-tables.two{grid-template-columns:repeat(2,minmax(0,1fr))}'
     +'table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:8px}th{background:#eef2ff;color:#3730a3;text-align:left;font-size:7px;text-transform:uppercase;padding:3px;border-bottom:1px solid #c7d2fe}'
-    +'td{padding:3px;border-bottom:1px solid #e2e8f0;vertical-align:top;line-height:1.1;overflow-wrap:anywhere}.product{font-weight:700}.index{color:#64748b;font-weight:400}.qty{white-space:nowrap}.num{text-align:right;white-space:nowrap}'
+    +'td{padding:3px;border-bottom:1px solid #e2e8f0;vertical-align:top;line-height:1.1;overflow-wrap:anywhere}.product{font-weight:700}.index{color:#64748b;font-weight:400}.qty{white-space:nowrap}.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}'
     +'.dense table{font-size:7px}.dense th{font-size:6.5px;padding:2px}.dense td{padding:2px;line-height:1.05}'
     +'.total{margin:3mm 0 0 auto;width:60mm;border:1.5px solid #4f46e5;padding:2mm 3mm;text-align:right}.total-label{font-size:8px;color:#64748b;text-transform:uppercase}.total-value{font-size:17px;font-weight:900;color:#4f46e5}'
     +'.note{margin-top:3mm;padding:2mm;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:8px;line-height:1.25}'
@@ -17004,7 +17004,7 @@ function appNoteReceiptHtml(n){
     +'<div class="item-tables'+(columns===2?' two':'')+(dense?' dense':'')+'">'+tables+'</div>'
     +'<div class="total"><div class="total-label">Total do pedido</div><div class="total-value">'+appNoteMoney(n.total)+'</div></div>'
     +'<div class="note">'+catalogNote+'Recibo do pedido recebido pelo aplicativo interno. Não substitui documento fiscal.</div>'
-    +'<div class="signatures"><div class="sign">Responsável pelo recebimento</div><div class="sign">Cliente</div></div>'
+    +'<div class="signatures"><div class="sign">Responsável pelo recebimento</div><div class="sign">Entregue por</div></div>'
     +'<div class="footer">Gerado pelo Monteiro · Notas APP</div></div></main>'
     +'<script>(function(){function fit(){var sheet=document.querySelector(".sheet"),content=document.querySelector(".receipt-content");'
     +'content.style.transform="none";var scale=Math.min(1,(sheet.clientHeight-2)/content.scrollHeight,(sheet.clientWidth-2)/content.scrollWidth);'

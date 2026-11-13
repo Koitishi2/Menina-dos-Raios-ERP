@@ -20,7 +20,7 @@ const context = vm.createContext({
   appNoteUnitDisplay: unit => unit,
   appNoteHasPrice: () => true,
   appNoteUnitPrice: item => item.unit_price,
-  appNoteMoney: value => `R$ ${Number(value).toFixed(2).replace(".", ",")}`,
+  appNoteMoney: value => Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }),
   appNoteSubmissionSummary: () => "Vendedor · 10/11/2026",
   admEsc: value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"),
   window: { open: () => popup },
@@ -39,6 +39,9 @@ for (const count of [1, 38, 39, 50, 100]) {
   assert(html.includes("@page{size:A4 portrait;margin:0}"));
   assert(html.includes("beforeprint"));
   assert(html.includes("Total do pedido"));
+  assert(html.includes('<th class="num">Valor un.</th><th class="num">Subtotal</th>'));
+  assert(html.includes('font-variant-numeric:tabular-nums'));
+  assert(html.includes('<div class="sign">Responsável pelo recebimento</div><div class="sign">Entregue por</div>'));
   assert(html.includes(`PRODUTO ${String(count).padStart(3, "0")}`));
   assert.equal((html.match(/class="sheet"/g) || []).length, 1);
   assert.equal((html.match(/<tr><td class="product">/g) || []).length, count);
@@ -47,6 +50,21 @@ for (const count of [1, 38, 39, 50, 100]) {
     fs.mkdirSync(process.env.APP_NOTE_RECEIPT_QA_DIR, { recursive: true });
     fs.writeFileSync(`${process.env.APP_NOTE_RECEIPT_QA_DIR}/recibo-${count}.html`, html);
   }
+}
+if (process.env.APP_NOTE_RECEIPT_QA_DIR) {
+  const sample = {
+    id: "22ca5872-6b54-4b3a-8784-fe728284c842",
+    client: "PALADAR DISTRITO", note_date: "06/11/2026", status: "pending", total: 16161.4,
+    items: [
+      ["ABÓBORA", 400, "KG", 5], ["ALFACE", 10, "MAÇO", 6],
+      ["BATATA DOCE", 600, "KG", 5], ["BATATA INGLESA", 208, "KG", 7],
+      ["CENOURA", 500, "KG", 8], ["CHEIRO VERDE", 40, "MAÇO", 2],
+      ["COUVE", 30, "MAÇO", 2.5], ["LARANJA", 6, "SACO", 80],
+      ["MACAXEIRA", 300, "KG", 5], ["MAÇÃ", 19, "CX", 180],
+      ["PIMENTÃO", 5, "KG", 15], ["REPOLHO", 2.2, "KG", 7],
+    ].map(([product, weight, unit, unit_price]) => ({ product, quantity: weight, weight, unit, unit_price, price_from_catalog: true })),
+  };
+  fs.writeFileSync(`${process.env.APP_NOTE_RECEIPT_QA_DIR}/recibo-comparacao.html`, context.appNoteReceiptHtml(sample));
 }
 context._appNotes = [note(1)];
 context.printAppNoteReceipt("nota-teste");
