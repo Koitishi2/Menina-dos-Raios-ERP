@@ -582,6 +582,7 @@ def test_app_note_dict_current_header_empty_items_and_total_recalculation(isolat
         "source": "android",
         "status": "completed",
         "completed_at": None,
+        "receipt_number": None,
         "items": [],
         "submissions": [],
     }
@@ -887,13 +888,14 @@ def test_app_notes_db_migrates_legacy_notes_submissions_and_merges_duplicates(is
         item_columns = {
             row["name"] for row in conn.execute("PRAGMA table_info(app_note_items)").fetchall()
         }
-        assert {"status", "completed_at"}.issubset(note_columns)
+        assert {"status", "completed_at", "receipt_number"}.issubset(note_columns)
         assert {"weight", "quantity_provided", "price_provided"}.issubset(item_columns)
 
         notes = conn.execute("SELECT * FROM app_notes ORDER BY id").fetchall()
         assert len(notes) == 1
         assert notes[0]["id"] == "nota-keep"
         assert notes[0]["total"] == 31
+        assert notes[0]["receipt_number"] == 1
 
         items = conn.execute(
             "SELECT note_id,product,quantity,weight,quantity_provided,price_provided,position "
@@ -920,6 +922,55 @@ def test_app_notes_db_migrates_legacy_notes_submissions_and_merges_duplicates(is
         assert conn.execute("SELECT COUNT(*) FROM app_note_items").fetchone()[0] == 2
     finally:
         conn.close()
+
+
+def test_app_note_receipt_numbers_are_stable_monotonic_and_not_reused(isolated_app):
+    client = isolated_app.client
+    token = _login(client)
+    headers = _headers(token)
+    first = _create_app_note_mobile(client, isolated_app,
+                                    external_id="receipt-first", client="Cliente Um", date="10/11/2026")
+    assert first["receipt_number"] == 1
+    duplicate = _create_app_note_mobile(client, isolated_app,
+                                        external_id="receipt-first", client="Cliente Um", date="10/11/2026")
+    assert duplicate["receipt_number"] == 1
+    merged = _create_app_note_mobile(client, isolated_app,
+                                     external_id="receipt-merged", client="Cliente Um", date="10/11/2026",
+                                     merge_into_note_id=first["id"])
+    assert (merged["id"], merged["receipt_number"]) == (first["id"], 1)
+    second = _create_app_note_mobile(client, isolated_app,
+                                     external_id="receipt-second", client="Cliente Dois", date="11/11/2026")
+    assert second["receipt_number"] == 2
+    assert client.delete(f"/api/app-notes/{first['id']}", headers=headers).status_code == 200
+    third = _create_app_note_mobile(client, isolated_app,
+                                    external_id="receipt-third", client="Cliente Três", date="12/11/2026")
+    assert third["receipt_number"] == 3
+    conn = isolated_app.module.get_app_notes_db()
+    try:
+        assert conn.execute("SELECT value FROM app_notes_meta WHERE key='last_receipt_number'").fetchone()[0] == "3"
+        assert [row[0] for row in conn.execute("SELECT receipt_number FROM app_notes ORDER BY receipt_number")] == [2, 3]
+    finally:
+        conn.close()
+
+
+def test_app_note_receipt_numbers_are_unique_for_simultaneous_sends(isolated_app):
+    from concurrent.futures import ThreadPoolExecutor
+
+    conn = isolated_app.module.get_app_notes_db()
+    conn.close()
+    def send(index):
+        response = isolated_app.client.post(
+            "/api/app-notes/mobile",
+            headers={"x-app-token": isolated_app.module.APP_NOTES_TOKEN},
+            json=_app_note_payload(external_id=f"receipt-concurrent-{index}",
+                                   client=f"Cliente Paralelo {index}"),
+        )
+        return response.status_code, response.json()
+
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        results = list(pool.map(send, range(8)))
+    assert all(status == 200 for status, _ in results)
+    assert sorted(result["note"]["receipt_number"] for _, result in results) == list(range(1, 9))
 
 
 def test_app_note_mobile_create_multiple_items_submission_and_total(isolated_app):

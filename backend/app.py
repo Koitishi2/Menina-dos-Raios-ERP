@@ -7845,7 +7845,8 @@ def get_app_notes_db():
             id TEXT PRIMARY KEY, external_id TEXT NOT NULL UNIQUE, client TEXT NOT NULL DEFAULT '',
             note_date TEXT NOT NULL DEFAULT '', total REAL NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL, updated_at TEXT NOT NULL, source TEXT NOT NULL DEFAULT 'android',
-            status TEXT NOT NULL DEFAULT 'pending', completed_at TEXT
+            status TEXT NOT NULL DEFAULT 'pending', completed_at TEXT,
+            receipt_number INTEGER
           );
           CREATE TABLE IF NOT EXISTS app_note_items(
             id TEXT PRIMARY KEY, note_id TEXT NOT NULL, product TEXT NOT NULL DEFAULT '',
@@ -7904,6 +7905,8 @@ def get_app_notes_db():
             conn.execute("ALTER TABLE app_notes ADD COLUMN completed_at TEXT")
         if "source" not in note_columns:
             conn.execute("ALTER TABLE app_notes ADD COLUMN source TEXT NOT NULL DEFAULT 'android'")
+        if "receipt_number" not in note_columns:
+            conn.execute("ALTER TABLE app_notes ADD COLUMN receipt_number INTEGER")
         if "weight" not in item_columns:
             conn.execute("ALTER TABLE app_note_items ADD COLUMN weight REAL NOT NULL DEFAULT 0")
             conn.execute("UPDATE app_note_items SET weight=quantity WHERE weight=0")
@@ -7931,6 +7934,16 @@ def get_app_notes_db():
                 total=conn.execute("SELECT COALESCE(sum(weight*unit_price),0) total FROM app_note_items WHERE note_id=? AND price_provided>0",(keep,)).fetchone()["total"]
                 conn.execute("UPDATE app_notes SET total=?,updated_at=? WHERE id=?",(round(float(total or 0),2),datetime.now().isoformat(timespec="seconds"),keep))
             conn.execute("INSERT OR REPLACE INTO app_notes_meta(key,value) VALUES('merge_client_day_v1','done')")
+        sequence_row=conn.execute("SELECT value FROM app_notes_meta WHERE key='last_receipt_number'").fetchone()
+        last_receipt=max(int(sequence_row["value"] or 0) if sequence_row else 0,
+                         int(conn.execute("SELECT COALESCE(MAX(receipt_number),0) FROM app_notes").fetchone()[0]))
+        unnumbered=conn.execute("SELECT id FROM app_notes WHERE receipt_number IS NULL ORDER BY created_at,id").fetchall()
+        for row in unnumbered:
+            last_receipt+=1
+            conn.execute("UPDATE app_notes SET receipt_number=? WHERE id=?",(last_receipt,row["id"]))
+        if not sequence_row or int(sequence_row["value"] or 0)!=last_receipt:
+            conn.execute("INSERT OR REPLACE INTO app_notes_meta(key,value) VALUES('last_receipt_number',?)",(str(last_receipt),))
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_app_notes_receipt_number ON app_notes(receipt_number)")
         conn.commit()
         return conn
     except Exception:
@@ -8368,11 +8381,13 @@ def _create_app_note_record(body:dict,sess:dict,source:str):
         raise HTTPException(400,"Escolha Somar ou Substituir para produtos repetidos.")
     conn=get_app_notes_db()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         submission=conn.execute("SELECT note_id FROM app_note_submissions WHERE external_id=?",(external_id,)).fetchone()
         if submission:
             existing=conn.execute("SELECT * FROM app_notes WHERE id=?",(submission["note_id"],)).fetchone()
             submitted=conn.execute("SELECT * FROM app_note_submissions WHERE external_id=?",(external_id,)).fetchone()
             result=_app_note_dict(conn,existing,catalog_prices)
+            conn.commit()
             return {"ok":True,"duplicate":True,"merged":False,"note":result,"submission":dict(submitted)}
         note_id=str(uuid.uuid4()); now=datetime.now().isoformat(timespec="seconds")
         merge_target=None
@@ -8388,8 +8403,11 @@ def _create_app_note_record(body:dict,sess:dict,source:str):
             start_position=conn.execute("SELECT COALESCE(max(position),-1)+1 p FROM app_note_items WHERE note_id=?",(note_id,)).fetchone()["p"]
         else:
             start_position=0
-            conn.execute("INSERT INTO app_notes(id,external_id,client,note_date,total,created_at,updated_at,source) VALUES(?,?,?,?,?,?,?,?)",
-                         (note_id,external_id,client,note_date,total,now,now,source))
+            last_receipt=int(conn.execute("SELECT value FROM app_notes_meta WHERE key='last_receipt_number'").fetchone()[0])
+            receipt_number=last_receipt+1
+            conn.execute("UPDATE app_notes_meta SET value=? WHERE key='last_receipt_number'",(str(receipt_number),))
+            conn.execute("INSERT INTO app_notes(id,external_id,client,note_date,total,created_at,updated_at,source,receipt_number) VALUES(?,?,?,?,?,?,?,?,?)",
+                         (note_id,external_id,client,note_date,total,now,now,source,receipt_number))
         existing_by_key={}
         if merge_target:
             for old in conn.execute("SELECT * FROM app_note_items WHERE note_id=? ORDER BY position,id",(note_id,)):

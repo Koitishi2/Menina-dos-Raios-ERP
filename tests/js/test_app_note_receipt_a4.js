@@ -9,7 +9,7 @@ const mainScript = source.match(/<script>([\s\S]*?)<\/script>/);
 assert(mainScript, "main page script must exist");
 assert(mainScript[1].includes("async function setAppNoteStatus("), "receipt markup must not close the main page script");
 new vm.Script(mainScript[1], { filename: "backend/static/index.html" });
-const start = source.indexOf("function appNoteReceiptHtml(");
+const start = source.indexOf("function appNoteReceiptNumber(");
 const end = source.indexOf("async function setAppNoteStatus(", start);
 assert(start > 0 && end > start);
 let written = "";
@@ -29,7 +29,7 @@ const context = vm.createContext({
 vm.runInContext(source.slice(start, end), context);
 
 function note(count) {
-  return { id: "nota-teste", client: "Cliente HGR", note_date: "10/11/2026", status: "completed", total: count * 10,
+  return { id: "nota-teste", receipt_number: 1, client: "Cliente HGR", note_date: "10/11/2026", status: "completed", total: count * 10,
     items: Array.from({ length: count }, (_, index) => ({ product: `PRODUTO ${String(index + 1).padStart(3, "0")}`,
       quantity: 1, weight: 1, unit: "UN", unit_price: 10, price_from_catalog: index % 2 === 0 })) };
 }
@@ -39,6 +39,7 @@ for (const count of [1, 38, 39, 50, 100]) {
   assert(html.includes("@page{size:A4 portrait;margin:0}"));
   assert(html.includes("beforeprint"));
   assert(html.includes("Total do pedido"));
+  assert(html.includes('RECIBO DE PEDIDO <span class="receipt-number">Nº 0001</span>'));
   assert(html.includes('<th class="num">Valor un.</th><th class="num">Subtotal</th>'));
   assert(html.includes('font-variant-numeric:tabular-nums'));
   assert(html.includes('<div class="sign">Responsável pelo recebimento</div><div class="sign">Entregue por</div>'));
@@ -54,6 +55,7 @@ for (const count of [1, 38, 39, 50, 100]) {
 if (process.env.APP_NOTE_RECEIPT_QA_DIR) {
   const sample = {
     id: "22ca5872-6b54-4b3a-8784-fe728284c842",
+    receipt_number: 1,
     client: "PALADAR DISTRITO", note_date: "06/11/2026", status: "pending", total: 16161.4,
     items: [
       ["ABÓBORA", 400, "KG", 5], ["ALFACE", 10, "MAÇO", 6],
@@ -70,4 +72,6 @@ context._appNotes = [note(1)];
 context.printAppNoteReceipt("nota-teste");
 assert(written.includes("Cliente HGR"));
 assert(written.includes("PRODUTO 001"));
+assert(written.includes("Nº 0001"));
+assert.equal(context.appNoteReceiptNumber({ receipt_number: 10000 }), "10000");
 console.log("Notas APP receipt A4 markup and complete items: OK");

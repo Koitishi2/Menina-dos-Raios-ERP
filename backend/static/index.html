@@ -16926,7 +16926,7 @@ function renderAppNotes(data){
     var statusBadge=_appNotesStatus==='pending'?'<span style="background:#FEF3C7;color:#92400E;border-radius:999px;padding:3px 9px;font-size:9px;font-weight:800"> Pendente</span>':'<span style="background:#DCFCE7;color:#166534;border-radius:999px;padding:3px 9px;font-size:9px;font-weight:800">✅ Concluída</span>';
     return '<section class="card" style="padding:0;overflow:hidden;margin-bottom:14px;border:1px solid var(--border)">'
       +'<div class="app-note-head" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:14px 16px;background:var(--card)">'
-      +'<div style="min-width:110px"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;font-weight:700">Data</div><div style="font-size:14px;font-weight:800;color:var(--g800);margin-top:3px">'+admEsc(n.note_date||'—')+'</div></div>'
+      +'<div style="min-width:110px"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;font-weight:700">Data</div><div style="font-size:14px;font-weight:800;color:var(--g800);margin-top:3px">'+admEsc(n.note_date||'—')+'</div><div style="font-size:10px;color:#4338ca;font-weight:800;margin-top:4px">Recibo nº '+appNoteReceiptNumber(n)+'</div></div>'
       +'<div style="flex:1;min-width:190px"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;font-weight:700">Cliente</div><button type="button" data-app-note-action="view" data-app-note-id="'+appNoteAttr(n.id)+'" style="display:block;background:none;border:none;padding:0;margin-top:3px;font:inherit;font-size:15px;font-weight:900;color:#4338CA;cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-align:left">'+admEsc(n.client||'Sem cliente')+'</button><div style="font-size:9px;color:var(--muted);margin-top:4px">'+statusBadge+' · Atualizada '+admDate(n.updated_at||n.created_at)+'</div><div style="font-size:10px;color:var(--muted);margin-top:5px">Envios: '+appNoteSubmissionSummary(n)+'</div></div>'
       +'<div style="min-width:100px"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;font-weight:700">Produtos</div><div style="font-size:16px;font-weight:900;color:var(--g800);margin-top:3px">'+(n.items||[]).length+'</div></div>'
       +'<div style="min-width:140px;text-align:right"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;font-weight:700">Total do dia</div><div style="font-size:18px;font-weight:900;color:#4F46E5;margin-top:3px">'+appNoteMoney(n.total)+'</div></div>'
@@ -16939,7 +16939,7 @@ function renderAppNotes(data){
 function openAppNoteDetail(id){
   var n=_appNotes.concat(_appNotesPendingNotif).find(function(x){return x.id===id;}); if(!n)return;
   document.getElementById('app-note-detail-client').textContent=n.client||'Sem cliente';
-  document.getElementById('app-note-detail-meta').textContent=(n.note_date||'—')+' · '+(n.items||[]).length+' produto(s) · Total '+appNoteMoney(n.total);
+  document.getElementById('app-note-detail-meta').textContent='Recibo nº '+appNoteReceiptNumber(n)+' · '+(n.note_date||'—')+' · '+(n.items||[]).length+' produto(s) · Total '+appNoteMoney(n.total);
   var products=(n.items||[]).map(function(i){
     var effectiveQty=appNoteQuantityDisplay(i);
     var qty=effectiveQty!==null?effectiveQty:'Não informado';
@@ -16961,6 +16961,10 @@ function openAppNoteDetail(id){
 }
 function closeAppNoteDetail(){document.getElementById('app-note-detail-modal').style.display='none';}
 
+function appNoteReceiptNumber(note){
+  var digits=String(note&&note.receipt_number||'');
+  return /^[1-9]\d*$/.test(digits)?digits.padStart(4,'0'):'—';
+}
 function appNoteReceiptHtml(n){
   var items=n.items||[],dense=items.length>70,columns=items.length>38?2:1;
   var midpoint=Math.ceil(items.length/2);
@@ -16990,7 +16994,7 @@ function appNoteReceiptHtml(n){
     +'.receipt-content{position:absolute;top:0;left:0;width:100%;padding:5mm;transform-origin:top left}'
     +'.head{display:flex;justify-content:space-between;gap:8mm;align-items:start;border-bottom:2px solid #4f46e5;padding-bottom:2mm;margin-bottom:2.5mm}'
     +'.brand{font-size:18px;font-weight:900;color:#4f46e5}.sub{font-size:8px;color:#64748b;margin-top:1mm;overflow-wrap:anywhere}'
-    +'.receipt-title{text-align:right;font-size:15px;font-weight:900}.meta{display:grid;grid-template-columns:1fr 1fr;gap:2mm 6mm;background:#f8fafc;border:1px solid #e2e8f0;padding:2.5mm;margin-bottom:3mm}'
+    +'.receipt-heading{text-align:right;min-width:0;max-width:62%}.receipt-title{font-size:15px;font-weight:900;overflow-wrap:anywhere}.receipt-number{color:#4f46e5;font-variant-numeric:tabular-nums;white-space:nowrap}.meta{display:grid;grid-template-columns:1fr 1fr;gap:2mm 6mm;background:#f8fafc;border:1px solid #e2e8f0;padding:2.5mm;margin-bottom:3mm}'
     +'.label{font-size:7px;text-transform:uppercase;color:#64748b;font-weight:700}.value{font-size:9px;font-weight:700;line-height:1.2;overflow-wrap:anywhere}'
     +'.item-tables{display:grid;grid-template-columns:1fr;gap:3mm;align-items:start}.item-tables.two{grid-template-columns:repeat(2,minmax(0,1fr))}'
     +'table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:8px}th{background:#eef2ff;color:#3730a3;text-align:left;font-size:7px;text-transform:uppercase;padding:3px;border-bottom:1px solid #c7d2fe}'
@@ -17003,7 +17007,7 @@ function appNoteReceiptHtml(n){
     +'@media print{html,body{width:210mm;height:297mm;overflow:hidden;background:#fff}.no-print{display:none!important}.sheet{border:0;margin:8mm auto;break-inside:avoid;page-break-inside:avoid}}'
     +'</style></head><body><button class="no-print" onclick="window.print()">🖨 Imprimir / salvar PDF A4</button>'
     +'<main class="sheet"><div class="receipt-content"><header class="head"><div><div class="brand">Monteiro</div><div class="sub">Menina dos Raios Ltda · Sistema de Vendas Independente</div></div>'
-    +'<div><div class="receipt-title">RECIBO DE PEDIDO</div><div class="sub">Nota APP nº '+admEsc(String(n.id||'—'))+'</div></div></header>'
+    +'<div class="receipt-heading"><div class="receipt-title">RECIBO DE PEDIDO <span class="receipt-number">Nº '+appNoteReceiptNumber(n)+'</span></div><div class="sub">Nota APP ID '+admEsc(String(n.id||'—'))+'</div></div></header>'
     +'<section class="meta"><div><div class="label">Cliente</div><div class="value">'+admEsc(n.client||'Sem cliente')+'</div></div>'
     +'<div><div class="label">Data do pedido</div><div class="value">'+admEsc(n.note_date||'—')+'</div></div>'
     +'<div><div class="label">Situação</div><div class="value">'+status+'</div></div><div><div class="label">Emitido em</div><div class="value">'+admEsc(issued)+'</div></div>'
@@ -17021,6 +17025,7 @@ function appNoteReceiptHtml(n){
 function printAppNoteReceipt(id){
   var note=_appNotes.find(function(x){return String(x.id)===String(id);});
   if(!note){toast('Nota não encontrada.','error');return;}
+  if(appNoteReceiptNumber(note)==='—'){toast('Esta nota ainda não recebeu um número de recibo. Atualize a lista e tente novamente.','error');return;}
   var popup=window.open('','_blank','width=980,height=760');
   if(!popup){toast('Permita janelas pop-up para emitir o recibo.','error');return;}
   popup.document.open();popup.document.write(appNoteReceiptHtml(note));popup.document.close();popup.focus();
