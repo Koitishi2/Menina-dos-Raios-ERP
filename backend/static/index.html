@@ -1373,8 +1373,8 @@ body.paladar-active .notif-bell{display:none!important}
 .app-note-report-summary span{display:block;color:var(--muted);font-size:10px;font-weight:800;text-transform:uppercase}
 .app-note-report-summary strong{display:block;margin-top:5px;color:var(--g800);font-size:17px;overflow-wrap:anywhere}
 .app-note-report-summary .total{background:#eef2ff;border-color:#c7d2fe}.app-note-report-summary .total strong{color:#4338ca}
-#app-note-report-result,#pal-lanc-report-result{padding:16px}
-#app-note-report-result h3,#pal-lanc-report-result h3{font-size:13px;color:var(--g800);margin:18px 0 8px}
+#app-note-report-result,#pal-cli-note-report-result,#pal-lanc-report-result{padding:16px}
+#app-note-report-result h3,#pal-cli-note-report-result h3,#pal-lanc-report-result h3{font-size:13px;color:var(--g800);margin:18px 0 8px}
 #pal-lanc-list-pane[hidden],#pal-lanc-report-pane[hidden]{display:none!important}
 .app-note-report-scroll{overflow-x:auto}.app-note-report-scroll table{width:100%;min-width:570px;border-collapse:collapse;font-size:12px}
 .app-note-report-scroll th,.app-note-report-scroll td{padding:10px;border-bottom:1px solid var(--border);text-align:left}
@@ -16810,29 +16810,32 @@ async function loadAppNotes(){
   }catch(e){ wrap.innerHTML='<div class="wa-empty" style="padding:36px;color:#b91c1c">'+admEsc(e.message)+'</div>'; }
 }
 
-var _appNoteReportReady=false;
-function appNoteReportModeChanged(){
-  var custom=document.getElementById('app-note-report-custom'),monthly=document.getElementById('app-note-report-monthly');
-  var isCustom=document.getElementById('app-note-report-mode').value==='custom';
-  custom.hidden=!isCustom;document.getElementById('app-note-report-custom-end').hidden=!isCustom;monthly.hidden=isCustom;
-  appNoteReportInvalidate();
+var _appNoteReportReady={};
+function appNoteReportModeChanged(prefix){
+  prefix=prefix||'app-note-report';
+  var custom=document.getElementById(prefix+'-custom'),monthly=document.getElementById(prefix+'-monthly');
+  var isCustom=document.getElementById(prefix+'-mode').value==='custom';
+  custom.hidden=!isCustom;document.getElementById(prefix+'-custom-end').hidden=!isCustom;monthly.hidden=isCustom;
+  appNoteReportInvalidate(prefix);
 }
-function appNoteReportInvalidate(){
-  _appNoteReportReady=false;
-  var pdf=document.getElementById('app-note-report-pdf');if(pdf)pdf.disabled=true;
-  var result=document.getElementById('app-note-report-result');
+function appNoteReportInvalidate(prefix){
+  prefix=prefix||'app-note-report';
+  _appNoteReportReady[prefix]=false;
+  var pdf=document.getElementById(prefix+'-pdf');if(pdf)pdf.disabled=true;
+  var result=document.getElementById(prefix+'-result');
   if(result)result.innerHTML='<div class="wa-empty" style="padding:28px">Clique em Gerar relatório para atualizar os valores deste filtro.</div>';
 }
-function appNoteReportParams(){
-  var client=document.getElementById('app-note-report-client').value;
+function appNoteReportParams(prefix){
+  prefix=prefix||'app-note-report';
+  var client=document.getElementById(prefix+'-client').value;
   if(!client)throw new Error('Selecione um cliente.');
   var params=new URLSearchParams({client:client});
-  if(document.getElementById('app-note-report-mode').value==='monthly'){
-    var month=document.getElementById('app-note-report-month').value;
+  if(document.getElementById(prefix+'-mode').value==='monthly'){
+    var month=document.getElementById(prefix+'-month').value;
     if(!month)throw new Error('Selecione um mês.');
     params.set('month',month);
   }else{
-    var start=document.getElementById('app-note-report-start').value,end=document.getElementById('app-note-report-end').value;
+    var start=document.getElementById(prefix+'-start').value,end=document.getElementById(prefix+'-end').value;
     if(!start||!end)throw new Error('Informe as duas datas.');
     if(start>end)throw new Error('A data inicial deve ser anterior à final.');
     params.set('start',start);params.set('end',end);
@@ -16840,22 +16843,25 @@ function appNoteReportParams(){
   return params;
 }
 async function loadAppNoteReportClients(){
-  var month=document.getElementById('app-note-report-month');
-  if(month&&!month.value){var now=new Date();month.value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');}
-  var select=document.getElementById('app-note-report-client');
   try{
     var data=await api('/api/app-notes/report/clients');
-    var previous=select.value;
-    select.innerHTML='<option value="">Selecione o cliente</option>'+(data.clients||[]).map(function(name){return '<option value="'+admEsc(name)+'">'+admEsc(name)+'</option>';}).join('');
-    if((data.clients||[]).includes(previous))select.value=previous;
-    else appNoteReportInvalidate();
+    ['app-note-report','pal-cli-note-report'].forEach(function(prefix){
+      var select=document.getElementById(prefix+'-client');if(!select)return;
+      var month=document.getElementById(prefix+'-month');
+      if(month&&!month.value){var now=new Date();month.value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');}
+      var previous=select.value;
+      select.innerHTML='<option value="">Selecione o cliente</option>'+(data.clients||[]).map(function(name){return '<option value="'+admEsc(name)+'">'+admEsc(name)+'</option>';}).join('');
+      if((data.clients||[]).includes(previous))select.value=previous;
+      else appNoteReportInvalidate(prefix);
+    });
   }catch(e){toast(e.message,'error');}
 }
-async function loadAppNoteReport(){
-  var wrap=document.getElementById('app-note-report-result');
-  appNoteReportInvalidate();
+async function loadAppNoteReport(prefix){
+  prefix=prefix||'app-note-report';
+  var wrap=document.getElementById(prefix+'-result');
+  appNoteReportInvalidate(prefix);
   try{
-    var params=appNoteReportParams();
+    var params=appNoteReportParams(prefix);
     wrap.innerHTML='<div class="wa-empty" style="padding:28px">Calculando relatório...</div>';
     var data=await api('/api/app-notes/report?'+params.toString());
     if(!data.note_count){wrap.innerHTML='<div class="wa-empty" style="padding:32px">Nenhuma nota concluída para este cliente no período selecionado.</div>';return;}
@@ -16866,22 +16872,23 @@ async function loadAppNoteReport(){
       +'<h3>Produtos consolidados</h3><div class="app-note-report-scroll"><table><thead><tr><th>Produto</th><th class="num">Quantidade / medida</th><th>Unidade</th><th class="num">Valor unitário</th><th class="num">Total</th></tr></thead><tbody>'+lines+'</tbody></table></div>'
       +'<h3>Conferência por dia</h3><div class="app-note-report-scroll"><table><thead><tr><th>Data</th><th class="num">Notas</th><th class="num">Total</th></tr></thead><tbody>'+days+'</tbody></table></div>'
       +'<p class="app-note-report-help">Inclui somente Notas APP concluídas. Usa os preços atuais da aba Produtos, preservando preços alterados manualmente nas notas. Não cria lançamento de venda nem documento fiscal.</p>';
-    _appNoteReportReady=!data.missing_price_count;
-    document.getElementById('app-note-report-pdf').disabled=!_appNoteReportReady;
+    _appNoteReportReady[prefix]=!data.missing_price_count;
+    document.getElementById(prefix+'-pdf').disabled=!_appNoteReportReady[prefix];
   }catch(e){wrap.innerHTML='<div class="wa-empty" style="padding:28px;color:#b91c1c">'+admEsc(e.message)+'</div>';}
 }
-async function downloadAppNoteReportPdf(){
-  if(!_appNoteReportReady)return;
-  var button=document.getElementById('app-note-report-pdf');
+async function downloadAppNoteReportPdf(prefix){
+  prefix=prefix||'app-note-report';
+  if(!_appNoteReportReady[prefix])return;
+  var button=document.getElementById(prefix+'-pdf');
   try{
-    var params=appNoteReportParams();button.disabled=true;button.textContent='Gerando PDF...';
+    var params=appNoteReportParams(prefix);button.disabled=true;button.textContent='Gerando PDF...';
     var response=await fetch(API+'/api/app-notes/report/pdf?'+params.toString(),{headers:apiHeaders({'x-token':session.token})});
     if(!response.ok){var error=await response.json().catch(()=>({}));throw new Error(error.detail||'Não foi possível gerar o PDF.');}
     var blob=await response.blob(),url=URL.createObjectURL(blob),link=document.createElement('a');
     link.href=url;link.download='notas-app-'+params.get('client').replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'.pdf';
     document.body.appendChild(link);link.click();link.remove();setTimeout(function(){URL.revokeObjectURL(url);},30000);
   }catch(e){toast(e.message,'error');}
-  finally{button.textContent='Baixar PDF A4';button.disabled=!_appNoteReportReady;}
+  finally{button.textContent='Baixar PDF A4';button.disabled=!_appNoteReportReady[prefix];}
 }
 
 function renderAppNotes(data){
@@ -18662,6 +18669,35 @@ async function loadPaladarProducts(){
 
 /* ── Aba Clientes Monteiro ── */
 var _palClientFilterCacheKey='', _palClientFilterNames=[];
+function palClientIdentity(name){
+  return String(name||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase()
+    .replace(/\s*[-/]\s*/g,'/').replace(/\s+/g,' ').trim();
+}
+function palMergeClientRows(sales,notes,filter){
+  var merged=new Map();
+  (sales||[]).forEach(function(s){
+    var identity=palClientIdentity(s.client);if(!identity)return;
+    var key='sale:'+s.client;
+    var c=merged.get(key)||{client:s.client,num_vendas:0,qty_total:0,total:0,media_venda:0,ultima_compra:'',note_count:0,note_total:0,note_missing:0,first_note_date:'',last_note_date:'',note_client:''};
+    c.num_vendas+=Number(s.num_vendas||0);c.qty_total+=Number(s.qty_total||0);
+    c.total+=Number(s.total||0);c.ultima_compra=c.ultima_compra>s.ultima_compra?c.ultima_compra:(s.ultima_compra||'');
+    merged.set(key,c);
+  });
+  (notes||[]).forEach(function(n){
+    var identity=palClientIdentity(n.client);if(!identity)return;
+    var matchedSale=Array.from(merged.keys()).find(function(k){return k.startsWith('sale:')&&palClientIdentity(merged.get(k).client)===identity;});
+    var key=matchedSale||'note:'+identity;
+    var c=merged.get(key)||{client:n.client,num_vendas:0,qty_total:0,total:0,media_venda:0,ultima_compra:'',note_count:0,note_total:0,note_missing:0,first_note_date:'',last_note_date:'',note_client:''};
+    c.note_count+=Number(n.note_count||0);c.note_total+=Number(n.note_total||0);c.note_missing+=Number(n.missing_price_count||0);
+    c.first_note_date=c.first_note_date&&c.first_note_date<n.first_note_date?c.first_note_date:(n.first_note_date||'');
+    c.last_note_date=c.last_note_date>n.last_note_date?c.last_note_date:(n.last_note_date||'');
+    c.note_client=n.client;merged.set(key,c);
+  });
+  var selected=palClientIdentity(filter);
+  return Array.from(merged.values()).filter(function(c){return !selected||palClientIdentity(c.client).includes(selected)||palClientIdentity(c.note_client).includes(selected);})
+    .map(function(c){c.media_venda=c.num_vendas?c.total/c.num_vendas:0;return c;})
+    .sort(function(a,b){return a.client.localeCompare(b.client,'pt-BR');});
+}
 
 async function ensurePaladarClientFilterOptions(period, month, year, selected){
   var sel=document.getElementById('pal-filter-cli-name');
@@ -18686,9 +18722,18 @@ async function loadPaladarClients(){
   var params = '?period='+period+'&month='+month+'&year='+year+(cli?'&client_filter='+encodeURIComponent(cli):'');
   try{
     var data = await api('/api/monteiro/clients/summary'+params);
+    var noteData={clients:[],note_total:0,note_count:0};
+    try{noteData=await api('/api/monteiro/clients/app-notes?period='+encodeURIComponent(period)+'&month='+encodeURIComponent(month)+'&year='+encodeURIComponent(year));}
+    catch(noteError){toast('Notas APP indisponíveis: '+noteError.message,'error');}
+    var salesClis=data.clientes||[];
+    var clis=palMergeClientRows(salesClis,noteData.clients||[],cli);
     // Cards
     document.getElementById('pal-cli-total').textContent = 'R$ '+(data.total_vendido||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-    document.getElementById('pal-cli-count').textContent = data.total_clientes||0;
+    document.getElementById('pal-cli-count').textContent = clis.length;
+    document.getElementById('pal-cli-note-total').textContent = appNoteMoney((noteData.clients||[]).filter(function(n){return !cli||palClientIdentity(n.client).includes(palClientIdentity(cli));}).reduce(function(sum,n){return sum+Number(n.note_total||0);},0));
+    document.getElementById('pal-cli-note-count').textContent = (noteData.clients||[]).filter(function(n){return !cli||palClientIdentity(n.client).includes(palClientIdentity(cli));}).reduce(function(sum,n){return sum+Number(n.note_count||0);},0)+' notas concluídas';
+    var missingNotes=(noteData.clients||[]).filter(function(n){return !cli||palClientIdentity(n.client).includes(palClientIdentity(cli));}).reduce(function(sum,n){return sum+Number(n.missing_price_count||0);},0);
+    document.getElementById('pal-cli-note-warning').textContent=missingNotes?missingNotes+' item(ns) sem preço; total parcial.':'';
     document.getElementById('pal-cli-ticket').textContent = 'R$ '+(data.ticket_medio||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
     var liderEl = document.getElementById('pal-cli-lider');
     if(data.cliente_lider && data.cliente_lider.client){
@@ -18696,14 +18741,14 @@ async function loadPaladarClients(){
     } else {
       liderEl.textContent = '—';
     }
-    var clis = data.clientes || [];
     updatePaladarClientFilterOptions(clis, cli);
+    loadAppNoteReportClients();
     // Chart de barras
     if(palChart3) palChart3.destroy();
     var barCtx = document.getElementById('chart-pal-cli-bar');
-    if(barCtx && clis.length){
-      var labels = clis.map(function(c){ return c.client && c.client.length > 14 ? c.client.slice(0,12)+'…' : (c.client||'—'); });
-      var values = clis.map(function(c){ return c.total||0; });
+    if(barCtx && salesClis.length){
+      var labels = salesClis.map(function(c){ return c.client && c.client.length > 14 ? c.client.slice(0,12)+'…' : (c.client||'—'); });
+      var values = salesClis.map(function(c){ return c.total||0; });
       palChart3 = new Chart(barCtx, {type:'bar', data:{
         labels: labels, datasets: [{ label:'Total (R$)', data: values, backgroundColor:'#4F46E5CC', borderRadius: 4 }]
       }, options: { responsive:true, maintainAspectRatio:false,
@@ -18716,10 +18761,10 @@ async function loadPaladarClients(){
     // Donut
     if(palChart4) palChart4.destroy();
     var donutCtx = document.getElementById('chart-pal-cli-donut');
-    if(donutCtx && clis.length){
+    if(donutCtx && salesClis.length){
       var cores = ['#4F46E5','#6366F1','#818CF8','#10B981','#14B8A6','#0EA5E9','#F59E0B','#EF4444'];
-      var donutLabels = clis.slice(0,8).map(function(c){ return c.client && c.client.length > 16 ? c.client.slice(0,14)+'…' : (c.client||'—'); });
-      var donutValues = clis.slice(0,8).map(function(c){ return c.total||0; });
+      var donutLabels = salesClis.slice(0,8).map(function(c){ return c.client && c.client.length > 16 ? c.client.slice(0,14)+'…' : (c.client||'—'); });
+      var donutValues = salesClis.slice(0,8).map(function(c){ return c.total||0; });
       palChart4 = new Chart(donutCtx, {type:'doughnut', data:{
         labels: donutLabels, datasets:[{ data: donutValues, backgroundColor: donutLabels.map(function(_,i){return cores[i%cores.length];}), borderWidth:2, borderColor:'#fff' }]
       }, options: { responsive:true, maintainAspectRatio:false,
@@ -18735,28 +18780,60 @@ async function loadPaladarClients(){
     var tblWrap = document.getElementById('pal-cli-table-wrap');
     if(!tblWrap) return;
     if(!clis.length){
-      tblWrap.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">Nenhum cliente com vendas no período.</div>';
+      tblWrap.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">Nenhum cliente com lançamentos ou Notas APP concluídas no período.</div>';
       return;
     }
     tblWrap.innerHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#4F46E5;color:#fff">'
       +'<th style="padding:8px 10px;text-align:left">Cliente</th><th style="padding:8px 10px;text-align:right">Vendas</th>'
-      +'<th style="padding:8px 10px;text-align:right">Quantidade</th><th style="padding:8px 10px;text-align:right">Total</th>'
-      +'<th style="padding:8px 10px;text-align:right">Média/Venda</th><th style="padding:8px 10px;text-align:right">Última Compra</th></tr></thead><tbody>'
+      +'<th style="padding:8px 10px;text-align:right">Total lançado</th><th style="padding:8px 10px;text-align:right">Notas APP</th>'
+      +'<th style="padding:8px 10px;text-align:right">Total Notas APP</th><th style="padding:8px 10px;text-align:left">Detalhes</th></tr></thead><tbody>'
       + clis.map(function(c, i){
-        var cname=(c.client||'—').replace(/'/g,"\'");
         return '<tr style="border-bottom:1px solid var(--border);background:'+(i%2===0?'var(--card)':'var(--g50)')+'">'
-          +'<td style="padding:8px 10px;font-weight:600;cursor:pointer;color:#4F46E5" onclick="showPaladarClientDetail(\''+cname+'\')"> '+(c.client||'—')+'</td>'
+          +'<td style="padding:8px 10px;font-weight:700">'+admEsc(c.client||'—')+'</td>'
           +'<td style="padding:8px 10px;text-align:right;font-family:monospace">'+(c.num_vendas||0)+'</td>'
-          +'<td style="padding:8px 10px;text-align:right;font-family:monospace">'+(c.qty_total||0).toLocaleString('pt-BR',{maximumFractionDigits:1})+'</td>'
           +'<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:700;color:#4F46E5">R$ '+(c.total||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>'
-          +'<td style="padding:8px 10px;text-align:right;font-family:monospace">R$ '+(c.media_venda||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>'
-          +'<td style="padding:8px 10px;text-align:right;font-size:11px">'+(c.ultima_compra||'—')+'</td>'
+          +'<td style="padding:8px 10px;text-align:right;font-family:monospace">'+(c.note_count||0)+'</td>'
+          +'<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:700;color:#047857">'+appNoteMoney(c.note_total||0)+(c.note_missing?'<div style="font:10px Arial;color:#9a3412">'+c.note_missing+' sem preço</div>':'')+'</td>'
+          +'<td style="padding:8px 10px;white-space:nowrap">'
+          +(c.num_vendas?'<button type="button" class="btn btn-secondary btn-sm" data-pal-client-sale="'+admEsc(c.client)+'">Vendas</button> ':'')
+          +(c.note_count?'<button type="button" class="btn btn-secondary btn-sm" data-pal-client-note="'+admEsc(c.note_client||c.client)+'" data-note-first="'+admEsc(c.first_note_date)+'" data-note-last="'+admEsc(c.last_note_date)+'">Notas APP</button>':'')+'</td>'
           +'</tr>';
       }).join('')
       +'</tbody></table></div>';
+    tblWrap.querySelectorAll('[data-pal-client-sale]').forEach(function(btn){btn.addEventListener('click',function(){showPaladarClientDetail(btn.dataset.palClientSale);});});
+    tblWrap.querySelectorAll('[data-pal-client-note]').forEach(function(btn){btn.addEventListener('click',function(){openPalClientNoteReport(btn.dataset.palClientNote,btn.dataset.noteFirst,btn.dataset.noteLast);});});
   }catch(e){
     toast('Erro ao carregar clientes Monteiro: '+e.message, 'error');
   }
+}
+async function openPalClientNoteReport(client,firstNote,lastNote){
+  await loadAppNoteReportClients();
+  var prefix='pal-cli-note-report',select=document.getElementById(prefix+'-client');
+  var option=Array.from(select.options).find(function(o){return palClientIdentity(o.value)===palClientIdentity(client);});
+  select.value=option?option.value:client;
+  var year=getPalFilterYear(),month=getPalFilterMonth(),period=getPalPeriod();
+  if(period==='quinzenal'){
+    var today=new Date(),first=new Date(today.getFullYear(),today.getMonth(),today.getDate()-14);
+    var iso=function(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+    document.getElementById(prefix+'-mode').value='custom';
+    document.getElementById(prefix+'-start').value=iso(first);
+    document.getElementById(prefix+'-end').value=iso(today);
+  }else if(year&&!month){
+    document.getElementById(prefix+'-mode').value='custom';
+    document.getElementById(prefix+'-start').value=year+'-01-01';
+    document.getElementById(prefix+'-end').value=year+'-12-31';
+  }else if(!year&&!month&&firstNote&&lastNote){
+    document.getElementById(prefix+'-mode').value='custom';
+    document.getElementById(prefix+'-start').value=firstNote;
+    document.getElementById(prefix+'-end').value=lastNote;
+  }else{
+    document.getElementById(prefix+'-mode').value='monthly';
+    if(year&&month)document.getElementById(prefix+'-month').value=year+'-'+month.padStart(2,'0');
+    else if(month&&lastNote)document.getElementById(prefix+'-month').value=lastNote.slice(0,4)+'-'+month.padStart(2,'0');
+  }
+  appNoteReportModeChanged(prefix);
+  await loadAppNoteReport(prefix);
+  document.getElementById('pal-cli-note-report-panel').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 function updatePaladarClientFilterOptions(clis, selected){
@@ -18780,6 +18857,7 @@ async function showPaladarClientDetail(client){
   var pLabel={quinzenal:'Últimos 15 dias',mensal:'Mês '+month+'/'+year,anual:'Ano '+year};
   document.getElementById('pal-det-period').textContent='('+(pLabel[period]||'Período selecionado')+')';
   document.getElementById('pal-cli-detail').style.display='block';
+  document.getElementById('pal-cli-detail').scrollIntoView({behavior:'smooth',block:'start'});
   try{
     var r=await api('/api/monteiro/clients/report'+params);
     var sm=r||{};
@@ -20749,34 +20827,40 @@ setTimeout(installMobileReadOnlyGuards,0);
         </select>
         <button class="btn btn-secondary btn-sm" onclick="loadPaladarClients()" style="font-size:11px;padding:4px 10px"> Filtrar</button>
         <div style="flex:1"></div>
-        <button class="btn btn-sm" onclick="exportPaladarAllExcel()" style="font-size:11px;padding:4px 10px;background:#22c55e;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-family:inherit">📥 Excel todos</button>
-        <button class="btn btn-sm" onclick="exportPaladarAllPDF(this)" style="font-size:11px;padding:4px 10px;background:#EF4444;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-family:inherit">📄 PDF todos</button>
+        <button class="btn btn-sm" onclick="exportPaladarAllExcel()" style="font-size:11px;padding:4px 10px;background:#22c55e;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-family:inherit">📥 Excel lançamentos</button>
+        <button class="btn btn-sm" onclick="exportPaladarAllPDF(this)" style="font-size:11px;padding:4px 10px;background:#EF4444;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-family:inherit">📄 PDF lançamentos</button>
       </div>
-      <div id="pal-cli-summary" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+      <div id="pal-cli-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px">
         <div style="background:#4F46E5;color:#fff;border-radius:var(--radius);padding:12px">
-          <div style="font-size:10px;opacity:.7;text-transform:uppercase">💰 Total Vendido</div>
+          <div style="font-size:10px;opacity:.7;text-transform:uppercase">💰 Total lançado</div>
           <div style="font-size:18px;font-weight:700;font-family:monospace;margin-top:4px" id="pal-cli-total">—</div>
         </div>
         <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px">
           <div style="font-size:10px;color:var(--muted);text-transform:uppercase">👥 Clientes</div>
           <div style="font-size:18px;font-weight:700;font-family:monospace;color:var(--g800);margin-top:4px" id="pal-cli-count">—</div>
         </div>
+        <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:var(--radius);padding:12px">
+          <div style="font-size:10px;color:#047857;text-transform:uppercase">📱 Total Notas APP</div>
+          <div style="font-size:18px;font-weight:700;color:#047857;margin-top:4px" id="pal-cli-note-total">—</div>
+          <div style="font-size:10px;color:#047857;margin-top:3px" id="pal-cli-note-count">—</div>
+          <div style="font-size:10px;color:#9a3412;margin-top:3px" id="pal-cli-note-warning"></div>
+        </div>
         <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px">
-          <div style="font-size:10px;color:var(--muted);text-transform:uppercase">🎯 Ticket Médio</div>
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase">🎯 Ticket médio lançamentos</div>
           <div style="font-size:18px;font-weight:700;font-family:monospace;color:var(--g800);margin-top:4px" id="pal-cli-ticket">—</div>
         </div>
         <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px">
-          <div style="font-size:10px;color:var(--muted);text-transform:uppercase"> Cliente Líder</div>
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase">Cliente líder em lançamentos</div>
           <div style="font-size:13px;font-weight:700;color:var(--g800);margin-top:4px" id="pal-cli-lider">—</div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
         <div class="card" style="padding:14px">
-          <div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:8px">📊 Vendas por Cliente</div>
+          <div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:8px">📊 Lançamentos por Cliente</div>
           <div style="height:220px"><canvas id="chart-pal-cli-bar"></canvas></div>
         </div>
         <div class="card" style="padding:14px">
-          <div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:8px">🥧 Participação</div>
+          <div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:8px">🥧 Participação nos lançamentos</div>
           <div style="height:200px"><canvas id="chart-pal-cli-donut"></canvas></div>
         </div>
       </div>
@@ -20784,6 +20868,21 @@ setTimeout(installMobileReadOnlyGuards,0);
         <div style="font-size:12px;font-weight:700;color:var(--g800);margin-bottom:8px">📋 Demonstrativo por Cliente</div>
         <div id="pal-cli-table-wrap"><div class="loader"><div class="spin"></div></div></div>
       </div>
+
+      <section class="card" id="pal-cli-note-report-panel" style="padding:16px;margin-top:14px">
+        <div style="font-size:15px;font-weight:800;color:var(--g800);margin-bottom:4px">📱 Consumo em Notas APP</div>
+        <p class="app-note-report-help" style="margin:0 0 12px">Relatório de notas concluídas por cliente. Os valores de Notas APP e Lançamentos aparecem separados para evitar contagem dupla.</p>
+        <div class="app-note-report-filters">
+          <label>Cliente<select id="pal-cli-note-report-client" onchange="appNoteReportInvalidate('pal-cli-note-report')"><option value="">Selecione o cliente</option></select></label>
+          <label>Período<select id="pal-cli-note-report-mode" onchange="appNoteReportModeChanged('pal-cli-note-report')"><option value="monthly">Mensal</option><option value="custom">Personalizado</option></select></label>
+          <label id="pal-cli-note-report-monthly">Mês<input id="pal-cli-note-report-month" type="month" onchange="appNoteReportInvalidate('pal-cli-note-report')"></label>
+          <label id="pal-cli-note-report-custom" hidden>Data inicial<input id="pal-cli-note-report-start" type="date" onchange="appNoteReportInvalidate('pal-cli-note-report')"></label>
+          <label id="pal-cli-note-report-custom-end" hidden>Data final<input id="pal-cli-note-report-end" type="date" onchange="appNoteReportInvalidate('pal-cli-note-report')"></label>
+          <button class="btn btn-primary btn-sm" onclick="loadAppNoteReport('pal-cli-note-report')">Gerar relatório</button>
+          <button id="pal-cli-note-report-pdf" class="btn btn-secondary btn-sm" onclick="downloadAppNoteReportPdf('pal-cli-note-report')" disabled>Baixar PDF A4</button>
+        </div>
+        <div id="pal-cli-note-report-result"><div class="wa-empty" style="padding:28px">Selecione um cliente e um período para ver os produtos e valores.</div></div>
+      </section>
 
       <!-- Detalhe do cliente -->
       <div id="pal-cli-detail" style="display:none;margin-top:16px">

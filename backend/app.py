@@ -7987,11 +7987,12 @@ def _app_note_report_data(client: str, start: str, end: str):
         raise HTTPException(400, "Selecione um cliente válido.")
     conn = get_app_notes_db()
     try:
-        rows = conn.execute("""SELECT * FROM app_notes
-            WHERE status='completed' AND lower(trim(client))=lower(?)
+        candidate_rows = conn.execute("""SELECT * FROM app_notes
+            WHERE status='completed'
             AND (substr(note_date,7,4)||'-'||substr(note_date,4,2)||'-'||substr(note_date,1,2)) BETWEEN ? AND ?
             ORDER BY substr(note_date,7,4),substr(note_date,4,2),substr(note_date,1,2),created_at,id""",
-            (client, start, end)).fetchall()
+            (start, end)).fetchall()
+        rows = [row for row in candidate_rows if _normalize_client(row["client"]) == _normalize_client(client)]
         catalog_prices = _app_note_catalog_prices()
         notes = [_app_note_dict(conn, row, catalog_prices) for row in rows]
     finally:
@@ -8044,9 +8045,69 @@ def app_note_report_clients(x_token: str = Header("")):
     conn = get_app_notes_db()
     try:
         rows = conn.execute("""SELECT trim(client) AS client FROM app_notes
-            WHERE status='completed' AND trim(client)<>'' GROUP BY lower(trim(client))
-            ORDER BY lower(trim(client))""").fetchall()
-        return {"clients": [row["client"] for row in rows]}
+            WHERE status='completed' AND trim(client)<>'' ORDER BY lower(trim(client))""").fetchall()
+        names = {}
+        for row in rows:
+            names.setdefault(_normalize_client(row["client"]), row["client"])
+        return {"clients": list(names.values())}
+    finally:
+        conn.close()
+
+@app.get("/api/monteiro/clients/app-notes")
+def monteiro_clients_app_notes(period: str = "mensal", month: str = "", year: str = "",
+                               x_token: str = Header("")):
+    """Completed APP notes grouped by customer for Monteiro's customer view."""
+    require_auth(x_token)
+    if period not in ("mensal", "anual", "quinzenal"):
+        raise HTTPException(400, "Período inválido.")
+    if month and not re.fullmatch(r"0?[1-9]|1[0-2]", month):
+        raise HTTPException(400, "Mês inválido.")
+    if year and not re.fullmatch(r"\d{4}", year):
+        raise HTTPException(400, "Ano inválido.")
+    where = ["status='completed'", "trim(client)<>''"]
+    args = []
+    note_day = "(substr(note_date,7,4)||'-'||substr(note_date,4,2)||'-'||substr(note_date,1,2))"
+    if period == "quinzenal":
+        today = date.today()
+        where.append(f"{note_day} BETWEEN ? AND ?")
+        args.extend([(today-timedelta(days=14)).isoformat(), today.isoformat()])
+    else:
+        if month:
+            where.append("substr(note_date,4,2)=?")
+            args.append(month.zfill(2))
+        if year:
+            where.append("substr(note_date,7,4)=?")
+            args.append(year)
+    conn = get_app_notes_db()
+    try:
+        rows = conn.execute("SELECT * FROM app_notes WHERE " + " AND ".join(where)
+                            + " ORDER BY client,note_date,id", args).fetchall()
+        prices = _app_note_catalog_prices()
+        grouped = {}
+        for row in rows:
+            note = app_note_dict_from_row(conn, row, prices, _normalize_name)
+            name = str(note["client"] or "").strip()
+            key = _normalize_client(name)
+            if not key:
+                continue
+            item = grouped.setdefault(key, {"client": name, "note_count": 0,
+                                            "note_total": Decimal("0"), "first_note_date": "", "last_note_date": "",
+                                            "missing_price_count": 0})
+            item["note_count"] += 1
+            for line in note["items"]:
+                if line["effective_price_provided"]:
+                    item["note_total"] += (Decimal(str(line.get("weight") or 0))
+                        * Decimal(str(line["effective_unit_price"]))).quantize(
+                            Decimal("0.01"), rounding=ROUND_HALF_UP)
+            iso_day = str(note["note_date"])[6:10] + "-" + str(note["note_date"])[3:5] + "-" + str(note["note_date"])[:2]
+            item["first_note_date"] = min(item["first_note_date"] or iso_day, iso_day)
+            item["last_note_date"] = max(item["last_note_date"], iso_day)
+            item["missing_price_count"] += sum(not i["effective_price_provided"] for i in note["items"])
+        clients = [{**item, "note_total": float(item["note_total"])} for item in grouped.values()]
+        clients.sort(key=lambda item: item["client"].casefold())
+        return {"clients": clients, "client_count": len(clients),
+                "note_count": sum(item["note_count"] for item in clients),
+                "note_total": float(sum((Decimal(str(item["note_total"])) for item in clients), Decimal("0")))}
     finally:
         conn.close()
 

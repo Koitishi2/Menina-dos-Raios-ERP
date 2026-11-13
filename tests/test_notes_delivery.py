@@ -2006,6 +2006,35 @@ def test_app_note_report_month_custom_prices_and_a4_pdf(isolated_app, tmp_path, 
     assert "ABACAXI" in fallback_html[0] and "R$ 89,00" in fallback_html[0]
 
 
+def test_monteiro_client_app_note_summary_groups_completed_names_by_period(isolated_app):
+    client = isolated_app.client
+    token = _login(client)
+    headers = _headers(token)
+    _replace_paladar_products(isolated_app.db_paths["raios"], [("ABACAXI", 10, 1)])
+    first = _create_app_note_mobile(client, isolated_app, client="Paladar Base", date="02/11/2026",
+        items=[{"product": "ABACAXI", "quantity": 2, "weight": 2, "unit": "UN", "unit_price": 5}])
+    second = _create_app_note_mobile(client, isolated_app, client="PALADAR  BASE", date="03/11/2026",
+        items=[{"product": "ABACAXI", "quantity": 3, "weight": 3, "unit": "UN", "unit_price": 5}])
+    older = _create_app_note_mobile(client, isolated_app, client="Paladar Base", date="30/10/2026")
+    _create_app_note_mobile(client, isolated_app, client="Outra Loja", date="04/11/2026")
+    for note in (first, second, older):
+        assert client.put(f"/api/app-notes/{note['id']}/status", headers=headers,
+                          json={"status": "completed"}).status_code == 200
+    route = "/api/monteiro/clients/app-notes?period=mensal&month=11&year=2026"
+    assert client.get(route).status_code == 401
+    response = client.get(route, headers=headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert (data["client_count"], data["note_count"], data["note_total"]) == (1, 2, 50.0)
+    assert data["clients"][0]["first_note_date"] == "2026-11-02"
+    assert data["clients"][0]["last_note_date"] == "2026-11-03"
+    assert data["clients"][0]["missing_price_count"] == 0
+    report = client.get("/api/app-notes/report?client=PALADAR%20BASE&month=2026-11", headers=headers)
+    assert report.status_code == 200
+    assert (report.json()["note_count"], report.json()["total"]) == (2, 50.0)
+    assert client.get("/api/monteiro/clients/app-notes?month=13&year=2026", headers=headers).status_code == 400
+
+
 def test_app_note_report_blocks_incomplete_pdf_and_paginates(isolated_app, tmp_path):
     import pdfplumber
 
